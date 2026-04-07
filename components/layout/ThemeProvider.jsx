@@ -2,10 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 
-const ThemeContext = createContext({
-  theme: 'dark',
-  toggleTheme: () => {},
-});
+const ThemeContext = createContext(undefined);
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState('dark');
@@ -38,20 +35,16 @@ export function ThemeProvider({ children }) {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  if (!mounted) {
-    return <div className="hidden">{children}</div>;
-  }
-
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {children}
+      {!mounted ? <div className="hidden">{children}</div> : children}
     </ThemeContext.Provider>
   );
 }
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;

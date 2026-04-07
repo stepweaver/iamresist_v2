@@ -1,0 +1,9 @@
+{
+  "name": "I AM [RESIST]",
+  "short_name": "IAM RESIST",
+  "description": "A call to awareness. A chronicle of resistance.",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#0a0a0a",
+  "theme_color": "#d32f2f"
+}

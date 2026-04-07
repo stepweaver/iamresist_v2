@@ -86,6 +86,10 @@
   --color-muted-ink: var(--muted-ink);
   --color-stamp: var(--stamp);
   --color-olive: var(--olive);
+  /* HUD utilities used in JSX (HudOverlay, chrome, loading) */
+  --color-hud-red: var(--hud-red);
+  --color-hud-dim: var(--hud-text-dim);
+  --color-hud-red-dim: var(--hud-red-dim);
 }
 
 /* Briefing packet - subtle paper texture */
@@ -189,14 +193,6 @@
     rgba(183, 28, 28, 0.06),
     rgba(183, 28, 28, 0)
   );
-}
-
-/* HUD readout text - theme-aware (white in dark, dark in light) */
-.text-hud {
-  color: var(--hud-text);
-}
-.text-hud-dim {
-  color: var(--hud-text-dim);
 }
 
 /* Hero page background grid - theme-aware */

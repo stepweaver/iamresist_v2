@@ -12,7 +12,7 @@ export const metadata = {
   manifest: "/manifest.json",
 };
 
-export default async function RootLayout({ children }) {
+export default function RootLayout({ children }) {
   const fontClasses = [
     orbitron.variable,
     rajdhani.variable,

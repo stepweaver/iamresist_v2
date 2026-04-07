@@ -64,7 +64,7 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 8. Journal System
 - **What it does**: Blog-style journal entries sourced from Notion, with individual slug pages, body rendering (Notion blocks), metadata banners
 - **Source**: `app/journal/page.jsx`, `app/journal/[slug]/page.jsx`, `lib/journal.js`, `components/JournalEntryBody.jsx`, `components/NotionBlocksBody.jsx`
-- **Rebuild decision**: **Adapted** — Notion integration in Batch 2, shell in Batch 1
+- **Rebuild decision**: **Adapted** — Notion integration and route shells in Batch 2 (Batch 1 is foundation only per build plan)
 - **Destination**: `app/(site)/journal/page.jsx`, `app/(site)/journal/[slug]/page.jsx`, `lib/data/journal.js`
 - **URL change**: No
 
