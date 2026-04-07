@@ -23,14 +23,20 @@ function isNavLinkActive(link, pathname) {
     (pathname === '/voices' ||
       pathname?.startsWith('/voices/') ||
       pathname === '/intel' ||
-      pathname?.startsWith('/intel/'));
+      pathname?.startsWith('/intel/') ||
+      pathname?.startsWith('/music/') ||
+      pathname?.startsWith('/curated/'));
   const supplyHub =
     link.href === '/shop' && pathname?.startsWith('/shop');
+  const journalHub =
+    link.href === '/journal' &&
+    (pathname === '/journal' || pathname?.startsWith('/journal/') || pathname?.startsWith('/posts'));
   return (
     pathname === link.href ||
     (link.href !== '/' && pathname?.startsWith(link.href + '/')) ||
     intelHub ||
-    supplyHub
+    supplyHub ||
+    journalHub
   );
 }
 
