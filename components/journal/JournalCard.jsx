@@ -1,6 +1,20 @@
 import Link from 'next/link';
 import { formatDate, formatJournalMetaDate } from '@/lib/utils/date';
 
+function calendarYmd(value) {
+  if (value == null || value === '') return '';
+  const s = String(value).trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : '';
+}
+
+function primaryYmd(entry) {
+  const fromProp = calendarYmd(entry.date);
+  if (fromProp) return fromProp;
+  if (entry.createdTime) return String(entry.createdTime).slice(0, 10);
+  return '';
+}
+
 export default function JournalCard({ entry }) {
   const slug = entry.slug || entry.id;
   const title = entry.title || 'Untitled Entry';
@@ -9,6 +23,15 @@ export default function JournalCard({ entry }) {
     ? /^\d{4}-\d{2}-\d{2}/.test(String(dateRaw))
       ? formatJournalMetaDate(dateRaw)
       : formatDate(dateRaw)
+    : null;
+  const primaryKey = primaryYmd(entry);
+  const editedKey = entry.lastEditedTime
+    ? String(entry.lastEditedTime).slice(0, 10)
+    : '';
+  const showUpdated =
+    Boolean(primaryKey && editedKey && editedKey > primaryKey && entry.lastEditedTime);
+  const updatedLabel = showUpdated
+    ? formatJournalMetaDate(entry.lastEditedTime)
     : null;
   const excerpt = entry.excerpt;
   const author = entry.author;
@@ -44,10 +67,22 @@ export default function JournalCard({ entry }) {
               <span className="text-hud-dim">|</span>
               <time
                 className="font-mono text-[10px] text-hud-dim tracking-wider"
-                dateTime={entry.date || undefined}
+                dateTime={primaryKey || undefined}
               >
                 {displayDate}
               </time>
+              {showUpdated && updatedLabel && (
+                <>
+                  <span className="text-hud-dim">|</span>
+                  <time
+                    className="font-mono text-[10px] text-primary/90 tracking-wider uppercase"
+                    dateTime={editedKey}
+                    title="Last edited in Notion"
+                  >
+                    Updated: {updatedLabel}
+                  </time>
+                </>
+              )}
             </>
           )}
         </div>
