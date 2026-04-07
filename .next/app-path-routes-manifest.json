@@ -1,4 +1,9 @@
 {
   "/_not-found/page": "/_not-found",
-  "/page": "/"
+  "/page": "/",
+  "/(site)/journal/page": "/journal",
+  "/(site)/timeline/page": "/timeline",
+  "/(site)/legal/page": "/legal",
+  "/(site)/about/page": "/about",
+  "/(site)/voices/page": "/voices"
 }

@@ -77,11 +77,72 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 
 ---
 
-## Batch 2 — Content Routes
+## Batch 2A — Content Route Shells
 
-**Scope**: All content pages, Notion integration, feed system, SEO
+**Scope**: Route shells and page architecture for content pages, shared primitives, metadata, loading/empty states.
 
-**Goal**: Populate the site with real content — journal, voices, timeline, about, legal, curated resources.
+**Goal**: Establish the route structure and page templates for content pages without full data integration. Create honest placeholders that clearly signal forthcoming content.
+
+### Deliverables
+
+#### Route Structure
+- [ ] `app/(site)/layout.jsx` — Shared layout for content pages (optional, may use root layout)
+- [ ] `app/(site)/about/page.jsx` — Mission/About page with real mission content
+- [ ] `app/(site)/voices/page.jsx` — Voices/intel feed with placeholder UI
+- [ ] `app/(site)/journal/page.jsx` — Journal listing with placeholder UI
+- [ ] `app/(site)/timeline/page.jsx` — Timeline page with placeholder UI
+- [ ] `app/(site)/legal/page.jsx` — Legal/disclaimer page with real legal content
+
+#### Shared Content Primitives
+- [ ] `components/content/SectionHeader.jsx` — Styled section titles with HUD aesthetic
+- [ ] `components/content/EmptyState.jsx` — Empty state placeholder component
+- [ ] `components/content/LoadingState.jsx` — Content loading skeleton (reusable)
+- [ ] `components/content/PageContainer.jsx` — Standard page container with consistent padding/width
+
+#### Metadata
+- [ ] Per-page `export const metadata` in each content page
+- [ ] Basic SEO titles and descriptions
+
+### What This Covers
+- All five routes are accessible and render
+- Consistent page layout and design language
+- Loading states for async content
+- Empty states for no-data scenarios
+- Proper metadata for SEO
+- Placeholder UI that clearly indicates content integration pending
+
+### What This Does NOT Cover (Deferred to Batch 2B)
+- **Notion CMS integration** — no actual data fetching from Notion
+- **RSS/newswire plumbing** — no feed aggregation
+- **Discord invite widget** — community integration
+- **Analytics integration** — Vercel Analytics
+- **Share functionality** — share buttons and modal
+- **Media components** — inline player modal, audio/video players
+- **Advanced content** — book-club, music, curated, posts sections
+- **Dynamic routing** — journal/[slug] individual pages
+- **Skeleton variants** — specialized loading UI per content type
+- **SEO enhancements** — Open Graph, Twitter cards, sitemap
+
+### Dependencies
+- Requires Batch 1 foundation (complete)
+
+### Success Criteria
+- All 5 routes build and render without errors
+- `npm run build` succeeds
+- `npm run lint` passes
+- Pages have consistent layout and styling
+- Loading states display appropriately
+- Empty states show where content would appear
+- Metadata exports are present and valid
+- Placeholder messaging is clear and honest
+
+---
+
+## Batch 2B — Content Data Integration (Deferred)
+
+**Scope**: Full Notion integration, RSS feeds, and content components.
+
+**Goal**: Populate the content pages with real data.
 
 ### Deliverables
 
@@ -91,50 +152,38 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 - [ ] `lib/data/voices.js` — Voices/intel data fetching
 - [ ] `lib/data/timeline.js` — Timeline data fetching
 
-#### Content Pages
-- [ ] `app/(site)/about/page.jsx` — Mission/About page
-- [ ] `app/(site)/journal/page.jsx` — Journal listing
-- [ ] `app/(site)/journal/[slug]/page.jsx` — Individual journal entry
-- [ ] `app/(site)/voices/page.jsx` — Voices/intel feed
-- [ ] `app/(site)/timeline/page.jsx` — Timeline page
-- [ ] `app/(site)/legal/page.jsx` — Legal/disclaimer page
-- [ ] `app/(site)/curated/page.jsx` — Curated resources
-
 #### Content Components
 - [ ] `components/content/NotionBlocksBody.jsx` — Notion block renderer
 - [ ] `components/content/MetaBlock.jsx` — Metadata display
 - [ ] `components/content/JournalEntryBody.jsx` — Journal entry renderer
-- [ ] `components/content/Timeline.jsx` — Timeline component
+- [ ] `components/content/Timeline.jsx` — Interactive timeline component
 - [ ] `components/newswire/` — Newswire feed components
 
 #### RSS / Feed System
 - [ ] `lib/data/feeds.js` — RSS feed fetching and parsing
 - [ ] Newswire headline cards and sections
 
-#### SEO / Metadata
-- [ ] `lib/config/metadata.js` — Dynamic metadata generation
-- [ ] Per-page metadata for all content routes
-- [ ] Open Graph and Twitter card support
-
 #### Infrastructure
 - [ ] Vercel Analytics integration
-- [ ] Skeleton loading states for all content sections
 - [ ] Share buttons and modal
 - [ ] Discord invite widget
+- [ ] Skeleton variants per content type
+- [ ] Advanced SEO (Open Graph, Twitter cards)
+- [ ] `app/(site)/journal/[slug]/page.jsx` — Individual journal entry pages
 
 ### Dependencies
-- Requires Batch 1 foundation
+- Requires Batch 2A route shells
 - Requires Notion API credentials
 - Requires RSS feed URLs
 
 ### Success Criteria
-- All content pages render with real data from Notion
-- Journal entries display with proper formatting
-- Voices feed shows cards with audio player
+- Journal entries display with proper Notion formatting
+- Voices feed shows cards with metadata
 - Timeline renders interactive events
-- RSS feeds display in newswire section
-- SEO metadata is correct for every page
-- Loading skeletons show during data fetch
+- RSS feeds aggregate in newswire section
+- All content pages have complete SEO metadata
+- Share functionality works
+- Analytics are tracking
 
 ---
 
