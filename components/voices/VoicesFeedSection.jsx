@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import VoiceCard from './VoiceCard';
+import VoicesGridWithPlayerClient from '@/components/voices/VoicesGridWithPlayerClient';
 import { getHomepageVoicesFeed } from '@/lib/voices';
 
 export default async function VoicesFeedSection({
@@ -28,11 +28,7 @@ export default async function VoicesFeedSection({
           </Link>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-        {items.map((item) => (
-          <VoiceCard key={item.id} item={item} />
-        ))}
-      </div>
+      <VoicesGridWithPlayerClient items={items} />
     </section>
   );
 }

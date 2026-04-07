@@ -2,7 +2,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { buildPageMetadata } from '@/lib/metadata';
-import { getBookBySlug } from '@/lib/bookclub/service';
+import { getBookBySlug, getNotesForBook } from '@/lib/bookclub/service';
+import { formatJournalMetaDate } from '@/lib/utils/date';
 
 export const revalidate = 300;
 
@@ -39,6 +40,7 @@ export default async function BookDetailPage({ params }) {
   const resolvedParams = await params;
   const bookSlug = resolvedParams['book-slug'];
   const book = await getBookBySlug(bookSlug);
+  const notes = await getNotesForBook(bookSlug);
 
   if (!book) notFound();
 
@@ -115,6 +117,62 @@ export default async function BookDetailPage({ params }) {
                     <p className="prose-copy text-foreground/60 italic">
                       No synopsis on file.
                     </p>
+                  )}
+                </div>
+
+                <div className="space-y-3 pt-3 border-t border-border">
+                  <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                    <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase block">
+                      Reading journal
+                    </span>
+                    <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase">
+                      [{notes.length} ENTRIES]
+                    </span>
+                  </div>
+
+                  {notes.length === 0 ? (
+                    <p className="prose-copy text-foreground/60">
+                      No journal entries are published for this book yet.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {notes.map((note) => {
+                        const dateLabel = note.createdTime
+                          ? formatJournalMetaDate(note.createdTime)
+                          : note.lastEditedTime
+                            ? formatJournalMetaDate(note.lastEditedTime)
+                            : '';
+                        return (
+                          <li key={note.id} className="border border-border/40 hover:border-border/70 transition-colors">
+                            <Link
+                              href={`/book-club/${book.slug}/entries/${note.slug}`}
+                              className="block p-4 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-2 focus:ring-offset-background"
+                            >
+                              <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+                                <span className="section-title text-base font-bold text-foreground">
+                                  {note.title || 'Untitled entry'}
+                                </span>
+                                {dateLabel ? (
+                                  <span className="font-mono text-[10px] text-hud-dim tracking-wider">
+                                    {dateLabel}
+                                  </span>
+                                ) : null}
+                              </div>
+                              {note.chapterPage ? (
+                                <p className="font-mono text-[10px] text-foreground/60 uppercase tracking-wider">
+                                  {note.chapterPage}
+                                </p>
+                              ) : null}
+                              {note.content ? (
+                                <p className="prose-copy text-foreground/70 mt-2 line-clamp-3">
+                                  {note.content}
+                                </p>
+                              ) : null}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
                 </div>
               </div>

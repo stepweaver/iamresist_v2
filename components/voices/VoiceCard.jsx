@@ -7,12 +7,13 @@ import {
   getYoutubeVideoId,
   youtubeThumbnailCandidates,
 } from '@/lib/utils/youtube';
+import { Play } from 'lucide-react';
 
 /**
  * Video / intel card thumbnails — hardened like source VoiceFeedCard + NewswireImage:
  * YouTube URLs use CDN fallback chain; non-YouTube feeds use RSS image only.
  */
-export default function VoiceCard({ item }) {
+export default function VoiceCard({ item, onPlay, priority = false }) {
   const { title, url, publishedAt, description, voice, image, sourceId } = item;
   const thumbFromFeed = typeof image === 'string' && image.trim() ? image.trim() : null;
 
@@ -58,38 +59,85 @@ export default function VoiceCard({ item }) {
   const displayDate = publishedAt ? formatDate(publishedAt) : null;
 
   const showThumb = Boolean(thumbSrc);
+  const canPlayInline = typeof onPlay === 'function';
+
+  const onOpenPlayer = useCallback(() => {
+    if (!canPlayInline) return;
+    onPlay(item);
+  }, [canPlayInline, onPlay, item]);
 
   return (
     <article className="machine-panel border border-border relative overflow-hidden group">
       <div className="absolute inset-0 hud-grid opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
       {showThumb ? (
-        <Link
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="relative z-10 block w-full aspect-video bg-military-grey border-b border-border overflow-hidden"
-        >
-          {loadState === 'loading' && (
-            <div className="absolute inset-0 animate-pulse bg-muted z-[1]" aria-hidden />
-          )}
-          {/* eslint-disable-next-line @next/next/no-img-element -- remote CDN / RSS URLs */}
-          <img
-            key={thumbSrc}
-            src={thumbSrc}
-            alt=""
-            referrerPolicy="strict-origin-when-cross-origin"
-            className={`relative z-[2] h-full w-full object-cover object-center transition-all duration-300 group-hover:scale-[1.02] ${
-              loadState === 'loaded' ? 'opacity-100' : 'opacity-0'
-            }`}
-            loading="lazy"
-            decoding="async"
-            onLoad={onThumbLoad}
-            onError={onThumbError}
-          />
-          {isYouTube && (
-            <span className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/25 to-transparent" aria-hidden />
-          )}
-        </Link>
+        canPlayInline ? (
+          <button
+            type="button"
+            onClick={onOpenPlayer}
+            className="relative z-10 block w-full aspect-video bg-military-grey border-b border-border overflow-hidden text-left"
+            aria-label={`Open: ${title || 'item'}`}
+          >
+            {loadState === 'loading' && (
+              <div className="absolute inset-0 animate-pulse bg-muted z-[1]" aria-hidden />
+            )}
+            {/* eslint-disable-next-line @next/next/no-img-element -- remote CDN / RSS URLs */}
+            <img
+              key={thumbSrc}
+              src={thumbSrc}
+              alt=""
+              referrerPolicy="strict-origin-when-cross-origin"
+              className={`relative z-[2] h-full w-full object-cover object-center transition-all duration-300 group-hover:scale-[1.02] ${
+                loadState === 'loaded' ? 'opacity-100' : 'opacity-0'
+              }`}
+              loading={priority ? 'eager' : 'lazy'}
+              decoding="async"
+              onLoad={onThumbLoad}
+              onError={onThumbError}
+            />
+            <span
+              className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/35 to-transparent"
+              aria-hidden
+            />
+            {isYouTube ? (
+              <span
+                className="pointer-events-none absolute inset-0 z-[4] flex items-center justify-center"
+                aria-hidden
+              >
+                <span className="rounded-full bg-black/60 backdrop-blur-sm p-3 ring-2 ring-white/25 text-white/95">
+                  <Play className="h-6 w-6" />
+                </span>
+              </span>
+            ) : null}
+          </button>
+        ) : (
+          <Link
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative z-10 block w-full aspect-video bg-military-grey border-b border-border overflow-hidden"
+          >
+            {loadState === 'loading' && (
+              <div className="absolute inset-0 animate-pulse bg-muted z-[1]" aria-hidden />
+            )}
+            {/* eslint-disable-next-line @next/next/no-img-element -- remote CDN / RSS URLs */}
+            <img
+              key={thumbSrc}
+              src={thumbSrc}
+              alt=""
+              referrerPolicy="strict-origin-when-cross-origin"
+              className={`relative z-[2] h-full w-full object-cover object-center transition-all duration-300 group-hover:scale-[1.02] ${
+                loadState === 'loaded' ? 'opacity-100' : 'opacity-0'
+              }`}
+              loading={priority ? 'eager' : 'lazy'}
+              decoding="async"
+              onLoad={onThumbLoad}
+              onError={onThumbError}
+            />
+            {isYouTube && (
+              <span className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/25 to-transparent" aria-hidden />
+            )}
+          </Link>
+        )
       ) : null}
       <div className="relative z-10 p-6">
         <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -110,9 +158,15 @@ export default function VoiceCard({ item }) {
         </div>
 
         <h3 className="section-title text-xl lg:text-2xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
-          <Link href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-            {title || 'Untitled'}
-          </Link>
+          {canPlayInline ? (
+            <button type="button" onClick={onOpenPlayer} className="hover:underline text-left">
+              {title || 'Untitled'}
+            </button>
+          ) : (
+            <Link href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+              {title || 'Untitled'}
+            </Link>
+          )}
         </h3>
 
         {description && (
@@ -137,14 +191,24 @@ export default function VoiceCard({ item }) {
               <span className="text-hud-dim">{voiceName.toUpperCase()}</span>
             )}
           </span>
-          <Link
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
-          >
-            READ →
-          </Link>
+          {canPlayInline ? (
+            <button
+              type="button"
+              onClick={onOpenPlayer}
+              className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
+            >
+              PLAY →
+            </button>
+          ) : (
+            <Link
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
+            >
+              OPEN →
+            </Link>
+          )}
         </div>
       </div>
     </article>

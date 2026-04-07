@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import FilterDropdown from "@/components/FilterDropdown";
 import VoiceCard from "@/components/voices/VoiceCard";
+import InlinePlayerModal from "@/components/voices/InlinePlayerModalClean";
 import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
 
 const SOURCE_OPTIONS = [
@@ -33,6 +34,7 @@ export default function VoicesArchiveClient({
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [activeItem, setActiveItem] = useState(null);
   const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
@@ -55,6 +57,7 @@ export default function VoicesArchiveClient({
     setItems(initialItems);
     setHasMore(initialHasMore);
     setPage(1);
+    setActiveItem(null);
   }, [voiceParam, sourceParam, artistParam, initialItems, initialHasMore]);
 
   // Scroll detection to prevent immediate page-2 loads
@@ -282,10 +285,19 @@ export default function VoicesArchiveClient({
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {items.map((it, index) => (
               <li key={`${it.id ?? it.url}-${index}`}>
-                <VoiceCard item={it} />
+                <VoiceCard item={it} onPlay={setActiveItem} priority={index < 6} />
               </li>
             ))}
           </ul>
+
+          {activeItem && (
+            <InlinePlayerModal
+              item={activeItem}
+              allItems={items}
+              onClose={() => setActiveItem(null)}
+              onSelectItem={setActiveItem}
+            />
+          )}
 
           {/* Sentinel for infinite scroll */}
           {hasMore && (
