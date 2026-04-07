@@ -1,9 +1,9 @@
 {
   "/_not-found/page": "/_not-found",
   "/page": "/",
-  "/(site)/timeline/page": "/timeline",
   "/(site)/journal/page": "/journal",
   "/(site)/voices/page": "/voices",
-  "/(site)/about/page": "/about",
-  "/(site)/legal/page": "/legal"
+  "/(site)/timeline/page": "/timeline",
+  "/(site)/legal/page": "/legal",
+  "/(site)/about/page": "/about"
 }

@@ -26,7 +26,7 @@
         "x-next-revalidate-tag-token"
       ]
     },
-    "/about": {
+    "/timeline": {
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -39,56 +39,8 @@
         }
       ],
       "initialRevalidateSeconds": false,
-      "srcRoute": "/about",
-      "dataRoute": "/about.rsc",
-      "allowHeader": [
-        "host",
-        "x-matched-path",
-        "x-prerender-revalidate",
-        "x-prerender-revalidate-if-generated",
-        "x-next-revalidated-tags",
-        "x-next-revalidate-tag-token"
-      ]
-    },
-    "/legal": {
-      "experimentalBypassFor": [
-        {
-          "type": "header",
-          "key": "next-action"
-        },
-        {
-          "type": "header",
-          "key": "content-type",
-          "value": "multipart/form-data;.*"
-        }
-      ],
-      "initialRevalidateSeconds": false,
-      "srcRoute": "/legal",
-      "dataRoute": "/legal.rsc",
-      "allowHeader": [
-        "host",
-        "x-matched-path",
-        "x-prerender-revalidate",
-        "x-prerender-revalidate-if-generated",
-        "x-next-revalidated-tags",
-        "x-next-revalidate-tag-token"
-      ]
-    },
-    "/": {
-      "experimentalBypassFor": [
-        {
-          "type": "header",
-          "key": "next-action"
-        },
-        {
-          "type": "header",
-          "key": "content-type",
-          "value": "multipart/form-data;.*"
-        }
-      ],
-      "initialRevalidateSeconds": false,
-      "srcRoute": "/",
-      "dataRoute": "/index.rsc",
+      "srcRoute": "/timeline",
+      "dataRoute": "/timeline.rsc",
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -122,7 +74,7 @@
         "x-next-revalidate-tag-token"
       ]
     },
-    "/timeline": {
+    "/legal": {
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -135,8 +87,8 @@
         }
       ],
       "initialRevalidateSeconds": false,
-      "srcRoute": "/timeline",
-      "dataRoute": "/timeline.rsc",
+      "srcRoute": "/legal",
+      "dataRoute": "/legal.rsc",
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -169,13 +121,61 @@
         "x-next-revalidated-tags",
         "x-next-revalidate-tag-token"
       ]
+    },
+    "/": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/",
+      "dataRoute": "/index.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
+    "/about": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/about",
+      "dataRoute": "/about.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
     }
   },
   "dynamicRoutes": {},
   "notFoundRoutes": [],
   "preview": {
-    "previewModeId": "5e7334e545db39471063d6687cd34b29",
-    "previewModeSigningKey": "6a2025aa4f46358626ade10f7375e554eaf7e484ad44b96ae823fba0563bad02",
-    "previewModeEncryptionKey": "f381c8a73e1ab2635f2ef9b14d5534ce4aece9677c0b8935089ecd802a9c8fed"
+    "previewModeId": "2878074e414226db45715f1e193035e9",
+    "previewModeSigningKey": "c55e6f7449d212a995b8c2cad9e4bbaf8acdbdbeb7da0b6e70a9e37859183a84",
+    "previewModeEncryptionKey": "4395195b3ec18e4b9d0e0fb665478c861eefb8521296ab2af6325e02e99fff89"
   }
 }
