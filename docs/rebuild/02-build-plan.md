@@ -18,11 +18,11 @@ Use this table as **product/doc truth** for what exists vs deferred.
 | `/intel` | **Redirect → `/voices`** (`app/intel/page.jsx`, `permanentRedirect`) |
 | `/intel/newswire` | **Done** — `app/intel/newswire/page.jsx` (RSS + Notion curated + source directory) |
 | Home hero / mission | **Done** |
-| Home field channels | **Done** — `JournalSection`, `VoicesFeedSection`, `NewswireSection` (not source’s single mixed `HomeFeed`) |
+| Home field channels | **Done** — `JournalSection`, `FeaturedNewswireSection`, `VoicesFeedSection` (not source’s single mixed `HomeFeed`; no shop/book/music) |
 | Shop / commerce | **Deferred** — **`/shop` placeholder** only |
 | `/resources` | **Missing** |
 | Shared content primitives (`PageContainer`, `EmptyState`, etc.) | **Present** |
-| Fonts | **`next/font/google`** — build needs Google Fonts network access; explicit runtime `fallback` stacks in `app/fonts.js` |
+| Fonts | **`next/font/google`** — at build time Next downloads font files from Google (HTTPS egress). **Acceptable** for Vercel/normal CI with network. **Air-gapped/offline builds** will fail unless fonts are switched to `next/font/local` or another strategy. Runtime `fallback` stacks in `app/fonts.js` keep layout readable if a font file fails to load in the browser. |
 
 ---
 
@@ -174,8 +174,8 @@ Use this table as **product/doc truth** for what exists vs deferred.
 
 #### Home Aggregated Feed
 - [x] `components/home/JournalSection.jsx` — Latest journal entries
-- [x] `components/home/NewswireSection.jsx` — Snapshot of newswire
-- [x] `app/page.jsx` — Replaced placeholder with real sections
+- [x] `components/home/FeaturedNewswireSection.jsx` — Featured newswire snapshot (lead + secondaries; replaces the unused simple grid `NewswireSection` pattern)
+- [x] `app/page.jsx` — Hero + journal + featured newswire + voices; `revalidate = 120`
 
 #### Shared
 - [x] `lib/metadata.js` — Metadata helper for SEO titles/descriptions
@@ -183,7 +183,7 @@ Use this table as **product/doc truth** for what exists vs deferred.
 ### What This Covers
 - Live `/voices` page showing aggregated feed items
 - Live `/intel/newswire` page with headlines, source directory, and rationale
-- Home page now displays up-to-date sections: Journal, Voices, Newswire
+- Home page displays Journal, featured Newswire, and Voices sections (when data is available)
 - Content updates automatically via Notion + RSS integration
 - All pages maintain the rebuild’s military/HUD/document aesthetic
 
@@ -331,3 +331,6 @@ Use this table as **product/doc truth** for what exists vs deferred.
 *Created: 2026-04-06 · Last truth-sync: 2026-04-07*
 
 *Status: Content surfaces (journal, voices RSS, newswire, home sections, timeline, legal) are **live**; shop and source-only intel features **deferred**. The `.next/` directory is gitignored — do not commit build output.*
+
+### Build note (local / Windows)
+If `npm run build` fails with missing `chunks/ssr/[turbopack]_runtime.js` or other `.next` corruption after `next dev --turbopack`, delete the `.next` folder and run `npm run build` again so production output is generated cleanly.

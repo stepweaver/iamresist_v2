@@ -1,11 +1,10 @@
-import Link from 'next/link';
 import PageContainer from '@/components/content/PageContainer';
-import SectionHeader from '@/components/content/SectionHeader';
+import Divider from '@/components/ui/Divider';
 
 export const metadata = {
-  title: "Mission | I AM [RESIST]",
+  title: "About | I AM [RESIST]",
   description:
-    "Our mission: A call to awareness. A chronicle of resistance against authoritarianism and fascism in America.",
+    "A call to awareness. A chronicle of resistance. Independent, fact-based, and unapologetically antifascist.",
 };
 
 export default function AboutPage() {
@@ -20,173 +19,175 @@ export default function AboutPage() {
                 DOC ID: IAMR-MISSION-01
               </span>
               <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                OUR MISSION
+                MANIFESTO
               </h1>
+              <p className="mission-copy text-sm sm:text-base lg:text-lg text-foreground/70 mt-4 max-w-3xl leading-relaxed">
+                A call to awareness. A chronicle of resistance.
+              </p>
             </div>
           </div>
         </div>
       </div>
 
       <PageContainer>
-        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8 lg:gap-12">
-          <aside className="space-y-6">
-            <div className="machine-panel p-4">
-              <div className="font-mono text-[10px] text-hud-dim mb-2">
-                // CLASSIFICATION: PUBLIC
+        <article className="max-w-4xl mx-auto space-y-8 sm:space-y-12">
+          <div className="border-l-2 border-primary pl-4 sm:pl-8">
+            <p className="prose-copy text-base sm:text-lg leading-relaxed text-foreground/90">
+              <a
+                href="https://iamresist.org"
+                className="text-primary hover:text-primary-light transition-colors font-semibold underline decoration-primary/30 hover:decoration-primary font-mono"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                iamresist.org
+              </a>{' '}
+              is a personal project - not an organization, not a collective, not a party.
+              It&apos;s a journal and an archive: a timeline of events, observations, and voices
+              that document the authoritarian drift in America - a chronicle of the erosion
+              of democracy, and a celebration of the journalists, artists, and citizens who
+              resist authoritarianism.
+            </p>
+          </div>
+
+          <Divider className="my-2" />
+
+          <div>
+            <p className="prose-copy text-base sm:text-lg leading-relaxed text-foreground/90 mb-6 sm:mb-8">
+              This is not a call to arms - it&apos;s a call to awareness. The goal of this site
+              is to educate, reflect, and resist the normalization of fascist ideas in America
+              through art, writing, and community. I&apos;m not here to recruit or represent anyone
+              but myself and I&apos;m not an expert. I&apos;m simply here to bear witness, to amplify
+              fact-based reporting and antifascist creators, and to leave behind a record that
+              calls things by their true name.
+            </p>
+
+            <div className="machine-panel border border-primary/30 p-6 sm:p-8">
+              <div className="mb-4">
+                <p className="kicker text-xs font-bold tracking-[0.3em] text-primary mb-1">
+                  More About Me
+                </p>
+                <p className="prose-copy text-sm text-foreground/70">
+                  I&apos;m a veteran who believes service doesn&apos;t end with a uniform. The oath to
+                  defend the Constitution extends beyond the military-it&apos;s a lifelong commitment to truth,
+                  democratic values, and the people who hold them together.
+                </p>
               </div>
-              <h3 className="font-display text-lg font-bold text-primary mb-3">
-                PURPOSE
-              </h3>
-              <p className="prose-copy text-sm text-foreground/80 leading-relaxed">
-                I AM [RESIST] exists to document, amplify, and organize resistance
-                against the erosion of democratic norms and the rise of
-                authoritarianism in the United States.
+              <p className="prose-copy text-base sm:text-lg leading-relaxed text-foreground/90">
+                I&apos;m a <span className="text-primary font-bold">Yankee Samurai</span> - trained
+                to listen between the lines, to understand before speaking, and to see through
+                the fog of propaganda. My allegiance is to truth, not ideology; to liberty, not
+                conformity. I stand against disinformation, manipulation, and the silence that
+                enables them.
               </p>
             </div>
+          </div>
 
-            <div className="machine-panel p-4">
-              <div className="font-mono text-[10px] text-hud-dim mb-2">
-                // FOCUS AREAS
+          <Divider className="my-2" />
+
+          <div className="border-l-2 border-foreground/30 pl-4 sm:pl-8">
+            <p className="prose-copy text-base sm:text-lg leading-relaxed text-foreground/90">
+              This site is independent, self-funded, and unapologetically antifascist. It doubles
+              as my own antifascist intel - a place to share videos, media, readings and ideas that
+              strengthen our collective understanding of resistance.
+            </p>
+          </div>
+
+          <Divider className="my-2" />
+
+          <div className="space-y-4 sm:space-y-6">
+            {[
+              'I believe in democracy.',
+              'I believe in truth.',
+              'I believe silence in the face of fascism is surrender.',
+            ].map((belief, index) => (
+              <div
+                key={index}
+                className="machine-panel border-l-4 border-primary p-4 sm:p-6"
+              >
+                <p className="prose-copy text-lg sm:text-xl font-semibold text-foreground">
+                  {belief}
+                </p>
               </div>
-              <ul className="space-y-2">
-                {[
-                  'Constitutional Rights',
-                  'Authoritarian Drift',
-                  'Mass Surveillance',
-                  'Wealth Inequality',
-                  'Media Manipulation',
-                  'ICE & Deportation',
-                  'Police Accountability',
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <span className="text-primary mt-1">▸</span>
-                    <span className="prose-copy text-sm text-foreground/80">
-                      {item}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+            ))}
+          </div>
+
+          <Divider className="my-2" />
+
+          <div id="manifesto" className="scroll-mt-20">
+            <div className="mb-6">
+              <h2 className="font-ui text-xl sm:text-2xl md:text-3xl font-bold tracking-wider text-primary mb-4">
+                Meaning of the <span className="font-mono whitespace-nowrap">[RESIST]</span> Flag
+              </h2>
+              <p className="kicker text-xs font-bold tracking-[0.3em] text-primary mb-4">
+                Vexillological Notes
+              </p>
+              <Divider className="mb-6" />
             </div>
-          </aside>
 
-          <article className="space-y-8">
-            <section>
-              <SectionHeader title="What We Do" />
-              <div className="space-y-4 prose-copy text-foreground/80">
-                <p>
-                  We are a collective of journalists, activists, technologists,
-                  and ordinary citizens who believe in the power of informed
-                  dissent. Our work spans multiple domains:
-                </p>
-                <ul className="space-y-3 ml-4 list-disc">
-                  <li>
-                    <strong>Journalism:</strong> Original reporting and analysis
-                    on authoritarian trends, civil liberties violations, and
-                    resistance movements.
-                  </li>
-                  <li>
-                    <strong>Archiving:</strong> Permanent record of events,
-                    statements, and developments that mainstream media
-                    misrepresents or ignores.
-                  </li>
-                  <li>
-                    <strong>Community:</strong> Building networks of resistance
-                    through our Discord community and local chapter connections.
-                  </li>
-                  <li>
-                    <strong>Resources:</strong> Curated guides, toolkits, and
-                    educational materials for effective activism.
-                  </li>
-                  <li>
-                    <strong>Merchandise:</strong> High-quality goods that fund
-                    our operations and spread awareness.
-                  </li>
-                </ul>
-              </div>
-            </section>
-
-            <section>
-              <SectionHeader title="Our Principles" />
-              <div className="space-y-4 prose-copy text-foreground/80">
-                <p>We are guided by these core principles:</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[
-                    {
-                      title: 'Fact-Based',
-                      desc: 'We verify sources, cite evidence, and correct errors transparently.',
-                    },
-                    {
-                      title: 'Unapologetic',
-                      desc: 'We take a clear stance against fascism, racism, and authoritarianism.',
-                    },
-                    {
-                      title: 'Inclusive',
-                      desc: 'We welcome all who stand for justice, regardless of background.',
-                    },
-                    {
-                      title: 'Resilient',
-                      desc: 'We persist in the face of suppression, censorship, and attacks.',
-                    },
-                  ].map((principle) => (
-                    <div key={principle.title} className="machine-panel p-4">
-                      <h4 className="font-display text-sm font-bold text-primary mb-2">
-                        {principle.title.toUpperCase()}
-                      </h4>
-                      <p className="text-xs text-foreground/70">
-                        {principle.desc}
-                      </p>
-                    </div>
-                  ))}
+            <div className="prose-copy space-y-6 text-base sm:text-lg leading-relaxed text-foreground/90">
+              <p>
+                The <span className="font-semibold">black field</span> represents the unknown - the space where dialogue and discovery begin.
+              </p>
+              <p>
+                The <span className="font-semibold">white star</span> stands for truth and reason - the pursuit of understanding through open conversation.
+              </p>
+              <p className="border-l-2 border-primary pl-4 sm:pl-8">
+                The <span className="font-semibold">three arrows</span> represent active resistance:
+              </p>
+              <div className="pl-6 sm:pl-12 space-y-4">
+                <div className="flex gap-3">
+                  <span className="text-primary text-2xl font-bold flex-shrink-0">↙</span>
+                  <div>
+                    <p className="font-bold text-primary mb-2">Anti-fascism</p>
+                    <p className="text-foreground/80">Opposition to authoritarian control and the use of fear to dominate.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="text-primary text-2xl font-bold flex-shrink-0">↙</span>
+                  <div>
+                    <p className="font-bold text-primary mb-2">Anti-monarchism</p>
+                    <p className="text-foreground/80">Rejection of inherited or absolute power; belief in shared authority and accountability.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="text-primary text-2xl font-bold flex-shrink-0">↙</span>
+                  <div>
+                    <p className="font-bold text-primary mb-2">Anti-exclusion</p>
+                    <p className="text-foreground/80">Commitment to equality, inclusion, and the defense of every person&apos;s right to belong.</p>
+                  </div>
                 </div>
               </div>
-            </section>
-
-            <section>
-              <SectionHeader title="Get Involved" />
-              <div className="space-y-4 prose-copy text-foreground/80">
-                <p>
-                  Resistance requires collective action. Here's how you can join
-                  the movement:
+              <p className="pt-4">
+                The arrows point <span className="font-semibold">downward to ground truth</span> - to hold it firm against those who would raise themselves above others.
+              </p>
+              <div className="machine-panel border-2 border-primary/30 p-6 sm:p-8 mt-8">
+                <p className="text-base sm:text-lg leading-relaxed mb-4">
+                  This symbol is a statement against power without restraint, against silence enforced by fear, and against the rewriting of reality for control.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-                  {[
-                    {
-                      label: 'JOIN DISCORD',
-                      desc: 'Connect with our community',
-                      href: '/',
-                    },
-                    {
-                      label: 'SUBSCRIBE',
-                      desc: 'Get weekly intelligence',
-                      href: '/',
-                    },
-                    {
-                      label: 'DONATE',
-                      desc: 'Support independent media',
-                      href: '/shop',
-                    },
-                  ].map((action) => (
-                    <Link
-                      key={action.label}
-                      href={action.href}
-                      className="machine-panel p-4 text-center group hover:border-primary transition-colors"
-                    >
-                      <div className="font-mono text-[10px] text-hud-dim mb-2">
-                        ACTION REQUIRED
-                      </div>
-                      <div className="font-display text-lg font-bold text-foreground group-hover:text-primary mb-1">
-                        {action.label}
-                      </div>
-                      <div className="prose-copy text-xs text-foreground/60">
-                        {action.desc}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+                <p className="text-base sm:text-lg leading-relaxed font-semibold text-primary">
+                  It stands for the right to question, to speak, and to be heard.
+                </p>
               </div>
-            </section>
-          </article>
-        </div>
+            </div>
+          </div>
+
+          <Divider className="my-2" />
+
+          <div className="machine-panel border-2 border-primary p-6 sm:p-8 lg:p-12 text-center">
+            <p className="prose-copy text-lg sm:text-xl leading-relaxed text-foreground/80 mb-6 sm:mb-8">
+              For liberty, equality, truth, and the continual renewal of our shared humanity.
+            </p>
+            <p className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-wider text-primary">
+              I AM <span className="font-mono">[RESIST]</span>
+            </p>
+          </div>
+
+          <div className="pt-6 sm:pt-8 border-t border-border text-center">
+            <p className="system-label text-foreground/60 text-xs sm:text-sm">
+              This is a living document. The fight continues.
+            </p>
+          </div>
+        </article>
       </PageContainer>
     </main>
   );

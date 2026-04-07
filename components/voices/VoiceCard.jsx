@@ -1,36 +1,94 @@
-import Image from 'next/image';
-import Link from 'next/link';
-import { formatDate } from '@/lib/utils/date';
-import { youtubeThumbnailUrl } from '@/lib/utils/youtube';
+'use client';
 
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatDate } from '@/lib/utils/date';
+import {
+  getYoutubeVideoId,
+  youtubeThumbnailCandidates,
+} from '@/lib/utils/youtube';
+
+/**
+ * Video / intel card thumbnails — hardened like source VoiceFeedCard + NewswireImage:
+ * YouTube URLs use CDN fallback chain; non-YouTube feeds use RSS image only.
+ */
 export default function VoiceCard({ item }) {
   const { title, url, publishedAt, description, voice, image, sourceId } = item;
-  const thumbUrl = image || youtubeThumbnailUrl(url, sourceId);
+  const thumbFromFeed = typeof image === 'string' && image.trim() ? image.trim() : null;
+
+  const candidates = useMemo(() => {
+    const yt = youtubeThumbnailCandidates(url, sourceId);
+    if (yt.length) {
+      const feed = thumbFromFeed;
+      if (feed && !yt.includes(feed)) return [feed, ...yt];
+      return yt;
+    }
+    return thumbFromFeed ? [thumbFromFeed] : [];
+  }, [url, sourceId, thumbFromFeed]);
+
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [loadState, setLoadState] = useState('loading');
+
+  useEffect(() => {
+    setCandidateIndex(0);
+    setLoadState(candidates.length ? 'loading' : 'error');
+  }, [item?.id, candidates]);
+
+  const exhausted = candidates.length === 0 || candidateIndex >= candidates.length;
+  const thumbSrc = exhausted ? null : candidates[candidateIndex];
+
+  useEffect(() => {
+    if (thumbSrc) setLoadState('loading');
+  }, [thumbSrc]);
+
+  const onThumbError = useCallback(() => {
+    setCandidateIndex((i) => Math.min(i + 1, candidates.length));
+  }, [candidates.length]);
+
+  const onThumbLoad = useCallback(() => {
+    setLoadState('loaded');
+  }, []);
+
   const voiceName = voice?.title || 'Unknown Voice';
   const voiceHomeUrl =
     typeof voice?.homeUrl === 'string' && voice.homeUrl.trim() ? voice.homeUrl.trim() : null;
   const platform = voice?.platform || 'Feed';
+  const isYouTube = Boolean(getYoutubeVideoId(url, sourceId));
 
   const displayDate = publishedAt ? formatDate(publishedAt) : null;
+
+  const showThumb = Boolean(thumbSrc);
 
   return (
     <article className="machine-panel border border-border relative overflow-hidden group">
       <div className="absolute inset-0 hud-grid opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-      {thumbUrl ? (
+      {showThumb ? (
         <Link
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="relative z-10 block w-full aspect-video bg-military-grey border-b border-border"
+          className="relative z-10 block w-full aspect-video bg-military-grey border-b border-border overflow-hidden"
         >
-          <Image
-            src={thumbUrl}
+          {loadState === 'loading' && (
+            <div className="absolute inset-0 animate-pulse bg-muted z-[1]" aria-hidden />
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element -- remote CDN / RSS URLs */}
+          <img
+            key={thumbSrc}
+            src={thumbSrc}
             alt=""
-            fill
-            className="object-cover"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            unoptimized
+            referrerPolicy="strict-origin-when-cross-origin"
+            className={`relative z-[2] h-full w-full object-cover object-center transition-all duration-300 group-hover:scale-[1.02] ${
+              loadState === 'loaded' ? 'opacity-100' : 'opacity-0'
+            }`}
+            loading="lazy"
+            decoding="async"
+            onLoad={onThumbLoad}
+            onError={onThumbError}
           />
+          {isYouTube && (
+            <span className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/25 to-transparent" aria-hidden />
+          )}
         </Link>
       ) : null}
       <div className="relative z-10 p-6">

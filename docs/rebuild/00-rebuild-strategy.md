@@ -110,7 +110,7 @@ All existing public URLs are **preserved by default**. No URL changes without ex
 |------|----------|---------|
 | Layout | `components/layout/` | Navigation, Footer, DocumentChrome, ThemeProvider |
 | UI Atoms | `components/ui/` | Badge, Divider, Stamp, Button primitives |
-| Home Page | `components/home/` | Hero, RotatingWord, HUD; field sections (journal, voices, newswire) |
+| Home Page | `components/home/` | Hero, RotatingWord, HUD; field sections (`JournalSection`, `FeaturedNewswireSection`) plus `VoicesFeedSection` |
 | Content | `components/content/` | NotionBlocksBody, MetaBlock, JournalEntryBody |
 | Shop | `components/shop/` | Cart, ProductCard, Checkout |
 | Media | `components/media/` | NewswireImage, InlinePlayerModal, DiscordInvite |
@@ -301,6 +301,6 @@ See **`02-build-plan.md` → “Current rebuild truth”** for the checklist. Su
 
 | | |
 |--|--|
-| **Done** | Journal (Notion), voices RSS feed (`/voices`), newswire (`/intel/newswire`), home field sections, static timeline, legal, about, `/intel` → `/voices`, theme + chrome |
+| **Done** | Journal (Notion), voices RSS feed (`/voices`), newswire (`/intel/newswire`), home field channels (journal + featured newswire + voices), static timeline, legal, about, `/intel` → `/voices`, theme + chrome |
 | **Partial** | Intel vs source (no books/resources tabs, no inline audio player, no homepage shop/book-club/music cards); Batch-2B doc is partly superseded by 2C |
 | **Deferred** | Commerce (`/shop` placeholder only), `/resources`, curated/posts/music/terminal/Discord/share/analytics APIs |

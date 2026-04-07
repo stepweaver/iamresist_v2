@@ -2,12 +2,14 @@ import JournalCard from '@/components/journal/JournalCard';
 import { getRecentJournalEntries } from '@/lib/journal';
 import Link from 'next/link';
 
-export default async function JournalSection({ limit = 3 }) {
+export default async function JournalSection({ limit = 1 }) {
   const entries = await getRecentJournalEntries(limit);
 
   if (!entries.length) {
     return null;
   }
+
+  const single = limit === 1;
 
   return (
     <section className="mb-8 sm:mb-12">
@@ -22,7 +24,13 @@ export default async function JournalSection({ limit = 3 }) {
           View all →
         </Link>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+      <div
+        className={
+          single
+            ? 'max-w-3xl mx-auto grid grid-cols-1 gap-4 sm:gap-5'
+            : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5'
+        }
+      >
         {entries.map((entry) => (
           <JournalCard key={entry.id} entry={entry} />
         ))}

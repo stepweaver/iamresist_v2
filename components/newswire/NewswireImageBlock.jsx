@@ -28,6 +28,7 @@ export default function NewswireImageBlock({ href, src, alt = '', className = ''
           <img
             src={src}
             alt={alt}
+            referrerPolicy="strict-origin-when-cross-origin"
             className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
             loading="lazy"
             decoding="async"

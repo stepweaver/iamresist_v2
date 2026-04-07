@@ -9,10 +9,10 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ## Core Site Features
 
 ### 1. Home Page
-- **What it does**: Hero + mission; source `HomeFeed` also mixes shop teaser, book club, featured newswire, voices (with player), protest music — **rebuild** uses three honest server sections: Latest Journal, Latest Voices, Newswire snapshot
+- **What it does**: Hero + mission; source `HomeFeed` mixes shop teaser, book club, featured newswire, voices (with player), protest music — **rebuild** uses three server sections: Latest Journal, **featured** newswire (lead + two secondary headlines, same pattern as source `FeaturedNewswireSection`), Latest Voices (no shop/book/music/player until deferred batches)
 - **Source**: `app/page.jsx`, `components/HomeFeed.server.jsx`, `components/HudOverlay.jsx`, `components/RotatingWord.jsx`
-- **Rebuild decision**: **Simplified** — same hero identity; field channels are separate grids (no mixed “intel” pipeline, no shop/music/book cards until those batches)
-- **Destination**: `app/page.jsx` (root), `components/home/JournalSection.jsx`, `components/voices/VoicesFeedSection.jsx`, `components/home/NewswireSection.jsx`
+- **Rebuild decision**: **Simplified** — same hero identity; field channels are separate sections (no mixed `getHomepageIntelFeed` pipeline, no shop/music/book cards until those batches). Journal appears on the rebuild home even though source `HomeFeed` omits it, to surface Notion editorial alongside intel.
+- **Destination**: `app/page.jsx` (root), `components/home/JournalSection.jsx`, `components/home/FeaturedNewswireSection.jsx`, `components/voices/VoicesFeedSection.jsx`
 - **URL change**: No — `/` preserved
 
 ### 2. Navigation
@@ -85,7 +85,7 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 11. Legal Page
 - **What it does**: Legal disclaimers, content attribution, terms
 - **Source**: `app/legal/page.jsx`, `components/LegalSection.jsx`
-- **Rebuild decision**: **Redesigned** — defer to Batch 2, don't copy source content verbatim
+- **Rebuild decision**: **Adapted** — **live** in rebuild (`app/(site)/legal/page.jsx`); not a verbatim copy of source
 - **Destination**: `app/(site)/legal/page.jsx`
 - **URL change**: No
 
@@ -150,7 +150,7 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 - **What it does**: Aggregated headlines from RSS + optional Notion-curated items; source directory and full page
 - **Source**: `lib/feeds/newswire.service.js`, `FeaturedNewswireSection`, etc.
 - **Rebuild decision**: **Live (rebuild paths)** — `lib/newswire.js`, `lib/feeds/rss.js`, `lib/data/newswire-sources.js`, `components/newswire/*`, **`app/intel/newswire/page.jsx`**
-- **URL change**: No — **`/intel/newswire`**; home uses `NewswireSection` (snapshot only)
+- **URL change**: No — **`/intel/newswire`**; home uses `FeaturedNewswireSection` (diverse top stories, same conceptual role as source featured block)
 
 ### 20. Protest Music
 - **What it does**: Curated list of protest songs with embedded YouTube players
@@ -176,7 +176,7 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 23. Curated Resources
 - **What it does**: Curated list of external resources and links
 - **Source**: `app/curated/page.jsx`, `lib/curated.js`
-- **Rebuild decision**: **Adapted** — Batch 2
+- **Rebuild decision**: **Adapted** — deferred (Batch 3 / same tier as other missing legacy routes; not started in rebuild)
 - **Destination**: `app/(site)/curated/page.jsx`
 - **URL change**: No
 
@@ -195,7 +195,7 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 - **What it does**: Fetch pages, blocks, and properties from Notion database
 - **Source**: `lib/notion/`, `lib/notion-blocks.js`
 - **Rebuild decision**: **Adapted** — **Journal path live:** `lib/notion/*`, `lib/journal.js`, `lib/notion-blocks.js` (not the older `lib/data/notion.js` name)
-- **Destination**: As implemented in repo; extend here for voices when scoped
+- **Destination**: As implemented in repo — journal + voices **feed registry** (`lib/notion/voices.repo.js`, etc.)
 - **URL change**: N/A (server-only)
 
 ### 26. Supabase Database
@@ -208,7 +208,7 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 27. Vercel Analytics
 - **What it does**: Page view tracking and analytics
 - **Source**: Root layout integration
-- **Rebuild decision**: **Adapted** — Batch 2
+- **Rebuild decision**: **Adapted** — deferred (Batch 3; not integrated in rebuild root layout)
 - **Destination**: Root layout
 - **URL change**: No
 
@@ -223,7 +223,7 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 - **What it does**: Dynamic metadata generation, Open Graph, Twitter cards, sitemap
 - **Source**: `lib/metadata.js`, `lib/siteConfig.js`
 - **Rebuild decision**: **Adapted** — Batch 2
-- **Destination**: `lib/config/metadata.js`
+- **Destination**: `lib/metadata.js` (rebuild; not `lib/config/metadata.js`)
 - **URL change**: No
 
 ### 30. Image Protection
@@ -250,14 +250,14 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 33. Share Functionality
 - **What it does**: Share buttons and modal for content sharing
 - **Source**: `components/ShareButton.jsx`, `components/ShareModal.jsx`
-- **Rebuild decision**: **Adapted** — Batch 2
+- **Rebuild decision**: **Deferred** — Batch 3 / not in rebuild (aligned with `00-rebuild-strategy.md` deferred list)
 - **Destination**: `components/ui/ShareButton.jsx`
 - **URL change**: No
 
 ### 34. Discord Invite Widget
 - **What it does**: Embedded Discord community invite
 - **Source**: `components/DiscordInvite.jsx`
-- **Rebuild decision**: **Adapted** — Batch 2
+- **Rebuild decision**: **Deferred** — Batch 3 / not in rebuild (aligned with `00-rebuild-strategy.md` deferred list)
 - **Destination**: `components/community/DiscordInvite.jsx`
 - **URL change**: No
 
@@ -278,7 +278,7 @@ All other URLs preserved as-is.
 ### Truth note
 | Area | State |
 |------|--------|
-| Home | Hero + **three sections**: journal, voices, newswire (no shop/book-club/music teaser row) |
+| Home | Hero + **`JournalSection`**, **`FeaturedNewswireSection`**, **`VoicesFeedSection`** (`export const revalidate = 120`); no shop/book-club/music teaser row |
 | Journal | **Done** (Notion list + slug + blocks) |
 | Timeline | **Done** (static / Brennan attributed) |
 | Voices / Intel | **Partial** — RSS cards + IntelTabs; no player, books/resources, or archive filters |
