@@ -137,6 +137,35 @@ export default function NotionBlocksBody({ blocks }) {
             return <hr key={index} className="border-border my-8" />;
           }
 
+          if (block.type === 'callout' && block.callout?.rich_text?.length) {
+            return (
+              <div
+                key={index}
+                className="border border-border/80 bg-foreground/5 rounded px-4 py-3 my-4"
+              >
+                <RichText richText={block.callout.rich_text} />
+              </div>
+            );
+          }
+
+          if (block.type === 'image' && block.image) {
+            const src =
+              block.image.type === 'external'
+                ? block.image.external?.url
+                : block.image.file?.url;
+            if (!src) return null;
+            return (
+              // eslint-disable-next-line @next/next/no-img-element -- Notion-hosted URLs are dynamic
+              <img
+                key={index}
+                src={src}
+                alt=""
+                className="max-w-full rounded border border-border my-6"
+                loading="lazy"
+              />
+            );
+          }
+
           return null;
         })}
       </div>
