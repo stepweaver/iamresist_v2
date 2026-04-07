@@ -1,14 +1,18 @@
 import PageContainer from '@/components/content/PageContainer';
 import JournalCard from '@/components/journal/JournalCard';
-import { journalEntries } from '@/lib/data/journal';
+import { getInitialJournalEntries } from '@/lib/journal';
 
 export const metadata = {
   title: 'Journal | I AM [RESIST]',
   description:
-    'Chronicle of resistance: reporting, analysis, and first-person accounts from the front lines of democracy\'s defense.',
+    'Personal journal – thoughts, reflections, and observations sourced from the editorial Notion workspace.',
 };
 
-export default function JournalPage() {
+export const revalidate = 300;
+
+export default async function JournalPage() {
+  const entries = await getInitialJournalEntries(15);
+
   return (
     <main className="min-h-screen">
       <div className="machine-panel py-8 mb-8">
@@ -30,17 +34,37 @@ export default function JournalPage() {
       <PageContainer>
         <div className="mb-8">
           <p className="mission-copy text-lg text-foreground/80 max-w-3xl">
-            A chronicle of resistance. Original reporting, analysis, and
-            first-person narratives documenting America's authoritarian drift and
-            the people fighting back.
+            A space for thoughts, observations, and reflections. Entries below are
+            loaded from Notion when{' '}
+            <span className="font-mono text-sm text-primary/90">
+              NOTION_API_KEY
+            </span>{' '}
+            and{' '}
+            <span className="font-mono text-sm text-primary/90">
+              NOTION_JOURNAL_DB_ID
+            </span>{' '}
+            are configured; only pages with Status = Published are shown.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {journalEntries.map((entry) => (
-            <JournalCard key={entry.slug} entry={entry} />
-          ))}
-        </div>
+        {entries.length === 0 ? (
+          <div className="machine-panel border border-border p-8 text-center">
+            <p className="nav-label text-primary mb-4">[ NO ENTRIES ]</p>
+            <p className="prose-copy text-foreground/70 max-w-xl mx-auto">
+              Journal entries will appear here once Notion is configured and
+              entries are set to Published.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {entries.map((entry) => (
+              <JournalCard
+                key={entry.id}
+                entry={{ ...entry, slug: entry.slug || entry.id }}
+              />
+            ))}
+          </div>
+        )}
       </PageContainer>
     </main>
   );

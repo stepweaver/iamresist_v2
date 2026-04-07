@@ -1,18 +1,28 @@
+import Link from 'next/link';
 import { formatDate } from '@/lib/utils/date';
 import { getTimelineEvents } from '@/lib/data/timeline';
+
+function formatTimelineCardDate(dateStr) {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return formatDate(d.toISOString());
+}
 
 export default function TimelineSection() {
   const events = getTimelineEvents();
 
   return (
     <div className="relative">
-      {/* Vertical timeline line */}
       <div className="absolute left-4 top-0 bottom-0 w-px bg-border"></div>
 
       <div className="space-y-8">
         {events.map((event, index) => (
-          <div key={event.id} className="relative pl-12">
-            {/* Timeline dot */}
+          <div
+            key={`${event.date}-${event.title}-${index}`}
+            className="relative pl-12"
+          >
             <div className="absolute left-2 top-6 w-4 h-4 bg-primary border-2 border-background rounded-full"></div>
 
             <div className="machine-panel border border-border p-6 relative overflow-hidden">
@@ -24,7 +34,7 @@ export default function TimelineSection() {
                   </span>
                   <span className="text-hud-dim">|</span>
                   <time className="font-mono text-[10px] text-hud-dim tracking-wider">
-                    {formatDate(event.date)}
+                    {formatTimelineCardDate(event.date)}
                   </time>
                 </div>
 
@@ -32,13 +42,18 @@ export default function TimelineSection() {
                   {event.title}
                 </h3>
 
-                <p className="prose-copy text-foreground/80 mb-4">
-                  {event.summary}
-                </p>
+                <p className="prose-copy text-foreground/80 mb-4">{event.description}</p>
 
-                {event.source && (
+                {event.link && (
                   <div className="font-mono text-[10px] text-hud-dim tracking-wider border-t border-border pt-3">
-                    SOURCE: {event.source}
+                    <Link
+                      href={event.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline uppercase"
+                    >
+                      Read on brennancenter.org →
+                    </Link>
                   </div>
                 )}
               </div>
