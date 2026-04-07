@@ -1,14 +1,13 @@
 import Link from 'next/link';
 import VoiceCard from './VoiceCard';
-import { getVoicesFeed } from '@/lib/voices';
+import { getHomepageVoicesFeed } from '@/lib/voices';
 
 export default async function VoicesFeedSection({
   limit = 6,
   title = 'Latest Voices',
   showViewAll = true
 }) {
-  const feed = await getVoicesFeed();
-  const items = feed.slice(0, limit);
+  const items = await getHomepageVoicesFeed(limit);
 
   if (!items.length) {
     return null;

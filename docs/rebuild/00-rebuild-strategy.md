@@ -16,7 +16,7 @@ This document defines the architectural, structural, and design strategy for reb
 | Styling | Tailwind CSS v4 |
 | Language | JavaScript (JSX) — matching source |
 | Database | Supabase (future batches) |
-| CMS | Notion API — **journal live**; voices/book club later |
+| CMS | Notion API — **journal live**; **voices directory live** (feed URLs + metadata in Notion); book club later |
 | E-commerce | Stripe + Printify (future batches) |
 | Hosting | Vercel |
 | Analytics | Vercel Analytics |
@@ -28,6 +28,7 @@ iamresist-rebuild/
 ├── app/                    # Next.js App Router
 │   ├── page.jsx            # Home `/` (kept at app root, not under `(site)`)
 │   ├── intel/page.jsx      # 301 → /voices (URL preservation)
+│   ├── intel/newswire/page.jsx  # Full newswire surface `/intel/newswire`
 │   ├── (site)/             # Route group (URLs omit the group name)
 │   │   ├── layout.jsx      # Optional shared layout (rebuild: not used)
 │   │   ├── about/
@@ -75,8 +76,9 @@ All existing public URLs are **preserved by default**. No URL changes without ex
 |-------|--------|-------|
 | `/` | Preserved | Home page |
 | `/about` | Preserved | Mission/About page |
-| `/voices` | Preserved | Voices/Intel feed |
+| `/voices` | Preserved | Voices/Intel hub — RSS aggregated feed listing |
 | `/intel` | **Redirect → `/voices`** | Implemented: `app/intel/page.jsx` (`permanentRedirect`) |
+| `/intel/newswire` | Preserved | Newswire headlines + source directory (`app/intel/newswire/page.jsx`) |
 | `/journal` | Preserved | Journal entries |
 | `/journal/[slug]` | Preserved | Individual journal entries |
 | `/timeline` | Preserved | Resistance timeline |
@@ -108,11 +110,11 @@ All existing public URLs are **preserved by default**. No URL changes without ex
 |------|----------|---------|
 | Layout | `components/layout/` | Navigation, Footer, DocumentChrome, ThemeProvider |
 | UI Atoms | `components/ui/` | Badge, Divider, Stamp, Button primitives |
-| Home Page | `components/home/` | Hero, RotatingWord, HomeFeed, HUD overlays |
+| Home Page | `components/home/` | Hero, RotatingWord, HUD; field sections (journal, voices, newswire) |
 | Content | `components/content/` | NotionBlocksBody, MetaBlock, JournalEntryBody |
 | Shop | `components/shop/` | Cart, ProductCard, Checkout |
 | Media | `components/media/` | NewswireImage, InlinePlayerModal, DiscordInvite |
-| Navigation | `components/nav/` | NavDesktopLinks, NavMobileMenu, NavThemeToggle |
+| Navigation | `components/layout/Navigation.jsx` | Single component (source split into `components/nav/` atoms; rebuild inlines desktop + mobile) |
 
 ### Reimplementation Rules
 - **No copy-forward** — reimplement from understanding, not from source code
@@ -265,22 +267,22 @@ Server Page → Server Data Fetch → Client Component (interactive)
 
 ## 10. Build Batches
 
-### Batch 1 — Foundation (This Run)
+### Batch 1 — Foundation (**done**)
 - Project scaffold, package.json, Next.js 15, Tailwind v4
 - Root layout, globals.css, theme system
-- Home page shell with real composition
+- Home composition shell + field channels
 - Navigation, Footer, DocumentChrome components
 - Visual identity foundation
 
-### Batch 2 — Content Routes
+### Batch 2 — Content routes (**in progress** — journal, voices, newswire, timeline, legal live; see `02-build-plan.md`)
 - About/Mission page
 - Journal system with Notion integration
-- Voices/Intel feed
-- Timeline page
+- Voices/Intel RSS feed + newswire surface
+- Timeline page (static / source-grounded)
 - Legal page
 - Loading states, not-found handling per section
 
-### Batch 3 — Commerce & Advanced
+### Batch 3 — Commerce & Advanced (**deferred**)
 - Shop product listing and detail
 - Cart and checkout flow
 - Stripe integration
@@ -292,8 +294,13 @@ Server Page → Server Data Fetch → Client Component (interactive)
 
 ---
 
-*Created: 2026-04-06*
-*Status: Phase 2 — Content (partial); see `02-build-plan.md` for truth-sync snapshot.*
+*Created: 2026-04-06 · Last truth-sync: 2026-04-07*
 
 ### As-built snapshot
-See **`02-build-plan.md` → “Current rebuild truth”** for the live checklist. In short: journal + timeline are real; voices and `/shop` are honest placeholders; home has no mixed feed; `/intel` redirects to `/voices`; `/resources`, newswire, and most commerce URLs are still absent.
+See **`02-build-plan.md` → “Current rebuild truth”** for the checklist. Summary:
+
+| | |
+|--|--|
+| **Done** | Journal (Notion), voices RSS feed (`/voices`), newswire (`/intel/newswire`), home field sections, static timeline, legal, about, `/intel` → `/voices`, theme + chrome |
+| **Partial** | Intel vs source (no books/resources tabs, no inline audio player, no homepage shop/book-club/music cards); Batch-2B doc is partly superseded by 2C |
+| **Deferred** | Commerce (`/shop` placeholder only), `/resources`, curated/posts/music/terminal/Discord/share/analytics APIs |

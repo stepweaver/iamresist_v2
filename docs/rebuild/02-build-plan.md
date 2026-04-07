@@ -12,16 +12,17 @@ Use this table as **product/doc truth** for what exists vs deferred.
 
 | Capability | State |
 |------------|--------|
-| Journal (Notion list + `[slug]` + block body) | **Live** |
-| Timeline | **Live** — Brennan Center–attributed summary + `TimelineSection` |
-| Voices / Intel | **Live** — aggregated RSS feed from Notion voices + basic listing (`/voices`) |
-| `/intel` | **301 → `/voices`** (`app/intel/page.jsx`) |
-| Home hero / mission | **Live** |
-| Home mixed feed | **Live** — separate sections for Journal, Voices, Newswire |
-| Shop / commerce | **`/shop` placeholder** — no catalog, cart, checkout, APIs |
-| Newswire / RSS | **Live** — `/intel/newswire` with RSS + Notion curated stories |
+| Journal (Notion list + `[slug]` + block body) | **Done** |
+| Timeline | **Done** — Brennan Center–attributed summary + static `TimelineSection` |
+| Voices / Intel | **Partial** — `/voices` RSS feed + cards; no archive filters / player / books / resources (see `01-feature-map.md` §9) |
+| `/intel` | **Redirect → `/voices`** (`app/intel/page.jsx`, `permanentRedirect`) |
+| `/intel/newswire` | **Done** — `app/intel/newswire/page.jsx` (RSS + Notion curated + source directory) |
+| Home hero / mission | **Done** |
+| Home field channels | **Done** — `JournalSection`, `VoicesFeedSection`, `NewswireSection` (not source’s single mixed `HomeFeed`) |
+| Shop / commerce | **Deferred** — **`/shop` placeholder** only |
 | `/resources` | **Missing** |
 | Shared content primitives (`PageContainer`, `EmptyState`, etc.) | **Present** |
+| Fonts | **`next/font/google`** — build needs Google Fonts network access; explicit runtime `fallback` stacks in `app/fonts.js` |
 
 ---
 
@@ -101,14 +102,14 @@ Use this table as **product/doc truth** for what exists vs deferred.
 
 **Goal**: Establish the route structure and page templates for content pages without full data integration. Create honest placeholders that clearly signal forthcoming content.
 
-**Reality check**: The rebuild has **surpassed** pure “shells” for journal and timeline; voices and home feed are now implemented in Batch 2C. Checkboxes below reflect **actual files**.
+**Reality check**: Journal, timeline, voices feed, newswire, and home sections are **live**. Batch 2A checkboxes below are historical; see **Current rebuild truth** for done vs partial.
 
 ### Deliverables
 
 #### Route Structure
 - [ ] `app/(site)/layout.jsx` — Shared layout for content pages (optional; rebuild still uses root layout only)
 - [x] `app/(site)/about/page.jsx` — Mission/About page
-- [x] `app/(site)/voices/page.jsx` — Voices/intel **placeholder** UI (no data layer)
+- [x] `app/(site)/voices/page.jsx` — Voices/intel **RSS listing** (`getVoicesFeed`, Notion voice registry)
 - [x] `app/(site)/journal/page.jsx` — Journal listing **with live Notion data** when env is configured
 - [x] `app/(site)/journal/[slug]/page.jsx` — Entry detail **with Notion blocks** (not originally in 2A scope)
 - [x] `app/(site)/timeline/page.jsx` — Timeline **with source-grounded copy** + interactive section
@@ -131,11 +132,11 @@ Use this table as **product/doc truth** for what exists vs deferred.
 - Loading states for async content
 - Empty states for no-data scenarios
 - Proper metadata for SEO
-- Placeholder UI that clearly indicates content integration pending
+- Placeholder UI only where still deferred (e.g. `/shop`)
 
-### What This Does NOT Cover (Deferred to Batch 2B)
-- **Full Notion coverage** — journal is integrated; **voices/timeline Notion data layers** are not
-- **RSS/newswire plumbing** — no feed aggregation
+### What This Does NOT Cover (Deferred / superseded — read with Batch 2C)
+- **Full Notion coverage** — journal integrated; timeline remains static (no Notion timeline); voices use Notion for **registry** only, not full source feature parity
+- **RSS/newswire** — **delivered in Batch 2C**; lines below in Batch 2B are stale where marked done in 2C
 - **Discord invite widget** — community integration
 - **Analytics integration** — Vercel Analytics
 - **Share functionality** — share buttons and modal
@@ -213,30 +214,28 @@ Use this table as **product/doc truth** for what exists vs deferred.
 
 ---
 
-## Batch 2B — Content Data Integration (Deferred)
+## Batch 2B — Content Data Integration (Historical / partially superseded)
 
-**Scope**: Full Notion integration, RSS feeds, and content components.
-
-**Goal**: Populate the content pages with real data.
+**Scope**: Originally “full Notion + RSS.” **Voices RSS, newswire aggregation, and newswire components shipped in Batch 2C** under different file paths (`lib/voices.js`, `lib/newswire.js`, `lib/feeds/rss.js`, `components/newswire/*`). Use **Current rebuild truth** as authority.
 
 ### Deliverables
 
 #### Notion CMS Integration
-- [x] Notion client + journal repo + blocks — implemented as `lib/notion/*`, `lib/journal.js`, `lib/notion-blocks.js` (paths differ from original `lib/data/notion.js` plan)
+- [x] Notion client + journal repo + blocks — `lib/notion/*`, `lib/journal.js`, `lib/notion-blocks.js`
 - [x] Journal-specific data fetching — `lib/journal.js` + `lib/notion/journal.repo.js`
-- [ ] `lib/data/voices.js` — Voices/intel data fetching
-- [ ] `lib/data/timeline.js` — Timeline data fetching
+- [x] Voices registry + feed aggregation — **`lib/notion/voices.repo.js`**, **`lib/voices.js`** (not the legacy name `lib/data/voices.js`)
+- [ ] `lib/data/timeline.js` — **deferred**; timeline stays static
 
 #### Content Components
 - [x] `components/content/NotionBlocksBody.jsx` — Notion block renderer (subset of block types)
 - [ ] `components/content/MetaBlock.jsx` — Metadata display
 - [ ] `components/content/JournalEntryBody.jsx` — Journal entry renderer
 - [x] Timeline UI — **`components/sections/TimelineSection.jsx`** (static / source-grounded); optional Notion-driven timeline TBD
-- [ ] `components/newswire/` — Newswire feed components
+- [x] `components/newswire/` — **Shipped (2C)**
 
 #### RSS / Feed System
-- [ ] `lib/data/feeds.js` — RSS feed fetching and parsing
-- [ ] Newswire headline cards and sections
+- [x] RSS fetch + parse — **`lib/feeds/rss.js`** (replaces planned `lib/data/feeds.js` name)
+- [x] Newswire headline cards and sections — **`components/newswire/*`**
 
 #### Infrastructure
 - [ ] Vercel Analytics integration
@@ -251,14 +250,12 @@ Use this table as **product/doc truth** for what exists vs deferred.
 - Requires Notion API credentials
 - Requires RSS feed URLs
 
-### Success Criteria
-- Journal entries display with proper Notion formatting
-- Voices feed shows cards with metadata
-- Timeline renders interactive events
-- RSS feeds aggregate in newswire section
-- All content pages have complete SEO metadata
-- Share functionality works
-- Analytics are tracking
+### Success Criteria (remaining for later batches)
+- Journal entries display with proper Notion formatting (**met**)
+- Voices feed shows cards (**met**); source-parity archive/player (**not met**)
+- Timeline renders events (**met** as static summary)
+- RSS aggregates on newswire + home (**met**)
+- Share, Discord, analytics — **deferred**
 
 ---
 
@@ -331,5 +328,6 @@ Use this table as **product/doc truth** for what exists vs deferred.
 
 ---
 
-*Created: 2026-04-06*
-*Status: Phase 2 — In progress; journal + partial Notion + timeline live; placeholders documented above.*
+*Created: 2026-04-06 · Last truth-sync: 2026-04-07*
+
+*Status: Content surfaces (journal, voices RSS, newswire, home sections, timeline, legal) are **live**; shop and source-only intel features **deferred**. The `.next/` directory is gitignored — do not commit build output.*

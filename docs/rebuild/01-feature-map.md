@@ -9,17 +9,17 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ## Core Site Features
 
 ### 1. Home Page
-- **What it does**: Hero section with rotating word, mission statement, HUD overlay, and live content feed (voices, journal, newswire)
+- **What it does**: Hero + mission; source `HomeFeed` also mixes shop teaser, book club, featured newswire, voices (with player), protest music — **rebuild** uses three honest server sections: Latest Journal, Latest Voices, Newswire snapshot
 - **Source**: `app/page.jsx`, `components/HomeFeed.server.jsx`, `components/HudOverlay.jsx`, `components/RotatingWord.jsx`
-- **Rebuild decision**: **Adapted** — restructure with cleaner server/client boundaries
-- **Destination**: `app/page.jsx` (root), `components/home/` — rebuild keeps home at root, not under `(site)`
+- **Rebuild decision**: **Simplified** — same hero identity; field channels are separate grids (no mixed “intel” pipeline, no shop/music/book cards until those batches)
+- **Destination**: `app/page.jsx` (root), `components/home/JournalSection.jsx`, `components/voices/VoicesFeedSection.jsx`, `components/home/NewswireSection.jsx`
 - **URL change**: No — `/` preserved
 
 ### 2. Navigation
 - **What it does**: Fixed top nav with desktop links, mobile hamburger menu, theme toggle; source also had cart badge animation
 - **Source**: `app/components/Navigation.jsx`, `NavDesktopLinks.jsx`, `NavMobileMenu.jsx`, `NavThemeToggle.jsx`
 - **Rebuild decision**: **Adapted** — rebuild matches core links + theme; **no cart badge** until commerce
-- **Destination**: `components/layout/Navigation.jsx`, `components/nav/` (nav atoms may be unused)
+- **Destination**: `components/layout/Navigation.jsx` (monolithic; source `components/nav/*` atoms not copied)
 - **URL change**: No
 
 ### 3. Footer
@@ -69,11 +69,11 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 - **URL change**: No
 
 ### 9. Voices / Intel Feed
-- **What it does**: Curated feed of voices/perspectives, sourced from Notion, with feed cards and player modal for audio
-- **Source**: `app/voices/page.jsx`, `components/VoiceFeedCard.jsx`, `components/VoicesFeedSection.jsx`, `components/VoicesFeedWithPlayer.jsx`, `components/InlinePlayerModal.jsx`
-- **Rebuild decision**: **Adapted** — **`app/(site)/voices/page.jsx` is an honest placeholder**; Notion voices + player are deferred
-- **Destination**: `app/(site)/voices/page.jsx`; future: `components/voices/`, data in `lib/` (not `lib/data/` yet)
-- **URL change**: No — `/voices` is primary; **`/intel` → `/voices`** via `app/intel/page.jsx`
+- **What it does**: Source hub tabs (Voices / Newswire) + optional books/resources; archive with filters (`voice`, `source`, `artist`); feed cards + **inline player** for audio/video items
+- **Source**: `app/voices/page.jsx`, `VoicesArchiveContent.server.jsx`, `VoicesFeedWithPlayer.jsx`, `InlinePlayerModal.jsx`, IntelTabs
+- **Rebuild decision**: **Partial / simplified** — **`/voices`** lists RSS items from Notion-configured voices (`lib/voices.js`, `lib/notion/voices.repo.js`, `VoiceCard.jsx`); **IntelTabs** only (Voices ↔ Newswire). **Missing vs source**: books/resources sections, query filters, `getHomepageIntelFeed`-style mixing, inline player modal, curated-video/protest-music slices in one archive
+- **Destination**: `app/(site)/voices/page.jsx`, `components/voices/*`, `components/IntelTabs.jsx`
+- **URL change**: No — `/voices` primary; **`/intel` → `/voices`**; newswire at **`/intel/newswire`**
 
 ### 10. Timeline
 - **What it does**: Interactive timeline of resistance events, sourced from Notion or static data
@@ -147,11 +147,10 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ## Content Aggregation Features
 
 ### 19. Newswire / RSS Feed
-- **What it does**: Aggregated news headlines from RSS feeds, with source cards and media
-- **Source**: `lib/feeds/`, `components/NewswireHeadlinesSection.jsx`, `components/NewswireHeadlineCard.jsx`, `components/NewswireSourceCard.jsx`
-- **Rebuild decision**: **Adapted** — Batch 2
-- **Destination**: `lib/data/feeds.js`, `components/newswire/`
-- **URL change**: No (integrated into home feed)
+- **What it does**: Aggregated headlines from RSS + optional Notion-curated items; source directory and full page
+- **Source**: `lib/feeds/newswire.service.js`, `FeaturedNewswireSection`, etc.
+- **Rebuild decision**: **Live (rebuild paths)** — `lib/newswire.js`, `lib/feeds/rss.js`, `lib/data/newswire-sources.js`, `components/newswire/*`, **`app/intel/newswire/page.jsx`**
+- **URL change**: No — **`/intel/newswire`**; home uses `NewswireSection` (snapshot only)
 
 ### 20. Protest Music
 - **What it does**: Curated list of protest songs with embedded YouTube players
@@ -274,18 +273,17 @@ All other URLs preserved as-is.
 
 ---
 
-*Created: 2026-04-06*
-*Status: Phase 2 — Partial; journal + timeline exceed original Batch 2A placeholder scope; home feed + newswire + resources not built.*
+*Created: 2026-04-06 · Last truth-sync: 2026-04-07*
 
 ### Truth note
-| Area | Rebuild state |
-|------|----------------|
-| Home | Mission-first layout; **no** mixed feed — see copy on `app/page.jsx` |
-| Journal | Live (Notion) |
-| Timeline | Static / source-attributed UI |
-| Voices | Placeholder page |
-| Shop | Placeholder `/shop` only (no catalog/checkout) |
-| `/intel` | **301** to `/voices` |
-| Newswire / RSS | Not in rebuild |
-| `/resources` | Route not present |
-| Nav vs source | No cart badge (commerce deferred) |
+| Area | State |
+|------|--------|
+| Home | Hero + **three sections**: journal, voices, newswire (no shop/book-club/music teaser row) |
+| Journal | **Done** (Notion list + slug + blocks) |
+| Timeline | **Done** (static / Brennan attributed) |
+| Voices / Intel | **Partial** — RSS cards + IntelTabs; no player, books/resources, or archive filters |
+| Newswire | **Done** — `/intel/newswire` + home snapshot |
+| Shop | **Placeholder** `/shop` only |
+| `/intel` | **`permanentRedirect`** → `/voices` |
+| `/resources` | **Missing** |
+| Nav vs source | No cart badge (commerce deferred); INTEL nav active on `/voices` and `/intel/*` |

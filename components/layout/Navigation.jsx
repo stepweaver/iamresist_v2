@@ -15,6 +15,20 @@ const NAV_LINKS = [
   { href: '/legal', label: 'LEGAL' },
 ];
 
+function isNavLinkActive(link, pathname) {
+  const intelHub =
+    link.href === '/voices' &&
+    (pathname === '/voices' ||
+      pathname?.startsWith('/voices/') ||
+      pathname === '/intel' ||
+      pathname?.startsWith('/intel/'));
+  return (
+    pathname === link.href ||
+    (link.href !== '/' && pathname?.startsWith(link.href + '/')) ||
+    intelHub
+  );
+}
+
 export default function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -45,9 +59,7 @@ export default function Navigation() {
 
           <div className="hidden md:flex items-center gap-2">
             {NAV_LINKS.map((link) => {
-              const isActive =
-                pathname === link.href ||
-                (link.href !== '/' && pathname?.startsWith(link.href + '/'));
+              const isActive = isNavLinkActive(link, pathname);
               return (
                 <Link
                   key={link.href}
@@ -86,9 +98,7 @@ export default function Navigation() {
               <ThemeToggle />
             </div>
             {NAV_LINKS.map((link) => {
-              const isActive =
-                pathname === link.href ||
-                (link.href !== '/' && pathname?.startsWith(link.href + '/'));
+              const isActive = isNavLinkActive(link, pathname);
               return (
                 <Link
                   key={link.href}
