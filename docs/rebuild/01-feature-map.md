@@ -12,7 +12,7 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 - **What it does**: Hero section with rotating word, mission statement, HUD overlay, and live content feed (voices, journal, newswire)
 - **Source**: `app/page.jsx`, `components/HomeFeed.server.jsx`, `components/HudOverlay.jsx`, `components/RotatingWord.jsx`
 - **Rebuild decision**: **Adapted** — restructure with cleaner server/client boundaries
-- **Destination**: `app/(site)/page.jsx`, `components/home/`
+- **Destination**: `app/page.jsx` (root), `components/home/` — rebuild keeps home at root, not under `(site)`
 - **URL change**: No — `/` preserved
 
 ### 2. Navigation
@@ -64,8 +64,8 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 8. Journal System
 - **What it does**: Blog-style journal entries sourced from Notion, with individual slug pages, body rendering (Notion blocks), metadata banners
 - **Source**: `app/journal/page.jsx`, `app/journal/[slug]/page.jsx`, `lib/journal.js`, `components/JournalEntryBody.jsx`, `components/NotionBlocksBody.jsx`
-- **Rebuild decision**: **Adapted** — Notion integration and route shells in Batch 2 (Batch 1 is foundation only per build plan)
-- **Destination**: `app/(site)/journal/page.jsx`, `app/(site)/journal/[slug]/page.jsx`, `lib/data/journal.js`
+- **Rebuild decision**: **Adapted** — Notion-backed journal is **live** in rebuild (ahead of original Batch 2A “placeholder only” wording); paths differ from early plan
+- **Destination**: `app/(site)/journal/page.jsx`, `app/(site)/journal/[slug]/page.jsx`, `lib/journal.js`, `lib/notion/journal.repo.js`, `components/content/NotionBlocksBody.jsx`
 - **URL change**: No
 
 ### 9. Voices / Intel Feed
@@ -78,8 +78,8 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 10. Timeline
 - **What it does**: Interactive timeline of resistance events, sourced from Notion or static data
 - **Source**: `app/timeline/page.jsx`, `components/Timeline.jsx`, `lib/timeline.js`
-- **Rebuild decision**: **Adapted** — data layer in Batch 2
-- **Destination**: `app/(site)/timeline/page.jsx`, `components/timeline/`
+- **Rebuild decision**: **Adapted** — static, source-grounded timeline UI in rebuild (Brennan Center–linked copy + `TimelineSection`); full Notion timeline data layer still optional/future
+- **Destination**: `app/(site)/timeline/page.jsx`, `components/sections/TimelineSection.jsx` (and related section components)
 - **URL change**: No
 
 ### 11. Legal Page
@@ -275,4 +275,15 @@ All other URLs preserved as-is.
 ---
 
 *Created: 2026-04-06*
-*Status: Phase 1 — Planning*
+*Status: Phase 2 — Partial; journal + timeline exceed original Batch 2A placeholder scope; home feed + newswire + resources not built.*
+
+### Truth note (2026-04-07)
+| Area | Rebuild state |
+|------|----------------|
+| Home aggregated feed | Not implemented — honest placeholder on `app/page.jsx` |
+| Journal | Live (Notion) |
+| Timeline | Static / source-attributed UI |
+| Voices | Placeholder page |
+| Shop | Placeholder `/shop` page only (no catalog/checkout) |
+| Newswire / RSS | Not in rebuild |
+| `/resources` | Route not present |

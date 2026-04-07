@@ -1,5 +1,3 @@
-'use client';
-
 import Image from 'next/image';
 import Link from 'next/link';
 import RotatingWord from '@/components/home/RotatingWord';
@@ -66,15 +64,33 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Content feed placeholder - to be replaced with actual feed in Batch 2 */}
+      {/* Home feed: journal + intel + newswire aggregation not implemented yet */}
       <div className="py-8 px-4">
         <div className="max-w-[1600px] mx-auto">
           <div className="text-hud-dim font-mono text-xs mb-4">
-            // FEED INITIALIZATION REQUIRED
+            // FEED STANDBY — NO AGGREGATION WIRED
           </div>
-          <div className="border border-border p-8 text-center">
-            <p className="mission-copy text-lg">
-              Content feed loading... Build Batch 2 in progress.
+          <div className="border border-border p-8 text-center space-y-3">
+            <p className="mission-copy text-lg text-foreground/90">
+              The live briefing feed (journal, intel, and headlines in one stream) is
+              not built on the home page yet.
+            </p>
+            <p className="prose-copy text-sm text-foreground/60 max-w-xl mx-auto">
+              Use{' '}
+              <Link
+                href="/journal"
+                className="text-primary hover:underline font-semibold"
+              >
+                Journal
+              </Link>{' '}
+              and{' '}
+              <Link
+                href="/voices"
+                className="text-primary hover:underline font-semibold"
+              >
+                Intel
+              </Link>{' '}
+              for now; the combined feed is queued for a future batch.
             </p>
           </div>
         </div>

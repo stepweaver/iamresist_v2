@@ -6,6 +6,24 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 
 ---
 
+## Current rebuild truth (synced 2026-04-07)
+
+Use this table as **product/doc truth** for what exists today vs what is still deferred.
+
+| Capability | State |
+|------------|--------|
+| Journal (Notion list + `[slug]` + block body) | **Live** |
+| Timeline | **Live** — static, Brennan Center–attributed summary + timeline UI |
+| Voices / Intel | **Placeholder** page only |
+| Home hero / mission | **Live** |
+| Home aggregated feed (journal + intel + newswire) | **Not built** — explicit placeholder copy on home |
+| Shop / commerce | **`/shop` placeholder page only** — no catalog, cart, checkout, APIs |
+| Newswire / RSS | **Not in rebuild** |
+| `/resources` | **Missing** |
+| Shared content primitives (`PageContainer`, `EmptyState`, etc.) | **Present** (used by routes) |
+
+---
+
 ## Batch 1 — Foundation
 
 **Scope**: Project scaffold, visual identity, home page shell
@@ -45,7 +63,9 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 - [x] `components/home/HudOverlay.jsx` — HUD overlay with title and code
 
 #### Public Assets
-- [ ] `public/` — Favicon, icons (deferred until source assets are identified)
+- [x] `public/resist_sticker.png` — Hero logo (synced from source repo)
+- [x] `public/web-app-manifest-192x192.png`, `public/web-app-manifest-512x512.png` — PWA icons; referenced from `manifest.json`
+- [x] `public/manifest.json` — Web app manifest (icons + theme aligned with rebuild)
 
 ### What This Covers
 - Site is buildable and deployable
@@ -83,25 +103,29 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 
 **Goal**: Establish the route structure and page templates for content pages without full data integration. Create honest placeholders that clearly signal forthcoming content.
 
+**Reality check**: The rebuild has **surpassed** pure “shells” for journal and timeline; voices and home feed remain placeholders. Checkboxes below reflect **actual files**.
+
 ### Deliverables
 
 #### Route Structure
-- [ ] `app/(site)/layout.jsx` — Shared layout for content pages (optional, may use root layout)
-- [ ] `app/(site)/about/page.jsx` — Mission/About page with real mission content
-- [ ] `app/(site)/voices/page.jsx` — Voices/intel feed with placeholder UI
-- [ ] `app/(site)/journal/page.jsx` — Journal listing with placeholder UI
-- [ ] `app/(site)/timeline/page.jsx` — Timeline page with placeholder UI
-- [ ] `app/(site)/legal/page.jsx` — Legal/disclaimer page with real legal content
+- [ ] `app/(site)/layout.jsx` — Shared layout for content pages (optional; rebuild still uses root layout only)
+- [x] `app/(site)/about/page.jsx` — Mission/About page
+- [x] `app/(site)/voices/page.jsx` — Voices/intel **placeholder** UI (no data layer)
+- [x] `app/(site)/journal/page.jsx` — Journal listing **with live Notion data** when env is configured
+- [x] `app/(site)/journal/[slug]/page.jsx` — Entry detail **with Notion blocks** (not originally in 2A scope)
+- [x] `app/(site)/timeline/page.jsx` — Timeline **with source-grounded copy** + interactive section
+- [x] `app/(site)/legal/page.jsx` — Legal/disclaimer page
+- [x] `app/(site)/shop/page.jsx` — **Honest placeholder** for Supply (no commerce); nav `/shop` resolves
 
 #### Shared Content Primitives
 - [ ] `components/content/SectionHeader.jsx` — Styled section titles with HUD aesthetic
-- [ ] `components/content/EmptyState.jsx` — Empty state placeholder component
+- [x] `components/content/EmptyState.jsx` — Empty state placeholder component
 - [ ] `components/content/LoadingState.jsx` — Content loading skeleton (reusable)
-- [ ] `components/content/PageContainer.jsx` — Standard page container with consistent padding/width
+- [x] `components/content/PageContainer.jsx` — Standard page container with consistent padding/width
 
 #### Metadata
-- [ ] Per-page `export const metadata` in each content page
-- [ ] Basic SEO titles and descriptions
+- [x] Per-page `export const metadata` on about, voices, journal, timeline, legal, shop placeholder
+- [x] Basic SEO titles and descriptions (journal detail uses `generateMetadata`)
 
 ### What This Covers
 - All five routes are accessible and render
@@ -112,14 +136,14 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 - Placeholder UI that clearly indicates content integration pending
 
 ### What This Does NOT Cover (Deferred to Batch 2B)
-- **Notion CMS integration** — no actual data fetching from Notion
+- **Full Notion coverage** — journal is integrated; **voices/timeline Notion data layers** are not
 - **RSS/newswire plumbing** — no feed aggregation
 - **Discord invite widget** — community integration
 - **Analytics integration** — Vercel Analytics
 - **Share functionality** — share buttons and modal
 - **Media components** — inline player modal, audio/video players
 - **Advanced content** — book-club, music, curated, posts sections
-- **Dynamic routing** — journal/[slug] individual pages
+- **Dynamic routing** — journal `[slug]` **is implemented**; other dynamic routes remain future work
 - **Skeleton variants** — specialized loading UI per content type
 - **SEO enhancements** — Open Graph, Twitter cards, sitemap
 
@@ -147,13 +171,13 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 ### Deliverables
 
 #### Notion CMS Integration
-- [ ] `lib/data/notion.js` — Notion client, page fetching, block rendering
-- [ ] `lib/data/journal.js` — Journal-specific data fetching
+- [x] Notion client + journal repo + blocks — implemented as `lib/notion/*`, `lib/journal.js`, `lib/notion-blocks.js` (paths differ from original `lib/data/notion.js` plan)
+- [x] Journal-specific data fetching — `lib/journal.js` + `lib/notion/journal.repo.js`
 - [ ] `lib/data/voices.js` — Voices/intel data fetching
 - [ ] `lib/data/timeline.js` — Timeline data fetching
 
 #### Content Components
-- [ ] `components/content/NotionBlocksBody.jsx` — Notion block renderer
+- [x] `components/content/NotionBlocksBody.jsx` — Notion block renderer (subset of block types)
 - [ ] `components/content/MetaBlock.jsx` — Metadata display
 - [ ] `components/content/JournalEntryBody.jsx` — Journal entry renderer
 - [ ] `components/content/Timeline.jsx` — Interactive timeline component
@@ -169,7 +193,7 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 - [ ] Discord invite widget
 - [ ] Skeleton variants per content type
 - [ ] Advanced SEO (Open Graph, Twitter cards)
-- [ ] `app/(site)/journal/[slug]/page.jsx` — Individual journal entry pages
+- [x] `app/(site)/journal/[slug]/page.jsx` — Individual journal entry pages
 
 ### Dependencies
 - Requires Batch 2A route shells
@@ -257,4 +281,4 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 ---
 
 *Created: 2026-04-06*
-*Status: Phase 1 — Planning*
+*Status: Phase 2 — In progress; journal + partial Notion + timeline live; placeholders documented above.*

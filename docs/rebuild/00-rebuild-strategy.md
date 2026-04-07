@@ -27,8 +27,8 @@ This document defines the architectural, structural, and design strategy for reb
 iamresist-rebuild/
 ├── app/                    # Next.js App Router
 │   ├── (site)/             # Route group for public site
-│   │   ├── layout.jsx      # Site-wide layout
-│   │   ├── page.jsx        # Home page
+│   │   ├── layout.jsx      # Site-wide layout (optional; rebuild uses root app/page.jsx for /)
+│   │   ├── page.jsx        # Home page (rebuild: lives at app/page.jsx, not inside (site))
 │   │   ├── about/
 │   │   ├── intel/
 │   │   ├── journal/
@@ -292,4 +292,12 @@ Server Page → Server Data Fetch → Client Component (interactive)
 ---
 
 *Created: 2026-04-06*
-*Status: Phase 1 — Planning*
+*Status: Phase 2 — Content (partial); see `02-build-plan.md` for truth-sync snapshot.*
+
+### As-built snapshot (stabilization pass, 2026-04-07)
+- **Journal**: Live Notion-backed listing and `[slug]` pages (`lib/journal.js`, `lib/notion/journal.repo.js`).
+- **Timeline**: Source-grounded static summary + `TimelineSection` (Brennan Center attribution on-page).
+- **Voices / Intel**: Placeholder page only (no Notion voices data layer).
+- **Home**: Hero + mission; **no** aggregated home feed (journal/intel/newswire) yet.
+- **Shop**: Honest placeholder route only (`/shop`) — no commerce, cart, or checkout.
+- **Missing vs URL strategy**: `/resources`, newswire plumbing, `/curated`, `/posts`, etc. not present yet (unchanged from deferred batches).
