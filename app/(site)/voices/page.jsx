@@ -1,62 +1,69 @@
-import EmptyState from '@/components/content/EmptyState';
-import PageContainer from '@/components/content/PageContainer';
-import IntelTabs from '@/components/IntelTabs';
-import VoiceCard from '@/components/voices/VoiceCard';
-import { getVoicesFeed } from '@/lib/voices';
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import IntelTabs from "@/components/IntelTabs";
+import VoicesArchiveContent from "./VoicesArchiveContent.server";
+import BooksSection from "./BooksSection";
+import ResourcesSection from "./ResourcesSection";
+import { buildPageMetadata } from "@/lib/metadata";
 
-export const metadata = {
+export const revalidate = 120;
+
+export const metadata = buildPageMetadata({
   title: "Intel | I AM [RESIST]",
   description:
-    "First-person accounts, witness reports, and curated intelligence on the ground. Voices of resistance from across the movement.",
-};
+    "Essential resources and reflection on resistance, democracy, and antifascism. Curated videos, protest music, and more.",
+  urlPath: "/voices",
+});
 
-export default async function VoicesPage() {
-  const feed = await getVoicesFeed();
-  const hasContent = feed.length > 0;
+export default async function VoicesPage({ searchParams }) {
+  const params = typeof searchParams?.then === "function" ? await searchParams : searchParams ?? {};
+  const source = params.source ?? null;
+  const voice = params.voice ?? null;
+  const artist = params.artist ?? null;
+
+  if (source === "journal") redirect("/journal");
+
+  const isBooksSection = source === "books";
+  const isResourcesSection = source === "resources";
 
   return (
-    <main className="min-h-screen">
-      <div className="machine-panel py-8 mb-8">
-        <div className="hud-grid opacity-30"></div>
-        <div className="relative z-10">
-          <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
-            <div className="border-l-4 border-primary pl-4 sm:pl-6">
-              <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.4em] block mb-3 text-primary">
-                DOC ID: IAMR-INTEL-01
-              </span>
-              <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                INTEL FEED
-              </h1>
-            </div>
-          </div>
-        </div>
-      </div>
+    <main
+      id="main-content"
+      className="min-h-screen overflow-x-clip"
+      style={{
+        backgroundImage:
+          "linear-gradient(rgba(211, 47, 47, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(211, 47, 47, 0.03) 1px, transparent 1px)",
+        backgroundSize: "40px 40px",
+      }}
+    >
+      <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
+        <IntelTabs
+          description={
+            isResourcesSection
+              ? "Curated links and educational materials on resistance, democracy, and antifascism."
+              : "Essential resources and reflection on resistance, democracy, and antifascism."
+          }
+        />
 
-      <PageContainer>
-        <div className="mb-6">
-          <p className="mission-copy text-lg text-foreground/80 max-w-3xl">
-            First-person accounts, witness reports, and curated intelligence on
-            the ground. Voices of resistance from across the movement.
-          </p>
-        </div>
-
-        <IntelTabs description="Browse latest updates from voices and news sources." />
-
-        {hasContent ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-            {feed.map((item) => (
-              <VoiceCard key={item.id} item={item} />
-            ))}
-          </div>
+        {isBooksSection ? (
+          <Suspense fallback={<p className="text-foreground/70 uppercase tracking-wider text-sm">Loading…</p>}>
+            <BooksSection />
+          </Suspense>
+        ) : isResourcesSection ? (
+          <Suspense fallback={<p className="text-foreground/70 uppercase tracking-wider text-sm">Loading…</p>}>
+            <ResourcesSection />
+          </Suspense>
         ) : (
-          <EmptyState
-            title="No Intel Yet"
-            description="We are gathering voices. Check back soon for first-hand accounts and curated intelligence."
-            actionLabel="Return to Briefing"
-            actionHref="/"
-          />
+          <Suspense fallback={<p className="text-foreground/70 uppercase tracking-wider text-sm">Loading archive…</p>}>
+            <VoicesArchiveContent
+              filters={{ sourceType: source || undefined, voiceSlug: voice || undefined, artistSlug: artist || undefined }}
+              currentVoice={voice}
+              currentSource={source}
+              currentArtist={artist}
+            />
+          </Suspense>
         )}
-      </PageContainer>
+      </div>
     </main>
   );
 }

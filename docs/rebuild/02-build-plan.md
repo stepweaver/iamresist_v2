@@ -259,6 +259,72 @@ Use this table as **product/doc truth** for what exists vs deferred.
 
 ---
 
+## Batch 2D — Voices / Intel Parity Refinement (Completed)
+
+**Scope**: Bring `/voices` substantially closer to source product intent without overbuilding advanced interactions. Add Books and Resources pathways under the intel surface. Refine archive behavior and UI.
+
+### Deliverables
+
+#### Voices Page Enhancements
+- [x] Query parameter handling for `source`, `voice`, `artist`
+- [x] Redirect when `source=journal` → `/journal`
+- [x] Section switching support (All, Voices of Dissent, Curated Videos, Protest Music, Books, Resources, Journal)
+- [x] Client-side interactive archive with source dropdown, voice/artist filters (where applicable)
+- [x] Infinite scroll pagination via API route and sentinel
+- [x] Sticky breadcrumb navigation
+- [x] Refresh button
+- [x] Preserved rebuild aesthetic (HUD/military) in new components
+
+#### New Components
+- [x] `app/(site)/voices/VoicesArchiveContent.server.jsx` — Server-side data preparation
+- [x] `app/(site)/voices/VoicesArchiveClient.jsx` — Client-side interactive UI
+- [x] `app/(site)/voices/BooksSection.jsx` — Books pathway placeholder (honest empty state)
+- [x] `app/(site)/voices/ResourcesSection.jsx` — Resources pathway placeholder
+- [x] `components/FilterDropdown.jsx` — Reusable dropdown filter control
+- [x] `lib/hooks/useClickOutside.js` — Click-outside hook for dropdowns
+- [x] `lib/feeds/unifiedArchive.service.js` — Archive data layer with support for filters and pagination
+- [x] `app/api/voices-archive/route.js` — Pagination API for infinite scroll
+
+#### Infrastructure
+- [x] `lib/constants.js` — Shared constants (VOICES_ARCHIVE_PAGE_SIZE)
+
+#### Integration
+- [x] Updated `app/(site)/voices/page.jsx` to support sections and archive client
+- [x] IntelTabs remains unchanged (already aligned with source)
+- [x] Home page compatibility maintained (links to `/voices` unchanged)
+
+### What This Covers
+- `/voices` now behaves like the source: supports query-based section switching, filtering, pagination, and dedicated Books/Resources pathways
+- Archive items are paginated infinite-scroll with caching and revalidation
+- UI follows rebuild’s disciplined military/HUD aesthetic
+- Code separation respects server-first defaults; client components only where needed
+
+### What Remains Deferred After Batch 2D
+- **Inline player modal** — advanced video/player interactions
+- **Protest music data integration** — archive can select "Protest Music" but currently shows no items until data source is connected
+- **Curated videos data integration** — similar placeholder behavior
+- **Books content integration** — BooksSection placeholder until bookclub Notion database is connected
+- **Resources content integration** — ResourcesSection placeholder until configured
+- **Voice/artist filter data** — artist dropdown is empty pending protest-music data
+- **Advanced filter combinations** — current filter set is minimal but sufficient for parity
+- **Commerce, analytics, Discord, terminal, share** — previous deferred status unchanged
+- **Skeleton loading states** — generic loading text remains; skeleton variants future work
+- **Open Graph / Twitter cards** — not addressed in this batch
+
+### Dependencies
+- Requires Batch 2C foundation (Voices feed, IntelTabs, Newswire)
+
+### Success Criteria
+- `npm run lint` passes
+- `npm run build` succeeds
+- `/voices` renders with tabs, dropdowns, pagination
+- Switching `source` query param changes displayed section (including Books/Resources)
+- Infinite scroll loads additional items
+- Filtering by voice works when source=voices
+- Build artifacts clean; no runtime errors
+
+---
+
 ## Batch 3 — Commerce & Advanced
 
 **Scope**: Shop, cart, checkout, payments, advanced features
