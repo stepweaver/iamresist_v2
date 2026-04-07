@@ -1,10 +1,11 @@
-import EmptyState from '@/components/content/EmptyState';
 import PageContainer from '@/components/content/PageContainer';
+import JournalCard from '@/components/journal/JournalCard';
+import { journalEntries } from '@/lib/data/journal';
 
 export const metadata = {
-  title: "Journal | I AM [RESIST]",
+  title: 'Journal | I AM [RESIST]',
   description:
-    "Chronicle of resistance: reporting, analysis, and first-person accounts from the front lines of democracy's defense.",
+    'Chronicle of resistance: reporting, analysis, and first-person accounts from the front lines of democracy\'s defense.',
 };
 
 export default function JournalPage() {
@@ -16,7 +17,7 @@ export default function JournalPage() {
           <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
             <div className="border-l-4 border-primary pl-4 sm:pl-6">
               <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.4em] block mb-3 text-primary">
-                DOC ID: IAMR-JOURNAL-01
+                DOC ID: IAMR-JOURNAL-02
               </span>
               <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
                 RESISTANCE JOURNAL
@@ -35,18 +36,10 @@ export default function JournalPage() {
           </p>
         </div>
 
-        {/* Content integration pending */}
-        <EmptyState
-          title="Journal Coming Soon"
-          description="Our full journal archive is being prepared. Soon you'll find in-depth reporting, dispatches from the front lines, and first-person narratives of resistance."
-          actionLabel="Return to Briefing"
-          actionHref="/"
-        />
-
-        {/* Placeholder for future */}
-        <div className="mt-12 hidden">
-          {/* Future: Journal listing and filtering goes here */}
-          {/* <JournalFeedSection /> */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {journalEntries.map((entry) => (
+            <JournalCard key={entry.slug} entry={entry} />
+          ))}
         </div>
       </PageContainer>
     </main>

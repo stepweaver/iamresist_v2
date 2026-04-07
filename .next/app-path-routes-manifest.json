@@ -2,8 +2,9 @@
   "/_not-found/page": "/_not-found",
   "/page": "/",
   "/(site)/journal/page": "/journal",
+  "/(site)/journal/[slug]/page": "/journal/[slug]",
   "/(site)/voices/page": "/voices",
   "/(site)/timeline/page": "/timeline",
-  "/(site)/legal/page": "/legal",
-  "/(site)/about/page": "/about"
+  "/(site)/about/page": "/about",
+  "/(site)/legal/page": "/legal"
 }
