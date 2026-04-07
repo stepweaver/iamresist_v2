@@ -1,4 +1,5 @@
 import EmptyState from '@/components/content/EmptyState';
+import PageContainer from '@/components/content/PageContainer';
 
 export const metadata = {
   title: "Timeline | I AM [RESIST]",
@@ -25,7 +26,7 @@ export default function TimelinePage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
+      <PageContainer>
         <div className="mb-8">
           <p className="mission-copy text-lg text-foreground/80 max-w-3xl">
             A chronological record of authoritarian overreach and the resistance
@@ -47,7 +48,7 @@ export default function TimelinePage() {
           {/* Future: Timeline component goes here */}
           {/* <Timeline /> */}
         </div>
-      </div>
+      </PageContainer>
     </main>
   );
 }

@@ -4,6 +4,8 @@ export const metadata = {
     "Legal disclosures, content attribution, terms of use, and privacy policy for I AM [RESIST]",
 };
 
+import PageContainer from '@/components/content/PageContainer';
+
 export default function LegalPage() {
   return (
     <main className="min-h-screen">
@@ -23,7 +25,7 @@ export default function LegalPage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
+      <PageContainer>
         <div className="legal-copy text-foreground/80 space-y-8">
           <section className="machine-panel p-6">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
@@ -193,7 +195,7 @@ export default function LegalPage() {
             </div>
           </section>
         </div>
-      </div>
+      </PageContainer>
     </main>
   );
 }

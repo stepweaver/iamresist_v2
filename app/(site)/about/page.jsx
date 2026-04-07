@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import PageContainer from '@/components/content/PageContainer';
+import SectionHeader from '@/components/content/SectionHeader';
 
 export const metadata = {
   title: "Mission | I AM [RESIST]",
@@ -25,7 +27,7 @@ export default function AboutPage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
+      <PageContainer>
         <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8 lg:gap-12">
           <aside className="space-y-6">
             <div className="machine-panel p-4">
@@ -69,9 +71,7 @@ export default function AboutPage() {
 
           <article className="space-y-8">
             <section>
-              <h2 className="font-display text-2xl font-bold text-foreground mb-4 border-b border-border pb-2">
-                What We Do
-              </h2>
+              <SectionHeader title="What We Do" />
               <div className="space-y-4 prose-copy text-foreground/80">
                 <p>
                   We are a collective of journalists, activists, technologists,
@@ -106,9 +106,7 @@ export default function AboutPage() {
             </section>
 
             <section>
-              <h2 className="font-display text-2xl font-bold text-foreground mb-4 border-b border-border pb-2">
-                Our Principles
-              </h2>
+              <SectionHeader title="Our Principles" />
               <div className="space-y-4 prose-copy text-foreground/80">
                 <p>We are guided by these core principles:</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -144,9 +142,7 @@ export default function AboutPage() {
             </section>
 
             <section>
-              <h2 className="font-display text-2xl font-bold text-foreground mb-4 border-b border-border pb-2">
-                Get Involved
-              </h2>
+              <SectionHeader title="Get Involved" />
               <div className="space-y-4 prose-copy text-foreground/80">
                 <p>
                   Resistance requires collective action. Here's how you can join
@@ -191,7 +187,7 @@ export default function AboutPage() {
             </section>
           </article>
         </div>
-      </div>
+      </PageContainer>
     </main>
   );
 }

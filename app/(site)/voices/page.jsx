@@ -1,4 +1,5 @@
 import EmptyState from '@/components/content/EmptyState';
+import PageContainer from '@/components/content/PageContainer';
 
 export const metadata = {
   title: "Intel | I AM [RESIST]",
@@ -25,7 +26,7 @@ export default function VoicesPage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
+      <PageContainer>
         <div className="mb-8">
           <p className="mission-copy text-lg text-foreground/80 max-w-3xl">
             First-person accounts, witness reports, and curated intelligence on
@@ -46,7 +47,7 @@ export default function VoicesPage() {
           {/* Future: VoicesFeedSection component goes here */}
           {/* <VoicesFeedSection /> */}
         </div>
-      </div>
+      </PageContainer>
     </main>
   );
 }
