@@ -2,6 +2,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import RotatingWord from '@/components/home/RotatingWord';
 import HudOverlay from '@/components/home/HudOverlay';
+import JournalSection from '@/components/home/JournalSection';
+import VoicesFeedSection from '@/components/voices/VoicesFeedSection';
+import NewswireSection from '@/components/home/NewswireSection';
 
 export default function Home() {
   return (
@@ -64,36 +67,15 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Home layout: mission-first; streams stay on section routes until feed batch */}
-      <div className="py-8 px-4">
+      {/* Field Channels: aggregated content sections */}
+      <div className="py-8 px-1 sm:px-2 lg:px-3">
         <div className="max-w-[1600px] mx-auto">
-          <div className="text-hud-dim font-mono text-xs mb-4">
+          <div className="text-hud-dim font-mono text-xs mb-6 pl-1">
             // FIELD CHANNELS // UPDATES BY SECTION
           </div>
-          <div className="border border-border p-8 text-center space-y-3">
-            <p className="mission-copy text-lg text-foreground/90 max-w-2xl mx-auto">
-              This briefing leads with the mission. Running updates stay on their own
-              channels so essays, intel, and chronology stay easy to find and archive.
-            </p>
-            <p className="prose-copy text-sm text-foreground/60 max-w-xl mx-auto">
-              <Link href="/journal" className="text-primary hover:underline font-semibold">
-                Journal
-              </Link>{' '}
-              for long-form entries,{' '}
-              <Link href="/voices" className="text-primary hover:underline font-semibold">
-                Intel
-              </Link>{' '}
-              for the voices feed,{' '}
-              <Link
-                href="/timeline"
-                className="text-primary hover:underline font-semibold"
-              >
-                Timeline
-              </Link>{' '}
-              for the resistance chronology. A single mixed stream on the home page will
-              ship once intel and newswire data are wired—nothing is implied here yet.
-            </p>
-          </div>
+          <JournalSection limit={3} />
+          <VoicesFeedSection limit={6} title="Latest Voices" showViewAll={true} />
+          <NewswireSection limit={3} />
         </div>
       </div>
     </main>

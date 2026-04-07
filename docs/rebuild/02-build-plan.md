@@ -14,12 +14,12 @@ Use this table as **product/doc truth** for what exists vs deferred.
 |------------|--------|
 | Journal (Notion list + `[slug]` + block body) | **Live** |
 | Timeline | **Live** — Brennan Center–attributed summary + `TimelineSection` |
-| Voices / Intel | **Placeholder** (`/voices`) |
+| Voices / Intel | **Live** — aggregated RSS feed from Notion voices + basic listing (`/voices`) |
 | `/intel` | **301 → `/voices`** (`app/intel/page.jsx`) |
 | Home hero / mission | **Live** |
-| Home mixed feed | **Not built** — home copy describes section routes only |
+| Home mixed feed | **Live** — separate sections for Journal, Voices, Newswire |
 | Shop / commerce | **`/shop` placeholder** — no catalog, cart, checkout, APIs |
-| Newswire / RSS | **Not in rebuild** |
+| Newswire / RSS | **Live** — `/intel/newswire` with RSS + Notion curated stories |
 | `/resources` | **Missing** |
 | Shared content primitives (`PageContainer`, `EmptyState`, etc.) | **Present** |
 
@@ -101,7 +101,7 @@ Use this table as **product/doc truth** for what exists vs deferred.
 
 **Goal**: Establish the route structure and page templates for content pages without full data integration. Create honest placeholders that clearly signal forthcoming content.
 
-**Reality check**: The rebuild has **surpassed** pure “shells” for journal and timeline; voices and home feed remain placeholders. Checkboxes below reflect **actual files**.
+**Reality check**: The rebuild has **surpassed** pure “shells” for journal and timeline; voices and home feed are now implemented in Batch 2C. Checkboxes below reflect **actual files**.
 
 ### Deliverables
 
@@ -144,6 +144,59 @@ Use this table as **product/doc truth** for what exists vs deferred.
 - **Dynamic routing** — journal `[slug]` **is implemented**; other dynamic routes remain future work
 - **Skeleton variants** — specialized loading UI per content type
 - **SEO enhancements** — Open Graph, Twitter cards, sitemap
+
+---
+
+## Batch 2C — Intel Foundation (Completed)
+
+**Scope**: Minimum real product foundation for Voices archive, Newswire surface, and Home aggregated feed.
+
+### Deliverables
+
+#### Voices
+- [x] `lib/notion/voices.repo.js` — Notion voices DB client
+- [x] `lib/voices.js` — Voices feed service with RSS aggregation and deduping
+- [x] `components/voices/VoiceCard.jsx` — Card UI for voice items
+- [x] `components/voices/VoicesFeedSection.jsx` — Server section component
+- [x] `app/(site)/voices/page.jsx` — Real listing page with IntelTabs
+
+#### Newswire
+- [x] `lib/data/newswire-sources.js` — Source manifest
+- [x] `lib/feeds/rss.js` — RSS parser + fetch with caching
+- [x] `lib/notion/curatedArticles.repo.js` — Curated articles from Notion
+- [x] `lib/newswire.js` — Newswire aggregation with deduping
+- [x] `components/newswire/NewswireHeadlineCard.jsx` — Card UI for headlines
+- [x] `components/newswire/NewswireHeadlinesSection.jsx` — Client section with source filter
+- [x] `components/newswire/NewswireSourceCard.jsx` — Source directory card
+- [x] `app/intel/newswire/page.jsx` — Full newswire page with source directory and editorial sections
+- [x] `components/IntelTabs.jsx` — Shared navigation between Voices and Newswire
+
+#### Home Aggregated Feed
+- [x] `components/home/JournalSection.jsx` — Latest journal entries
+- [x] `components/home/NewswireSection.jsx` — Snapshot of newswire
+- [x] `app/page.jsx` — Replaced placeholder with real sections
+
+#### Shared
+- [x] `lib/metadata.js` — Metadata helper for SEO titles/descriptions
+
+### What This Covers
+- Live `/voices` page showing aggregated feed items
+- Live `/intel/newswire` page with headlines, source directory, and rationale
+- Home page now displays up-to-date sections: Journal, Voices, Newswire
+- Content updates automatically via Notion + RSS integration
+- All pages maintain the rebuild’s military/HUD/document aesthetic
+
+### What Remains Deferred After Batch 2C
+- **Advanced filter/player behavior** — full tabbed voices archive, pagination, inline players, share actions
+- **RSS overengineering** — no per-source error dashboards, no advanced image enrichment beyond RSS-provided
+- **Commerce** — shop, cart, checkout, orders, Printify integration
+- **Analytics** — Vercel Analytics, tracking
+- **Discord** — invite widget
+- **Terminal** — easter egg
+- **Music, curated, book-club** — full sections (protest music feature in home is currently omitted per Batch 2C scope)
+- **Voice detail pages** — individual voice profiles
+- **Advanced SEO** — Open Graph, Twitter cards, sitemaps
+- **Skeleton loading states** — replacing generic "Loading…" text with skeleton screens
 
 ### Dependencies
 - Requires Batch 1 foundation (complete)

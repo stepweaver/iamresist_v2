@@ -1,13 +1,19 @@
 import EmptyState from '@/components/content/EmptyState';
 import PageContainer from '@/components/content/PageContainer';
+import IntelTabs from '@/components/IntelTabs';
+import VoiceCard from '@/components/voices/VoiceCard';
+import { getVoicesFeed } from '@/lib/voices';
 
 export const metadata = {
   title: "Intel | I AM [RESIST]",
   description:
-    "Voice and perspective feed from contributors and allies. Coming soon: curated intelligence and first-person accounts.",
+    "First-person accounts, witness reports, and curated intelligence on the ground. Voices of resistance from across the movement.",
 };
 
-export default function VoicesPage() {
+export default async function VoicesPage() {
+  const feed = await getVoicesFeed();
+  const hasContent = feed.length > 0;
+
   return (
     <main className="min-h-screen">
       <div className="machine-panel py-8 mb-8">
@@ -27,26 +33,29 @@ export default function VoicesPage() {
       </div>
 
       <PageContainer>
-        <div className="mb-8">
+        <div className="mb-6">
           <p className="mission-copy text-lg text-foreground/80 max-w-3xl">
             First-person accounts, witness reports, and curated intelligence on
             the ground. Voices of resistance from across the movement.
           </p>
         </div>
 
-        {/* Content integration pending */}
-        <EmptyState
-          title="Intel Feed Under Construction"
-          description="We are actively building out our Voices feed. Check back soon for first-person accounts and curated intelligence from the resistance movement."
-          actionLabel="Return to Briefing"
-          actionHref="/"
-        />
+        <IntelTabs description="Browse latest updates from voices and news sources." />
 
-        {/* Placeholder for future */}
-        <div className="mt-12 hidden">
-          {/* Future: VoicesFeedSection component goes here */}
-          {/* <VoicesFeedSection /> */}
-        </div>
+        {hasContent ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            {feed.map((item) => (
+              <VoiceCard key={item.id} item={item} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No Intel Yet"
+            description="We are gathering voices. Check back soon for first-hand accounts and curated intelligence."
+            actionLabel="Return to Briefing"
+            actionHref="/"
+          />
+        )}
       </PageContainer>
     </main>
   );
