@@ -20,7 +20,7 @@ Use this table as **product/doc truth** for what exists vs deferred.
 | Home hero / mission | **Done** |
 | Home field channels | **Done** — `JournalSection`, `FeaturedNewswireSection`, `VoicesFeedSection` (not source’s single mixed `HomeFeed`; no shop/book/music) |
 | Shop / commerce | **Deferred** — **`/shop` placeholder** only |
-| `/resources` | **Missing** |
+| `/resources` | **Done** — redirect → `/voices?source=resources` and real curated listing |
 | Shared content primitives (`PageContainer`, `EmptyState`, etc.) | **Present** |
 | Fonts | **`next/font/google`** — at build time Next downloads font files from Google (HTTPS egress). **Acceptable** for Vercel/normal CI with network. **Air-gapped/offline builds** will fail unless fonts are switched to `next/font/local` or another strategy. Runtime `fallback` stacks in `app/fonts.js` keep layout readable if a font file fails to load in the browser. |
 
@@ -278,8 +278,8 @@ Use this table as **product/doc truth** for what exists vs deferred.
 #### New Components
 - [x] `app/(site)/voices/VoicesArchiveContent.server.jsx` — Server-side data preparation
 - [x] `app/(site)/voices/VoicesArchiveClient.jsx` — Client-side interactive UI
-- [x] `app/(site)/voices/BooksSection.jsx` — Books pathway placeholder (honest empty state)
-- [x] `app/(site)/voices/ResourcesSection.jsx` — Resources pathway placeholder
+- [x] `app/(site)/voices/BooksSection.jsx` — **Real Notion-backed Books grid** (links to `/book-club/[book-slug]`)
+- [x] `app/(site)/voices/ResourcesSection.jsx` — **Real curated Resources listing** (static manifest for now)
 - [x] `components/FilterDropdown.jsx` — Reusable dropdown filter control
 - [x] `lib/hooks/useClickOutside.js` — Click-outside hook for dropdowns
 - [x] `lib/feeds/unifiedArchive.service.js` — Archive data layer with support for filters and pagination
@@ -292,6 +292,10 @@ Use this table as **product/doc truth** for what exists vs deferred.
 - [x] Updated `app/(site)/voices/page.jsx` to support sections and archive client
 - [x] IntelTabs remains unchanged (already aligned with source)
 - [x] Home page compatibility maintained (links to `/voices` unchanged)
+- [x] `app/(site)/resources/page.jsx` — Redirect → `/voices?source=resources` (preserve public URL)
+- [x] `app/(site)/book-club/page.jsx` — Redirect → `/voices?source=books` (preserve public URL)
+- [x] `app/(site)/book-club/[book-slug]/page.jsx` — Minimal book detail destination
+- [x] `lib/data/resources.js` — Curated resources manifest (static for now)
 
 ### What This Covers
 - `/voices` now behaves like the source: supports query-based section switching, filtering, pagination, and dedicated Books/Resources pathways
@@ -303,8 +307,8 @@ Use this table as **product/doc truth** for what exists vs deferred.
 - **Inline player modal** — advanced video/player interactions
 - **Protest music data integration** — archive can select "Protest Music" but currently shows no items until data source is connected
 - **Curated videos data integration** — similar placeholder behavior
-- **Books content integration** — BooksSection placeholder until bookclub Notion database is connected
-- **Resources content integration** — ResourcesSection placeholder until configured
+- **Books: deeper book club parity** — reading journal entries (`/book-club/[book-slug]/entries/*`) and “currently reading” surface
+- **Resources: source-backed system** — Notion-backed resources DB / richer taxonomy; manifest is curated static data for now
 - **Voice/artist filter data** — artist dropdown is empty pending protest-music data
 - **Advanced filter combinations** — current filter set is minimal but sufficient for parity
 - **Commerce, analytics, Discord, terminal, share** — previous deferred status unchanged
