@@ -268,7 +268,9 @@ export default function VoicesArchiveClient({
             <>
               <li aria-hidden className="text-foreground/40">/</li>
               <li className="text-foreground truncate" aria-current="page">
-                {voiceParam ? voices.find((v) => v.slug === voiceParam)?.title || artistParam : artists.find((a) => a.slug === artistParam)?.title}
+                {voiceParam
+                  ? voices.find((v) => v.slug === voiceParam)?.title ?? voiceParam
+                  : artists.find((a) => a.slug === artistParam)?.title ?? artistParam}
               </li>
             </>
           ) : null}

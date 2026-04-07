@@ -4,6 +4,7 @@ import Navigation from '@/components/layout/Navigation';
 import Footer from '@/components/layout/Footer';
 import DocumentChrome from '@/components/layout/DocumentChrome';
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
+import { CartProvider } from '@/context/CartContext';
 
 export const metadata = {
   title: "I AM [RESIST]",
@@ -24,9 +25,11 @@ export default function RootLayout({ children }) {
     <html lang="en" className={fontClasses} suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider>
-          <Navigation />
-          <DocumentChrome>{children}</DocumentChrome>
-          <Footer />
+          <CartProvider>
+            <Navigation />
+            <DocumentChrome>{children}</DocumentChrome>
+            <Footer />
+          </CartProvider>
         </ThemeProvider>
       </body>
     </html>

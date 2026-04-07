@@ -9,6 +9,13 @@ import {
 } from '@/lib/utils/youtube';
 import { Play } from 'lucide-react';
 
+/** i.ytimg.com often fails or returns empty with strict referrers (e.g. localhost dev). */
+function thumbReferrerPolicy(src) {
+  if (!src || typeof src !== 'string') return 'strict-origin-when-cross-origin';
+  if (src.includes('ytimg.com')) return 'no-referrer';
+  return 'strict-origin-when-cross-origin';
+}
+
 /**
  * Video / intel card thumbnails — hardened like source VoiceFeedCard + NewswireImage:
  * YouTube URLs use CDN fallback chain; non-YouTube feeds use RSS image only.
@@ -33,7 +40,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
   useEffect(() => {
     setCandidateIndex(0);
     setLoadState(candidates.length ? 'loading' : 'error');
-  }, [item?.id, candidates]);
+  }, [item?.id, url, sourceId, thumbFromFeed, candidates.length]);
 
   const exhausted = candidates.length === 0 || candidateIndex >= candidates.length;
   const thumbSrc = exhausted ? null : candidates[candidateIndex];
@@ -59,12 +66,21 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
   const displayDate = publishedAt ? formatDate(publishedAt) : null;
 
   const showThumb = Boolean(thumbSrc);
-  const canPlayInline = typeof onPlay === 'function';
+  const canPlayInline = Boolean(isYouTube && typeof onPlay === 'function');
 
   const onOpenPlayer = useCallback(() => {
     if (!canPlayInline) return;
     onPlay(item);
   }, [canPlayInline, onPlay, item]);
+
+  // If onLoad never fires (referrer/CSP quirks), don't leave the skeleton up forever.
+  useEffect(() => {
+    if (!thumbSrc || loadState === 'loaded') return undefined;
+    const t = window.setTimeout(() => {
+      setLoadState((s) => (s === 'loaded' ? s : 'loaded'));
+    }, 4000);
+    return () => window.clearTimeout(t);
+  }, [thumbSrc, loadState]);
 
   return (
     <article className="machine-panel border border-border relative overflow-hidden group">
@@ -85,10 +101,8 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
               key={thumbSrc}
               src={thumbSrc}
               alt=""
-              referrerPolicy="strict-origin-when-cross-origin"
-              className={`relative z-[2] h-full w-full object-cover object-center transition-all duration-300 group-hover:scale-[1.02] ${
-                loadState === 'loaded' ? 'opacity-100' : 'opacity-0'
-              }`}
+              referrerPolicy={thumbReferrerPolicy(thumbSrc)}
+              className="relative z-[2] h-full w-full object-cover object-center opacity-100 transition-all duration-300 group-hover:scale-[1.02]"
               loading={priority ? 'eager' : 'lazy'}
               decoding="async"
               onLoad={onThumbLoad}
@@ -124,10 +138,8 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
               key={thumbSrc}
               src={thumbSrc}
               alt=""
-              referrerPolicy="strict-origin-when-cross-origin"
-              className={`relative z-[2] h-full w-full object-cover object-center transition-all duration-300 group-hover:scale-[1.02] ${
-                loadState === 'loaded' ? 'opacity-100' : 'opacity-0'
-              }`}
+              referrerPolicy={thumbReferrerPolicy(thumbSrc)}
+              className="relative z-[2] h-full w-full object-cover object-center opacity-100 transition-all duration-300 group-hover:scale-[1.02]"
               loading={priority ? 'eager' : 'lazy'}
               decoding="async"
               onLoad={onThumbLoad}

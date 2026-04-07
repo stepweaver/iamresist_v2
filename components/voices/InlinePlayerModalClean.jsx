@@ -40,6 +40,9 @@ function dedupeByVideoKey(items) {
 }
 
 function intelUrlForCreator(item) {
+  if (item?.sourceType === "curated-videos" || item?.voice?.slug === "curated-videos") {
+    return "/voices?source=curated-videos";
+  }
   if (!item?.voice?.slug) return "/voices";
   return `/voices?source=voices&voice=${encodeURIComponent(item.voice.slug)}`;
 }
@@ -69,8 +72,13 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     return slug ? String(slug).trim().toLowerCase() : "";
   }, [item?.voice?.slug]);
 
+  const isCuratedBucket = useMemo(
+    () => item?.sourceType === "curated-videos" || creatorSlug === "curated-videos",
+    [item?.sourceType, creatorSlug]
+  );
+
   useEffect(() => {
-    if (!creatorSlug) {
+    if (!isCuratedBucket && !creatorSlug) {
       setLazyExtraItems([]);
       setLazyExtraLoading(false);
       return;
@@ -82,9 +90,13 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     setLazyExtraLoading(true);
     setLazyExtraItems([]);
 
+    const url = isCuratedBucket
+      ? "/api/voices-more?bucket=curated"
+      : `/api/voices-more?slug=${encodeURIComponent(creatorSlug)}`;
+
     (async () => {
       try {
-        const res = await fetch(`/api/voices-more?slug=${encodeURIComponent(creatorSlug)}`, {
+        const res = await fetch(url, {
           signal: ac.signal,
         });
         if (cancelled) return;
@@ -103,7 +115,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       cancelled = true;
       ac.abort();
     };
-  }, [creatorSlug]);
+  }, [creatorSlug, isCuratedBucket]);
 
   const moreFromCreator = useMemo(() => {
     if (!item) return [];
@@ -355,7 +367,15 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
                         >
                           <div className="relative h-11 w-20 shrink-0 overflow-hidden bg-military-grey">
                             {thumbUrl ? (
-                              <Image src={thumbUrl} alt="" fill className="object-cover" sizes="80px" unoptimized />
+                              <Image
+                                src={thumbUrl}
+                                alt=""
+                                fill
+                                className="object-cover"
+                                sizes="80px"
+                                unoptimized
+                                referrerPolicy="no-referrer"
+                              />
                             ) : null}
                             <span className="absolute inset-0 flex items-center justify-center">
                               <Play className="h-4 w-4 text-white/90" aria-hidden />

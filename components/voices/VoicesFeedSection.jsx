@@ -1,15 +1,16 @@
 import Link from 'next/link';
 import VoicesGridWithPlayerClient from '@/components/voices/VoicesGridWithPlayerClient';
-import { getHomepageVoicesFeed } from '@/lib/voices';
+import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 
 export default async function VoicesFeedSection({
-  limit = 6,
+  limit = 8,
   title = 'Latest Voices',
   showViewAll = true
 }) {
-  const items = await getHomepageVoicesFeed(limit);
+  const items = await getHomepageIntelFeed();
+  const slice = items.slice(0, limit);
 
-  if (!items.length) {
+  if (!slice.length) {
     return null;
   }
 
@@ -28,7 +29,7 @@ export default async function VoicesFeedSection({
           </Link>
         )}
       </div>
-      <VoicesGridWithPlayerClient items={items} />
+      <VoicesGridWithPlayerClient items={slice} />
     </section>
   );
 }

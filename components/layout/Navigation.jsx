@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { useCart } from '@/context/CartContext';
+import { ShoppingCart } from 'lucide-react';
 
 const NAV_LINKS = [
   { href: '/', label: 'HOME' },
@@ -22,16 +24,34 @@ function isNavLinkActive(link, pathname) {
       pathname?.startsWith('/voices/') ||
       pathname === '/intel' ||
       pathname?.startsWith('/intel/'));
+  const supplyHub =
+    link.href === '/shop' && pathname?.startsWith('/shop');
   return (
     pathname === link.href ||
     (link.href !== '/' && pathname?.startsWith(link.href + '/')) ||
-    intelHub
+    intelHub ||
+    supplyHub
   );
 }
 
 export default function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cartBounce, setCartBounce] = useState(false);
+  const prevQuantityRef = useRef(null);
+  const { totalQuantity } = useCart();
+
+  useEffect(() => {
+    if (prevQuantityRef.current === null) {
+      prevQuantityRef.current = totalQuantity;
+      return;
+    }
+    if (totalQuantity > prevQuantityRef.current) {
+      setCartBounce(true);
+      setTimeout(() => setCartBounce(false), 400);
+    }
+    prevQuantityRef.current = totalQuantity;
+  }, [totalQuantity]);
 
   useEffect(() => {
     const handleEscape = (e) => {
@@ -78,6 +98,19 @@ export default function Navigation() {
           </div>
 
           <div className="md:hidden flex items-center gap-3 pl-2 pr-4">
+            <Link
+              href="/shop/cart"
+              className="relative p-2 text-foreground/60 hover:text-foreground"
+              aria-label={`Cart${totalQuantity > 0 ? ` (${totalQuantity} items)` : ''}`}
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {totalQuantity > 0 && (
+                <span className={`absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 flex items-center justify-center bg-primary text-background text-[10px] font-bold rounded-full ${cartBounce ? 'animate-cart-bounce' : ''}`}>
+                  {totalQuantity > 99 ? '99+' : totalQuantity}
+                </span>
+              )}
+            </Link>
+            <ThemeToggle />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="flex flex-col gap-1.5 w-8 h-8 justify-center items-center cursor-pointer"
@@ -94,9 +127,20 @@ export default function Navigation() {
 
         {mobileMenuOpen && (
           <div id="mobile-menu" className="md:hidden border-t border-border py-4" role="menu">
-            <div className="mb-2 px-4">
-              <ThemeToggle />
-            </div>
+            <Link
+              href="/shop/cart"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`nav-label flex items-center justify-between px-4 py-3 text-sm font-bold tracking-[0.15em] border-l-2 ${
+                pathname === '/shop/cart' ? 'text-primary border-primary bg-primary/5' : 'text-foreground/60 hover:text-foreground border-transparent'
+              }`}
+            >
+              Cart
+              {totalQuantity > 0 && (
+                <span className={`bg-primary text-background text-xs px-2 py-0.5 rounded-full ${cartBounce ? 'animate-cart-bounce' : ''}`}>
+                  {totalQuantity}
+                </span>
+              )}
+            </Link>
             {NAV_LINKS.map((link) => {
               const isActive = isNavLinkActive(link, pathname);
               return (
