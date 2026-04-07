@@ -1,10 +1,10 @@
-import EmptyState from '@/components/content/EmptyState';
 import PageContainer from '@/components/content/PageContainer';
+import TimelineSection from '@/components/sections/TimelineSection';
 
 export const metadata = {
-  title: "Timeline | I AM [RESIST]",
+  title: 'Timeline | I AM [RESIST]',
   description:
-    "A chronological record of authoritarian events, resistance actions, and key moments in the struggle for democracy.",
+    'A chronological record of authoritarian overreach, resistance actions, and key moments in the struggle for democracy.',
 };
 
 export default function TimelinePage() {
@@ -35,19 +35,7 @@ export default function TimelinePage() {
           </p>
         </div>
 
-        {/* Content integration pending */}
-        <EmptyState
-          title="Timeline Under Construction"
-          description="Our interactive timeline is being assembled. Soon you'll be able to explore key events in the resistance movement, from executive orders to protests, from court rulings to legislative battles."
-          actionLabel="Return to Briefing"
-          actionHref="/"
-        />
-
-        {/* Placeholder for future */}
-        <div className="mt-12 hidden">
-          {/* Future: Timeline component goes here */}
-          {/* <Timeline /> */}
-        </div>
+        <TimelineSection />
       </PageContainer>
     </main>
   );

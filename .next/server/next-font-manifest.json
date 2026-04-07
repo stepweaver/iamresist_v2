@@ -1,6 +1,6 @@
 {
   "app": {
-    "[project]/app/_not-found/page": [
+    "[project]/app/(site)/journal/[slug]/page": [
       "static/media/0acc7fdf55eb3220-s.p.532ccaa1.woff2",
       "static/media/278cbb97e75e04e2-s.p.2ce9a157.woff2",
       "static/media/a079e02bba5bf7ab-s.p.7367eab7.woff2",
@@ -9,7 +9,7 @@
       "static/media/03fc1b4a8d284b5e-s.p.af4fcd24.woff2",
       "static/media/c9bd7381a27f2960-s.p.efaf60a6.woff2"
     ],
-    "[project]/app/page": [
+    "[project]/app/(site)/journal/page": [
       "static/media/0acc7fdf55eb3220-s.p.532ccaa1.woff2",
       "static/media/278cbb97e75e04e2-s.p.2ce9a157.woff2",
       "static/media/a079e02bba5bf7ab-s.p.7367eab7.woff2",

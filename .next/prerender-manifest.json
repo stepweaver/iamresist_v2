@@ -1,11 +1,1 @@
-{
-  "version": 4,
-  "routes": {},
-  "dynamicRoutes": {},
-  "notFoundRoutes": [],
-  "preview": {
-    "previewModeId": "5a963df9176a418b170ed145355851eb",
-    "previewModeSigningKey": "1ced192199068112fd05d57de6478b42c58fd49cc65dcb45649140b0b2acd426",
-    "previewModeEncryptionKey": "07147ddebc04b4c2767c0291623330ba1790c51483f59e9f3ed10fce977eab57"
-  }
-}
+{"version":4,"routes":{"/journal/civic-resistance-network-expands":{},"/journal/press-freedom-under-siege":{},"/journal/voter-registration-drive-adapts":{},"/journal/digital-rights-coalition-forms":{}},"dynamicRoutes":{"/journal/[slug]":{"dataRoute":null,"dataRouteRegex":null,"fallback":null,"fallbackRevalidate":false,"fallbackSourceRoute":"/journal/[slug]","routeRegex":"^\\/journal\\/([^/]+?)(?:\\/)?$","allowHeader":[]}},"notFoundRoutes":[],"preview":{"previewModeId":"3c63267265522ee2a67b35bd1bb5bd4a","previewModeSigningKey":"ea8ee9ec828ad903942287243cb32990de4558290a1fe082d2c08c82114f547e","previewModeEncryptionKey":"43d2a00f037f465e83bfc35a460f12dfbc1897c3570ab89d966cdb298b2aa825"}}

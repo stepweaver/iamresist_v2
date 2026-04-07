@@ -40,7 +40,7 @@ export default async function JournalEntryPage({ params }) {
                 DOC ID: IAMR-JOURNAL-DETAIL
               </span>
               <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                JOURNAL ENTRY
+                {entry.title}
               </h1>
             </div>
           </div>
@@ -48,7 +48,7 @@ export default async function JournalEntryPage({ params }) {
       </div>
 
       <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3 pb-12">
-        <JournalEntryBody entry={entry} />
+        <JournalEntryBody entry={entry} showTitle={false} />
       </div>
     </main>
   );
