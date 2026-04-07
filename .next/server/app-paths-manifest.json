@@ -1,4 +1,7 @@
 {
   "/(site)/journal/[slug]/page": "app/(site)/journal/[slug]/page.js",
-  "/(site)/journal/page": "app/(site)/journal/page.js"
+  "/(site)/journal/page": "app/(site)/journal/page.js",
+  "/(site)/voices/page": "app/(site)/voices/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/page": "app/page.js"
 }
