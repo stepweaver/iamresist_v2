@@ -16,10 +16,10 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 - **URL change**: No — `/` preserved
 
 ### 2. Navigation
-- **What it does**: Fixed top nav with desktop links, mobile hamburger menu, theme toggle, cart badge with bounce animation
+- **What it does**: Fixed top nav with desktop links, mobile hamburger menu, theme toggle; source also had cart badge animation
 - **Source**: `app/components/Navigation.jsx`, `NavDesktopLinks.jsx`, `NavMobileMenu.jsx`, `NavThemeToggle.jsx`
-- **Rebuild decision**: **Adapted** — cleaner structure, same behavior
-- **Destination**: `components/layout/Navigation.jsx`, `components/nav/`
+- **Rebuild decision**: **Adapted** — rebuild matches core links + theme; **no cart badge** until commerce
+- **Destination**: `components/layout/Navigation.jsx`, `components/nav/` (nav atoms may be unused)
 - **URL change**: No
 
 ### 3. Footer
@@ -71,9 +71,9 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 9. Voices / Intel Feed
 - **What it does**: Curated feed of voices/perspectives, sourced from Notion, with feed cards and player modal for audio
 - **Source**: `app/voices/page.jsx`, `components/VoiceFeedCard.jsx`, `components/VoicesFeedSection.jsx`, `components/VoicesFeedWithPlayer.jsx`, `components/InlinePlayerModal.jsx`
-- **Rebuild decision**: **Adapted** — Notion integration in Batch 2
-- **Destination**: `app/(site)/voices/page.jsx`, `components/voices/`
-- **URL change**: No — `/voices` is primary, `/intel` redirects here
+- **Rebuild decision**: **Adapted** — **`app/(site)/voices/page.jsx` is an honest placeholder**; Notion voices + player are deferred
+- **Destination**: `app/(site)/voices/page.jsx`; future: `components/voices/`, data in `lib/` (not `lib/data/` yet)
+- **URL change**: No — `/voices` is primary; **`/intel` → `/voices`** via `app/intel/page.jsx`
 
 ### 10. Timeline
 - **What it does**: Interactive timeline of resistance events, sourced from Notion or static data
@@ -96,8 +96,8 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 12. Shop — Product Listing
 - **What it does**: Grid of merchandise products from Printify, with filtering
 - **Source**: `app/shop/page.jsx`, `lib/shopProducts.js`, `lib/shopPricing.js`, `components/shop/`
-- **Rebuild decision**: **Adapted** — Batch 3
-- **Destination**: `app/(site)/shop/page.jsx`, `components/shop/`
+- **Rebuild decision**: **Adapted** — **Today:** `app/(site)/shop/page.jsx` is a **placeholder**; real catalog is Batch 3
+- **Destination**: `app/(site)/shop/page.jsx` (placeholder) → later `components/shop/`
 - **URL change**: No
 
 ### 13. Shop — Product Detail
@@ -195,8 +195,8 @@ Every meaningful feature from the source repo, mapped to its rebuild destination
 ### 25. Notion CMS Integration
 - **What it does**: Fetch pages, blocks, and properties from Notion database
 - **Source**: `lib/notion/`, `lib/notion-blocks.js`
-- **Rebuild decision**: **Adapted** — Batch 2
-- **Destination**: `lib/data/notion.js`
+- **Rebuild decision**: **Adapted** — **Journal path live:** `lib/notion/*`, `lib/journal.js`, `lib/notion-blocks.js` (not the older `lib/data/notion.js` name)
+- **Destination**: As implemented in repo; extend here for voices when scoped
 - **URL change**: N/A (server-only)
 
 ### 26. Supabase Database
@@ -277,13 +277,15 @@ All other URLs preserved as-is.
 *Created: 2026-04-06*
 *Status: Phase 2 — Partial; journal + timeline exceed original Batch 2A placeholder scope; home feed + newswire + resources not built.*
 
-### Truth note (2026-04-07)
+### Truth note
 | Area | Rebuild state |
 |------|----------------|
-| Home aggregated feed | Not implemented — honest placeholder on `app/page.jsx` |
+| Home | Mission-first layout; **no** mixed feed — see copy on `app/page.jsx` |
 | Journal | Live (Notion) |
 | Timeline | Static / source-attributed UI |
 | Voices | Placeholder page |
-| Shop | Placeholder `/shop` page only (no catalog/checkout) |
+| Shop | Placeholder `/shop` only (no catalog/checkout) |
+| `/intel` | **301** to `/voices` |
 | Newswire / RSS | Not in rebuild |
 | `/resources` | Route not present |
+| Nav vs source | No cart badge (commerce deferred) |

@@ -16,7 +16,7 @@ This document defines the architectural, structural, and design strategy for reb
 | Styling | Tailwind CSS v4 |
 | Language | JavaScript (JSX) — matching source |
 | Database | Supabase (future batches) |
-| CMS | Notion API (future batches) |
+| CMS | Notion API — **journal live**; voices/book club later |
 | E-commerce | Stripe + Printify (future batches) |
 | Hosting | Vercel |
 | Analytics | Vercel Analytics |
@@ -26,11 +26,12 @@ This document defines the architectural, structural, and design strategy for reb
 ```
 iamresist-rebuild/
 ├── app/                    # Next.js App Router
-│   ├── (site)/             # Route group for public site
-│   │   ├── layout.jsx      # Site-wide layout (optional; rebuild uses root app/page.jsx for /)
-│   │   ├── page.jsx        # Home page (rebuild: lives at app/page.jsx, not inside (site))
+│   ├── page.jsx            # Home `/` (kept at app root, not under `(site)`)
+│   ├── intel/page.jsx      # 301 → /voices (URL preservation)
+│   ├── (site)/             # Route group (URLs omit the group name)
+│   │   ├── layout.jsx      # Optional shared layout (rebuild: not used)
 │   │   ├── about/
-│   │   ├── intel/
+│   │   ├── voices/
 │   │   ├── journal/
 │   │   ├── timeline/
 │   │   ├── shop/
@@ -75,23 +76,23 @@ All existing public URLs are **preserved by default**. No URL changes without ex
 | `/` | Preserved | Home page |
 | `/about` | Preserved | Mission/About page |
 | `/voices` | Preserved | Voices/Intel feed |
-| `/intel` | **Redirect → `/voices`** | Source has both; consolidate to `/voices` |
+| `/intel` | **Redirect → `/voices`** | Implemented: `app/intel/page.jsx` (`permanentRedirect`) |
 | `/journal` | Preserved | Journal entries |
 | `/journal/[slug]` | Preserved | Individual journal entries |
 | `/timeline` | Preserved | Resistance timeline |
-| `/shop` | Preserved | Shop listing |
-| `/shop/[product]` | Preserved | Product detail |
-| `/shop/cart` | Preserved | Shopping cart |
-| `/shop/checkout` | Preserved | Checkout flow |
-| `/shop/orders` | Preserved | Order management |
+| `/shop` | Preserved | **Placeholder page** — no catalog (commerce batch) |
+| `/shop/[product]` | Preserved | **Not in rebuild** — product routes deferred |
+| `/shop/cart` | Preserved | **Not in rebuild** |
+| `/shop/checkout` | Preserved | **Not in rebuild** |
+| `/shop/orders` | Preserved | **Not in rebuild** (source used `/orders`; same deferral) |
 | `/legal` | Preserved | Legal/disclaimer page |
-| `/resources` | Preserved | Resource links |
-| `/curated` | Preserved | Curated content |
-| `/posts` | Preserved | Blog posts |
-| `/music` | Preserved | Protest music |
-| `/terminal` | Preserved | Terminal easter egg |
-| `/book-club` | Preserved | Book club section |
-| `/api/*` | Preserved | API routes |
+| `/resources` | Preserved | **Not in rebuild** — route missing |
+| `/curated` | Preserved | **Not in rebuild** |
+| `/posts` | Preserved | **Not in rebuild** |
+| `/music` | Preserved | **Not in rebuild** |
+| `/terminal` | Preserved | **Not in rebuild** |
+| `/book-club` | Preserved | **Not in rebuild** |
+| `/api/*` | Preserved | **Not in rebuild** |
 
 ### Documented URL Changes
 | Old URL | New URL | Reason | Redirect Required |
@@ -294,10 +295,5 @@ Server Page → Server Data Fetch → Client Component (interactive)
 *Created: 2026-04-06*
 *Status: Phase 2 — Content (partial); see `02-build-plan.md` for truth-sync snapshot.*
 
-### As-built snapshot (stabilization pass, 2026-04-07)
-- **Journal**: Live Notion-backed listing and `[slug]` pages (`lib/journal.js`, `lib/notion/journal.repo.js`).
-- **Timeline**: Source-grounded static summary + `TimelineSection` (Brennan Center attribution on-page).
-- **Voices / Intel**: Placeholder page only (no Notion voices data layer).
-- **Home**: Hero + mission; **no** aggregated home feed (journal/intel/newswire) yet.
-- **Shop**: Honest placeholder route only (`/shop`) — no commerce, cart, or checkout.
-- **Missing vs URL strategy**: `/resources`, newswire plumbing, `/curated`, `/posts`, etc. not present yet (unchanged from deferred batches).
+### As-built snapshot
+See **`02-build-plan.md` → “Current rebuild truth”** for the live checklist. In short: journal + timeline are real; voices and `/shop` are honest placeholders; home has no mixed feed; `/intel` redirects to `/voices`; `/resources`, newswire, and most commerce URLs are still absent.

@@ -64,33 +64,34 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Home feed: journal + intel + newswire aggregation not implemented yet */}
+      {/* Home layout: mission-first; streams stay on section routes until feed batch */}
       <div className="py-8 px-4">
         <div className="max-w-[1600px] mx-auto">
           <div className="text-hud-dim font-mono text-xs mb-4">
-            // FEED STANDBY — NO AGGREGATION WIRED
+            // FIELD CHANNELS // UPDATES BY SECTION
           </div>
           <div className="border border-border p-8 text-center space-y-3">
-            <p className="mission-copy text-lg text-foreground/90">
-              The live briefing feed (journal, intel, and headlines in one stream) is
-              not built on the home page yet.
+            <p className="mission-copy text-lg text-foreground/90 max-w-2xl mx-auto">
+              This briefing leads with the mission. Running updates stay on their own
+              channels so essays, intel, and chronology stay easy to find and archive.
             </p>
             <p className="prose-copy text-sm text-foreground/60 max-w-xl mx-auto">
-              Use{' '}
-              <Link
-                href="/journal"
-                className="text-primary hover:underline font-semibold"
-              >
+              <Link href="/journal" className="text-primary hover:underline font-semibold">
                 Journal
               </Link>{' '}
-              and{' '}
-              <Link
-                href="/voices"
-                className="text-primary hover:underline font-semibold"
-              >
+              for long-form entries,{' '}
+              <Link href="/voices" className="text-primary hover:underline font-semibold">
                 Intel
               </Link>{' '}
-              for now; the combined feed is queued for a future batch.
+              for the voices feed,{' '}
+              <Link
+                href="/timeline"
+                className="text-primary hover:underline font-semibold"
+              >
+                Timeline
+              </Link>{' '}
+              for the resistance chronology. A single mixed stream on the home page will
+              ship once intel and newswire data are wired—nothing is implied here yet.
             </p>
           </div>
         </div>

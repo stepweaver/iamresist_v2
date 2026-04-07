@@ -6,21 +6,22 @@ Three batches, each small and reviewable. Batch 1 is narrow and foundational. Ba
 
 ---
 
-## Current rebuild truth (synced 2026-04-07)
+## Current rebuild truth
 
-Use this table as **product/doc truth** for what exists today vs what is still deferred.
+Use this table as **product/doc truth** for what exists vs deferred.
 
 | Capability | State |
 |------------|--------|
 | Journal (Notion list + `[slug]` + block body) | **Live** |
-| Timeline | **Live** — static, Brennan Center–attributed summary + timeline UI |
-| Voices / Intel | **Placeholder** page only |
+| Timeline | **Live** — Brennan Center–attributed summary + `TimelineSection` |
+| Voices / Intel | **Placeholder** (`/voices`) |
+| `/intel` | **301 → `/voices`** (`app/intel/page.jsx`) |
 | Home hero / mission | **Live** |
-| Home aggregated feed (journal + intel + newswire) | **Not built** — explicit placeholder copy on home |
-| Shop / commerce | **`/shop` placeholder page only** — no catalog, cart, checkout, APIs |
+| Home mixed feed | **Not built** — home copy describes section routes only |
+| Shop / commerce | **`/shop` placeholder** — no catalog, cart, checkout, APIs |
 | Newswire / RSS | **Not in rebuild** |
 | `/resources` | **Missing** |
-| Shared content primitives (`PageContainer`, `EmptyState`, etc.) | **Present** (used by routes) |
+| Shared content primitives (`PageContainer`, `EmptyState`, etc.) | **Present** |
 
 ---
 
@@ -76,14 +77,11 @@ Use this table as **product/doc truth** for what exists today vs what is still d
 - 404 page exists with themed design
 - Loading state exists
 
-### What This Does NOT Cover
-- No CMS integration (Notion)
-- No data fetching (feeds, journal, voices)
-- No shop/cart/checkout
-- No journal, timeline, legal, music, book-club, terminal pages
-- No API routes
-- No webhooks or cron jobs
-- No analytics integration
+### What Batch 1 originally did not cover
+*Historical scope only — the repo has since gained journal, timeline, legal, and more. See **Current rebuild truth** above.*
+
+- No CMS, feeds, or commerce in the **Batch 1 charter**
+- No API routes, webhooks, cron, or analytics in the **Batch 1 charter**
 
 ### Success Criteria
 - `npm install` succeeds
@@ -128,7 +126,7 @@ Use this table as **product/doc truth** for what exists today vs what is still d
 - [x] Basic SEO titles and descriptions (journal detail uses `generateMetadata`)
 
 ### What This Covers
-- All five routes are accessible and render
+- Content routes listed in **Current rebuild truth** are accessible and render
 - Consistent page layout and design language
 - Loading states for async content
 - Empty states for no-data scenarios
@@ -151,7 +149,7 @@ Use this table as **product/doc truth** for what exists today vs what is still d
 - Requires Batch 1 foundation (complete)
 
 ### Success Criteria
-- All 5 routes build and render without errors
+- Routes in scope build and render without errors
 - `npm run build` succeeds
 - `npm run lint` passes
 - Pages have consistent layout and styling
@@ -180,7 +178,7 @@ Use this table as **product/doc truth** for what exists today vs what is still d
 - [x] `components/content/NotionBlocksBody.jsx` — Notion block renderer (subset of block types)
 - [ ] `components/content/MetaBlock.jsx` — Metadata display
 - [ ] `components/content/JournalEntryBody.jsx` — Journal entry renderer
-- [ ] `components/content/Timeline.jsx` — Interactive timeline component
+- [x] Timeline UI — **`components/sections/TimelineSection.jsx`** (static / source-grounded); optional Notion-driven timeline TBD
 - [ ] `components/newswire/` — Newswire feed components
 
 #### RSS / Feed System
@@ -222,7 +220,7 @@ Use this table as **product/doc truth** for what exists today vs what is still d
 #### Shop System
 - [ ] `lib/data/printify.js` — Printify product catalog
 - [ ] `lib/data/shop.js` — Shop data layer
-- [ ] `app/(site)/shop/page.jsx` — Product listing
+- [x] `app/(site)/shop/page.jsx` — **Placeholder “Supply” page today** (replace with real listing in this batch)
 - [ ] `app/(site)/shop/[productId]/page.jsx` — Product detail
 - [ ] `components/shop/` — Product cards, filters, detail views
 
