@@ -1,0 +1,464 @@
+@import "tailwindcss";
+
+/* ============================================
+   THEME VARIABLES
+   CSS Custom Properties for consistent theming
+   ============================================ */
+
+:root {
+  /* Antifa Black & Red Military Theme - Dark Mode (Default) */
+  --background: #0a0a0a;
+  --foreground: #e8e8e8;
+  --antifa-red: #d32f2f;
+  --antifa-red-dark: #b71c1c;
+  --antifa-red-light: #ff5252;
+  --military-black: #1a1a1a;
+  --military-grey: #2a2a2a;
+  --border-color: #333333;
+  --accent-glow: rgba(211, 47, 47, 0.15);
+  /* Briefing packet tokens */
+  --paper: #0a0a0a;
+  --ink: #e8e8e8;
+  --muted-ink: #a0a0a0;
+  --rule: rgba(255, 255, 255, 0.15);
+  --stamp: #8b0000;
+  --olive: #2f3b2f;
+  /* Skynet / machine-vision layer */
+  --steel-900: #0b0f14;
+  --steel-800: #121821;
+  --steel-700: #1b2430;
+  --grid-line: rgba(255, 255, 255, 0.06);
+  --hud-red: #ff3b3b;
+  --hud-red-dim: rgba(255, 59, 59, 0.18);
+  --hud-red-glow: rgba(255, 59, 59, 0.28);
+  --hud-text: rgba(255, 255, 255, 0.45);
+  --hud-text-dim: rgba(255, 255, 255, 0.3);
+  --warning-amber: #c98b2e;
+  /* Semantic font roles */
+  --font-display: var(--font-orbitron);
+  --font-ui: var(--font-rajdhani);
+  --font-body: var(--font-ibm-plex-sans);
+  --font-mono: var(--font-share-tech-mono);
+}
+
+:root.light {
+  /* Light Mode Theme - Softer, Muted Colors */
+  --background: #f0f0f0;
+  --foreground: #2a2a2a;
+  --antifa-red: #d32f2f;
+  --antifa-red-dark: #b71c1c;
+  --antifa-red-light: #ff5252;
+  --military-black: #e8e8e8;
+  --military-grey: #d8d8d8;
+  --border-color: #c0c0c0;
+  --accent-glow: rgba(211, 47, 47, 0.08);
+  /* Briefing packet tokens */
+  --paper: #f4f1e8;
+  --ink: #111111;
+  --muted-ink: #3b3b3b;
+  --rule: rgba(0, 0, 0, 0.22);
+  --stamp: #8b0000;
+  --olive: #2f3b2f;
+  /* Skynet / hero panel - light mode */
+  --steel-900: #e4e8ec;
+  --steel-800: #d8dde4;
+  --steel-700: #c8cfd8;
+  --grid-line: rgba(0, 0, 0, 0.08);
+  --hud-red: #b71c1c;
+  --hud-red-dim: rgba(183, 28, 28, 0.15);
+  --hud-red-glow: rgba(183, 28, 28, 0.22);
+  --hud-text: rgba(0, 0, 0, 0.5);
+  --hud-text-dim: rgba(0, 0, 0, 0.35);
+}
+
+/* Tailwind v4 Theme Integration */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--antifa-red);
+  --color-primary-dark: var(--antifa-red-dark);
+  --color-primary-light: var(--antifa-red-light);
+  --color-military-black: var(--military-black);
+  --color-military-grey: var(--military-grey);
+  --color-border: var(--border-color);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted-ink: var(--muted-ink);
+  --color-stamp: var(--stamp);
+  --color-olive: var(--olive);
+}
+
+/* Briefing packet - subtle paper texture */
+.paper {
+  background:
+    radial-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--paper);
+}
+
+:root.light .paper {
+  background:
+    radial-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--paper);
+}
+
+.rule {
+  border-color: var(--rule);
+}
+
+/* ============================================
+   SKYNET / MACHINE-VISION LAYER
+   Steel panels, HUD grid, scanline, target brackets
+   ============================================ */
+
+.machine-panel {
+  position: relative;
+  background: linear-gradient(135deg, var(--steel-800), var(--steel-900));
+}
+
+.machine-panel::before,
+.machine-panel::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-color: var(--hud-red);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.machine-panel::before {
+  top: 10px;
+  left: 10px;
+  border-top: 1px solid var(--hud-red);
+  border-left: 1px solid var(--hud-red);
+}
+
+.machine-panel::after {
+  right: 10px;
+  bottom: 10px;
+  border-right: 1px solid var(--hud-red);
+  border-bottom: 1px solid var(--hud-red);
+}
+
+.hud-grid {
+  position: relative;
+  overflow: hidden;
+}
+
+.hud-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanline::after {
+  content: "";
+  position: absolute;
+  inset: -20% 0 auto 0;
+  height: 32%;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 59, 59, 0),
+    rgba(255, 59, 59, 0.12),
+    rgba(255, 59, 59, 0)
+  );
+  animation: scan-sweep 6s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scan-sweep {
+  0% { transform: translateY(-120%); }
+  100% { transform: translateY(420%); }
+}
+
+:root.light .scanline::after {
+  background: linear-gradient(
+    to bottom,
+    rgba(183, 28, 28, 0),
+    rgba(183, 28, 28, 0.06),
+    rgba(183, 28, 28, 0)
+  );
+}
+
+/* HUD readout text - theme-aware (white in dark, dark in light) */
+.text-hud {
+  color: var(--hud-text);
+}
+.text-hud-dim {
+  color: var(--hud-text-dim);
+}
+
+/* Hero page background grid - theme-aware */
+.hero-page-bg {
+  background-image:
+    linear-gradient(rgba(211, 47, 47, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(211, 47, 47, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+:root.light .hero-page-bg {
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+}
+
+/* ============================================
+   BASE STYLES
+   Global styles that affect the entire app
+   ============================================ */
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), Arial, Helvetica, sans-serif;
+  line-height: 1.6;
+}
+
+/* ============================================
+   TYPOGRAPHY ROLES
+   Semantic font roles: display, UI, body, mono
+   ============================================ */
+
+.font-display {
+  font-family: var(--font-display), Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.font-ui {
+  font-family: var(--font-ui), Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.font-body {
+  font-family: var(--font-body), Arial, sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), "Courier New", monospace;
+  letter-spacing: 0.06em;
+}
+
+.kicker,
+.doc-id,
+.system-label,
+.nav-label,
+.button-label,
+.timestamp {
+  font-family: var(--font-ui), Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.machine-readout,
+.meta-inline,
+.codeword {
+  font-family: var(--font-mono), "Courier New", monospace;
+  letter-spacing: 0.08em;
+}
+
+.hero-title,
+.section-title,
+.threat-title {
+  font-family: var(--font-display), Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 0.95;
+}
+
+.prose-copy,
+.journal-copy,
+.legal-copy,
+.mission-copy {
+  font-family: var(--font-body), Arial, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.journal-copy p {
+  margin-bottom: 1.5rem;
+}
+.journal-copy p:last-child {
+  margin-bottom: 0;
+}
+
+/* ============================================
+   ACCESSIBILITY UTILITIES
+   Screen reader only content
+   ============================================ */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.focus\:not-sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: initial;
+  margin: initial;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* ============================================
+   STATIC BLINK EFFECT
+   Simple terminal-style blink for word transitions
+   ============================================ */
+
+@keyframes terminal-blink {
+  0% {
+    opacity: 1;
+  }
+  49% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.glitch-active {
+  animation: terminal-blink 0.15s steps(1, end);
+}
+
+/* ============================================
+   OPTIMIZED SHADOWS
+   GPU-accelerated shadow effects
+   ============================================ */
+
+.logo-shadow {
+  filter: drop-shadow(0 10px 24px rgba(211, 47, 47, 0.18)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+  will-change: filter;
+}
+
+:root.light .logo-shadow {
+  filter: drop-shadow(0 10px 24px rgba(211, 47, 47, 0.12)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.15));
+}
+
+.logo-shadow-hero {
+  filter: drop-shadow(0 0 16px rgba(211, 47, 47, 0.3))
+          drop-shadow(0 0 32px rgba(211, 47, 47, 0.2))
+          drop-shadow(0 10px 24px rgba(211, 47, 47, 0.25))
+          drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+  will-change: filter;
+}
+
+:root.light .logo-shadow-hero {
+  filter: drop-shadow(0 0 16px rgba(211, 47, 47, 0.2))
+          drop-shadow(0 0 32px rgba(211, 47, 47, 0.15))
+          drop-shadow(0 10px 24px rgba(211, 47, 47, 0.18))
+          drop-shadow(0 6px 16px rgba(0, 0, 0, 0.2));
+}
+
+/* ============================================
+   IMAGE PROTECTION
+   Prevent downloading and saving of images
+   ============================================ */
+
+img {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  pointer-events: auto;
+  -webkit-touch-callout: none;
+  position: relative;
+}
+
+img::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  background: transparent;
+}
+
+img::selection {
+  background: transparent;
+}
+
+img::-moz-selection {
+  background: transparent;
+}
+
+/* ============================================
+   CART ADD FEEDBACK
+   Subtle animations when items are added to cart
+   ============================================ */
+
+@keyframes cart-bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes button-confirm {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+.animate-cart-bounce {
+  animation: cart-bounce 0.4s ease-out;
+}
+
+.animate-button-confirm {
+  animation: button-confirm 0.3s ease-out;
+}
+
+/* ============================================
+   SCROLLBAR UTILITIES
+   Hide scrollbars while maintaining scroll functionality
+   ============================================ */
+
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
