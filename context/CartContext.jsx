@@ -116,19 +116,30 @@ export function CartProvider({ children }) {
     });
   }, []);
 
-  const removeItem = useCallback((slug) => {
-    setItems((prev) => prev.filter((i) => i.slug !== slug));
-  }, []);
-
-  const updateQuantity = useCallback((slug, quantity) => {
-    const q = clampInt(quantity, 0, MAX_LINE_ITEM_QUANTITY);
-    if (q < 1) {
+  /** Remove one cart line. Pass productKey so mix-and-match lines for the same slug stay correct. */
+  const removeItem = useCallback((slug, productKey) => {
+    if (!productKey) {
       setItems((prev) => prev.filter((i) => i.slug !== slug));
       return;
     }
     setItems((prev) =>
+      prev.filter((i) => !(i.slug === slug && i.productKey === productKey))
+    );
+  }, []);
+
+  const updateQuantity = useCallback((slug, productKey, quantity) => {
+    const q = clampInt(quantity, 0, MAX_LINE_ITEM_QUANTITY);
+    if (q < 1) {
+      setItems((prev) =>
+        prev.filter((i) => !(i.slug === slug && i.productKey === productKey))
+      );
+      return;
+    }
+    setItems((prev) =>
       sanitizeCartItems(
-        prev.map((i) => (i.slug === slug ? { ...i, quantity: q } : i))
+        prev.map((i) =>
+          i.slug === slug && i.productKey === productKey ? { ...i, quantity: q } : i
+        )
       )
     );
   }, []);

@@ -81,7 +81,7 @@ export default function ShopPage() {
               </div>
               <h3 className="font-ui text-sm font-bold">Fast Shipping</h3>
               <p className="prose-copy text-xs text-foreground/60">
-                Free shipping on orders $20+ (US & Canada)
+                Free shipping on 3+ stickers (US & Canada)
               </p>
             </div>
             <div className="space-y-3">

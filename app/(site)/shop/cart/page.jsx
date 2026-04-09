@@ -124,7 +124,7 @@ export default function CartPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-4">
             {items.map((item) => (
-              <Card key={item.slug} className="p-4 sm:p-6">
+              <Card key={`${item.slug}::${item.productKey}`} className="p-4 sm:p-6">
                 <div className="flex gap-4 sm:gap-6">
                   <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 bg-gradient-to-br from-primary/10 to-transparent rounded overflow-hidden">
                     <Image
@@ -143,7 +143,7 @@ export default function CartPage() {
                     <div className="flex flex-wrap items-center gap-3 mt-2">
                       <div className="flex items-center border border-border">
                         <button
-                          onClick={() => updateQuantity(item.slug, item.quantity - 1)}
+                          onClick={() => updateQuantity(item.slug, item.productKey, item.quantity - 1)}
                           className="p-2 hover:bg-primary/10 transition-colors"
                           aria-label="Decrease quantity"
                         >
@@ -159,7 +159,7 @@ export default function CartPage() {
                         </button>
                       </div>
                       <button
-                        onClick={() => removeItem(item.slug)}
+                        onClick={() => removeItem(item.slug, item.productKey)}
                         className="flex items-center gap-1 text-sm text-foreground/60 hover:text-primary transition-colors"
                         aria-label="Remove from cart"
                       >
