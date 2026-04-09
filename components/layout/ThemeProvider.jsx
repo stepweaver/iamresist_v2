@@ -4,40 +4,25 @@ import { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext(undefined);
 
+/** Syncs with `<html className>` from the server (theme cookie); never hides children. */
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState('dark');
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const cookie = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith('theme='))
-      ?.split('=')[1];
-
-    const initialTheme = cookie || 'dark';
-    setTheme(initialTheme);
-    setMounted(true);
+    const isLight = document.documentElement.classList.contains('light');
+    setTheme(isLight ? 'light' : 'dark');
   }, []);
 
-  useEffect(() => {
-    if (!mounted) return;
-
-    const root = document.documentElement;
-    root.classList.remove('light');
-    if (theme === 'light') {
-      root.classList.add('light');
-    }
-
-    document.cookie = `theme=${theme}; path=/; max-age=31536000`;
-  }, [theme, mounted]);
-
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    document.documentElement.classList.toggle('light', newTheme === 'light');
+    document.cookie = `theme=${newTheme}; Path=/; Max-Age=31536000; SameSite=Lax`;
   };
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {!mounted ? <div className="hidden">{children}</div> : children}
+      {children}
     </ThemeContext.Provider>
   );
 }

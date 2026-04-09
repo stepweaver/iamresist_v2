@@ -40,11 +40,15 @@ function dedupeByVideoKey(items) {
 }
 
 function intelUrlForCreator(item) {
-  if (item?.sourceType === "curated-videos" || item?.voice?.slug === "curated-videos") {
+  if (!item?.voice?.slug) return "/voices";
+  const slug = item.voice.slug;
+  if (item.sourceType === "protest-music") {
+    return `/voices?source=protest-music&artist=${encodeURIComponent(slug)}`;
+  }
+  if (item.sourceType === "curated-videos" || slug === "curated-videos") {
     return "/voices?source=curated-videos";
   }
-  if (!item?.voice?.slug) return "/voices";
-  return `/voices?source=voices&voice=${encodeURIComponent(item.voice.slug)}`;
+  return `/voices?source=voices&voice=${encodeURIComponent(slug)}`;
 }
 
 export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem }) {
@@ -67,18 +71,22 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       }`
     : "";
 
-  const creatorSlug = useMemo(() => {
-    const slug = item?.voice?.slug;
-    return slug ? String(slug).trim().toLowerCase() : "";
-  }, [item?.voice?.slug]);
-
-  const isCuratedBucket = useMemo(
-    () => item?.sourceType === "curated-videos" || creatorSlug === "curated-videos",
-    [item?.sourceType, creatorSlug]
-  );
+  /** Match production: no "more from" RSS fetch for protest-music (sidebar uses page list only). */
+  const creatorBucketKey = useMemo(() => {
+    if (!item?.voice) return null;
+    if (item.sourceType === "protest-music") return null;
+    const isCuratedBucket =
+      item.sourceType === "curated-videos" ||
+      item.voice?.slug === "curated-videos" ||
+      item.isCurated === true;
+    if (isCuratedBucket) return "curated";
+    const slug = item.voice?.slug;
+    if (!slug || slug === "curated-videos") return null;
+    return String(slug).trim();
+  }, [item?.voice, item?.sourceType, item?.isCurated]);
 
   useEffect(() => {
-    if (!isCuratedBucket && !creatorSlug) {
+    if (!creatorBucketKey) {
       setLazyExtraItems([]);
       setLazyExtraLoading(false);
       return;
@@ -90,9 +98,10 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     setLazyExtraLoading(true);
     setLazyExtraItems([]);
 
-    const url = isCuratedBucket
-      ? "/api/voices-more?bucket=curated"
-      : `/api/voices-more?slug=${encodeURIComponent(creatorSlug)}`;
+    const url =
+      creatorBucketKey === "curated"
+        ? "/api/voices-more?bucket=curated"
+        : `/api/voices-more?slug=${encodeURIComponent(creatorBucketKey)}`;
 
     (async () => {
       try {
@@ -115,7 +124,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       cancelled = true;
       ac.abort();
     };
-  }, [creatorSlug, isCuratedBucket]);
+  }, [creatorBucketKey]);
 
   const moreFromCreator = useMemo(() => {
     if (!item) return [];

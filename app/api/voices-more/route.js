@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAllVoices } from '@/lib/notion/voices.repo';
+import { getVoiceBySlug } from '@/lib/notion/voices.repo';
 import { fetchFeedItems } from '@/lib/feeds/rss';
 import { getVideos } from '@/lib/notion/videos.repo';
 import { slugify } from '@/lib/utils/slugify';
@@ -69,8 +69,9 @@ export async function GET(request) {
   }
 
   try {
-    const voices = await getAllVoices({ limit: 120 });
-    const voice = (voices || []).find((v) => v.slug === slug);
+    // Full Notion pagination (same as production) — do not use getAllVoices({ limit: N });
+    // a capped query only returns the first page and misses voices like later alphabetically.
+    const voice = await getVoiceBySlug(slug);
     if (!voice?.feedUrl) {
       return NextResponse.json({ items: [] }, { status: 200 });
     }
