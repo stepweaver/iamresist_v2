@@ -11,6 +11,9 @@ import { getHomepageVoicesFeed } from '@/lib/voices';
 import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 import { getUnifiedArchivePage } from '@/lib/feeds/unifiedArchive.service';
 import { getNewswireStories } from '@/lib/newswire';
+import { getLatestProtestMusicItem } from '@/lib/feeds/protestMusicFeed.service';
+import { getCurrentBook } from '@/lib/bookclub/service';
+import { getRecentJournalEntries } from '@/lib/journal';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -34,6 +37,9 @@ export async function GET(request) {
     getHomepageIntelFeed(),
     getUnifiedArchivePage(1, 20, {}),
     getNewswireStories(),
+    getLatestProtestMusicItem(),
+    getCurrentBook(),
+    getRecentJournalEntries(1),
   ]);
 
   return NextResponse.json({ ok: true });
