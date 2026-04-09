@@ -17,6 +17,25 @@ const NAV_LINKS = [
   { href: '/legal', label: 'LEGAL' },
 ];
 
+function CartNavLink({ totalQuantity, cartBounce }) {
+  return (
+    <Link
+      href="/shop/cart"
+      className="relative p-2 text-foreground/60 hover:text-foreground"
+      aria-label={`Cart${totalQuantity > 0 ? ` (${totalQuantity} items)` : ''}`}
+    >
+      <ShoppingCart className="w-5 h-5" />
+      {totalQuantity > 0 && (
+        <span
+          className={`absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 flex items-center justify-center bg-primary text-background text-[10px] font-bold rounded-full ${cartBounce ? 'animate-cart-bounce' : ''}`}
+        >
+          {totalQuantity > 99 ? '99+' : totalQuantity}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 function isNavLinkActive(link, pathname) {
   const intelHub =
     link.href === '/voices' &&
@@ -98,24 +117,14 @@ export default function Navigation() {
                 </Link>
               );
             })}
+            <CartNavLink totalQuantity={totalQuantity} cartBounce={cartBounce} />
             <div className="ml-2">
               <ThemeToggle />
             </div>
           </div>
 
           <div className="md:hidden flex items-center gap-3 pl-2 pr-4">
-            <Link
-              href="/shop/cart"
-              className="relative p-2 text-foreground/60 hover:text-foreground"
-              aria-label={`Cart${totalQuantity > 0 ? ` (${totalQuantity} items)` : ''}`}
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {totalQuantity > 0 && (
-                <span className={`absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 flex items-center justify-center bg-primary text-background text-[10px] font-bold rounded-full ${cartBounce ? 'animate-cart-bounce' : ''}`}>
-                  {totalQuantity > 99 ? '99+' : totalQuantity}
-                </span>
-              )}
-            </Link>
+            <CartNavLink totalQuantity={totalQuantity} cartBounce={cartBounce} />
             <ThemeToggle />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
