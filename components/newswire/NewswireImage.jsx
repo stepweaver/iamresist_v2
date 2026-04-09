@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-/**
- * RSS hero images: show full frame (contain) to avoid harsh center-crop blur/zoom.
- * Matches production newswire behavior; gradual opacity reveal like source NewswireImage.
- */
+/** Remote RSS/OG images — same as source: cover + center, opacity reveal while loading. */
 export default function NewswireImage({ src, alt = '', onLoadError }) {
   const [status, setStatus] = useState(src ? 'loading' : 'error');
   const imgRef = useRef(null);
@@ -43,7 +40,7 @@ export default function NewswireImage({ src, alt = '', onLoadError }) {
         src={src}
         alt={alt}
         referrerPolicy="strict-origin-when-cross-origin"
-        className={`h-full w-full object-contain object-center transition-opacity duration-300 ${
+        className={`h-full w-full object-cover object-center transition-opacity duration-300 ${
           status === 'loaded' ? 'opacity-100' : 'opacity-0'
         }`}
         loading="lazy"

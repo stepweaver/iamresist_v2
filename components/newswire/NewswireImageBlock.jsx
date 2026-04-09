@@ -40,7 +40,7 @@ export default function NewswireImageBlock({ href, src, alt = '', className = ''
   const showRemote = Boolean(resolvedSrc) && !failed;
 
   return (
-    <div className={`target-brackets relative ${className}`}>
+    <div className={`relative ${className}`}>
       <span className="tl" aria-hidden />
       <span className="tr" aria-hidden />
       <span className="bl" aria-hidden />
@@ -50,7 +50,7 @@ export default function NewswireImageBlock({ href, src, alt = '', className = ''
         href={href || '#'}
         target="_blank"
         rel="noopener noreferrer"
-        className="absolute inset-0 block overflow-hidden bg-muted"
+        className="absolute inset-0 block overflow-hidden"
       >
         {showRemote ? (
           <NewswireImage src={resolvedSrc} alt={alt} onLoadError={onImageFailed} />

@@ -78,12 +78,11 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   const videoId = getYoutubeVideoId(item?.url, item?.sourceId);
   const isYouTube = Boolean(videoId);
-  /** Muted autoplay: browsers block unmuted autoplay without a prior gesture; user can unmute in the player. */
+  /** Autoplay with sound after opening the modal (user click). If a browser blocks it, user can start playback in the player. */
   const embedUrl = useMemo(() => {
     if (!videoId) return "";
     const params = new URLSearchParams({
       autoplay: "1",
-      mute: "1",
       playsinline: "1",
       rel: "0",
       modestbranding: "1",

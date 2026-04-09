@@ -40,7 +40,7 @@ export default async function FeaturedNewswireSection({ featuredStories: prePick
                 href={url || '#'}
                 src={image}
                 alt=""
-                className="block w-full rounded bg-muted shrink-0 overflow-hidden relative aspect-[2/1] max-h-[200px] sm:max-h-none sm:aspect-video"
+                className="target-brackets block w-full rounded bg-muted shrink-0 overflow-hidden relative aspect-[2/1] max-h-[200px] sm:max-h-none sm:aspect-video"
               />
             ) : (
               <div className="hud-label text-[10px] sm:text-xs text-foreground/60 uppercase tracking-[0.18em] border border-border/60 px-2 py-1 w-fit">

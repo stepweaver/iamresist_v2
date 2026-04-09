@@ -20,7 +20,7 @@ export default function NewswireHeadlineCard({ story, compact = false }) {
           href={linkUrl}
           src={image}
           alt=""
-          className={`block w-full rounded bg-muted shrink-0 overflow-hidden relative aspect-video ${
+          className={`target-brackets block w-full rounded bg-muted shrink-0 overflow-hidden relative aspect-video ${
             compact ? 'max-h-28 sm:max-h-40' : 'max-h-40'
           }`}
         />
