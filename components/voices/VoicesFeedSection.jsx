@@ -5,12 +5,13 @@ import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 export default async function VoicesFeedSection({
   limit = 8,
   title = 'Latest Voices',
-  showViewAll = true
-}) {
-  const items = await getHomepageIntelFeed();
-  const slice = items.slice(0, limit);
+  showViewAll = true,
+  items: itemsProp,
+} = {}) {
+  const feed = itemsProp ?? (await getHomepageIntelFeed());
+  const items = itemsProp !== undefined ? feed : feed.slice(0, limit);
 
-  if (!slice.length) {
+  if (!items.length) {
     return null;
   }
 
@@ -29,7 +30,7 @@ export default async function VoicesFeedSection({
           </Link>
         )}
       </div>
-      <VoicesGridWithPlayerClient items={slice} />
+      <VoicesGridWithPlayerClient items={items} />
     </section>
   );
 }

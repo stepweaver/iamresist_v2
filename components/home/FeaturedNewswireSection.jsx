@@ -5,9 +5,11 @@ import NewswireImageBlock from '@/components/newswire/NewswireImageBlock';
 import { getNewswireStories, pickDiverseTopStories } from '@/lib/newswire';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 
-export default async function FeaturedNewswireSection() {
-  const stories = await getNewswireStories();
-  const featuredStories = pickDiverseTopStories(stories ?? [], 3, 1);
+/** When `featuredStories` is passed (diverse-picked in parent), skips a second newswire fetch. */
+export default async function FeaturedNewswireSection({ featuredStories: prePicked } = {}) {
+  const featuredStories = Array.isArray(prePicked)
+    ? prePicked
+    : pickDiverseTopStories((await getNewswireStories()) ?? [], 3, 1);
   const [leadStory, ...secondaryStories] = featuredStories;
 
   if (!leadStory) return null;

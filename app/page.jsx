@@ -1,10 +1,11 @@
+import { Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import RotatingWord from '@/components/home/RotatingWord';
 import HudOverlay from '@/components/home/HudOverlay';
 import JournalSection from '@/components/home/JournalSection';
-import FeaturedNewswireSection from '@/components/home/FeaturedNewswireSection';
-import VoicesFeedSection from '@/components/voices/VoicesFeedSection';
+import HomeFeed from '@/components/home/HomeFeed.server';
+import HomeFeedSkeleton from '@/components/home/HomeFeedSkeleton';
 
 export const revalidate = 120;
 
@@ -75,9 +76,10 @@ export default function Home() {
           <div className="text-hud-dim font-mono text-xs mb-6 pl-1">
             // FIELD CHANNELS // UPDATES BY SECTION
           </div>
+          <Suspense fallback={<HomeFeedSkeleton />}>
+            <HomeFeed />
+          </Suspense>
           <JournalSection />
-          <FeaturedNewswireSection />
-          <VoicesFeedSection limit={6} title="Latest Voices" showViewAll={true} />
         </div>
       </div>
     </main>
