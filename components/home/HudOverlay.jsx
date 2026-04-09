@@ -13,11 +13,11 @@ export default function HudOverlay({ title, code }) {
       <div className="absolute top-1/2 left-8 right-8 h-px bg-hud-red/20"></div>
       <div className="absolute top-8 bottom-8 left-1/2 w-px bg-hud-red/20"></div>
 
-      {/* Text labels */}
-      <div className="absolute top-2 left-2 font-mono text-[10px] text-hud-dim">
+      {/* Text labels: offset past machine-panel inset corners + border stroke */}
+      <div className="absolute top-[14px] left-[14px] font-mono text-[10px] text-hud-dim">
         {code}
       </div>
-      <div className="absolute top-2 right-2 font-mono text-[10px] text-hud-dim text-right">
+      <div className="absolute top-[14px] right-[14px] font-mono text-[10px] text-hud-dim text-right">
         {title}
       </div>
 

@@ -9,9 +9,9 @@ export default function DocumentChrome({ children, className = '' }) {
         className="sticky top-16 sm:top-20 z-40 border-b rule bg-background/95 backdrop-blur"
         style={{ borderColor: 'var(--rule)' }}
       >
-        <div className="font-mono px-1 sm:px-2 py-1.5 text-[10px] sm:text-xs tracking-widest text-foreground/80">
-          <span className="mr-4">DOC ID: IAMR-BRIEF</span>
-          <span className="text-hud-dim">{timestamp}</span>
+        <div className="flex items-baseline justify-between gap-3 font-mono px-1 sm:px-2 py-1.5 text-[10px] sm:text-xs tracking-widest text-foreground/80">
+          <span className="min-w-0 truncate">DOC ID: IAMR-BRIEF</span>
+          <span className="shrink-0 text-right text-hud-dim tabular-nums">{timestamp}</span>
         </div>
       </div>
 
