@@ -8,6 +8,8 @@ import {
   youtubeThumbnailCandidates,
 } from '@/lib/utils/youtube';
 import { Play } from 'lucide-react';
+import ShareButton from '@/components/ShareButton';
+import { getCanonicalBaseUrl } from '@/lib/siteConfig';
 
 /** i.ytimg.com often fails or returns empty with strict referrers (e.g. localhost dev). */
 function thumbReferrerPolicy(src) {
@@ -21,7 +23,7 @@ function thumbReferrerPolicy(src) {
  * YouTube URLs use CDN fallback chain; non-YouTube feeds use RSS image only.
  */
 export default function VoiceCard({ item, onPlay, priority = false }) {
-  const { title, url, publishedAt, description, voice, image, sourceId } = item;
+  const { title, url, publishedAt, description, voice, image, sourceId, slug, songSlug } = item;
   const thumbFromFeed = typeof image === 'string' && image.trim() ? image.trim() : null;
 
   const candidates = useMemo(() => {
@@ -64,6 +66,17 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
   const isYouTube = Boolean(getYoutubeVideoId(url, sourceId));
 
   const displayDate = publishedAt ? formatDate(publishedAt) : null;
+
+  const baseUrl = getCanonicalBaseUrl();
+  const shareUrl = useMemo(() => {
+    if (item.isCurated === true && slug && baseUrl) return `${baseUrl}/curated/${slug}`;
+    if (item.isProtestMusic === true && songSlug && baseUrl) return `${baseUrl}/music/${songSlug}`;
+    return url || '';
+  }, [item.isCurated, item.isProtestMusic, slug, songSlug, baseUrl, url]);
+
+  const hasDescription = Boolean(description);
+  const hasEditorialNote =
+    hasDescription && (item.isCurated === true || item.sourceType === 'protest-music');
 
   const showThumb = Boolean(thumbSrc);
   const canPlayInline = Boolean(isYouTube && typeof onPlay === 'function');
@@ -181,11 +194,20 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
           )}
         </h3>
 
-        {description && (
+        {hasEditorialNote && description ? (
+          <>
+            <span className="kicker mb-2 block text-xs font-bold text-primary sm:text-sm">
+              Editorial note
+            </span>
+            <p className="prose-copy mb-4 line-clamp-3 text-sm text-foreground/80 leading-relaxed sm:line-clamp-none">
+              {description}
+            </p>
+          </>
+        ) : description ? (
           <p className="prose-copy text-foreground/70 mb-4 line-clamp-3">
             {description}
           </p>
-        )}
+        ) : null}
 
         <div className="flex items-center justify-between pt-4 border-t border-border">
           <span className="font-mono text-xs text-hud-dim">
@@ -222,6 +244,17 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
             </Link>
           )}
         </div>
+        {shareUrl ? (
+          <div className="mt-4 border-t border-border pt-4">
+            <ShareButton
+              url={shareUrl}
+              title={title}
+              description={voice?.title || description}
+              iconOnly={false}
+              heading={item.isProtestMusic ? 'Share song' : 'Share video'}
+            />
+          </div>
+        ) : null}
       </div>
     </article>
   );

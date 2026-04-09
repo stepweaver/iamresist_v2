@@ -409,7 +409,7 @@ body {
 }
 
 .glitch-active {
-  animation: terminal-blink 0.15s steps(1, end);
+  animation: terminal-blink var(--glitch-dur, 150ms) steps(1, end);
 }
 
 /* ============================================

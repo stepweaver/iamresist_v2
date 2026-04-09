@@ -33,25 +33,25 @@ function nextIndexDifferent(prev, len) {
   return r >= prev ? r + 1 : r;
 }
 
-export default function RotatingWord({
-  minIntervalMs = 2000,
-  maxIntervalMs = 4000,
-  blinkDurationMs = 150,
-}) {
+export default function RotatingWord({ minIntervalMs = 1600, maxIntervalMs = 4800 }) {
   const [index, setIndex] = useState(0);
   const [isGlitching, setIsGlitching] = useState(false);
+  const [glitchDurMs, setGlitchDurMs] = useState(150);
 
   const cycleTimeoutRef = useRef(null);
   const swapTimeoutRef = useRef(null);
   const endGlitchTimeoutRef = useRef(null);
+  const flickerDelayRef = useRef(null);
 
   const clearAllTimers = () => {
     if (cycleTimeoutRef.current) clearTimeout(cycleTimeoutRef.current);
     if (swapTimeoutRef.current) clearTimeout(swapTimeoutRef.current);
     if (endGlitchTimeoutRef.current) clearTimeout(endGlitchTimeoutRef.current);
+    if (flickerDelayRef.current) clearTimeout(flickerDelayRef.current);
     cycleTimeoutRef.current = null;
     swapTimeoutRef.current = null;
     endGlitchTimeoutRef.current = null;
+    flickerDelayRef.current = null;
   };
 
   useEffect(() => {
@@ -69,23 +69,39 @@ export default function RotatingWord({
         cycleTimeoutRef.current = null;
       }
 
-      const delay = randInt(minIntervalMs, maxIntervalMs);
+      const base = randInt(minIntervalMs, maxIntervalMs);
+      const jitter = randInt(-420, 420);
+      const delay = Math.max(900, base + jitter);
 
       cycleTimeoutRef.current = setTimeout(() => {
         if (cancelled) return;
 
-        setIsGlitching(true);
+        const blinkMs = randInt(70, 260);
+        const swapAt = Math.max(24, Math.floor(blinkMs / 2));
+        const preFlicker = randInt(0, 140);
 
-        swapTimeoutRef.current = setTimeout(() => {
-          if (cancelled) return;
-          setIndex((prev) => nextIndexDifferent(prev, WORDS.length));
-        }, Math.floor(blinkDurationMs / 2));
+        const startGlitch = () => {
+          setGlitchDurMs(blinkMs);
+          setIsGlitching(true);
+          swapTimeoutRef.current = setTimeout(() => {
+            if (cancelled) return;
+            setIndex((prev) => nextIndexDifferent(prev, WORDS.length));
+          }, swapAt);
+          endGlitchTimeoutRef.current = setTimeout(() => {
+            if (cancelled) return;
+            setIsGlitching(false);
+            scheduleNextCycle();
+          }, blinkMs);
+        };
 
-        endGlitchTimeoutRef.current = setTimeout(() => {
-          if (cancelled) return;
-          setIsGlitching(false);
-          scheduleNextCycle();
-        }, blinkDurationMs);
+        if (preFlicker > 0) {
+          flickerDelayRef.current = setTimeout(() => {
+            if (cancelled) return;
+            startGlitch();
+          }, preFlicker);
+        } else {
+          startGlitch();
+        }
       }, delay);
     };
 
@@ -95,7 +111,7 @@ export default function RotatingWord({
       cancelled = true;
       clearAllTimers();
     };
-  }, [minIntervalMs, maxIntervalMs, blinkDurationMs]);
+  }, [minIntervalMs, maxIntervalMs]);
 
   const currentWord = WORDS[index];
 
@@ -104,6 +120,7 @@ export default function RotatingWord({
       <span className="inline-block">[</span>
       <span
         className={`inline-block relative ${isGlitching ? 'glitch-active' : ''}`}
+        style={{ '--glitch-dur': `${glitchDurMs}ms` }}
         data-text={currentWord}
       >
         {currentWord}

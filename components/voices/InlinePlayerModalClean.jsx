@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ExternalLink, Play, X } from "lucide-react";
 import ShareButton from "@/components/ShareButton";
+import { getCanonicalBaseUrl } from "@/lib/siteConfig";
 import useHorizontalSwipe from "@/components/useHorizontalSwipe";
 import useModalFocusTrap from "@/components/useModalFocusTrap";
 import { getYoutubeVideoId, youtubeThumbnailCandidates } from "@/lib/utils/youtube";
@@ -20,9 +21,21 @@ function isSameItem(a, b) {
   return a?.url === b?.url || a?.id === b?.id;
 }
 
+function voiceMatchKey(voice) {
+  const slug = voice?.slug;
+  if (slug != null && String(slug).trim() !== "") {
+    return `slug:${String(slug).trim().toLowerCase()}`;
+  }
+  const id = voice?.id;
+  if (id != null && String(id).trim() !== "") {
+    return `id:${String(id).trim()}`;
+  }
+  return "";
+}
+
 function sameCreator(a, b) {
-  const aKey = a?.voice?.slug || a?.voice?.id;
-  const bKey = b?.voice?.slug || b?.voice?.id;
+  const aKey = voiceMatchKey(a?.voice);
+  const bKey = voiceMatchKey(b?.voice);
   return aKey && bKey && aKey === bKey;
 }
 
@@ -65,11 +78,22 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   const videoId = getYoutubeVideoId(item?.url, item?.sourceId);
   const isYouTube = Boolean(videoId);
-  const embedUrl = isYouTube
-    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${
-        typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : ""
-      }`
-    : "";
+  /** Muted autoplay: browsers block unmuted autoplay without a prior gesture; user can unmute in the player. */
+  const embedUrl = useMemo(() => {
+    if (!videoId) return "";
+    const params = new URLSearchParams({
+      autoplay: "1",
+      mute: "1",
+      playsinline: "1",
+      rel: "0",
+      modestbranding: "1",
+      enablejsapi: "1",
+    });
+    if (typeof window !== "undefined") {
+      params.set("origin", window.location.origin);
+    }
+    return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+  }, [videoId]);
 
   /** Match production: no "more from" RSS fetch for protest-music (sidebar uses page list only). */
   const creatorBucketKey = useMemo(() => {
@@ -224,8 +248,87 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   if (!item) return null;
 
-  const shareUrl = item.url || "";
-  const relatedShown = moreFromCreator.slice(0, DESKTOP_RELATED_CAP);
+  const baseUrl = getCanonicalBaseUrl();
+  const shareUrl =
+    item.isCurated === true && item.slug && baseUrl
+      ? `${baseUrl}/curated/${item.slug}`
+      : item.isProtestMusic === true && item.songSlug && baseUrl
+        ? `${baseUrl}/music/${item.songSlug}`
+        : item.url || "";
+
+  const renderRelatedList = (cap) => {
+    const shown = moreFromCreator.slice(0, cap);
+    const count = moreFromCreator.length;
+    const label =
+      count > 0
+        ? `More from ${item.voice?.title || "this creator"} (${count})`
+        : `More from ${item.voice?.title || "this creator"}`;
+
+    return (
+      <div className="border-border/50 mt-2 border-t pt-4 md:mt-0 md:border-t-0 md:pt-0">
+        <span className="hud-label mb-3 block text-[10px] sm:text-xs">{label}</span>
+        {lazyExtraLoading ? (
+          <p className="mb-2 font-mono text-[10px] text-foreground/50">Loading more…</p>
+        ) : null}
+        {shown.length > 0 ? (
+          <ul className="space-y-2">
+            {shown.map((sibling, idx) => {
+              const thumbUrl = youtubeThumbnailCandidates(sibling.url, sibling.sourceId)[0] || null;
+              const playing = isSameItem(sibling, item);
+              return (
+                <li key={sibling.id ?? sibling.url ?? idx}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectItem?.(sibling)}
+                    aria-current={playing ? "true" : undefined}
+                    className={`flex w-full items-center gap-3 border p-2 text-left transition-colors ${
+                      playing
+                        ? "border-primary/60 bg-primary/10"
+                        : "border-border/30 hover:border-border/60 hover:bg-military-grey/15"
+                    }`}
+                  >
+                    <div className="relative h-11 w-20 shrink-0 overflow-hidden bg-military-grey">
+                      {thumbUrl ? (
+                        <Image
+                          src={thumbUrl}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="80px"
+                          unoptimized
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : null}
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <Play className="h-4 w-4 text-white/90" aria-hidden />
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-xs font-semibold text-foreground">
+                        {sibling.title || "Untitled"}
+                      </p>
+                      {sibling.publishedAt ? (
+                        <span className="font-mono text-[10px] text-foreground/50">
+                          {formatDate(sibling.publishedAt)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        <Link
+          href={intelUrlForCreator(item)}
+          onClick={onClose}
+          className="button-label mt-3 inline-flex w-full items-center justify-center border border-primary/50 py-2.5 text-xs font-bold text-primary transition-colors hover:bg-primary/10"
+        >
+          View more from {item.voice?.title || "this creator"} →
+        </Link>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -253,6 +356,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
               title={item.title}
               description={item.voice?.title || item.description}
               iconOnly={true}
+              heading={item.isProtestMusic ? 'Share song' : 'Share video'}
               className="border border-border/50 bg-military-grey p-2 text-foreground/90 hover:bg-military-black hover:text-primary hover:border-primary/50"
             />
             <button
@@ -346,6 +450,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
                     {item.description}
                   </p>
                 ) : null}
+                {item.voice ? <div className="md:hidden">{renderRelatedList(MOBILE_RELATED_CAP)}</div> : null}
               </div>
             </div>
           </div>
@@ -355,64 +460,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
               ref={railScrollRef}
               className="hidden min-h-0 w-72 shrink-0 overflow-y-auto overscroll-y-contain border-border md:flex md:flex-col md:border-l"
             >
-              <div className="p-4 border-b border-border">
-                <span className="font-mono block text-[10px] text-hud-dim tracking-wider uppercase">
-                  More from {item.voice?.title || "this creator"}
-                </span>
-              </div>
-              <div className="p-4">
-                {lazyExtraLoading ? (
-                  <p className="mb-2 font-mono text-[10px] text-foreground/50">Loading more…</p>
-                ) : null}
-                <ul className="space-y-2">
-                  {relatedShown.map((sibling, idx) => {
-                    const thumbUrl = youtubeThumbnailCandidates(sibling.url, sibling.sourceId)[0] || null;
-                    return (
-                      <li key={sibling.id ?? sibling.url ?? idx}>
-                        <button
-                          type="button"
-                          onClick={() => onSelectItem?.(sibling)}
-                          className="flex w-full items-center gap-3 border border-border/30 hover:border-border/60 hover:bg-military-grey/15 p-2 text-left"
-                        >
-                          <div className="relative h-11 w-20 shrink-0 overflow-hidden bg-military-grey">
-                            {thumbUrl ? (
-                              <Image
-                                src={thumbUrl}
-                                alt=""
-                                fill
-                                className="object-cover"
-                                sizes="80px"
-                                unoptimized
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : null}
-                            <span className="absolute inset-0 flex items-center justify-center">
-                              <Play className="h-4 w-4 text-white/90" aria-hidden />
-                            </span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-2 text-xs font-semibold text-foreground">
-                              {sibling.title || "Untitled"}
-                            </p>
-                            {sibling.publishedAt ? (
-                              <span className="font-mono text-[10px] text-foreground/50">
-                                {formatDate(sibling.publishedAt)}
-                              </span>
-                            ) : null}
-                          </div>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <Link
-                  href={intelUrlForCreator(item)}
-                  onClick={onClose}
-                  className="button-label mt-3 inline-flex w-full items-center justify-center border border-primary/50 py-2.5 text-xs font-bold text-primary hover:bg-primary/10 transition-colors"
-                >
-                  View more from {item.voice?.title || "this creator"} →
-                </Link>
-              </div>
+              <div className="p-4">{renderRelatedList(DESKTOP_RELATED_CAP)}</div>
             </aside>
           ) : null}
         </div>

@@ -110,6 +110,7 @@ export default async function CuratedVideoPage({ params }) {
                   title={video.title}
                   description={video.description?.slice(0, 160)}
                   iconOnly={false}
+                  heading="Share video"
                 />
               )}
             </div>
