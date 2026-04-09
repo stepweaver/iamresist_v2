@@ -78,20 +78,12 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   const videoId = getYoutubeVideoId(item?.url, item?.sourceId);
   const isYouTube = Boolean(videoId);
-  /** Autoplay with sound after opening the modal (user click). If a browser blocks it, user can start playback in the player. */
+  /** Same embed query string as source `InlinePlayerModal.jsx` (autoplay, no mute param). */
   const embedUrl = useMemo(() => {
     if (!videoId) return "";
-    const params = new URLSearchParams({
-      autoplay: "1",
-      playsinline: "1",
-      rel: "0",
-      modestbranding: "1",
-      enablejsapi: "1",
-    });
-    if (typeof window !== "undefined") {
-      params.set("origin", window.location.origin);
-    }
-    return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+    const origin =
+      typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${origin}`;
   }, [videoId]);
 
   /** Match production: no "more from" RSS fetch for protest-music (sidebar uses page list only). */
@@ -375,6 +367,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
             <div className="relative aspect-video w-full max-h-[45vh] min-h-[200px] shrink-0 bg-black">
               {isYouTube ? (
                 <iframe
+                  key={videoId}
                   ref={ytIframeRef}
                   src={embedUrl}
                   title={item.title || "YouTube video"}
