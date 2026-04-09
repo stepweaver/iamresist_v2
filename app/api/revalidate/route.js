@@ -9,6 +9,7 @@ import { env } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
+/** Tags passed to `unstable_cache` / `fetch(..., { next: { tags } })` anywhere in lib/app — keep in sync when adding caches. */
 const FEED_TAGS = [
   'unified-archive',
   'voices-feed',
@@ -18,6 +19,8 @@ const FEED_TAGS = [
   'voices-more',
   'protest-music',
   'curated-videos',
+  'journal',
+  'bookclub',
 ];
 
 const TAG_SET = new Set(FEED_TAGS);

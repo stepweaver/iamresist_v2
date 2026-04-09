@@ -1,7 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getUnifiedArchivePage } from "@/lib/feeds/unifiedArchive.service";
+import { rateLimitedResponse } from "@/lib/server/rateLimit";
 
 export async function GET(request) {
+  const limited = rateLimitedResponse("voices-archive", request);
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "20", 10);

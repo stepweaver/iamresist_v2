@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getVoiceBySlug } from '@/lib/notion/voices.repo';
+import { rateLimitedResponse } from '@/lib/server/rateLimit';
 import { fetchFeedItems } from '@/lib/feeds/rss';
 import { getVideos } from '@/lib/notion/videos.repo';
 import { slugify } from '@/lib/utils/slugify';
@@ -46,6 +47,9 @@ function toFeedItem(raw, voice) {
 }
 
 export async function GET(request) {
+  const limited = rateLimitedResponse('voices-more', request);
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
   const slug = (searchParams.get('slug') || '').trim().toLowerCase();
   const bucket = (searchParams.get('bucket') || '').trim().toLowerCase();

@@ -6,7 +6,9 @@
     "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "cross-env NODE_ENV=test vitest run",
+    "test:watch": "cross-env NODE_ENV=test vitest"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
@@ -26,6 +28,7 @@
     "cross-env": "^10.1.0",
     "eslint": "^9.39.2",
     "eslint-config-next": "^15.5.14",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "vitest": "^3.0.5"
   }
 }

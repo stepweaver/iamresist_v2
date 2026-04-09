@@ -6,6 +6,14 @@ import { getBookBySlug, getNotesForBook } from '@/lib/bookclub/service';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import JournalView from '@/components/bookclub/JournalView';
 
+/** Matches production OG: cover when available + site logo for rich previews. */
+const BOOK_CLUB_FALLBACK_OG = {
+  url: '/images/logo_ununitedstates.png',
+  width: 1200,
+  height: 1200,
+  alt: 'I AM [RESIST]',
+};
+
 export const revalidate = 300;
 
 export async function generateMetadata({ params }) {
@@ -27,13 +35,18 @@ export async function generateMetadata({ params }) {
       ? `Notes and context for ${book.title} by ${book.author}.`
       : `Notes and context for ${book.title}.`);
 
+  const ogImages = book.coverImage
+    ? [
+        { url: book.coverImage, width: 1200, height: 1600, alt: `${book.title} cover` },
+        BOOK_CLUB_FALLBACK_OG,
+      ]
+    : [BOOK_CLUB_FALLBACK_OG];
+
   return buildPageMetadata({
     title: `${book.title} | Book Club | I AM [RESIST]`,
     description,
     urlPath: `/book-club/${book.slug}`,
-    images: book.coverImage
-      ? [{ url: book.coverImage, width: 1200, height: 1600, alt: `${book.title} cover` }]
-      : undefined,
+    images: ogImages,
   });
 }
 
