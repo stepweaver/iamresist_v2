@@ -40,6 +40,41 @@ function formatFreshnessIso(iso) {
   }
 }
 
+function DeskStateBadge({ freshnessMeta, snapshotFallback }) {
+  if (!freshnessMeta) return null;
+  const deskState = snapshotFallback ? 'snapshot' : freshnessMeta.deskState;
+  const base =
+    'font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 border rounded shrink-0';
+  if (deskState === 'snapshot') {
+    return (
+      <span
+        className={`${base} border-amber-500/60 text-amber-600 dark:text-amber-400 bg-amber-500/10`}
+        title="Not a live query — last saved desk"
+      >
+        Saved snapshot
+      </span>
+    );
+  }
+  if (deskState === 'stale') {
+    return (
+      <span
+        className={`${base} border-primary/50 text-primary bg-primary/5`}
+        title="Data older than freshness threshold"
+      >
+        Stale
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`${base} border-emerald-500/40 text-emerald-700 dark:text-emerald-400/90 bg-emerald-500/10`}
+      title="Within freshness threshold"
+    >
+      Fresh
+    </span>
+  );
+}
+
 export default function LiveDeskSection({ desk }) {
   const {
     configured,
@@ -51,6 +86,7 @@ export default function LiveDeskSection({ desk }) {
     items,
     message,
     freshness,
+    freshnessMeta,
   } = desk;
 
   const hasFreshnessData =
@@ -61,8 +97,8 @@ export default function LiveDeskSection({ desk }) {
     return (
       <section className="border border-border p-6 machine-panel">
         <p className="text-foreground/80 text-sm uppercase tracking-wider">
-          Live desk storage is not configured (set Supabase env vars and apply the{' '}
-          <code className="font-mono text-xs">intel</code> schema migration).
+          OSINT desk storage is not configured (set Supabase env vars and apply the{' '}
+          <code className="font-mono text-xs">intel</code> schema migrations).
         </p>
       </section>
     );
@@ -73,13 +109,26 @@ export default function LiveDeskSection({ desk }) {
   return (
     <div className="space-y-6">
       {showFreshnessStrip && freshness ? (
-        <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
-          Latest item fetch: {formatFreshnessIso(freshness.latestFetchedAt)} · Last successful ingest:{' '}
-          {formatFreshnessIso(freshness.latestSuccessfulIngestAt)}
-          {dataStale && !snapshotFallback && liveReadOk ? (
-            <span className="text-primary ml-2">(above freshness threshold)</span>
-          ) : null}
-        </p>
+        <div className="flex flex-wrap items-start gap-3 border border-border machine-panel p-4">
+          <DeskStateBadge freshnessMeta={freshnessMeta} snapshotFallback={snapshotFallback} />
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
+              Latest item fetch: {formatFreshnessIso(freshness.latestFetchedAt)} · Last successful ingest:{' '}
+              {formatFreshnessIso(freshness.latestSuccessfulIngestAt)}
+            </p>
+            {freshnessMeta ? (
+              <p className="font-mono text-[10px] text-foreground/65 tracking-wide">
+                Threshold: {freshnessMeta.thresholdMinutes}m
+                {freshnessMeta.latestFetchedAgeMinutes != null
+                  ? ` · Last fetch age: ${freshnessMeta.latestFetchedAgeMinutes}m`
+                  : ''}
+                {freshnessMeta.latestSuccessAgeMinutes != null
+                  ? ` · Last success age: ${freshnessMeta.latestSuccessAgeMinutes}m`
+                  : ''}
+              </p>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       {showBanner ? (
@@ -90,7 +139,7 @@ export default function LiveDeskSection({ desk }) {
         >
           <span className="font-bold uppercase tracking-wider text-primary">
             {snapshotFallback
-              ? 'Saved desk snapshot'
+              ? 'Stale — saved OSINT snapshot'
               : intelSchemaMisconfigured
                 ? 'Supabase configuration'
                 : 'Freshness warning'}
@@ -117,7 +166,7 @@ export default function LiveDeskSection({ desk }) {
       {!liveReadOk && !snapshotFallback && items.length === 0 ? (
         <section className="border border-border p-6 machine-panel">
           <p className="text-foreground/80 text-sm uppercase tracking-wider">
-            Nothing to show yet — live read failed and no saved desk snapshot exists.
+            Nothing to show yet — OSINT read failed and no saved desk snapshot exists.
           </p>
         </section>
       ) : null}

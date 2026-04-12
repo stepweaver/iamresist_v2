@@ -1,6 +1,6 @@
 /**
  * GET /api/cron/ingest-signal
- * Fetches configured intel sources, upserts intel.source_items, revalidates intel-live tag.
+ * Fetches configured intel sources, upserts intel.source_items, revalidates intel caches.
  * Secured by CRON_SECRET (Authorization: Bearer <CRON_SECRET>).
  */
 
@@ -23,17 +23,22 @@ export async function GET(req) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const outcome = await runIntelIngest();
-
-  if (outcome.ok) {
-    try {
-      revalidateTag('intel-live');
-    } catch (e) {
-      console.warn('[ingest-signal] revalidateTag intel-live:', e);
-    }
+  let outcome;
+  try {
+    outcome = await runIntelIngest();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[ingest-signal] runIntelIngest threw:', e);
+    return NextResponse.json({ error: msg, overallStatus: 'failed' }, { status: 500 });
   }
 
-  return NextResponse.json(outcome, {
-    status: outcome.ok ? 200 : 500,
-  });
+  try {
+    revalidateTag('intel-live');
+    revalidateTag('intel-sources');
+  } catch (e) {
+    console.warn('[ingest-signal] revalidateTag:', e);
+  }
+
+  const httpStatus = outcome.overallStatus === 'failed' ? 500 : 200;
+  return NextResponse.json(outcome, { status: httpStatus });
 }

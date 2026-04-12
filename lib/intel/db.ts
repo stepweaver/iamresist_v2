@@ -12,6 +12,12 @@ function client() {
   return supabaseAdmin().schema('intel');
 }
 
+function mergeEditorialNotes(c: SignalSourceConfig): string | null {
+  const parts = [c.editorialNotes, c.notes].filter((x): x is string => Boolean(x && String(x).trim()));
+  const unique = [...new Set(parts.map((p) => p.trim()))];
+  return unique.length ? unique.join(' ') : null;
+}
+
 export async function syncIntelSourcesFromManifest(
   configs: SignalSourceConfig[],
 ): Promise<Map<string, string>> {
@@ -22,6 +28,11 @@ export async function syncIntelSourcesFromManifest(
     fetch_kind: c.fetchKind,
     endpoint_url: c.endpointUrl,
     is_enabled: c.isEnabled,
+    purpose: c.purpose,
+    trusted_for: c.trustedFor,
+    not_trusted_for: c.notTrustedFor,
+    editorial_notes: mergeEditorialNotes(c),
+    is_core_source: c.isCoreSource,
     updated_at: new Date().toISOString(),
   }));
 
@@ -192,9 +203,18 @@ export async function fetchIntelFreshnessSnapshot(): Promise<IntelFreshness> {
   };
 }
 
+export type IntelFreshnessMeta = {
+  thresholdMinutes: number;
+  latestFetchedAgeMinutes: number | null;
+  latestSuccessAgeMinutes: number | null;
+  staleReason: string | null;
+  deskState: 'fresh' | 'stale' | 'snapshot';
+};
+
 export type LiveDeskSnapshotPayload = {
   items: unknown[];
   freshness: IntelFreshness | null;
+  freshnessMeta?: IntelFreshnessMeta | null;
 };
 
 export async function saveLiveDeskSnapshot(payload: LiveDeskSnapshotPayload): Promise<void> {
@@ -222,5 +242,72 @@ export async function loadLiveDeskSnapshot(): Promise<LiveDeskSnapshotPayload | 
     p.freshness && typeof p.freshness === 'object' && !Array.isArray(p.freshness)
       ? (p.freshness as IntelFreshness)
       : null;
-  return { items, freshness };
+  const freshnessMeta =
+    p.freshnessMeta && typeof p.freshnessMeta === 'object' && !Array.isArray(p.freshnessMeta)
+      ? (p.freshnessMeta as IntelFreshnessMeta)
+      : null;
+  return { items, freshness, freshnessMeta };
+}
+
+export type IntelSourceRegistryRow = {
+  id: string;
+  slug: string;
+  name: string;
+  provenance_class: string;
+  fetch_kind: string;
+  endpoint_url: string | null;
+  is_enabled: boolean;
+  purpose: string | null;
+  trusted_for: string | null;
+  not_trusted_for: string | null;
+  editorial_notes: string | null;
+  is_core_source: boolean;
+};
+
+export async function fetchIntelSourcesRegistry(): Promise<IntelSourceRegistryRow[]> {
+  const supabase = client();
+  const { data, error } = await supabase
+    .from('sources')
+    .select(
+      'id, slug, name, provenance_class, fetch_kind, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source',
+    )
+    .order('slug');
+  if (error) throw new Error(`intel.sources registry: ${error.message}`);
+  return (data ?? []) as IntelSourceRegistryRow[];
+}
+
+export type SourceItemStatsRpcRow = {
+  source_id: string;
+  item_total: number;
+  items_24h: number;
+  items_7d: number;
+  last_item_fetched_at: string | null;
+};
+
+export async function fetchSourceItemStatsAggregates(): Promise<SourceItemStatsRpcRow[]> {
+  const supabase = client();
+  const { data, error } = await supabase.rpc('source_item_stats');
+  if (error) {
+    console.warn('[intel] source_item_stats RPC:', error.message);
+    return [];
+  }
+  return (data ?? []) as SourceItemStatsRpcRow[];
+}
+
+export type IngestRunAuditRow = {
+  source_id: string;
+  status: IngestRunStatus;
+  finished_at: string | null;
+};
+
+export async function fetchRecentIngestRunsForAudit(limit = 500): Promise<IngestRunAuditRow[]> {
+  const supabase = client();
+  const { data, error } = await supabase
+    .from('ingest_runs')
+    .select('source_id, status, finished_at')
+    .not('source_id', 'is', null)
+    .order('finished_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) throw new Error(`ingest_runs audit: ${error.message}`);
+  return (data ?? []) as IngestRunAuditRow[];
 }

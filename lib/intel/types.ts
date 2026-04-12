@@ -31,6 +31,16 @@ export type SignalSourceConfig = {
   isEnabled: boolean;
   /** Shown in Live UI / ops; not user-facing essay. */
   notes?: string;
+  /** Why this feed exists on the OSINT desk. */
+  purpose: string;
+  /** What this source is appropriate evidence for. */
+  trustedFor: string;
+  /** What this source must not be treated as. */
+  notTrustedFor: string;
+  /** Operational or editorial caveats (merged into DB editorial_notes). */
+  editorialNotes?: string;
+  /** Core institutional / document stack vs optional wires or specialists. */
+  isCoreSource: boolean;
 };
 
 export type NormalizedItem = {

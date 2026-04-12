@@ -18,16 +18,23 @@ import type { IngestRunStatus, NormalizedItem } from '@/lib/intel/types';
 
 const SKIP_MESSAGE = 'Skipped (disabled or missing endpoint URL)';
 
+export type IngestSummaryStatus = IngestRunStatus | 'skipped';
+
 export type IngestSummary = {
   sourceSlug: string;
-  status: IngestRunStatus;
+  status: IngestSummaryStatus;
   /** Rows included in upsert batches (not necessarily changed in DB). */
   itemsUpserted: number;
   error?: string;
 };
 
+export type IngestOverallStatus = 'success' | 'partial' | 'failed';
+
 export type IngestOutcome = {
+  /** False only when the job could not run meaningfully (e.g. DB not configured). */
   ok: boolean;
+  overallStatus: IngestOverallStatus;
+  finishedAt: string;
   skipped?: string;
   summary: {
     total: number;
@@ -39,13 +46,22 @@ export type IngestOutcome = {
   results: IngestSummary[];
 };
 
-async function ingestOneSource(cfg: {
-    slug: string;
-    fetchKind: 'rss' | 'json_api';
-    endpointUrl: string;
-    provenanceClass: string;
-  },
-): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string }> {
+/** Exported for tests: derive overallStatus from per-source rows (non-skipped only). */
+export function computeOverallIngestStatus(results: IngestSummary[]): IngestOverallStatus {
+  const attempted = results.filter((r) => r.status !== 'skipped');
+  if (attempted.length === 0) return 'partial';
+  if (attempted.some((r) => r.status === 'failed')) return 'failed';
+  if (attempted.some((r) => r.status === 'partial')) return 'partial';
+  return 'success';
+}
+
+/** Exported for unit tests (fetch mocked). */
+export async function ingestOneSource(cfg: {
+  slug: string;
+  fetchKind: 'rss' | 'json_api';
+  endpointUrl: string;
+  provenanceClass: string;
+}): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string }> {
   const res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: 25000 });
   if (!res.ok) {
     return {
@@ -78,11 +94,12 @@ async function ingestOneSource(cfg: {
       provenanceClass: cfg.provenanceClass,
     });
 
-    if (items.length === 0 && res.text.length > 50) {
+    if (items.length === 0) {
       return {
         items: [],
         status: 'partial',
-        error: 'RSS parse returned 0 items (body may not be a feed)',
+        error:
+          'RSS parse returned 0 items (empty feed, non-feed body, HTML error page, or no valid entries)',
       };
     }
 
@@ -97,9 +114,13 @@ async function ingestOneSource(cfg: {
  * Full ingest pass: sync registry, then fetch each enabled source with a URL.
  */
 export async function runIntelIngest(): Promise<IngestOutcome> {
+  const finishedAt = new Date().toISOString();
+
   if (!intelDbConfigured()) {
     return {
       ok: false,
+      overallStatus: 'failed',
+      finishedAt,
       skipped: 'Supabase not configured',
       summary: { total: 0, success: 0, partial: 0, failed: 0, skipped: 0 },
       results: [],
@@ -114,7 +135,7 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
     if (!cfg.isEnabled || !cfg.endpointUrl) {
       results.push({
         sourceSlug: cfg.slug,
-        status: 'partial',
+        status: 'skipped',
         itemsUpserted: 0,
         error: SKIP_MESSAGE,
       });
@@ -173,21 +194,20 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
     });
   }
 
-  const skippedCount = results.filter(
-    (r) => r.status === 'partial' && r.error === SKIP_MESSAGE,
-  ).length;
-  const enabledResults = results.filter(
-    (r) => !(r.status === 'partial' && r.error === SKIP_MESSAGE),
-  );
+  const skippedCount = results.filter((r) => r.status === 'skipped').length;
+  const attempted = results.filter((r) => r.status !== 'skipped');
 
-  const successCount = enabledResults.filter((r) => r.status === 'success').length;
-  const failedCount = enabledResults.filter((r) => r.status === 'failed').length;
-  const partialCount = enabledResults.filter((r) => r.status === 'partial').length;
+  const successCount = attempted.filter((r) => r.status === 'success').length;
+  const failedCount = attempted.filter((r) => r.status === 'failed').length;
+  const partialCount = attempted.filter((r) => r.status === 'partial').length;
 
-  const ok = successCount > 0 && failedCount < enabledResults.length;
+  const overallStatus = computeOverallIngestStatus(results);
+  const ok = overallStatus !== 'failed';
 
   return {
     ok,
+    overallStatus,
+    finishedAt,
     summary: {
       total: results.length,
       success: successCount,
