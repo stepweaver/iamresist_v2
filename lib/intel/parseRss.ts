@@ -43,7 +43,7 @@ function mapStateChange(
   if (provenanceClass === 'WIRE') return 'wire_item';
   if (provenanceClass === 'SPECIALIST') return 'specialist_item';
   if (slug === 'wh-news') return 'press_statement';
-  if (slug === 'wh-presidential') return 'published_document';
+  if (slug === 'wh-presidential') return 'presidential_action';
   return 'unknown';
 }
 

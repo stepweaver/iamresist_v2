@@ -2,6 +2,7 @@ import 'server-only';
 
 import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 import { dbEnv } from '@/lib/env/db';
+import { computeRelevanceProfile, editorialControlsForDb } from '@/lib/intel/relevance';
 import type { IngestRunStatus, NormalizedItem, ProvenanceClass, SignalSourceConfig } from '@/lib/intel/types';
 
 export function intelDbConfigured(): boolean {
@@ -33,6 +34,7 @@ export async function syncIntelSourcesFromManifest(
     not_trusted_for: c.notTrustedFor,
     editorial_notes: mergeEditorialNotes(c),
     is_core_source: c.isCoreSource,
+    editorial_controls: editorialControlsForDb(c),
     updated_at: new Date().toISOString(),
   }));
 
@@ -97,23 +99,34 @@ export async function finishIngestRun(
 export async function upsertSourceItems(
   sourceId: string,
   items: NormalizedItem[],
+  sourceCfg: SignalSourceConfig,
 ): Promise<number> {
   if (items.length === 0) return 0;
   const supabase = client();
   const now = new Date().toISOString();
-  const rows = items.map((it) => ({
-    source_id: sourceId,
-    external_id: it.externalId,
-    canonical_url: it.canonicalUrl,
-    title: it.title,
-    summary: it.summary,
-    published_at: it.publishedAt,
-    fetched_at: now,
-    content_hash: it.contentHash,
-    structured: it.structured,
-    cluster_keys: it.clusterKeys,
-    state_change_type: it.stateChangeType,
-  }));
+  const rows = items.map((it) => {
+    const rel = computeRelevanceProfile(it, sourceCfg);
+    return {
+      source_id: sourceId,
+      external_id: it.externalId,
+      canonical_url: it.canonicalUrl,
+      title: it.title,
+      summary: it.summary,
+      published_at: it.publishedAt,
+      fetched_at: now,
+      content_hash: it.contentHash,
+      structured: it.structured,
+      cluster_keys: it.clusterKeys,
+      state_change_type: it.stateChangeType,
+      mission_tags: rel.mission_tags,
+      branch_of_government: rel.branch_of_government,
+      institutional_area: rel.institutional_area,
+      relevance_score: rel.relevance_score,
+      surface_state: rel.surface_state,
+      suppression_reason: rel.suppression_reason,
+      relevance_explanations: rel.relevance_explanations,
+    };
+  });
 
   const chunkSize = 40;
   let total = 0;
@@ -137,6 +150,13 @@ export type SourceItemRow = {
   fetched_at: string;
   cluster_keys: Record<string, string>;
   state_change_type: string;
+  mission_tags: string[];
+  branch_of_government: string;
+  institutional_area: string;
+  relevance_score: number;
+  surface_state: string;
+  suppression_reason: string | null;
+  relevance_explanations: unknown;
   sources: {
     slug: string;
     name: string;
@@ -158,6 +178,13 @@ export async function fetchRecentSourceItemsForLive(limit = 200): Promise<Source
       fetched_at,
       cluster_keys,
       state_change_type,
+      mission_tags,
+      branch_of_government,
+      institutional_area,
+      relevance_score,
+      surface_state,
+      suppression_reason,
+      relevance_explanations,
       sources (
         slug,
         name,
@@ -213,6 +240,7 @@ export type IntelFreshnessMeta = {
 
 export type LiveDeskSnapshotPayload = {
   items: unknown[];
+  suppressedItems?: unknown[];
   freshness: IntelFreshness | null;
   freshnessMeta?: IntelFreshnessMeta | null;
 };
@@ -238,6 +266,7 @@ export async function loadLiveDeskSnapshot(): Promise<LiveDeskSnapshotPayload | 
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const p = raw as Record<string, unknown>;
   const items = Array.isArray(p.items) ? p.items : [];
+  const suppressedItems = Array.isArray(p.suppressedItems) ? p.suppressedItems : [];
   const freshness =
     p.freshness && typeof p.freshness === 'object' && !Array.isArray(p.freshness)
       ? (p.freshness as IntelFreshness)
@@ -246,7 +275,7 @@ export async function loadLiveDeskSnapshot(): Promise<LiveDeskSnapshotPayload | 
     p.freshnessMeta && typeof p.freshnessMeta === 'object' && !Array.isArray(p.freshnessMeta)
       ? (p.freshnessMeta as IntelFreshnessMeta)
       : null;
-  return { items, freshness, freshnessMeta };
+  return { items, suppressedItems, freshness, freshnessMeta };
 }
 
 export type IntelSourceRegistryRow = {
@@ -262,6 +291,7 @@ export type IntelSourceRegistryRow = {
   not_trusted_for: string | null;
   editorial_notes: string | null;
   is_core_source: boolean;
+  editorial_controls: Record<string, unknown> | null;
 };
 
 export async function fetchIntelSourcesRegistry(): Promise<IntelSourceRegistryRow[]> {
@@ -269,7 +299,7 @@ export async function fetchIntelSourcesRegistry(): Promise<IntelSourceRegistryRo
   const { data, error } = await supabase
     .from('sources')
     .select(
-      'id, slug, name, provenance_class, fetch_kind, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source',
+      'id, slug, name, provenance_class, fetch_kind, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source, editorial_controls',
     )
     .order('slug');
   if (error) throw new Error(`intel.sources registry: ${error.message}`);
@@ -284,6 +314,20 @@ export type SourceItemStatsRpcRow = {
   last_item_fetched_at: string | null;
 };
 
+export type SourceItemSurfacingStatsRpcRow = {
+  source_id: string;
+  item_total: number;
+  items_24h: number;
+  items_7d: number;
+  last_item_fetched_at: string | null;
+  surfaced_total: number;
+  downranked_total: number;
+  suppressed_total: number;
+  surfaced_7d: number;
+  downranked_7d: number;
+  suppressed_7d: number;
+};
+
 export async function fetchSourceItemStatsAggregates(): Promise<SourceItemStatsRpcRow[]> {
   const supabase = client();
   const { data, error } = await supabase.rpc('source_item_stats');
@@ -292,6 +336,16 @@ export async function fetchSourceItemStatsAggregates(): Promise<SourceItemStatsR
     return [];
   }
   return (data ?? []) as SourceItemStatsRpcRow[];
+}
+
+export async function fetchSourceItemSurfacingStatsAggregates(): Promise<SourceItemSurfacingStatsRpcRow[]> {
+  const supabase = client();
+  const { data, error } = await supabase.rpc('source_item_surfacing_stats');
+  if (error) {
+    console.warn('[intel] source_item_surfacing_stats RPC:', error.message);
+    return [];
+  }
+  return (data ?? []) as SourceItemSurfacingStatsRpcRow[];
 }
 
 export type IngestRunAuditRow = {

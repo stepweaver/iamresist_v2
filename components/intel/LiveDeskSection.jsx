@@ -20,6 +20,22 @@ function ProvenanceChip({ provenanceClass }) {
   );
 }
 
+function SurfaceChip({ surfaceState, isDuplicateLoser }) {
+  const base =
+    'font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border border-border rounded';
+  const map = {
+    surfaced: 'border-emerald-500/35 text-emerald-800 dark:text-emerald-400/90 bg-emerald-500/10',
+    downranked: 'border-amber-500/40 text-amber-800 dark:text-amber-400/85 bg-amber-500/10',
+  };
+  const c = map[surfaceState] || map.surfaced;
+  return (
+    <span className={`${base} ${c}`} title="Ingest-time surface state (rule-based)">
+      {surfaceState}
+      {isDuplicateLoser ? ' · dup' : ''}
+    </span>
+  );
+}
+
 function ClusterHint({ clusterKeys }) {
   const keys = clusterKeys && typeof clusterKeys === 'object' ? Object.entries(clusterKeys) : [];
   if (keys.length === 0) return null;
@@ -28,6 +44,38 @@ function ClusterHint({ clusterKeys }) {
     <p className="font-mono text-[10px] text-hud-dim tracking-wide mt-2" title="Deterministic cluster keys">
       Keys: {label}
     </p>
+  );
+}
+
+function RelevanceStrip({ row }) {
+  const tags = Array.isArray(row.missionTags) ? row.missionTags : [];
+  const explain = Array.isArray(row.relevanceExplanations) ? row.relevanceExplanations : [];
+  const top = explain.slice(0, 4);
+  return (
+    <div className="mt-3 space-y-1.5 border border-border/60 bg-foreground/[0.02] px-3 py-2 rounded">
+      <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">Relevance (rules)</p>
+      <div className="flex flex-wrap gap-2 items-center text-[10px] font-mono text-foreground/75">
+        <span>score {row.relevanceScore ?? '—'}</span>
+        <span className="text-hud-dim">|</span>
+        <span>{row.branchOfGovernment ?? 'unknown'}</span>
+        <span className="text-hud-dim">|</span>
+        <span>{row.institutionalArea ?? 'unknown'}</span>
+      </div>
+      {tags.length > 0 ? (
+        <p className="font-mono text-[10px] text-foreground/70 leading-snug">
+          Tags: {tags.join(', ')}
+        </p>
+      ) : null}
+      {top.length > 0 ? (
+        <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px] text-foreground/65 leading-relaxed">
+          {top.map((e) => (
+            <li key={`${e.ruleId}-${e.message.slice(0, 40)}`}>
+              <span className="text-hud-dim">{e.ruleId}</span> — {e.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -84,6 +132,7 @@ export default function LiveDeskSection({ desk }) {
     liveReadOk,
     intelSchemaMisconfigured,
     items,
+    suppressedItems = [],
     message,
     freshness,
     freshnessMeta,
@@ -105,6 +154,7 @@ export default function LiveDeskSection({ desk }) {
   }
 
   const showBanner = Boolean(message) && (stale || snapshotFallback);
+  const suppressed = Array.isArray(suppressedItems) ? suppressedItems : [];
 
   return (
     <div className="space-y-6">
@@ -178,6 +228,10 @@ export default function LiveDeskSection({ desk }) {
             <li key={row.id} className="machine-panel border border-border p-5 sm:p-6">
               <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
                 <ProvenanceChip provenanceClass={row.provenanceClass} />
+                <SurfaceChip
+                  surfaceState={row.surfaceState ?? 'surfaced'}
+                  isDuplicateLoser={Boolean(row.isDuplicateLoser)}
+                />
                 <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
                   {row.sourceName}
                 </span>
@@ -202,6 +256,7 @@ export default function LiveDeskSection({ desk }) {
               <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
                 {row.whyItMatters}
               </p>
+              <RelevanceStrip row={row} />
               <ClusterHint clusterKeys={row.clusterKeys} />
               <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-3">
                 <Link
@@ -220,6 +275,36 @@ export default function LiveDeskSection({ desk }) {
           );
         })}
       </ul>
+
+      {suppressed.length > 0 ? (
+        <details className="border border-border machine-panel p-4 sm:p-5 group">
+          <summary className="cursor-pointer font-mono text-xs uppercase tracking-wider text-foreground/85 list-none flex items-center gap-2">
+            <span className="text-primary group-open:rotate-90 transition-transform inline-block">▸</span>
+            Suppressed on default surface ({suppressed.length}) — retained in storage, rule-based
+          </summary>
+          <p className="mt-2 text-[10px] font-mono text-hud-dim leading-relaxed">
+            Counts in /intel/sources reflect ingest-time suppression. Display-time duplicate deprioritization
+            is separate (see “desk:duplicate_cluster” on visible cards when it applies).
+          </p>
+          <ul className="mt-4 space-y-3 border-t border-border pt-4">
+            {suppressed.map((row) => (
+              <li key={row.id} className="text-sm">
+                <Link
+                  href={row.canonicalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-foreground hover:text-primary hover:underline"
+                >
+                  {row.title}
+                </Link>
+                <p className="font-mono text-[10px] text-hud-dim mt-1">
+                  {row.sourceName} · {row.suppressionReason ?? 'Suppressed (see rules in /intel/sources)'}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { unstable_cache } from 'next/cache';
 import {
   fetchIntelSourcesRegistry,
   fetchRecentIngestRunsForAudit,
-  fetchSourceItemStatsAggregates,
+  fetchSourceItemSurfacingStatsAggregates,
   intelDbConfigured,
 } from '@/lib/intel/db';
 import type { IngestRunStatus } from '@/lib/intel/types';
@@ -31,8 +31,16 @@ export type IntelSourceAuditRow = {
   items24h: number;
   items7d: number;
   itemTotal: number;
+  surfacedTotal: number;
+  downrankedTotal: number;
+  suppressedTotal: number;
+  surfaced7d: number;
+  downranked7d: number;
+  suppressed7d: number;
   health: SourceHealth;
   noiseHint: string | null;
+  relevanceNotes: string | null;
+  noiseNotes: string | null;
 };
 
 function parseStaleMinutes(): number {
@@ -118,7 +126,7 @@ async function buildIntelSourcesAudit(): Promise<{
   }
 
   const [stats, runs] = await Promise.all([
-    fetchSourceItemStatsAggregates(),
+    fetchSourceItemSurfacingStatsAggregates(),
     fetchRecentIngestRunsForAudit(500),
   ]);
 
@@ -130,6 +138,12 @@ async function buildIntelSourcesAudit(): Promise<{
         items24h: Number(s.items_24h),
         items7d: Number(s.items_7d),
         lastItemFetchedAt: s.last_item_fetched_at,
+        surfacedTotal: Number(s.surfaced_total),
+        downrankedTotal: Number(s.downranked_total),
+        suppressedTotal: Number(s.suppressed_total),
+        surfaced7d: Number(s.surfaced_7d),
+        downranked7d: Number(s.downranked_7d),
+        suppressed7d: Number(s.suppressed_7d),
       },
     ]),
   );
@@ -155,6 +169,22 @@ async function buildIntelSourcesAudit(): Promise<{
     const items24h = st?.items24h ?? 0;
     const items7d = st?.items7d ?? 0;
     const lastItemFetchedAt = st?.lastItemFetchedAt ?? null;
+    const surfacedTotal = st?.surfacedTotal ?? 0;
+    const downrankedTotal = st?.downrankedTotal ?? 0;
+    const suppressedTotal = st?.suppressedTotal ?? 0;
+    const surfaced7d = st?.surfaced7d ?? 0;
+    const downranked7d = st?.downranked7d ?? 0;
+    const suppressed7d = st?.suppressed7d ?? 0;
+
+    const ec = src.editorial_controls;
+    const noiseNotes =
+      ec && typeof ec === 'object' && !Array.isArray(ec) && typeof ec.noiseNotes === 'string'
+        ? ec.noiseNotes
+        : null;
+    const relevanceNotes =
+      ec && typeof ec === 'object' && !Array.isArray(ec) && typeof ec.relevanceNotes === 'string'
+        ? ec.relevanceNotes
+        : null;
     const lr = latestRunBySource.get(src.id);
 
     const lastRunStatus = lr?.status ?? null;
@@ -192,8 +222,16 @@ async function buildIntelSourcesAudit(): Promise<{
       items24h,
       items7d,
       itemTotal,
+      surfacedTotal,
+      downrankedTotal,
+      suppressedTotal,
+      surfaced7d,
+      downranked7d,
+      suppressed7d,
       health,
       noiseHint: null,
+      noiseNotes,
+      relevanceNotes,
     };
   });
 
@@ -214,6 +252,10 @@ async function buildIntelSourcesAudit(): Promise<{
     if (r.isEnabled && r.items24h > hi && medianPrimary24h > 0) {
       r.noiseHint = `High volume (${r.items24h} in 24h vs ~${Math.round(medianPrimary24h)} median for PRIMARY)`;
     }
+    if (r.isEnabled && r.itemTotal > 0 && r.suppressedTotal > r.surfacedTotal) {
+      const hint = `More suppressed than surfaced in DB (${r.suppressedTotal} vs ${r.surfacedTotal}); check block rules.`;
+      r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
+    }
   }
 
   return {
@@ -224,7 +266,7 @@ async function buildIntelSourcesAudit(): Promise<{
   };
 }
 
-export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v1'], {
+export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v2'], {
   revalidate: 90,
   tags: ['intel-sources'],
 });

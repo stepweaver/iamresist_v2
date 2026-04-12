@@ -13,11 +13,62 @@ export type StateChangeType =
   | 'unknown'
   | 'pre_publication'
   | 'published_document'
+  | 'presidential_action'
   | 'press_statement'
   | 'legislative_feed_item'
   | 'congressional_record_feed_item'
   | 'wire_item'
   | 'specialist_item';
+
+/** Deterministic mission vocabulary for OSINT relevance (expand only with explicit rules). */
+export type MissionTag =
+  | 'executive_power'
+  | 'regulation'
+  | 'congress'
+  | 'courts'
+  | 'elections'
+  | 'voting_rights'
+  | 'federal_agencies'
+  | 'civil_liberties'
+  | 'media_disinfo'
+  | 'economy_major'
+  | 'protest'
+  | 'international_relevant';
+
+export type BranchOfGovernment =
+  | 'executive'
+  | 'legislative'
+  | 'judicial'
+  | 'administrative'
+  | 'unknown';
+
+export type InstitutionalArea =
+  | 'white_house'
+  | 'federal_register'
+  | 'congress'
+  | 'courts'
+  | 'wire'
+  | 'specialist'
+  | 'unknown';
+
+export type SurfaceState = 'surfaced' | 'downranked' | 'suppressed';
+
+export type RelevanceExplanation = {
+  ruleId: string;
+  message: string;
+};
+
+/** Optional per-source rules mirrored to intel.sources.editorial_controls. */
+export type EditorialControls = {
+  defaultPriority?: number;
+  allowKeywords?: string[];
+  blockKeywords?: string[];
+  allowPatterns?: string[];
+  blockPatterns?: string[];
+  preferredStateChangeTypes?: StateChangeType[];
+  noiseNotes?: string;
+  relevanceNotes?: string;
+};
 
 export type IngestRunStatus = 'running' | 'success' | 'partial' | 'failed';
 
@@ -41,6 +92,8 @@ export type SignalSourceConfig = {
   editorialNotes?: string;
   /** Core institutional / document stack vs optional wires or specialists. */
   isCoreSource: boolean;
+  /** Deterministic relevance / surfacing rules (persisted to DB as JSON). */
+  editorialControls?: EditorialControls;
 };
 
 export type NormalizedItem = {

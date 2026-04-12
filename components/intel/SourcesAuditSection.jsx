@@ -38,8 +38,9 @@ export default function SourcesAuditSection({ audit }) {
       <section className="border border-red-500/40 p-6 machine-panel">
         <p className="text-red-700 dark:text-red-400 text-sm font-mono">{errorMessage}</p>
         <p className="text-foreground/60 text-xs mt-2 font-mono">
-          Apply <code className="text-primary">supabase/migrations/20260412150000_intel_milestone1_5_governance.sql</code>{' '}
-          if columns are missing, then run ingest once to sync manifest fields.
+          Apply intel migrations through{' '}
+          <code className="text-primary">20260412160000_intel_milestone1_75_relevance.sql</code> if RPC or columns
+          are missing, then run ingest once to sync manifest fields.
         </p>
       </section>
     );
@@ -53,7 +54,7 @@ export default function SourcesAuditSection({ audit }) {
       </p>
 
       <div className="overflow-x-auto border border-border machine-panel">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[1180px] text-left text-sm">
           <thead>
             <tr className="border-b border-border font-mono text-[10px] uppercase tracking-wider text-hud-dim">
               <th className="p-3 align-bottom">Health</th>
@@ -65,6 +66,8 @@ export default function SourcesAuditSection({ audit }) {
               <th className="p-3 align-bottom">Last OK</th>
               <th className="p-3 align-bottom">Last item fetch</th>
               <th className="p-3 align-bottom">24h / 7d / total</th>
+              <th className="p-3 align-bottom">Surfaced / down / supp (7d)</th>
+              <th className="p-3 align-bottom">Surfaced / down / supp (all)</th>
             </tr>
           </thead>
           <tbody>
@@ -104,6 +107,12 @@ export default function SourcesAuditSection({ audit }) {
                 <td className="p-3 font-mono text-[10px] whitespace-nowrap">
                   {r.items24h} / {r.items7d} / {r.itemTotal}
                 </td>
+                <td className="p-3 font-mono text-[10px] whitespace-nowrap leading-snug">
+                  {r.surfaced7d} / {r.downranked7d} / {r.suppressed7d}
+                </td>
+                <td className="p-3 font-mono text-[10px] whitespace-nowrap leading-snug">
+                  {r.surfacedTotal} / {r.downrankedTotal} / {r.suppressedTotal}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -138,6 +147,31 @@ export default function SourcesAuditSection({ audit }) {
                   <dd className="text-foreground/75 mt-1 font-mono text-xs leading-relaxed">{r.editorialNotes}</dd>
                 </div>
               ) : null}
+              {r.noiseNotes ? (
+                <div>
+                  <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
+                    Relevance — volume / noise
+                  </dt>
+                  <dd className="text-foreground/75 mt-1 font-mono text-xs leading-relaxed">{r.noiseNotes}</dd>
+                </div>
+              ) : null}
+              {r.relevanceNotes ? (
+                <div>
+                  <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
+                    Relevance — scoring notes
+                  </dt>
+                  <dd className="text-foreground/75 mt-1 font-mono text-xs leading-relaxed">{r.relevanceNotes}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
+                  Ingest-time surfacing (DB)
+                </dt>
+                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
+                  Last 7d: {r.surfaced7d} surfaced · {r.downranked7d} downranked · {r.suppressed7d} suppressed — All
+                  time: {r.surfacedTotal} / {r.downrankedTotal} / {r.suppressedTotal}
+                </dd>
+              </div>
             </dl>
           </section>
         ))}

@@ -172,7 +172,7 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
     let upserted = 0;
     try {
       if (outcome.items.length > 0) {
-        upserted = await upsertSourceItems(sourceId, outcome.items);
+        upserted = await upsertSourceItems(sourceId, outcome.items, cfg);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
