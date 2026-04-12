@@ -225,4 +225,14 @@ Dense, legible; provenance and confidence obvious; **no algorithmic hype**; fres
 
 ---
 
+## Merge hardening (post–Milestone 1 review)
+
+- **Cron auth:** `CRON_SECRET` must be non-empty after trim; otherwise `500` (ingest-signal, revalidate, warm-home, keep-alive aligned).
+- **FR JSON ingest:** `JSON.parse` throws; zero parsed items → `partial` with explicit error (not `success`).
+- **Ingest `ok`:** `ok` is false unless at least one enabled source succeeded and not every enabled source failed; JSON response includes `summary` counts.
+- **Freshness:** Live desk compares `source_items.fetched_at` and last successful `ingest_runs.finished_at` to a 15-minute threshold; “stale” only after something has been ingested at least once (avoids empty-desk false positives).
+- **Snapshot fallback:** `intel.live_desk_snapshot` stores the last successful rendered desk; if the primary `source_items` read throws, the UI serves that snapshot with a clear banner.
+
+---
+
 *End of document.*

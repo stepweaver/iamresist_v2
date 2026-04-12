@@ -31,8 +31,31 @@ function ClusterHint({ clusterKeys }) {
   );
 }
 
+function formatFreshnessIso(iso) {
+  if (!iso) return '—';
+  try {
+    return formatDate(iso);
+  } catch {
+    return iso;
+  }
+}
+
 export default function LiveDeskSection({ desk }) {
-  const { configured, stale, items, message } = desk;
+  const {
+    configured,
+    stale,
+    dataStale,
+    snapshotFallback,
+    liveReadOk,
+    intelSchemaMisconfigured,
+    items,
+    message,
+    freshness,
+  } = desk;
+
+  const hasFreshnessData =
+    Boolean(freshness?.latestFetchedAt) || Boolean(freshness?.latestSuccessfulIngestAt);
+  const showFreshnessStrip = liveReadOk || snapshotFallback || hasFreshnessData;
 
   if (!configured) {
     return (
@@ -45,16 +68,38 @@ export default function LiveDeskSection({ desk }) {
     );
   }
 
+  const showBanner = Boolean(message) && (stale || snapshotFallback);
+
   return (
     <div className="space-y-6">
-      {stale && message ? (
-        <div className="border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-foreground/90">
-          <span className="font-bold uppercase tracking-wider text-primary">Stale / error</span>
+      {showFreshnessStrip && freshness ? (
+        <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
+          Latest item fetch: {formatFreshnessIso(freshness.latestFetchedAt)} · Last successful ingest:{' '}
+          {formatFreshnessIso(freshness.latestSuccessfulIngestAt)}
+          {dataStale && !snapshotFallback && liveReadOk ? (
+            <span className="text-primary ml-2">(above freshness threshold)</span>
+          ) : null}
+        </p>
+      ) : null}
+
+      {showBanner ? (
+        <div
+          className={`border px-4 py-3 text-sm text-foreground/90 ${
+            snapshotFallback ? 'border-amber-500/50 bg-amber-500/5' : 'border-primary/40 bg-primary/5'
+          }`}
+        >
+          <span className="font-bold uppercase tracking-wider text-primary">
+            {snapshotFallback
+              ? 'Saved desk snapshot'
+              : intelSchemaMisconfigured
+                ? 'Supabase configuration'
+                : 'Freshness warning'}
+          </span>
           <p className="mt-1 font-mono text-xs text-foreground/80">{message}</p>
         </div>
       ) : null}
 
-      {!stale && items.length === 0 ? (
+      {liveReadOk && items.length === 0 ? (
         <section className="border border-border p-6 machine-panel">
           <p className="text-foreground/80 text-sm mb-2 uppercase tracking-wider">
             No ingested items yet.
@@ -65,6 +110,14 @@ export default function LiveDeskSection({ desk }) {
             <code className="text-primary">Authorization: Bearer CRON_SECRET</code>
             . Ensure the <code className="text-primary">intel</code> schema is exposed in Supabase API
             settings.
+          </p>
+        </section>
+      ) : null}
+
+      {!liveReadOk && !snapshotFallback && items.length === 0 ? (
+        <section className="border border-border p-6 machine-panel">
+          <p className="text-foreground/80 text-sm uppercase tracking-wider">
+            Nothing to show yet — live read failed and no saved desk snapshot exists.
           </p>
         </section>
       ) : null}

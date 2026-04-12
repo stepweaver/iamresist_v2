@@ -49,15 +49,9 @@ function normalizeFrDoc(
   };
 }
 
-export function parseFederalRegisterPublishedJson(
-  jsonText: string,
-): NormalizedItem[] {
-  let data: FrResults;
-  try {
-    data = JSON.parse(jsonText) as FrResults;
-  } catch {
-    return [];
-  }
+/** Throws on invalid JSON so ingest can mark the run failed / partial honestly. */
+export function parseFederalRegisterPublishedJson(jsonText: string): NormalizedItem[] {
+  const data = JSON.parse(jsonText) as FrResults;
   const results = data.results ?? [];
   return results
     .map((d) => normalizeFrDoc(d, 'published_document'))
@@ -65,12 +59,7 @@ export function parseFederalRegisterPublishedJson(
 }
 
 export function parseFederalRegisterPiJson(jsonText: string): NormalizedItem[] {
-  let data: FrResults;
-  try {
-    data = JSON.parse(jsonText) as FrResults;
-  } catch {
-    return [];
-  }
+  const data = JSON.parse(jsonText) as FrResults;
   const results = data.results ?? [];
   return results
     .map((d) => normalizeFrDoc(d, 'pre_publication'))

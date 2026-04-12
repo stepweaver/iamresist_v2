@@ -89,7 +89,8 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 
 **Live intel desk** (`lib/intel/signal-sources.ts`, `supabase/migrations/`)
 
-- Apply `supabase/migrations/20260412120000_intel_milestone1.sql`, then add schema **`intel`** to Supabase **Settings → API → Exposed schemas** (PostgREST).
+- Apply `supabase/migrations/20260412120000_intel_milestone1.sql` and `supabase/migrations/20260412140000_intel_live_desk_snapshot.sql` in the SQL Editor.
+- **Required:** Supabase **Project Settings → API → Exposed schemas** must include **`intel`** (not only `public`). Without this, the API returns `Invalid schema: intel` and `/intel/live` cannot load.
 - Optional wire feeds (omit both if blocked — ingest skips them; no silent downgrade): `INTEL_REUTERS_RSS_URL`, `INTEL_AP_RSS_URL`
 - Cron: `GET /api/cron/ingest-signal` with `Authorization: Bearer CRON_SECRET` (same secret as `/api/revalidate`).
 

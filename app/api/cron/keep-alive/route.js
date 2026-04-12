@@ -19,9 +19,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET(request) {
-  const authHeader = request.headers.get('authorization');
-  const secret = env.CRON_SECRET;
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  const secret = typeof env.CRON_SECRET === 'string' ? env.CRON_SECRET.trim() : '';
+  if (!secret) {
+    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
+  }
+  const authHeader = request.headers.get('authorization') || '';
+  if (authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

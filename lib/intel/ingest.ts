@@ -16,16 +16,30 @@ import {
 } from '@/lib/intel/db';
 import type { IngestRunStatus, NormalizedItem } from '@/lib/intel/types';
 
+const SKIP_MESSAGE = 'Skipped (disabled or missing endpoint URL)';
+
 export type IngestSummary = {
   sourceSlug: string;
   status: IngestRunStatus;
+  /** Rows included in upsert batches (not necessarily changed in DB). */
   itemsUpserted: number;
   error?: string;
 };
 
-async function ingestOneSource(
-  sourceId: string,
-  cfg: {
+export type IngestOutcome = {
+  ok: boolean;
+  skipped?: string;
+  summary: {
+    total: number;
+    success: number;
+    partial: number;
+    failed: number;
+    skipped: number;
+  };
+  results: IngestSummary[];
+};
+
+async function ingestOneSource(cfg: {
     slug: string;
     fetchKind: 'rss' | 'json_api';
     endpointUrl: string;
@@ -47,6 +61,15 @@ async function ingestOneSource(
         cfg.slug === 'fr-public-inspection'
           ? parseFederalRegisterPiJson(res.text)
           : parseFederalRegisterPublishedJson(res.text);
+
+      if (items.length === 0) {
+        return {
+          items: [],
+          status: 'partial',
+          error: 'JSON API parse returned 0 items',
+        };
+      }
+
       return { items, status: 'success' };
     }
 
@@ -54,6 +77,7 @@ async function ingestOneSource(
       sourceSlug: cfg.slug,
       provenanceClass: cfg.provenanceClass,
     });
+
     if (items.length === 0 && res.text.length > 50) {
       return {
         items: [],
@@ -61,6 +85,7 @@ async function ingestOneSource(
         error: 'RSS parse returned 0 items (body may not be a feed)',
       };
     }
+
     return { items, status: 'success' };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -71,13 +96,14 @@ async function ingestOneSource(
 /**
  * Full ingest pass: sync registry, then fetch each enabled source with a URL.
  */
-export async function runIntelIngest(): Promise<{
-  ok: boolean;
-  skipped?: string;
-  results: IngestSummary[];
-}> {
+export async function runIntelIngest(): Promise<IngestOutcome> {
   if (!intelDbConfigured()) {
-    return { ok: false, skipped: 'Supabase not configured', results: [] };
+    return {
+      ok: false,
+      skipped: 'Supabase not configured',
+      summary: { total: 0, success: 0, partial: 0, failed: 0, skipped: 0 },
+      results: [],
+    };
   }
 
   const configs = getSignalSources();
@@ -90,7 +116,7 @@ export async function runIntelIngest(): Promise<{
         sourceSlug: cfg.slug,
         status: 'partial',
         itemsUpserted: 0,
-        error: 'Skipped (disabled or missing endpoint URL)',
+        error: SKIP_MESSAGE,
       });
       continue;
     }
@@ -115,7 +141,7 @@ export async function runIntelIngest(): Promise<{
       continue;
     }
 
-    const outcome = await ingestOneSource(sourceId, {
+    const outcome = await ingestOneSource({
       slug: cfg.slug,
       fetchKind: cfg.fetchKind,
       endpointUrl: cfg.endpointUrl,
@@ -147,5 +173,28 @@ export async function runIntelIngest(): Promise<{
     });
   }
 
-  return { ok: true, results };
+  const skippedCount = results.filter(
+    (r) => r.status === 'partial' && r.error === SKIP_MESSAGE,
+  ).length;
+  const enabledResults = results.filter(
+    (r) => !(r.status === 'partial' && r.error === SKIP_MESSAGE),
+  );
+
+  const successCount = enabledResults.filter((r) => r.status === 'success').length;
+  const failedCount = enabledResults.filter((r) => r.status === 'failed').length;
+  const partialCount = enabledResults.filter((r) => r.status === 'partial').length;
+
+  const ok = successCount > 0 && failedCount < enabledResults.length;
+
+  return {
+    ok,
+    summary: {
+      total: results.length,
+      success: successCount,
+      partial: partialCount,
+      failed: failedCount,
+      skipped: skippedCount,
+    },
+    results,
+  };
 }

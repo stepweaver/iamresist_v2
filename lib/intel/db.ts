@@ -79,6 +79,10 @@ export async function finishIngestRun(
   if (error) throw new Error(`ingest_runs update: ${error.message}`);
 }
 
+/**
+ * Upserts in batches. Return value is the number of rows sent in upsert requests
+ * (attempted touches), not Postgres "rows affected".
+ */
 export async function upsertSourceItems(
   sourceId: string,
   items: NormalizedItem[],
@@ -155,4 +159,68 @@ export async function fetchRecentSourceItemsForLive(limit = 200): Promise<Source
 
   if (error) throw new Error(`source_items select: ${error.message}`);
   return (data ?? []) as SourceItemRow[];
+}
+
+export type IntelFreshness = {
+  latestFetchedAt: string | null;
+  latestSuccessfulIngestAt: string | null;
+};
+
+export async function fetchIntelFreshnessSnapshot(): Promise<IntelFreshness> {
+  const supabase = client();
+
+  const [itemsRes, runsRes] = await Promise.all([
+    supabase.from('source_items').select('fetched_at').order('fetched_at', { ascending: false }).limit(1),
+    supabase
+      .from('ingest_runs')
+      .select('finished_at')
+      .eq('status', 'success')
+      .order('finished_at', { ascending: false, nullsFirst: false })
+      .limit(1),
+  ]);
+
+  if (itemsRes.error) {
+    throw new Error(`source_items freshness select: ${itemsRes.error.message}`);
+  }
+  if (runsRes.error) {
+    throw new Error(`ingest_runs freshness select: ${runsRes.error.message}`);
+  }
+
+  return {
+    latestFetchedAt: (itemsRes.data?.[0]?.fetched_at as string) ?? null,
+    latestSuccessfulIngestAt: (runsRes.data?.[0]?.finished_at as string) ?? null,
+  };
+}
+
+export type LiveDeskSnapshotPayload = {
+  items: unknown[];
+  freshness: IntelFreshness | null;
+};
+
+export async function saveLiveDeskSnapshot(payload: LiveDeskSnapshotPayload): Promise<void> {
+  const supabase = client();
+  const { error } = await supabase.from('live_desk_snapshot').upsert(
+    {
+      id: 1,
+      payload: JSON.parse(JSON.stringify(payload)) as Record<string, unknown>,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' },
+  );
+  if (error) throw new Error(`live_desk_snapshot upsert: ${error.message}`);
+}
+
+export async function loadLiveDeskSnapshot(): Promise<LiveDeskSnapshotPayload | null> {
+  const supabase = client();
+  const { data, error } = await supabase.from('live_desk_snapshot').select('payload').eq('id', 1).maybeSingle();
+  if (error) throw new Error(`live_desk_snapshot select: ${error.message}`);
+  const raw = data?.payload;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>;
+  const items = Array.isArray(p.items) ? p.items : [];
+  const freshness =
+    p.freshness && typeof p.freshness === 'object' && !Array.isArray(p.freshness)
+      ? (p.freshness as IntelFreshness)
+      : null;
+  return { items, freshness };
 }
