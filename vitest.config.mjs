@@ -7,12 +7,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.js'],
+    setupFiles: ['./vitest.setup.mjs'],
+    include: ['tests/**/*.test.{js,ts}', 'lib/**/*.test.ts'],
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
-      'server-only': path.resolve(__dirname, 'tests/stubs/server-only.js'),
     },
   },
 });

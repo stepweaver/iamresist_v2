@@ -67,6 +67,9 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
 
   const displayDate = publishedAt ? formatDate(publishedAt) : null;
 
+  const showCommentaryChip =
+    item?.sourceType === 'voices' || item?.sourceType === 'curated-videos';
+
   const baseUrl = getCanonicalBaseUrl();
   const shareUrl = useMemo(() => {
     if (item.isCurated === true && slug && baseUrl) return `${baseUrl}/curated/${slug}`;
@@ -169,6 +172,17 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
           <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase">
             {platform}
           </span>
+          {showCommentaryChip ? (
+            <>
+              <span className="text-hud-dim">|</span>
+              <span
+                className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border border-foreground/25 text-foreground/70"
+                title="Creator or curated video — interpretation, not primary evidence"
+              >
+                Commentary
+              </span>
+            </>
+          ) : null}
           {displayDate && (
             <>
               <span className="text-hud-dim">|</span>

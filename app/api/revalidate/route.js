@@ -15,6 +15,7 @@ const FEED_TAGS = [
   'voices-feed',
   'voices-homepage-feed',
   'homepage-intel-feed',
+  'intel-live',
   'newswire',
   'voices-more',
   'protest-music',

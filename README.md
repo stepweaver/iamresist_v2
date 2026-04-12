@@ -56,6 +56,7 @@ This repository is the **structured rebuild** of an earlier organically grown co
 | `GET /api/voices-archive` | Paginated archive + filters |
 | `GET /api/voices-more` | Per-voice or curated bucket extras for inline player |
 | `POST /api/revalidate` | On-demand tag revalidation (`Authorization: Bearer CRON_SECRET`) |
+| `GET /api/cron/ingest-signal` | Ingest intel sources into `intel.source_items`; revalidates `intel-live` |
 | `GET /api/cron/keep-alive` / `warm-home` | Scheduled warmers (protect with `CRON_SECRET` where configured) |
 | `GET /api/orders/[id]` | Order status (token-gated) |
 | `GET /api/printify/list-*` | Operational helpers for Printify (token/server use) |
@@ -85,6 +86,12 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 
 - `SUPABASE_URL` (or documented alternates)
 - `SUPABASE_SERVICE_ROLE_KEY`
+
+**Live intel desk** (`lib/intel/signal-sources.ts`, `supabase/migrations/`)
+
+- Apply `supabase/migrations/20260412120000_intel_milestone1.sql`, then add schema **`intel`** to Supabase **Settings → API → Exposed schemas** (PostgREST).
+- Optional wire feeds (omit both if blocked — ingest skips them; no silent downgrade): `INTEL_REUTERS_RSS_URL`, `INTEL_AP_RSS_URL`
+- Cron: `GET /api/cron/ingest-signal` with `Authorization: Bearer CRON_SECRET` (same secret as `/api/revalidate`).
 
 **Stripe / Printify / email** (`lib/env/shop.js`, `lib/env/site.js`)
 

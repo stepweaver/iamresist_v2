@@ -4,13 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
+  { href: "/intel/live", label: "Live" },
   { href: "/voices", label: "Voices" },
   { href: "/intel/newswire", label: "Newswire" },
 ];
 
 export default function IntelTabs({ description }) {
   const pathname = usePathname();
+  const isLive = pathname?.startsWith("/intel/live");
   const isNewswire = pathname?.startsWith("/intel/newswire");
+  const isVoices = !isLive && !isNewswire;
 
   return (
     <header className="mb-4 sm:mb-5 border-b border-border pb-4 sm:pb-5">
@@ -23,8 +26,9 @@ export default function IntelTabs({ description }) {
       >
         {TABS.map((tab, i) => {
           const isActive =
+            (tab.href === "/intel/live" && isLive) ||
             (tab.href === "/intel/newswire" && isNewswire) ||
-            (tab.href === "/voices" && !isNewswire);
+            (tab.href === "/voices" && isVoices);
           return (
             <span key={tab.href} className="flex items-baseline gap-2 sm:gap-4">
               {i > 0 && (
