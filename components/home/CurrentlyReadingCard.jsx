@@ -44,7 +44,7 @@ export default async function CurrentlyReadingCard() {
                 </Link>
               </div>
               <Link
-                href="/voices?source=books"
+                href="/telescreen?source=books"
                 className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold whitespace-nowrap"
               >
                 View All →

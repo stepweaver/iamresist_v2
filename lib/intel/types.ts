@@ -13,7 +13,8 @@ export type FetchKind =
   | 'unsupported'
   | 'manual'
   | 'newsletter_only'
-  | 'scrape';
+  | 'scrape'
+  | 'html_index';
 
 export type DeskLane = 'osint' | 'voices';
 

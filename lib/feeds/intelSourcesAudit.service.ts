@@ -7,6 +7,7 @@ import {
   fetchSourceItemSurfacingStatsAggregates,
   intelDbConfigured,
 } from '@/lib/intel/db';
+import { getSignalSources } from '@/lib/intel/signal-sources';
 import type { IngestRunStatus } from '@/lib/intel/types';
 
 export type SourceHealth = 'healthy' | 'stale' | 'failing' | 'disabled' | 'unproven';
@@ -44,6 +45,8 @@ export type IntelSourceAuditRow = {
   noiseHint: string | null;
   relevanceNotes: string | null;
   noiseNotes: string | null;
+  /** Current `isEnabled` in `signal-sources.ts` (version-controlled manifest). */
+  manifestEnabled: boolean;
 };
 
 function parseStaleMinutes(): number {
@@ -108,8 +111,18 @@ function computeHealthReason(input: {
   itemTotal: number;
   items7d: number;
   lastRunError: string | null;
+  manifestEnabled: boolean;
+  registryEnabled: boolean;
 }): string | null {
-  if (input.health === 'disabled') return 'Disabled in manifest';
+  if (input.health === 'disabled') {
+    if (input.manifestEnabled && !input.registryEnabled) {
+      return 'Registry out of date — manifest enables this source; run ingest to sync `sources.is_enabled`.';
+    }
+    if (!input.manifestEnabled) {
+      return 'Disabled in manifest (`isEnabled: false`); not ingested.';
+    }
+    return 'Not enabled for ingest (registry).';
+  }
 
   if (input.health === 'failing') {
     if (input.lastRunError) return `Latest run failed: ${input.lastRunError}`;
@@ -155,6 +168,8 @@ async function buildIntelSourcesAudit(): Promise<{
 
   const staleThresholdMinutes = parseStaleMinutes();
   const staleMs = staleThresholdMinutes * 60 * 1000;
+
+  const manifestBySlug = new Map(getSignalSources().map((c) => [c.slug, c.isEnabled]));
 
   let registry;
   try {
@@ -256,6 +271,8 @@ async function buildIntelSourcesAudit(): Promise<{
       staleMs,
     });
 
+    const manifestEnabled = manifestBySlug.get(src.slug) ?? false;
+
     const healthReason = computeHealthReason({
       health,
       isCoreSource: src.is_core_source,
@@ -267,6 +284,8 @@ async function buildIntelSourcesAudit(): Promise<{
       itemTotal,
       items7d,
       lastRunError,
+      manifestEnabled,
+      registryEnabled: src.is_enabled,
     });
 
     return {
@@ -277,6 +296,7 @@ async function buildIntelSourcesAudit(): Promise<{
       fetchKind: src.fetch_kind,
       endpointDisplay: endpointDisplay(src.slug, src.endpoint_url),
       isEnabled: src.is_enabled,
+      manifestEnabled,
       purpose: src.purpose,
       trustedFor: src.trusted_for,
       notTrustedFor: src.not_trusted_for,
@@ -336,7 +356,7 @@ async function buildIntelSourcesAudit(): Promise<{
   };
 }
 
-export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v2'], {
+export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v3'], {
   revalidate: 90,
   tags: ['intel-sources'],
 });

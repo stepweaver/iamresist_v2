@@ -127,7 +127,20 @@ export default function SourcesAuditSection({ audit }) {
                 </td>
 
                 <td className="p-3 font-mono text-xs">{r.provenanceClass}</td>
-                <td className="p-3 font-mono text-xs">{r.isEnabled ? 'yes' : 'no'}</td>
+                <td className="p-3 font-mono text-[10px] align-top">
+                  <div>
+                    <span className="text-hud-dim">DB</span> {r.isEnabled ? 'yes' : 'no'}
+                  </div>
+                  <div className="mt-0.5">
+                    <span className="text-hud-dim">Manifest</span>{' '}
+                    {r.manifestEnabled ? 'yes' : 'no'}
+                  </div>
+                  {r.manifestEnabled && !r.isEnabled ? (
+                    <p className="text-amber-700 dark:text-amber-400/90 mt-1.5 max-w-[200px] leading-snug">
+                      Run ingest once to sync registry (sources.is_enabled).
+                    </p>
+                  ) : null}
+                </td>
                 <td className="p-3 font-mono text-[10px] text-foreground/80 max-w-[220px] break-all">
                   {r.fetchKind}
                   <div className="text-hud-dim mt-1 break-all">{r.endpointDisplay}</div>

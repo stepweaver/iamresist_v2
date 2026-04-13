@@ -13,7 +13,7 @@ describe.skipIf(!base)('public route smoke (SMOKE_BASE_URL)', () => {
   it('main pages and read APIs return < 500', async () => {
     const paths = [
       '/',
-      '/voices',
+      '/telescreen',
       '/shop',
       '/api/voices-feed',
       '/api/voices-archive?page=1&limit=1',

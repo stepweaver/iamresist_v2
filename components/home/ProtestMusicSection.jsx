@@ -17,7 +17,7 @@ export default function ProtestMusicSection({ item }) {
           Protest Music
         </span>
         <Link
-          href="/voices?source=protest-music"
+          href="/telescreen?source=protest-music"
           className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold whitespace-nowrap"
         >
           View all →

@@ -10,7 +10,7 @@ import { ShoppingCart } from 'lucide-react';
 const NAV_LINKS = [
   { href: '/', label: 'HOME' },
   { href: '/about', label: 'MISSION' },
-  { href: '/voices', label: 'INTEL' },
+  { href: '/telescreen', label: 'INTEL' },
   { href: '/journal', label: 'JOURNAL' },
   { href: '/timeline', label: 'TIMELINE' },
   { href: '/shop', label: 'SUPPLY' },
@@ -38,8 +38,10 @@ function CartNavLink({ totalQuantity, cartBounce }) {
 
 function isNavLinkActive(link, pathname) {
   const intelHub =
-    link.href === '/voices' &&
-    (pathname === '/voices' ||
+    link.href === '/telescreen' &&
+    (pathname === '/telescreen' ||
+      pathname?.startsWith('/telescreen/') ||
+      pathname === '/voices' ||
       pathname?.startsWith('/voices/') ||
       pathname === '/intel' ||
       pathname?.startsWith('/intel/') ||

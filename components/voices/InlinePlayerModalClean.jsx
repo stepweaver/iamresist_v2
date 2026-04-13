@@ -53,15 +53,15 @@ function dedupeByVideoKey(items) {
 }
 
 function intelUrlForCreator(item) {
-  if (!item?.voice?.slug) return "/voices";
+  if (!item?.voice?.slug) return "/telescreen";
   const slug = item.voice.slug;
   if (item.sourceType === "protest-music") {
-    return `/voices?source=protest-music&artist=${encodeURIComponent(slug)}`;
+    return `/telescreen?source=protest-music&artist=${encodeURIComponent(slug)}`;
   }
   if (item.sourceType === "curated-videos" || slug === "curated-videos") {
-    return "/voices?source=curated-videos";
+    return "/telescreen?source=curated-videos";
   }
-  return `/voices?source=voices&voice=${encodeURIComponent(slug)}`;
+  return `/telescreen?source=voices&voice=${encodeURIComponent(slug)}`;
 }
 
 export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem }) {

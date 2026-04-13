@@ -23,7 +23,7 @@ export default async function VoicesFeedSection({
         </span>
         {showViewAll && (
           <Link
-            href="/voices"
+            href="/telescreen"
             className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold whitespace-nowrap"
           >
             View all →

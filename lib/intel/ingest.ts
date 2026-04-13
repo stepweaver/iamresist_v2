@@ -5,6 +5,7 @@ import {
   parseFederalRegisterPiJson,
   parseFederalRegisterPublishedJson,
 } from '@/lib/intel/frApi';
+import { parseDemocracyDocketNewsAlertsHtml } from '@/lib/intel/parseHtmlIndex';
 import { parseRssXmlToItems } from '@/lib/intel/parseRss';
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
@@ -184,6 +185,57 @@ export async function ingestOneSource(
             finalUrl: res.finalUrl ?? null,
             contentType: res.contentType ?? null,
             itemsParsed: 0,
+          },
+        };
+      }
+
+      return {
+        items,
+        status: 'success',
+        meta: {
+          httpStatus: res.status,
+          finalUrl: res.finalUrl ?? null,
+          contentType: res.contentType ?? null,
+          itemsParsed: items.length,
+        },
+      };
+    }
+
+    if (cfg.fetchKind === 'html_index') {
+      if (cfg.slug !== 'democracy-docket') {
+        return {
+          items: [],
+          status: 'failed',
+          error: `html_index not implemented for slug: ${cfg.slug}`,
+          meta: {
+            httpStatus: res.status,
+            finalUrl: res.finalUrl ?? null,
+            contentType: res.contentType ?? null,
+          },
+        };
+      }
+
+      const parsedItems = parseDemocracyDocketNewsAlertsHtml(res.text, {
+        sourceSlug: cfg.slug,
+        provenanceClass: cfg.provenanceClass,
+        contentUseMode,
+        fetchKind: cfg.fetchKind,
+      });
+
+      const items = applyContentUseModeToItems(parsedItems, contentUseMode);
+
+      if (items.length === 0) {
+        return {
+          items: [],
+          status: 'partial',
+          error:
+            'HTML index parse returned 0 article links (blocked page, empty listing, or markup change)',
+          meta: {
+            httpStatus: res.status,
+            finalUrl: res.finalUrl ?? null,
+            contentType: res.contentType ?? null,
+            itemsParsed: 0,
+            bodySample: res.text.slice(0, 180),
           },
         };
       }

@@ -58,7 +58,7 @@ export default async function CuratedVideoPage({ params }) {
           </Link>
           <span className="mx-2 text-foreground/40">/</span>
           <Link
-            href="/voices?source=curated-videos"
+            href="/telescreen?source=curated-videos"
             className="text-foreground/60 hover:text-primary transition-colors font-bold"
           >
             Curated Videos
@@ -119,7 +119,7 @@ export default async function CuratedVideoPage({ params }) {
 
         <p className="mt-6 text-center">
           <Link
-            href="/voices?source=curated-videos"
+            href="/telescreen?source=curated-videos"
             className="nav-label text-sm text-foreground/60 hover:text-primary transition-colors font-bold"
           >
             ← More curated videos

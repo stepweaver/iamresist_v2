@@ -12,7 +12,8 @@ const GOVINFO_BILLS = 'https://www.govinfo.gov/rss/bills.xml';
 /** Verified 200 OK; this is full CREC RSS — not the Daily Digest (crec-dd URL 404 on GovInfo). */
 const GOVINFO_CREC = 'https://www.govinfo.gov/rss/crec.xml';
 const SCOTUSBLOG = 'https://www.scotusblog.com/feed/';
-const DEMOCRACY_DOCKET = 'https://www.democracydocket.com/feed/';
+/** Listing page; articles are CPT `alerts` under /news-alerts/{slug}/ (RSS unreliable in some fetch runtimes). */
+const DEMOCRACY_DOCKET = 'https://www.democracydocket.com/news-alerts/';
 const LAWFARE = 'https://www.lawfaremedia.org/feeds/articles';
 const PROPUBLICA = 'https://feeds.propublica.org/propublica/main';
 const AMERICAN_OVERSIGHT = 'https://americanoversight.org/feed';
@@ -20,7 +21,7 @@ const COURIER_COVER_UP = 'https://thecoverupnewsletter.substack.com/feed';
 const ROBERT_REICH = 'https://robertreich.substack.com/feed';
 const ON_OFFENSE = 'https://onoffense.substack.com/feed';
 const TOTAL_HYPOCRISY = 'https://totalhypocrisy.substack.com/feed';
-/** WordPress default feed; canonical articles on epsteincoverup.us (linked from /coverage/). */
+/** Disabled: HTTP 200 but RSS parses to 0 items in our pipeline; same project uses Substack (`courier-the-cover-up`). */
 const UNCOVERING_EPSTEIN_NETWORK_FEED = 'https://epsteincoverup.us/feed/';
 
 /** Routine Federal Register / PI churn — suppressed from default desk surface (retained in DB). */
@@ -269,7 +270,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       slug: 'democracy-docket',
       name: 'Democracy Docket',
       provenanceClass: 'SPECIALIST',
-      fetchKind: 'rss',
+      fetchKind: 'html_index',
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: DEMOCRACY_DOCKET,
@@ -283,7 +284,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Case narrative and filings in the democracy and voting-rights space.',
       notTrustedFor: 'Final judicial disposition without the underlying court documents.',
       editorialNotes:
-        'Public WordPress RSS at /feed/ verified 200 application/rss+xml (external curl, 2026-04). Re-check if ingest ever returns HTML or partial parses.',
+        'Ingest uses the public /news-alerts/ HTML index (article links), not RSS. Titles are derived from URL slugs until a richer parser is added.',
       editorialControls: {
         defaultPriority: 58,
         preferredStateChangeTypes: ['specialist_item'],
@@ -321,7 +322,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: PROPUBLICA,
-      isEnabled: false,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -331,7 +332,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Leads and accountability journalism pointers with canonical article links.',
       notTrustedFor: 'Treating RSS blurbs alone as proof; always read the full investigation at ProPublica.',
       editorialNotes:
-        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
+        'Included in the default manifest; RSS blurbs are pointers—read full investigations on site.',
       editorialControls: {
         defaultPriority: 57,
         preferredStateChangeTypes: ['specialist_item'],
@@ -346,7 +347,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: AMERICAN_OVERSIGHT,
-      isEnabled: false,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -356,7 +357,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Records-request narratives, lawsuit filings, and transparency campaign pointers.',
       notTrustedFor: 'Verified contents of unreleased records; read linked filings and releases.',
       editorialNotes:
-        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
+        'Included in the default manifest; specialist FOIA and accountability feed.',
       editorialControls: {
         defaultPriority: 55,
         preferredStateChangeTypes: ['specialist_item'],
@@ -371,17 +372,17 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'preview_and_link',
       endpointUrl: COURIER_COVER_UP,
-      isEnabled: false,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
       requiresIndependentVerification: false,
       heroEligibilityMode: 'normal',
       purpose:
-        'Optional specialist newsletter on Epstein accountability (public Substack RSS). Disabled by default for editorial sign-off.',
+        'Optional specialist newsletter on Epstein accountability (public Substack RSS). Enabled in manifest; preview-and-link only.',
       trustedFor: 'Syndicated headlines and links to COURIER’s own publication.',
       notTrustedFor: 'Law enforcement evidence or complete document sets; not a substitute for court records.',
-      editorialNotes: 'Enable in manifest after editorial review. Preview-and-link only.',
+      editorialNotes: 'Preview-and-link only; enabled in default manifest.',
       editorialControls: {
         defaultPriority: 50,
         preferredStateChangeTypes: ['specialist_item'],
@@ -402,11 +403,11 @@ export function getSignalSources(): SignalSourceConfig[] {
       requiresIndependentVerification: false,
       heroEligibilityMode: 'normal',
       purpose:
-        'Investigative reporting on the Epstein network; public WordPress RSS mirrors posts with canonical links to epsteincoverup.us articles.',
-      trustedFor: 'Headlines, dates, and pointers to the site’s own reporting pages.',
+        'Registry row for the epsteincoverup.us project; RSS ingest disabled because /feed/ does not yield items in our parser. Use The Cover-Up Substack (`courier-the-cover-up`) for the working feed; canonical web pages remain on the main site.',
+      trustedFor: 'Headlines, dates, and pointers to the site’s own reporting pages (when ingested via another path).',
       notTrustedFor: 'Court filings or law-enforcement evidence; read linked articles and primary sources.',
       editorialNotes:
-        'Enable after editorial sign-off. Site lists /coverage/ for browsing; ingest uses standard WP /feed/ (same as link rel alternate on the site).',
+        'Disabled as RSS: duplicate of the same editorial project as courier-the-cover-up, and the site feed is not reliable here. Revisit as html_index on /coverage/ if canonical on-domain links are required.',
       editorialControls: {
         defaultPriority: 52,
         preferredStateChangeTypes: ['specialist_item'],
@@ -421,7 +422,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'voices',
       contentUseMode: 'preview_and_link',
       endpointUrl: ROBERT_REICH,
-      isEnabled: false,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -431,7 +432,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Interpretation hooks and pointers to the author’s own posts.',
       notTrustedFor: 'Primary government records, wire confirmation, or neutral fact baseline.',
       editorialNotes:
-        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
+        'Commentary lane; included in default manifest (voices desk).',
       editorialControls: {
         defaultPriority: 46,
         preferredStateChangeTypes: ['commentary_item'],
@@ -469,7 +470,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'voices',
       contentUseMode: 'preview_and_link',
       endpointUrl: TOTAL_HYPOCRISY,
-      isEnabled: false,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -479,7 +480,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Syndicated post titles and links to Substack.',
       notTrustedFor: 'Patreon-exclusive audio without a separate public feed.',
       editorialNotes:
-        'Disabled until feed is verified in production. Patreon-only podcast is not ingested here.',
+        'Enabled in default manifest; verify feed in production if items look wrong. Patreon-only podcast is not ingested here.',
       editorialControls: {
         defaultPriority: 45,
         preferredStateChangeTypes: ['commentary_item'],

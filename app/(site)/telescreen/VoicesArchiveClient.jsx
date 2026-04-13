@@ -129,7 +129,7 @@ export default function VoicesArchiveClient({
         artist: source === "voices" ? null : source ? undefined : null,
       });
       const qs = params.toString();
-      router.push(qs ? `/voices?${qs}` : "/voices");
+      router.push(qs ? `/telescreen?${qs}` : "/telescreen");
     },
     [router, buildSearchParams]
   );
@@ -138,7 +138,7 @@ export default function VoicesArchiveClient({
     (voice) => {
       setVoiceDropdownOpen(false);
       const params = buildSearchParams({ voice: voice || undefined });
-      router.push(`/voices?${params.toString()}`);
+      router.push(`/telescreen?${params.toString()}`);
     },
     [router, buildSearchParams]
   );
@@ -147,7 +147,7 @@ export default function VoicesArchiveClient({
     (artist) => {
       setArtistDropdownOpen(false);
       const params = buildSearchParams({ artist: artist || undefined });
-      router.push(`/voices?${params.toString()}`);
+      router.push(`/telescreen?${params.toString()}`);
     },
     [router, buildSearchParams]
   );
@@ -246,7 +246,7 @@ export default function VoicesArchiveClient({
         <ol className="nav-label flex items-center gap-2 text-xs sm:text-sm font-bold text-foreground/70 max-w-[1600px] mx-auto flex-wrap">
           <li>
             <Link
-              href={sourceParam ? `/voices?source=${sourceParam}` : "/voices"}
+              href={sourceParam ? `/telescreen?source=${sourceParam}` : "/telescreen"}
               className="hover:text-primary transition-colors"
             >
               {sourceParam === "curated-videos"

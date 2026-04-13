@@ -5,7 +5,7 @@ This document mirrors the **version-controlled manifest** in [`lib/intel/signal-
 ## Principles
 
 - **No paid wire APIs** in this milestone; optional Reuters/AP remain env-gated RSS URLs only.
-- **No HTML page scraping** for article bodies; only **public feed fields** (title, link, dates, feed-native description/snippet).
+- **No full article HTML mirroring**; RSS/JSON and **`html_index`** only extract listing metadata and canonical URLs (titles may be slug-derived for index-only sources).
 - **Canonical outbound links** are always stored; the site is a **discovery layer**, not a full-text mirror.
 
 ## Content use modes (`content_use_mode`)
@@ -25,7 +25,7 @@ This document mirrors the **version-controlled manifest** in [`lib/intel/signal-
 | `osint` | `/intel/osint` | Primaries, optional wires, specialist reporting, accountability feeds. |
 | `voices` | `/intel/voices` | Ingested creator/commentary from **public** RSS/podcast feeds. |
 
-The broader **Voices archive** (Notion + media catalog) remains at `/voices`; it is not replaced by `/intel/voices`.
+The curated **Telescreen** (Notion + media catalog video/music wall) lives at **`/telescreen`** (`/voices` redirects); it is not replaced by `/intel/voices`.
 
 ## Fetch kinds (`fetch_kind`)
 
@@ -35,7 +35,8 @@ The broader **Voices archive** (Notion + media catalog) remains at `/voices`; it
 | `podcast_rss` | Yes — same parser; episode link/enclosure handled conservatively. |
 | `json_api` | Yes — Federal Register JSON today. |
 | `unsupported` | No — honest registry placeholder. |
-| `manual` / `newsletter_only` / `scrape` | No — reserved; no scraping in this cut. |
+| `html_index` | Yes — fetches a public listing page and extracts canonical article URLs (e.g. Democracy Docket `/news-alerts/`). |
+| `manual` / `newsletter_only` / `scrape` | No — reserved (or not wired for automated ingest yet). |
 
 ## Source list (slug → summary)
 
@@ -62,12 +63,12 @@ The broader **Voices archive** (Notion + media catalog) remains at `/voices`; it
 | Slug | Feed-native? | Default on | Content posture |
 |------|----------------|------------|-----------------|
 | `scotusblog` | RSS | yes | `feed_summary` |
-| `democracy-docket` | RSS | yes | `feed_summary` |
+| `democracy-docket` | `html_index` (`/news-alerts/` listing) | yes | `feed_summary` — titles from URL slugs; no RSS |
 | `lawfare` | RSS | yes | `feed_summary` |
 | `propublica` | RSS | yes | `feed_summary` |
 | `american-oversight` | RSS | yes | `feed_summary` |
-| `courier-the-cover-up` | RSS | **no** | `preview_and_link` — enable after editorial sign-off. |
-| `uncovering-epstein-network` | WordPress RSS (`/feed/`) | **no** | `preview_and_link` — enable after editorial sign-off; canonical articles on epsteincoverup.us. |
+| `courier-the-cover-up` | RSS | yes | `preview_and_link` — working Substack feed for the COURIER Cover-Up / Epstein accountability project. |
+| `uncovering-epstein-network` | RSS (`/feed/`) | **no** (disabled) | `preview_and_link` — registry only; site feed parses to 0 items here; do not run parallel to Substack without dedupe. |
 
 ### Creator / commentary (Voices)
 
