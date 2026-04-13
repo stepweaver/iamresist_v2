@@ -121,9 +121,15 @@ export default function SourcesAuditSection({ audit }) {
                 <td className="p-3 font-mono text-[10px] text-foreground/75 max-w-[160px] leading-snug">
                   {r.acquisitionSummary}
                 </td>
-                <td className="p-3 font-mono text-[10px]">
+                                <td className="p-3 font-mono text-[10px]">
                   {r.lastRunStatus ?? '—'}
                   <div className="text-hud-dim mt-1">{formatIso(r.lastRunFinishedAt)}</div>
+                  {r.lastRunError ? (
+                    <div className="text-red-500/80 mt-1 break-words">{r.lastRunError}</div>
+                  ) : null}
+                  {formatRunMeta(r.lastRunMeta) ? (
+                    <div className="text-hud-dim mt-1 break-words">{formatRunMeta(r.lastRunMeta)}</div>
+                  ) : null}
                 </td>
                 <td className="p-3 font-mono text-[10px] text-foreground/85">{formatIso(r.lastSuccessAt)}</td>
                 <td className="p-3 font-mono text-[10px] text-foreground/85">
