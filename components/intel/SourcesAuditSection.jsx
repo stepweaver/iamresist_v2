@@ -54,9 +54,10 @@ export default function SourcesAuditSection({ audit }) {
         <p className="text-red-700 dark:text-red-400 text-sm font-mono">{errorMessage}</p>
         <p className="text-foreground/60 text-xs mt-2 font-mono">
           Apply intel migrations in order through at least{' '}
-          <code className="text-primary">20260418120000_intel_source_family_desk_lanes.sql</code> (adds{' '}
-          <code className="text-primary">source_family</code>, extended desk lanes, snapshots). If RPCs fail, apply
-          earlier intel migrations first, then run ingest once to sync the manifest.
+          <code className="text-primary">20260418201000_intel_source_items_desk_lane_extend.sql</code> (fixes{' '}
+          <code className="text-primary">source_items_desk_lane_check</code> for new lanes). Also run{' '}
+          <code className="text-primary">20260418120000_intel_source_family_desk_lanes.sql</code> for{' '}
+          <code className="text-primary">source_family</code> and snapshots. Then run ingest once.
         </p>
       </section>
     );

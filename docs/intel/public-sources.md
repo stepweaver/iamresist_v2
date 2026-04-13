@@ -138,6 +138,7 @@ Apply in order (see [`supabase/migrations/`](../../supabase/migrations/)), inclu
 
 - `20260412170000_intel_source_lanes_content_use.sql` — lanes, content modes, expanded `fetch_kind`, `commentary_item`, denormalized `source_items` columns, snapshot id `2` for Voices.
 - `20260418120000_intel_source_family_desk_lanes.sql` — `source_family`, lanes `defense_ops` / `watchdogs` / `indicators`, `source_items.indicator_class`, `scheduled_release`, snapshot ids `3`–`5`.
+- `20260418201000_intel_source_items_desk_lane_extend.sql` — extends **`intel.source_items`** `desk_lane` CHECK to match `sources` (required for ingest into new lanes; without it upserts fail with `source_items_desk_lane_check`).
 
 ## Live desk snapshots
 
