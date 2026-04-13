@@ -12,6 +12,7 @@ import {
   parseSameHostArticleLinksHtml,
   parseUsniNewsListingHtml,
 } from '@/lib/intel/parseHtmlIndex';
+import { enrichNormalizedItemsWithImages } from '@/lib/intel/enrichImages';
 import { parseRssXmlToItems } from '@/lib/intel/parseRss';
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
@@ -308,14 +309,22 @@ export async function ingestOneSource(
         };
       }
 
+      const ogMax =
+        cfg.slug === 'democracy-docket' ? 18 : cfg.slug === 'usni-fleet-tracker' ? 12 : 8;
+      const itemsWithImages = await enrichNormalizedItemsWithImages(items, {
+        max: ogMax,
+        concurrency: 4,
+      });
+
       return {
-        items,
+        items: itemsWithImages,
         status: 'success',
         meta: {
           httpStatus: res.status,
           finalUrl: res.finalUrl ?? null,
           contentType: res.contentType ?? null,
-          itemsParsed: items.length,
+          itemsParsed: itemsWithImages.length,
+          imagesResolved: itemsWithImages.filter((it) => Boolean(it.imageUrl)).length,
         },
       };
     }
@@ -342,8 +351,11 @@ export async function ingestOneSource(
       fetchKind: cfg.fetchKind,
     });
 
-    // Content-use policy is applied inside RSS parsing (`parseRss.ts` + `contentUse.ts`).
-    const items = parsedItems;
+    // RSS already extracts feed-native images; this only fills gaps.
+    const items = await enrichNormalizedItemsWithImages(parsedItems, {
+      max: 8,
+      concurrency: 4,
+    });
 
     if (items.length === 0) {
       return {
@@ -369,6 +381,7 @@ export async function ingestOneSource(
         finalUrl: res.finalUrl ?? null,
         contentType: res.contentType ?? null,
         itemsParsed: items.length,
+        imagesResolved: items.filter((it) => Boolean(it.imageUrl)).length,
       },
     };
   } catch (e) {

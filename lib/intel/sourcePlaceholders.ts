@@ -7,6 +7,12 @@ const PLACEHOLDER_BY_SOURCE_SLUG: Record<string, string> = {
   'fr-public-inspection': '/images/intel/placeholder-federal-register.png',
   'govinfo-bills': '/images/intel/placeholder-govinfo.png',
   'govinfo-crec': '/images/intel/placeholder-govinfo.png',
+
+  'bls-release-calendar': '/images/intel/placeholder-indicators.png',
+  'bea-release-schedule': '/images/intel/placeholder-indicators.png',
+  'sam-gov-contracting': '/images/intel/placeholder-contracting.png',
+  'ofac-recent-actions': '/images/intel/placeholder-sanctions.png',
+  'indicator-pentagon-pizza': '/images/intel/placeholder-anecdotal.png',
 };
 
 export function intelPlaceholderImagePathForSourceSlug(
