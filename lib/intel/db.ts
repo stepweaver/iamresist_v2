@@ -3,6 +3,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 import { dbEnv } from '@/lib/env/db';
 import { computeRelevanceProfile, editorialControlsForDb } from '@/lib/intel/relevance';
+import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
 import type { IngestRunStatus, NormalizedItem, ProvenanceClass, SignalSourceConfig } from '@/lib/intel/types';
 
 export function intelDbConfigured(): boolean {
@@ -125,6 +126,8 @@ export async function upsertSourceItems(
       surface_state: rel.surface_state,
       suppression_reason: rel.suppression_reason,
       relevance_explanations: rel.relevance_explanations,
+      relevance_computed_at: now,
+      relevance_rule_version: INTEL_RELEVANCE_RULE_VERSION,
     };
   });
 
@@ -164,12 +167,7 @@ export type SourceItemRow = {
   } | null;
 };
 
-export async function fetchRecentSourceItemsForLive(limit = 200): Promise<SourceItemRow[]> {
-  const supabase = client();
-  const { data, error } = await supabase
-    .from('source_items')
-    .select(
-      `
+const SOURCE_ITEMS_LIVE_SELECT = `
       id,
       title,
       summary,
@@ -190,12 +188,48 @@ export async function fetchRecentSourceItemsForLive(limit = 200): Promise<Source
         name,
         provenance_class
       )
-    `,
-    )
+    `;
+
+/** Surfaced rows only, newest first — avoids suppressed rows consuming the desk fetch budget. */
+export async function fetchSurfacedSourceItemsForLive(limit: number): Promise<SourceItemRow[]> {
+  const supabase = client();
+  const { data, error } = await supabase
+    .from('source_items')
+    .select(SOURCE_ITEMS_LIVE_SELECT)
+    .eq('surface_state', 'surfaced')
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
-  if (error) throw new Error(`source_items select: ${error.message}`);
+  if (error) throw new Error(`source_items surfaced select: ${error.message}`);
+  return (data ?? []) as SourceItemRow[];
+}
+
+/** Small secondary pool for downranked items (still on default surface, sorted after surfaced). */
+export async function fetchDownrankedSourceItemsForLive(limit: number): Promise<SourceItemRow[]> {
+  if (limit <= 0) return [];
+  const supabase = client();
+  const { data, error } = await supabase
+    .from('source_items')
+    .select(SOURCE_ITEMS_LIVE_SELECT)
+    .eq('surface_state', 'downranked')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (error) throw new Error(`source_items downranked select: ${error.message}`);
+  return (data ?? []) as SourceItemRow[];
+}
+
+/** Suppressed-only fetch for the disclosure section (separate query, tight limit). */
+export async function fetchSuppressedSourceItemsForLive(limit: number): Promise<SourceItemRow[]> {
+  const supabase = client();
+  const { data, error } = await supabase
+    .from('source_items')
+    .select(SOURCE_ITEMS_LIVE_SELECT)
+    .eq('surface_state', 'suppressed')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (error) throw new Error(`source_items suppressed select: ${error.message}`);
   return (data ?? []) as SourceItemRow[];
 }
 
@@ -241,6 +275,7 @@ export type IntelFreshnessMeta = {
 export type LiveDeskSnapshotPayload = {
   items: unknown[];
   suppressedItems?: unknown[];
+  duplicateItems?: unknown[];
   freshness: IntelFreshness | null;
   freshnessMeta?: IntelFreshnessMeta | null;
 };
@@ -267,6 +302,7 @@ export async function loadLiveDeskSnapshot(): Promise<LiveDeskSnapshotPayload | 
   const p = raw as Record<string, unknown>;
   const items = Array.isArray(p.items) ? p.items : [];
   const suppressedItems = Array.isArray(p.suppressedItems) ? p.suppressedItems : [];
+  const duplicateItems = Array.isArray(p.duplicateItems) ? p.duplicateItems : [];
   const freshness =
     p.freshness && typeof p.freshness === 'object' && !Array.isArray(p.freshness)
       ? (p.freshness as IntelFreshness)
@@ -275,7 +311,7 @@ export async function loadLiveDeskSnapshot(): Promise<LiveDeskSnapshotPayload | 
     p.freshnessMeta && typeof p.freshnessMeta === 'object' && !Array.isArray(p.freshnessMeta)
       ? (p.freshnessMeta as IntelFreshnessMeta)
       : null;
-  return { items, suppressedItems, freshness, freshnessMeta };
+  return { items, suppressedItems, duplicateItems, freshness, freshnessMeta };
 }
 
 export type IntelSourceRegistryRow = {
@@ -326,6 +362,8 @@ export type SourceItemSurfacingStatsRpcRow = {
   surfaced_7d: number;
   downranked_7d: number;
   suppressed_7d: number;
+  items_never_scored_total: number;
+  items_rule_stale_total: number;
 };
 
 export async function fetchSourceItemStatsAggregates(): Promise<SourceItemStatsRpcRow[]> {
@@ -340,7 +378,9 @@ export async function fetchSourceItemStatsAggregates(): Promise<SourceItemStatsR
 
 export async function fetchSourceItemSurfacingStatsAggregates(): Promise<SourceItemSurfacingStatsRpcRow[]> {
   const supabase = client();
-  const { data, error } = await supabase.rpc('source_item_surfacing_stats');
+  const { data, error } = await supabase.rpc('source_item_surfacing_stats', {
+    expected_rule_version: INTEL_RELEVANCE_RULE_VERSION,
+  });
   if (error) {
     console.warn('[intel] source_item_surfacing_stats RPC:', error.message);
     return [];

@@ -7,6 +7,7 @@ import {
   fetchSourceItemSurfacingStatsAggregates,
   intelDbConfigured,
 } from '@/lib/intel/db';
+import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
 import type { IngestRunStatus } from '@/lib/intel/types';
 
 export type SourceHealth = 'healthy' | 'stale' | 'failing' | 'disabled' | 'unproven';
@@ -41,6 +42,8 @@ export type IntelSourceAuditRow = {
   noiseHint: string | null;
   relevanceNotes: string | null;
   noiseNotes: string | null;
+  itemsNeverScored: number;
+  itemsRuleStale: number;
 };
 
 function parseStaleMinutes(): number {
@@ -97,6 +100,7 @@ function computeHealth(input: {
 async function buildIntelSourcesAudit(): Promise<{
   configured: boolean;
   staleThresholdMinutes: number;
+  relevanceRuleVersion: string;
   rows: IntelSourceAuditRow[];
   errorMessage: string | null;
 }> {
@@ -104,6 +108,7 @@ async function buildIntelSourcesAudit(): Promise<{
     return {
       configured: false,
       staleThresholdMinutes: parseStaleMinutes(),
+      relevanceRuleVersion: INTEL_RELEVANCE_RULE_VERSION,
       rows: [],
       errorMessage: 'Supabase credentials not configured.',
     };
@@ -120,6 +125,7 @@ async function buildIntelSourcesAudit(): Promise<{
     return {
       configured: true,
       staleThresholdMinutes,
+      relevanceRuleVersion: INTEL_RELEVANCE_RULE_VERSION,
       rows: [],
       errorMessage: msg,
     };
@@ -144,6 +150,8 @@ async function buildIntelSourcesAudit(): Promise<{
         surfaced7d: Number(s.surfaced_7d),
         downranked7d: Number(s.downranked_7d),
         suppressed7d: Number(s.suppressed_7d),
+        neverScored: Number(s.items_never_scored_total) || 0,
+        ruleStale: Number(s.items_rule_stale_total) || 0,
       },
     ]),
   );
@@ -175,6 +183,8 @@ async function buildIntelSourcesAudit(): Promise<{
     const surfaced7d = st?.surfaced7d ?? 0;
     const downranked7d = st?.downranked7d ?? 0;
     const suppressed7d = st?.suppressed7d ?? 0;
+    const itemsNeverScored = st?.neverScored ?? 0;
+    const itemsRuleStale = st?.ruleStale ?? 0;
 
     const ec = src.editorial_controls;
     const noiseNotes =
@@ -232,6 +242,8 @@ async function buildIntelSourcesAudit(): Promise<{
       noiseHint: null,
       noiseNotes,
       relevanceNotes,
+      itemsNeverScored,
+      itemsRuleStale,
     };
   });
 
@@ -256,17 +268,26 @@ async function buildIntelSourcesAudit(): Promise<{
       const hint = `More suppressed than surfaced in DB (${r.suppressedTotal} vs ${r.surfacedTotal}); check block rules.`;
       r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
     }
+    if (r.isEnabled && r.itemTotal > 0 && r.itemsNeverScored > 0) {
+      const hint = `${r.itemsNeverScored} row(s) missing relevance_computed_at — run /api/cron/intel-rescore.`;
+      r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
+    }
+    if (r.isEnabled && r.itemTotal > 0 && r.itemsRuleStale > 0) {
+      const hint = `${r.itemsRuleStale} row(s) stamped with older rule version than app (${INTEL_RELEVANCE_RULE_VERSION}) — rescore recommended.`;
+      r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
+    }
   }
 
   return {
     configured: true,
     staleThresholdMinutes,
+    relevanceRuleVersion: INTEL_RELEVANCE_RULE_VERSION,
     rows,
     errorMessage: null,
   };
 }
 
-export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v2'], {
+export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v3'], {
   revalidate: 90,
   tags: ['intel-sources'],
 });

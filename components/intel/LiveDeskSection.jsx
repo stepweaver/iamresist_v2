@@ -133,6 +133,7 @@ export default function LiveDeskSection({ desk }) {
     intelSchemaMisconfigured,
     items,
     suppressedItems = [],
+    duplicateItems = [],
     message,
     freshness,
     freshnessMeta,
@@ -155,6 +156,7 @@ export default function LiveDeskSection({ desk }) {
 
   const showBanner = Boolean(message) && (stale || snapshotFallback);
   const suppressed = Array.isArray(suppressedItems) ? suppressedItems : [];
+  const duplicates = Array.isArray(duplicateItems) ? duplicateItems : [];
 
   return (
     <div className="space-y-6">
@@ -177,6 +179,10 @@ export default function LiveDeskSection({ desk }) {
                   : ''}
               </p>
             ) : null}
+            <p className="font-mono text-[10px] text-foreground/55 tracking-wide mt-2 max-w-3xl leading-relaxed">
+              Desk build: surfaced rows first, then a capped downranked pool; suppressed fetched separately. Duplicate
+              cluster losers are grouped below the main list (not deleted).
+            </p>
           </div>
         </div>
       ) : null}
@@ -228,10 +234,7 @@ export default function LiveDeskSection({ desk }) {
             <li key={row.id} className="machine-panel border border-border p-5 sm:p-6">
               <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
                 <ProvenanceChip provenanceClass={row.provenanceClass} />
-                <SurfaceChip
-                  surfaceState={row.surfaceState ?? 'surfaced'}
-                  isDuplicateLoser={Boolean(row.isDuplicateLoser)}
-                />
+                <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
                 <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
                   {row.sourceName}
                 </span>
@@ -276,6 +279,39 @@ export default function LiveDeskSection({ desk }) {
         })}
       </ul>
 
+      {duplicates.length > 0 ? (
+        <details className="border border-border machine-panel p-4 sm:p-5 group">
+          <summary className="cursor-pointer font-mono text-xs uppercase tracking-wider text-foreground/85 list-none flex items-center gap-2">
+            <span className="text-primary group-open:rotate-90 transition-transform inline-block">▸</span>
+            Duplicate cluster pointers ({duplicates.length}) — not on main surface
+          </summary>
+          <p className="mt-2 text-[10px] font-mono text-hud-dim leading-relaxed">
+            Same deterministic cluster key as a stronger line already shown above. Rule id{' '}
+            <code className="text-primary/90">desk:duplicate_cluster</code> in relevance notes on each row.
+          </p>
+          <ul className="mt-4 space-y-3 border-t border-border pt-4">
+            {duplicates.map((row) => (
+              <li key={row.id} className="text-sm">
+                <Link
+                  href={row.canonicalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-foreground hover:text-primary hover:underline"
+                >
+                  {row.title}
+                </Link>
+                <p className="font-mono text-[10px] text-hud-dim mt-1">
+                  {row.sourceName} ·{' '}
+                  {(Array.isArray(row.relevanceExplanations)
+                    ? row.relevanceExplanations.find((e) => e.ruleId === 'desk:duplicate_cluster')?.message
+                    : null) ?? 'Weaker duplicate of another desk line'}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
       {suppressed.length > 0 ? (
         <details className="border border-border machine-panel p-4 sm:p-5 group">
           <summary className="cursor-pointer font-mono text-xs uppercase tracking-wider text-foreground/85 list-none flex items-center gap-2">
@@ -283,8 +319,8 @@ export default function LiveDeskSection({ desk }) {
             Suppressed on default surface ({suppressed.length}) — retained in storage, rule-based
           </summary>
           <p className="mt-2 text-[10px] font-mono text-hud-dim leading-relaxed">
-            Counts in /intel/sources reflect ingest-time suppression. Display-time duplicate deprioritization
-            is separate (see “desk:duplicate_cluster” on visible cards when it applies).
+            Ingest-time <code className="text-primary/90">surface_state = suppressed</code>. Counts in /intel/sources
+            include these rows.
           </p>
           <ul className="mt-4 space-y-3 border-t border-border pt-4">
             {suppressed.map((row) => (

@@ -23,7 +23,7 @@ function HealthBadge({ health }) {
 }
 
 export default function SourcesAuditSection({ audit }) {
-  const { configured, staleThresholdMinutes, rows, errorMessage } = audit;
+  const { configured, staleThresholdMinutes, relevanceRuleVersion, rows, errorMessage } = audit;
 
   if (!configured) {
     return (
@@ -50,11 +50,12 @@ export default function SourcesAuditSection({ audit }) {
     <div className="space-y-6">
       <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
         Stale / health threshold: {staleThresholdMinutes}m (INTEL_DESK_STALE_AFTER_MINUTES) · counts from
-        source_items · last run from ingest_runs
+        source_items · last run from ingest_runs · app relevance rule version{' '}
+        <code className="text-primary/90">{relevanceRuleVersion ?? '—'}</code> (stale counts vs this version)
       </p>
 
       <div className="overflow-x-auto border border-border machine-panel">
-        <table className="w-full min-w-[1180px] text-left text-sm">
+        <table className="w-full min-w-[1280px] text-left text-sm">
           <thead>
             <tr className="border-b border-border font-mono text-[10px] uppercase tracking-wider text-hud-dim">
               <th className="p-3 align-bottom">Health</th>
@@ -68,6 +69,7 @@ export default function SourcesAuditSection({ audit }) {
               <th className="p-3 align-bottom">24h / 7d / total</th>
               <th className="p-3 align-bottom">Surfaced / down / supp (7d)</th>
               <th className="p-3 align-bottom">Surfaced / down / supp (all)</th>
+              <th className="p-3 align-bottom">Unscored / rule-stale</th>
             </tr>
           </thead>
           <tbody>
@@ -112,6 +114,9 @@ export default function SourcesAuditSection({ audit }) {
                 </td>
                 <td className="p-3 font-mono text-[10px] whitespace-nowrap leading-snug">
                   {r.surfacedTotal} / {r.downrankedTotal} / {r.suppressedTotal}
+                </td>
+                <td className="p-3 font-mono text-[10px] whitespace-nowrap leading-snug">
+                  {r.itemsNeverScored} / {r.itemsRuleStale}
                 </td>
               </tr>
             ))}
@@ -170,6 +175,17 @@ export default function SourcesAuditSection({ audit }) {
                 <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
                   Last 7d: {r.surfaced7d} surfaced · {r.downranked7d} downranked · {r.suppressed7d} suppressed — All
                   time: {r.surfacedTotal} / {r.downrankedTotal} / {r.suppressedTotal}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
+                  Relevance stamp health
+                </dt>
+                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
+                  Missing <code className="text-primary/90">relevance_computed_at</code>: {r.itemsNeverScored} — Rule
+                  version ≠ app <code className="text-primary/90">{relevanceRuleVersion ?? '—'}</code>:{' '}
+                  {r.itemsRuleStale} (run <code className="text-primary/90">GET /api/cron/intel-rescore</code> with
+                  cron secret)
                 </dd>
               </div>
             </dl>
