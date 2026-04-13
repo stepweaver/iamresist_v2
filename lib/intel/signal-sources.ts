@@ -13,13 +13,12 @@ const GOVINFO_BILLS = 'https://www.govinfo.gov/rss/bills.xml';
 const GOVINFO_CREC = 'https://www.govinfo.gov/rss/crec.xml';
 const SCOTUSBLOG = 'https://www.scotusblog.com/feed/';
 const DEMOCRACY_DOCKET = 'https://www.democracydocket.com/feed/';
-const LAWFARE = 'https://www.lawfaremedia.org/feed/';
+const LAWFARE = 'https://www.lawfaremedia.org/feeds/articles';
 const PROPUBLICA = 'https://feeds.propublica.org/propublica/main';
 const AMERICAN_OVERSIGHT = 'https://americanoversight.org/feed';
 const COURIER_COVER_UP = 'https://thecoverupnewsletter.substack.com/feed';
 const ROBERT_REICH = 'https://robertreich.substack.com/feed';
-/** Substack-hosted podcast RSS (public). */
-const ON_OFFENSE_PODCAST = 'https://api.substack.com/feed/podcast/3764927.rss';
+const ON_OFFENSE = 'https://onoffense.substack.com/feed';
 const TOTAL_HYPOCRISY = 'https://totalhypocrisy.substack.com/feed';
 
 /** Routine Federal Register / PI churn — suppressed from default desk surface (retained in DB). */
@@ -282,7 +281,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Case narrative and filings in the democracy and voting-rights space.',
       notTrustedFor: 'Final judicial disposition without the underlying court documents.',
       editorialNotes:
-        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
+        'Keep disabled until endpoint is verified from the production cron runtime. Recent fetches have returned non-parseable content.',
       editorialControls: {
         defaultPriority: 58,
         preferredStateChangeTypes: ['specialist_item'],
@@ -297,7 +296,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: LAWFARE,
-      isEnabled: false,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -306,8 +305,6 @@ export function getSignalSources(): SignalSourceConfig[] {
       purpose: 'National security, courts, and executive-power legal analysis from Lawfare (public site RSS).',
       trustedFor: 'Timely specialist framing and links to primary documents cited in their coverage.',
       notTrustedFor: 'Substitute for court orders, statutes, or agency final rules.',
-      editorialNotes:
-        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
       editorialControls: {
         defaultPriority: 54,
         preferredStateChangeTypes: ['specialist_item'],
@@ -435,23 +432,22 @@ export function getSignalSources(): SignalSourceConfig[] {
     },
     {
       slug: 'on-offense-kris-goldsmith',
-      name: 'On Offense with Kris Goldsmith (podcast RSS)',
+      name: 'On Offense with Kris Goldsmith',
       provenanceClass: 'COMMENTARY',
-      fetchKind: 'podcast_rss',
+      fetchKind: 'rss',
       deskLane: 'voices',
       contentUseMode: 'preview_and_link',
-      endpointUrl: ON_OFFENSE_PODCAST,
-      isEnabled: false,
+      endpointUrl: ON_OFFENSE,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
       requiresIndependentVerification: false,
       heroEligibilityMode: 'normal',
-      purpose: 'Public podcast feed (Substack-hosted RSS) for episode discovery and links to show notes.',
-      trustedFor: 'Episode titles, dates, and canonical episode/show-note URLs.',
-      notTrustedFor: 'Wire news or official documents; audio is consumed on the creator’s platform.',
-      editorialNotes:
-        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
+      purpose:
+        'Substack publication feed used to discover new On Offense episode posts and link back to canonical pages.',
+      trustedFor: 'Episode/post titles, dates, canonical post URLs, and short previews.',
+      notTrustedFor: 'Wire news or official documents; audio is consumed on the creator platform.',
       editorialControls: {
         defaultPriority: 48,
         preferredStateChangeTypes: ['commentary_item'],

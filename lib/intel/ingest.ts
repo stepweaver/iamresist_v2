@@ -154,7 +154,11 @@ export async function ingestOneSource(
       items: [],
       status: 'failed',
       error: `HTTP ${res.status} ${cfg.endpointUrl}`,
-      meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null },
+      meta: {
+        httpStatus: res.status,
+        finalUrl: res.finalUrl ?? null,
+        contentType: res.contentType ?? null,
+      },
     };
   }
 
@@ -174,23 +178,39 @@ export async function ingestOneSource(
           items: [],
           status: 'partial',
           error: 'JSON API parse returned 0 items',
-          meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null, itemsParsed: 0 },
+          meta: {
+            httpStatus: res.status,
+            finalUrl: res.finalUrl ?? null,
+            contentType: res.contentType ?? null,
+            itemsParsed: 0,
+          },
         };
       }
 
       return {
         items,
         status: 'success',
-        meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null, itemsParsed: items.length },
+        meta: {
+          httpStatus: res.status,
+          finalUrl: res.finalUrl ?? null,
+          contentType: res.contentType ?? null,
+          itemsParsed: items.length,
+        },
       };
     }
 
-    if (cfg.fetchKind !== 'rss') {
+    const isXmlFeed = cfg.fetchKind === 'rss' || cfg.fetchKind === 'podcast_rss';
+
+    if (!isXmlFeed) {
       return {
         items: [],
         status: 'failed',
         error: `Unsupported fetchKind: ${cfg.fetchKind}`,
-        meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null },
+        meta: {
+          httpStatus: res.status,
+          finalUrl: res.finalUrl ?? null,
+          contentType: res.contentType ?? null,
+        },
       };
     }
 
@@ -210,14 +230,25 @@ export async function ingestOneSource(
         status: 'partial',
         error:
           'RSS parse returned 0 items (empty feed, non-feed body, HTML error page, or no valid entries)',
-        meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null, itemsParsed: 0 },
+        meta: {
+          httpStatus: res.status,
+          finalUrl: res.finalUrl ?? null,
+          contentType: res.contentType ?? null,
+          itemsParsed: 0,
+          bodySample: res.text.slice(0, 180),
+        },
       };
     }
 
     return {
       items,
       status: 'success',
-      meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null, itemsParsed: items.length },
+      meta: {
+        httpStatus: res.status,
+        finalUrl: res.finalUrl ?? null,
+        contentType: res.contentType ?? null,
+        itemsParsed: items.length,
+      },
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -225,7 +256,12 @@ export async function ingestOneSource(
       items: [],
       status: 'failed',
       error: msg,
-      meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null },
+      meta: {
+        httpStatus: res.status,
+        finalUrl: res.finalUrl ?? null,
+        contentType: res.contentType ?? null,
+        bodySample: res.text.slice(0, 180),
+      },
     };
   }
 }

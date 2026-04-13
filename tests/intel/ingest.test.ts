@@ -42,6 +42,7 @@ describe('ingestOneSource', () => {
       status: 200,
       text: '<?xml version="1.0"?><rss version="2.0"><channel><title>T</title></channel></rss>',
       finalUrl: 'https://example.com/feed',
+      contentType: 'application/rss+xml',
     });
     const out = await ingestOneSource(rssCfg());
     expect(out.status).toBe('partial');
@@ -55,6 +56,7 @@ describe('ingestOneSource', () => {
       status: 200,
       text: 'nope',
       finalUrl: 'https://example.com/x',
+      contentType: 'text/plain',
     });
     const out = await ingestOneSource(rssCfg({ endpointUrl: 'https://example.com/x' }));
     expect(out.status).toBe('partial');
@@ -70,6 +72,7 @@ describe('ingestOneSource', () => {
         <description><![CDATA[<p>Hello world paragraph</p>]]></description>
       </item></channel></rss>`,
       finalUrl: 'https://example.com/feed',
+      contentType: 'application/rss+xml',
     });
     const out = await ingestOneSource(rssCfg({ contentUseMode: 'metadata_only' }));
     expect(out.status).toBe('success');
@@ -88,11 +91,45 @@ describe('ingestOneSource', () => {
         <description>${long}</description>
       </item></channel></rss>`,
       finalUrl: 'https://example.com/feed',
+      contentType: 'application/rss+xml',
     });
     const out = await ingestOneSource(rssCfg({ contentUseMode: 'preview_and_link' }));
     expect(out.status).toBe('success');
     expect(out.items[0]!.summary).toBeTruthy();
     expect(out.items[0]!.summary!.length).toBeLessThanOrEqual(322);
+  });
+
+  it('accepts podcast_rss the same way as rss', async () => {
+    vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: `<?xml version="1.0"?>
+        <rss version="2.0">
+          <channel>
+            <title>Podcast</title>
+            <item>
+              <title>Episode 1</title>
+              <link>https://example.com/ep1</link>
+              <description><![CDATA[Episode summary]]></description>
+              <pubDate>Sun, 13 Apr 2026 12:00:00 GMT</pubDate>
+            </item>
+          </channel>
+        </rss>`,
+      finalUrl: 'https://example.com/podcast.xml',
+      contentType: 'application/rss+xml',
+    });
+
+    const out = await ingestOneSource(
+      rssCfg({
+        slug: 'podcast-test',
+        fetchKind: 'podcast_rss',
+        provenanceClass: 'COMMENTARY',
+      }),
+    );
+
+    expect(out.status).toBe('success');
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]!.title).toBe('Episode 1');
   });
 });
 

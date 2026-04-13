@@ -54,74 +54,6 @@ function TrustChip({ badge }) {
   );
 }
 
-function ClusterHint({ clusterKeys }) {
-  const keys = clusterKeys && typeof clusterKeys === 'object' ? Object.entries(clusterKeys) : [];
-  if (keys.length === 0) return null;
-  const label = keys.map(([k, v]) => `${k}:${v}`).join(' · ');
-  return (
-    <p className="font-mono text-[10px] text-hud-dim tracking-wide mt-2" title="Deterministic cluster keys">
-      Keys: {label}
-    </p>
-  );
-}
-
-function RelevanceStrip({ row }) {
-  const tags = Array.isArray(row.missionTags) ? row.missionTags : [];
-  const explain = Array.isArray(row.relevanceExplanations) ? row.relevanceExplanations : [];
-  const top = explain.slice(0, 4);
-  return (
-    <div className="mt-3 space-y-1.5 border border-border/60 bg-foreground/[0.02] px-3 py-2 rounded">
-      <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">Relevance (rules)</p>
-      <div className="flex flex-wrap gap-2 items-center text-[10px] font-mono text-foreground/75">
-        <span>score {row.relevanceScore ?? '—'}</span>
-        <span className="text-hud-dim">|</span>
-        <span>{row.branchOfGovernment ?? 'unknown'}</span>
-        <span className="text-hud-dim">|</span>
-        <span>{row.institutionalArea ?? 'unknown'}</span>
-      </div>
-      {tags.length > 0 ? (
-        <p className="font-mono text-[10px] text-foreground/70 leading-snug">
-          Tags: {tags.join(', ')}
-        </p>
-      ) : null}
-      {top.length > 0 ? (
-        <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px] text-foreground/65 leading-relaxed">
-          {top.map((e) => (
-            <li key={`${e.ruleId}-${e.message.slice(0, 40)}`}>
-              <span className="text-hud-dim">{e.ruleId}</span> — {e.message}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
-}
-
-function DisplayPriorityStrip({ row }) {
-  const explain = Array.isArray(row.displayExplanations) ? row.displayExplanations : [];
-  const top = explain.slice(0, 3);
-  if (!top.length) return null;
-  return (
-    <div className="mt-3 space-y-1.5 border border-border/60 bg-foreground/[0.015] px-3 py-2 rounded">
-      <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-        Display (deterministic)
-      </p>
-      <div className="flex flex-wrap gap-2 items-center text-[10px] font-mono text-foreground/75">
-        <span>priority {row.displayPriority ?? '—'}</span>
-        <span className="text-hud-dim">|</span>
-        <span>{row.displayBucket ?? 'routine'}</span>
-      </div>
-      <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px] text-foreground/65 leading-relaxed">
-        {top.map((e) => (
-          <li key={`${e.ruleId}-${e.message.slice(0, 40)}`}>
-            <span className="text-hud-dim">{e.ruleId}</span> — {e.message}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function formatFreshnessIso(iso) {
   if (!iso) return '—';
   try {
@@ -155,6 +87,54 @@ function feedTransparencyHint(row) {
     return 'Metadata only — full text at source';
   }
   return null;
+}
+
+function hasActionableTrustWarning(row) {
+  const badges = Array.isArray(row.trustBadges) ? row.trustBadges : [];
+  return badges.some((b) => b?.tone === 'caution' || b?.tone === 'high');
+}
+
+function topHumanReason(row) {
+  const hiddenRuleIds = new Set([
+    'source:baseline',
+    'score:default_priority',
+    'fr:fr_type',
+    'desk:duplicate_cluster',
+  ]);
+
+  const display = Array.isArray(row.displayExplanations) ? row.displayExplanations : [];
+  const relevance = Array.isArray(row.relevanceExplanations) ? row.relevanceExplanations : [];
+
+  const messages = [...display, ...relevance]
+    .filter((e) => e?.message && !hiddenRuleIds.has(e.ruleId))
+    .map((e) => e.message.trim());
+
+  return [...new Set(messages)][0] || null;
+}
+
+function CompactSignalMeta({ row, showBucket = false }) {
+  const tags = Array.isArray(row.missionTags) ? row.missionTags.slice(0, 2) : [];
+  const reason = topHumanReason(row);
+
+  const bits = [];
+
+  if (showBucket && row.displayBucket && row.displayBucket !== 'routine') {
+    bits.push(row.displayBucket);
+  }
+
+  bits.push(...tags);
+
+  if (reason) {
+    bits.push(reason);
+  }
+
+  if (!bits.length) return null;
+
+  return (
+    <p className="mt-3 font-mono text-[10px] text-foreground/60 leading-relaxed">
+      {bits.join(' · ')}
+    </p>
+  );
 }
 
 function DeskStateBadge({ freshnessMeta, snapshotFallback }) {
@@ -312,7 +292,7 @@ export default function LiveDeskSection({ desk }) {
               Lead developments
             </h2>
             <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-              Ranked by deterministic display priority (not just freshness)
+              Selected for importance, not just recency
             </p>
           </div>
 
@@ -356,7 +336,7 @@ export default function LiveDeskSection({ desk }) {
                   <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed border-l-2 border-primary/60 pl-3">
                     {row.whyItMatters}
                   </p>
-                  {row.trustExplain ? (
+                  {hasActionableTrustWarning(row) && row.trustExplain ? (
                     <p
                       className="mt-2 font-mono text-[10px] text-foreground/70 leading-relaxed max-w-3xl"
                       title={row.trustWarningText || undefined}
@@ -369,7 +349,7 @@ export default function LiveDeskSection({ desk }) {
                       {truncatePreview(row.summary, 360)}
                     </p>
                   ) : null}
-                  <DisplayPriorityStrip row={row} />
+                  <CompactSignalMeta row={row} showBucket />
                 </article>
               );
             })}
@@ -402,9 +382,7 @@ export default function LiveDeskSection({ desk }) {
                       >
                         {row.title}
                       </Link>
-                      <p className="mt-1 text-[10px] font-mono text-foreground/60">
-                        priority {row.displayPriority ?? '—'} · {row.displayBucket ?? 'routine'}
-                      </p>
+                      <CompactSignalMeta row={row} showBucket />
                     </li>
                   ))}
                 </ul>
@@ -421,7 +399,7 @@ export default function LiveDeskSection({ desk }) {
               Live signal desk
             </h2>
             <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-              Everything retained; ordered by display buckets then provenance rules
+              Live desk from primary records, specialist reporting, and vetted feeds
             </p>
           </div>
         ) : null}
@@ -463,7 +441,7 @@ export default function LiveDeskSection({ desk }) {
               <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
                 {row.whyItMatters}
               </p>
-              {row.trustExplain ? (
+              {hasActionableTrustWarning(row) && row.trustExplain ? (
                 <p
                   className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed max-w-3xl"
                   title={row.trustWarningText || undefined}
@@ -481,9 +459,7 @@ export default function LiveDeskSection({ desk }) {
                   {feedTransparencyHint(row)}
                 </p>
               ) : null}
-              <DisplayPriorityStrip row={row} />
-              <RelevanceStrip row={row} />
-              <ClusterHint clusterKeys={row.clusterKeys} />
+              <CompactSignalMeta row={row} showBucket={row.displayBucket !== 'routine'} />
               <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-3">
                 <Link
                   href={row.canonicalUrl}
@@ -493,9 +469,6 @@ export default function LiveDeskSection({ desk }) {
                 >
                   {linkCtaLabel(row)}
                 </Link>
-                <span className="font-mono text-[10px] text-hud-dim self-center">
-                  state: {row.stateChangeType}
-                </span>
               </div>
             </li>
           );
@@ -507,31 +480,34 @@ export default function LiveDeskSection({ desk }) {
         <details className="border border-border machine-panel p-4 sm:p-5 group">
           <summary className="cursor-pointer font-mono text-xs uppercase tracking-wider text-foreground/85 list-none flex items-center gap-2">
             <span className="text-primary group-open:rotate-90 transition-transform inline-block">▸</span>
-            Duplicate cluster pointers ({duplicates.length}) — not on main surface
+            Why some items are grouped ({duplicates.length})
           </summary>
-          <p className="mt-2 text-[10px] font-mono text-hud-dim leading-relaxed">
-            Same deterministic cluster key as a stronger line already shown above. Rule id{' '}
-            <code className="text-primary/90">desk:duplicate_cluster</code> in relevance notes on each row.
+          <p className="mt-2 text-xs text-foreground/70 leading-relaxed max-w-3xl">
+            Related coverage is grouped under the strongest version of a story so the desk stays readable. Similar
+            reports are consolidated to reduce repetition; this list points to items linked to a broader developing
+            story already shown above.
           </p>
           <ul className="mt-4 space-y-3 border-t border-border pt-4">
-            {duplicates.map((row) => (
-              <li key={row.id} className="text-sm">
-                <Link
-                  href={row.canonicalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-bold text-foreground hover:text-primary hover:underline"
-                >
-                  {row.title}
-                </Link>
-                <p className="font-mono text-[10px] text-hud-dim mt-1">
-                  {row.sourceName} ·{' '}
-                  {(Array.isArray(row.relevanceExplanations)
-                    ? row.relevanceExplanations.find((e) => e.ruleId === 'desk:duplicate_cluster')?.message
-                    : null) ?? 'Weaker duplicate of another desk line'}
-                </p>
-              </li>
-            ))}
+            {duplicates.map((row) => {
+              const dupNote =
+                Array.isArray(row.relevanceExplanations) &&
+                row.relevanceExplanations.find((e) => e.ruleId === 'desk:duplicate_cluster')?.message;
+              return (
+                <li key={row.id} className="text-sm">
+                  <Link
+                    href={row.canonicalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-foreground hover:text-primary hover:underline"
+                  >
+                    {row.title}
+                  </Link>
+                  <p className="font-mono text-[10px] text-hud-dim mt-1">
+                    {row.sourceName} · {dupNote?.trim() || 'Similar report consolidated under a stronger line above'}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </details>
       ) : null}
@@ -540,11 +516,11 @@ export default function LiveDeskSection({ desk }) {
         <details className="border border-border machine-panel p-4 sm:p-5 group">
           <summary className="cursor-pointer font-mono text-xs uppercase tracking-wider text-foreground/85 list-none flex items-center gap-2">
             <span className="text-primary group-open:rotate-90 transition-transform inline-block">▸</span>
-            Suppressed on default surface ({suppressed.length}) — retained in storage, rule-based
+            Not on the default desk ({suppressed.length})
           </summary>
-          <p className="mt-2 text-[10px] font-mono text-hud-dim leading-relaxed">
-            Ingest-time <code className="text-primary/90">surface_state = suppressed</code>. Counts in /intel/sources
-            include these rows.
+          <p className="mt-2 text-xs text-foreground/70 leading-relaxed max-w-3xl">
+            These items stay in the full record but are not prioritized for the live surface. Use Sources for the
+            complete picture, including ingest and diagnostics.
           </p>
           <ul className="mt-4 space-y-3 border-t border-border pt-4">
             {suppressed.map((row) => (
@@ -558,7 +534,9 @@ export default function LiveDeskSection({ desk }) {
                   {row.title}
                 </Link>
                 <p className="font-mono text-[10px] text-hud-dim mt-1">
-                  {row.sourceName} · {row.suppressionReason ?? 'Suppressed (see rules in /intel/sources)'}
+                  {row.sourceName} ·{' '}
+                  {row.suppressionReason?.trim() ||
+                    'Available in the full record, but not elevated on the main desk'}
                 </p>
               </li>
             ))}

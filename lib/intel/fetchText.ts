@@ -1,13 +1,14 @@
 import 'server-only';
 
 const DEFAULT_UA =
-  'iamresist.org intel-ingest/1.0 (+https://www.iamresist.org/legal)';
+  'Mozilla/5.0 (compatible; iamresist-intel/1.0; +https://www.iamresist.org/legal)';
 
 export type FetchTextResult = {
   ok: boolean;
   status: number;
   text: string;
   finalUrl: string;
+  contentType: string | null;
 };
 
 /**
@@ -22,15 +23,25 @@ export async function fetchTextNoStore(
   try {
     const res = await fetch(url, {
       cache: 'no-store',
+      redirect: 'follow',
       signal: ac.signal,
       headers: {
-        Accept: 'application/json, application/rss+xml, application/atom+xml, application/xml, text/xml, text/html;q=0.8, */*;q=0.5',
+        Accept:
+          'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, application/json;q=0.8, text/html;q=0.7, */*;q=0.5',
         'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
         'User-Agent': DEFAULT_UA,
       },
     });
     const text = await res.text();
-    return { ok: res.ok, status: res.status, text, finalUrl: res.url || url };
+    return {
+      ok: res.ok,
+      status: res.status,
+      text,
+      finalUrl: res.url || url,
+      contentType: res.headers.get('content-type'),
+    };
   } finally {
     clearTimeout(t);
   }
