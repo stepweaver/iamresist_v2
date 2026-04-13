@@ -9,6 +9,7 @@ function baseItem(over: Partial<NormalizedItem> = {}): NormalizedItem {
     title: 'Test title',
     summary: null,
     publishedAt: null,
+    imageUrl: null,
     contentHash: 'h',
     structured: {},
     clusterKeys: {},

@@ -10,7 +10,7 @@ export const revalidate = 45;
 export const metadata = buildPageMetadata({
   title: 'Intel // Voices | I AM [RESIST]',
   description:
-    'Ingested creator and commentary signals from public feeds — preview and link back to sources. For the curated video/music wall (Notion catalog), see /telescreen.',
+    'Creator and commentary from public feeds — previews with links to sources. For video and music, see Telescreen.',
   urlPath: '/intel/voices',
 });
 
@@ -34,13 +34,12 @@ export default function IntelVoicesDeskPage() {
         <IntelTabs
           description={
             <>
-              <strong className="text-foreground/90">This page is Intel ingest only</strong> (Substack/RSS wired in{' '}
-              <code className="text-foreground/80">signal-sources.ts</code>, stored in Supabase). It is not the video wall at{' '}
+              <strong className="text-foreground/90">Intel voices</strong> — text and audio from public feeds. Curated
+              video and music live on{' '}
               <Link href="/telescreen" className="text-primary hover:underline font-bold">
-                /telescreen
-              </Link>{' '}
-              (Notion catalog + curated video/music). Substack sources stay disabled in the desk until ingest syncs the
-              registry after you enable them in the manifest.
+                Telescreen
+              </Link>
+              .
             </>
           }
         />

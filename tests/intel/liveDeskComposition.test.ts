@@ -4,6 +4,10 @@ vi.mock('next/cache', () => ({
   unstable_cache: (fn: (...args: any[]) => any) => fn,
 }));
 
+vi.mock('@/lib/feeds/ogImage.js', () => ({
+  fetchOgImageUncached: async () => null,
+}));
+
 vi.mock('@/lib/intel/db', () => ({
   intelDbConfigured: () => true,
   fetchIntelFreshnessForDeskLane: async () => ({ latestFetchedAt: null, latestSuccessfulIngestAt: null }),
@@ -18,6 +22,7 @@ vi.mock('@/lib/intel/db', () => ({
       title: 'A Proclamation on National Something Day',
       summary: null,
       canonical_url: 'https://example.com/p1',
+      image_url: null,
       published_at: new Date().toISOString(),
       fetched_at: new Date().toISOString(),
       desk_lane: 'osint',
@@ -38,6 +43,7 @@ vi.mock('@/lib/intel/db', () => ({
       title: 'A Proclamation on National Another Day',
       summary: null,
       canonical_url: 'https://example.com/p2',
+      image_url: null,
       published_at: new Date().toISOString(),
       fetched_at: new Date().toISOString(),
       desk_lane: 'osint',
@@ -59,6 +65,7 @@ vi.mock('@/lib/intel/db', () => ({
       title: 'Court grants preliminary injunction in voting rights case',
       summary: null,
       canonical_url: 'https://example.com/court',
+      image_url: null,
       published_at: new Date().toISOString(),
       fetched_at: new Date().toISOString(),
       desk_lane: 'osint',

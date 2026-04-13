@@ -87,7 +87,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - `SUPABASE_URL` (or documented alternates)
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-**OSINT intel desk** (`lib/intel/signal-sources.ts`, `supabase/migrations/`)
+**OSINT intel desk**
 
 - Apply `supabase/migrations/20260412120000_intel_milestone1.sql`, `supabase/migrations/20260412140000_intel_live_desk_snapshot.sql`, `supabase/migrations/20260412150000_intel_milestone1_5_governance.sql`, `supabase/migrations/20260412160000_intel_milestone1_75_relevance.sql`, and `supabase/migrations/20260412170000_intel_source_lanes_content_use.sql` in the SQL Editor. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
 - **Required:** Supabase **Project Settings → API → Exposed schemas** must include **`intel`** (not only `public`). Without this, the API returns `Invalid schema: intel` and `/intel/osint` cannot load.

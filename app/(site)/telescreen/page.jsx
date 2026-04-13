@@ -11,7 +11,7 @@ export const revalidate = 120;
 export const metadata = buildPageMetadata({
   title: "Telescreen | I AM [RESIST]",
   description:
-    "Curated commentary video, protest music, and media from the catalog — the wall-mounted feed (RSS from Notion voices). Not the same as Intel › Voices (Substack ingest).",
+    "Curated commentary video, protest music, and media from the catalog — the wall-mounted feed. For creator text feeds, see Intel › Voices.",
   urlPath: "/telescreen",
 });
 
@@ -41,7 +41,7 @@ export default async function TelescreenPage({ searchParams }) {
           description={
             isResourcesSection
               ? "Curated links and educational materials on resistance, democracy, and antifascism."
-              : "The Telescreen: curated video and audio from the catalog (Notion + YouTube, etc.). For Substack/RSS text ingest, use Intel › Voices."
+              : "Curated video and audio from the catalog. For creator text feeds, see Intel › Voices."
           }
         />
 

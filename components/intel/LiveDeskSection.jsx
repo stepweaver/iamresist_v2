@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import NewswireImage from '@/components/newswire/NewswireImage';
 import { formatDate } from '@/lib/utils/date';
 
 function ProvenanceChip({ provenanceClass }) {
@@ -323,6 +324,11 @@ export default function LiveDeskSection({ desk }) {
                       {when}
                     </time>
                   </div>
+                  {row.imageUrl ? (
+                    <div className="relative mb-4 aspect-video w-full max-w-2xl overflow-hidden border border-border/60 bg-muted">
+                      <NewswireImage src={row.imageUrl} alt="" />
+                    </div>
+                  ) : null}
                   <h3 className="section-title text-xl sm:text-2xl font-bold text-foreground mb-2">
                     <Link
                       href={row.canonicalUrl}
@@ -408,7 +414,18 @@ export default function LiveDeskSection({ desk }) {
         {(deskLane === 'osint' ? rest : items).map((row) => {
           const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
           return (
-            <li key={row.id} className="machine-panel border border-border p-5 sm:p-6">
+            <li
+              key={row.id}
+              className={`machine-panel border border-border p-5 sm:p-6 ${
+                row.imageUrl ? 'flex flex-col gap-4 sm:flex-row sm:gap-5' : ''
+              }`}
+            >
+              {row.imageUrl ? (
+                <div className="relative w-full shrink-0 sm:w-36 aspect-video overflow-hidden border border-border/60 bg-muted sm:max-w-[9rem]">
+                  <NewswireImage src={row.imageUrl} alt="" />
+                </div>
+              ) : null}
+              <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
                 <ProvenanceChip provenanceClass={row.provenanceClass} />
                 <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
@@ -469,6 +486,7 @@ export default function LiveDeskSection({ desk }) {
                 >
                   {linkCtaLabel(row)}
                 </Link>
+              </div>
               </div>
             </li>
           );

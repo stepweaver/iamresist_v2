@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 
+import { extractFeedImage, youtubeThumbFromUrl } from '@/lib/feeds/feedItemImage.js';
 import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
 import type { ContentUseMode, FetchKind, StateChangeType } from '@/lib/intel/types';
 import {
@@ -13,7 +14,14 @@ import type { NormalizedItem } from '@/lib/intel/types';
 const parser = new Parser({
   timeout: 15000,
   customFields: {
-    item: ['published', 'updated', 'dc:date'],
+    item: [
+      'published',
+      'updated',
+      'dc:date',
+      ['content:encoded', 'content:encoded'],
+      ['media:thumbnail', 'media:thumbnail', { keepArray: true }],
+      ['media:content', 'media:content', { keepArray: true }],
+    ],
   },
 });
 
@@ -123,12 +131,16 @@ export async function parseRssXmlToItems(
 
     const stateChangeType = mapStateChange(ctx.sourceSlug, ctx.provenanceClass);
 
+    const fromFeed = extractFeedImage(row as Record<string, unknown>);
+    const imageUrl = fromFeed || youtubeThumbFromUrl(link) || null;
+
     const base = {
       externalId,
       canonicalUrl: link,
       title,
       summary,
       publishedAt,
+      imageUrl,
       structured: {
         feedTitle: feed.title ?? null,
         itemCategories: row.categories ?? null,

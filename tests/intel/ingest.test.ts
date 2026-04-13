@@ -113,6 +113,23 @@ describe('ingestOneSource', () => {
     expect(out.meta?.bodySample).toBe('<html><title>blocked</title><body>cf challenge</body></html>'.slice(0, 180));
   });
 
+  it('sets imageUrl from RSS enclosure when type is image', async () => {
+    vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: `<?xml version="1.0"?><rss version="2.0"><channel><title>C</title><item>
+        <title>Photo story</title><link>https://example.com/article</link>
+        <enclosure url="https://cdn.example.com/hero.jpg" type="image/jpeg" length="1" />
+      </item></channel></rss>`,
+      finalUrl: 'https://example.com/feed',
+      contentType: 'application/rss+xml',
+    });
+    const out = await ingestOneSource(rssCfg());
+    expect(out.status).toBe('success');
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]!.imageUrl).toBe('https://cdn.example.com/hero.jpg');
+  });
+
   it('accepts podcast_rss the same way as rss', async () => {
     vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
       ok: true,

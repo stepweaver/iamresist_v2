@@ -100,6 +100,7 @@ export function parseDemocracyDocketNewsAlertsHtml(
       title,
       summary,
       publishedAt: null as string | null,
+      imageUrl: null as string | null,
       structured: {
         fetchKind: ctx.fetchKind,
         htmlIndex: true,

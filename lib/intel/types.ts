@@ -142,6 +142,8 @@ export type NormalizedItem = {
   title: string;
   summary: string | null;
   publishedAt: string | null;
+  /** Feed-native image when available; OG backfill may happen at desk composition time. */
+  imageUrl: string | null;
   contentHash: string;
   structured: Record<string, unknown>;
   clusterKeys: Record<string, string>;

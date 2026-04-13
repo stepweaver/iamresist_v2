@@ -19,6 +19,7 @@ type RescoreRow = {
   title: string;
   summary: string | null;
   published_at: string | null;
+  image_url: string | null;
   content_hash: string;
   structured: unknown;
   cluster_keys: unknown;
@@ -40,6 +41,7 @@ function rowToNormalized(row: RescoreRow): NormalizedItem {
     title: row.title,
     summary: row.summary,
     publishedAt: row.published_at,
+    imageUrl: row.image_url,
     contentHash: row.content_hash,
     structured,
     clusterKeys,
@@ -84,7 +86,7 @@ export async function rescoreIntelSourceItems(options: {
     let q = intel()
       .from('source_items')
       .select(
-        'id, source_id, external_id, canonical_url, title, summary, published_at, content_hash, structured, cluster_keys, state_change_type',
+        'id, source_id, external_id, canonical_url, title, summary, published_at, image_url, content_hash, structured, cluster_keys, state_change_type',
       )
       .order('id', { ascending: true })
       .limit(take);

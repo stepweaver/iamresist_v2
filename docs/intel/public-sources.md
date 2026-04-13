@@ -25,7 +25,7 @@ This document mirrors the **version-controlled manifest** in [`lib/intel/signal-
 | `osint` | `/intel/osint` | Primaries, optional wires, specialist reporting, accountability feeds. |
 | `voices` | `/intel/voices` | Ingested creator/commentary from **public** RSS/podcast feeds. |
 
-The curated **Telescreen** (Notion + media catalog video/music wall) lives at **`/telescreen`** (`/voices` redirects); it is not replaced by `/intel/voices`.
+The curated **Telescreen** lives at **`/telescreen`** (`/voices` redirects); it is not replaced by `/intel/voices`.
 
 ## Fetch kinds (`fetch_kind`)
 

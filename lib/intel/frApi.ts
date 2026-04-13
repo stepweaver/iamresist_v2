@@ -35,6 +35,7 @@ function normalizeFrDoc(
     title,
     summary,
     publishedAt,
+    imageUrl: null as string | null,
     structured: {
       fr_type: doc.type ?? null,
       document_number: documentNumber,
