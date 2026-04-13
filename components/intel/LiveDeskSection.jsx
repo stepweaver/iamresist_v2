@@ -2,6 +2,14 @@ import Link from 'next/link';
 import NewswireImage from '@/components/newswire/NewswireImage';
 import { formatDate } from '@/lib/utils/date';
 
+function deskLabelForLane(deskLane) {
+  if (deskLane === 'voices') return 'Voices';
+  if (deskLane === 'watchdogs') return 'Watchdogs';
+  if (deskLane === 'defense_ops') return 'Defense';
+  if (deskLane === 'indicators') return 'Indicators';
+  return 'OSINT';
+}
+
 function ProvenanceChip({ provenanceClass }) {
   const base =
     'font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border border-border rounded';
@@ -192,7 +200,8 @@ export default function LiveDeskSection({ desk }) {
     deskLane = 'osint',
   } = desk;
 
-  const deskLabel = deskLane === 'voices' ? 'Voices' : 'OSINT';
+  const deskLabel = deskLabelForLane(deskLane);
+  const usesLeadBlockLayout = deskLane !== 'voices';
 
   const hasFreshnessData =
     Boolean(freshness?.latestFetchedAt) || Boolean(freshness?.latestSuccessfulIngestAt);
@@ -286,7 +295,7 @@ export default function LiveDeskSection({ desk }) {
         </section>
       ) : null}
 
-      {deskLane === 'osint' && (leads.length > 0 || secondary.length > 0) ? (
+      {usesLeadBlockLayout && (leads.length > 0 || secondary.length > 0) ? (
         <section className="border border-border machine-panel p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
@@ -399,7 +408,7 @@ export default function LiveDeskSection({ desk }) {
       ) : null}
 
       <section className="space-y-3">
-        {deskLane === 'osint' ? (
+        {usesLeadBlockLayout ? (
           <div className="flex flex-wrap items-baseline gap-3">
             <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
               Live signal desk
@@ -411,7 +420,7 @@ export default function LiveDeskSection({ desk }) {
         ) : null}
 
         <ul className="space-y-4">
-        {(deskLane === 'osint' ? rest : items).map((row) => {
+        {(usesLeadBlockLayout ? rest : items).map((row) => {
           const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
           return (
             <li
