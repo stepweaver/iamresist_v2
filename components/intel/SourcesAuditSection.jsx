@@ -9,6 +9,19 @@ function formatIso(iso) {
   }
 }
 
+function formatRunMeta(meta) {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
+
+  const httpStatus = typeof meta.httpStatus === 'number' ? meta.httpStatus : null;
+  const finalUrl = typeof meta.finalUrl === 'string' ? meta.finalUrl : null;
+
+  const parts = [];
+  if (httpStatus != null) parts.push(`HTTP ${httpStatus}`);
+  if (finalUrl) parts.push(finalUrl);
+
+  return parts.length ? parts.join(' · ') : null;
+}
+
 function HealthBadge({ health }) {
   const base =
     'font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border rounded whitespace-nowrap';
