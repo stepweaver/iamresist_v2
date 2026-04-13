@@ -1,12 +1,10 @@
 import 'server-only';
 
-import { applyContentUseModeToSummary } from '@/lib/intel/contentUse';
 import { fetchTextNoStore } from '@/lib/intel/fetchText';
 import {
   parseFederalRegisterPiJson,
   parseFederalRegisterPublishedJson,
 } from '@/lib/intel/frApi';
-import { hashNormalizedItem } from '@/lib/intel/hash';
 import { parseRssXmlToItems } from '@/lib/intel/parseRss';
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import {
@@ -16,29 +14,10 @@ import {
   syncIntelSourcesFromManifest,
   upsertSourceItems,
 } from '@/lib/intel/db';
-import type { FetchKind, IngestRunStatus, NormalizedItem, SignalSourceConfig } from '@/lib/intel/types';
+import type { IngestRunStatus, NormalizedItem } from '@/lib/intel/types';
 
-const SKIP_DISABLED = 'Skipped (source disabled)';
-const SKIP_NO_ENDPOINT = 'Skipped (missing endpoint URL)';
-const NON_FETCH_KINDS: FetchKind[] = ['unsupported', 'manual', 'newsletter_only', 'scrape'];
-
-function policySkipReason(cfg: SignalSourceConfig): string | null {
-  if (NON_FETCH_KINDS.includes(cfg.fetchKind)) {
-    return `Skipped (${cfg.fetchKind} — no automated fetch)`;
-  }
-  if (cfg.contentUseMode === 'manual_review') {
-    return 'Skipped (manual_review — registry only)';
-  }
-  return null;
-}
-
-function normalizeItemsForContentUse(items: NormalizedItem[], cfg: SignalSourceConfig): NormalizedItem[] {
-  return items.map((it) => {
-    const summary = applyContentUseModeToSummary(it.summary, cfg.contentUseMode);
-    const base = { ...it, summary };
-    return { ...base, contentHash: hashNormalizedItem(base) };
-  });
-}
+const SKIP_MESSAGE = 'Skipped (disabled or missing endpoint URL)';
+const MAX_PREVIEW_SUMMARY_LENGTH = 320;
 
 export type IngestSummaryStatus = IngestRunStatus | 'skipped';
 
@@ -68,6 +47,112 @@ export type IngestOutcome = {
   results: IngestSummary[];
 };
 
+type IngestSourceInput = {
+  slug: string;
+  fetchKind: 'rss' | 'json_api';
+  endpointUrl: string;
+  provenanceClass: string;
+
+  /** Optional direct overrides for tests / future source-specific callers. */
+  contentMode?: string | null;
+  content_mode?: string | null;
+  legalMode?: string | null;
+  legal_mode?: string | null;
+};
+
+function readStringField(
+  obj: Record<string, unknown> | null | undefined,
+  ...keys: string[]
+): string | null {
+  if (!obj) return null;
+
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function resolveContentMode(cfg: IngestSourceInput): string | null {
+  const direct =
+    readStringField(cfg as unknown as Record<string, unknown>, 'contentMode', 'content_mode', 'legalMode', 'legal_mode');
+
+  if (direct) return direct;
+
+  const source = getSignalSources().find((s) => s.slug === cfg.slug);
+  if (!source) return null;
+
+  const sourceRecord = source as unknown as Record<string, unknown>;
+
+  return readStringField(
+    sourceRecord,
+    'contentMode',
+    'content_mode',
+    'legalMode',
+    'legal_mode',
+    'contentUseMode',
+    'content_use_mode',
+  );
+}
+
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]+>/g, ' ');
+}
+
+function normalizeWhitespace(input: string): string {
+  return input.replace(/\s+/g, ' ').trim();
+}
+
+function cleanPreviewText(input: string): string {
+  return normalizeWhitespace(stripHtml(input));
+}
+
+function truncatePreview(input: string, maxLength = MAX_PREVIEW_SUMMARY_LENGTH): string {
+  if (input.length <= maxLength) return input;
+  return `${input.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function applyContentPolicy(items: NormalizedItem[], mode: string | null): NormalizedItem[] {
+  if (!mode) return items;
+
+  const normalizedMode = mode.trim().toLowerCase();
+
+  if (normalizedMode === 'metadata_only' || normalizedMode === 'manual_review') {
+    return items.map((item) => ({
+      ...item,
+      summary: null,
+    }));
+  }
+
+  if (
+    normalizedMode === 'preview_and_link' ||
+    normalizedMode === 'feed_preview' ||
+    normalizedMode === 'full_feed_item_only_if_already_exposed'
+  ) {
+    return items.map((item) => {
+      if (!item.summary) return item;
+
+      const cleaned = cleanPreviewText(item.summary);
+      if (!cleaned) {
+        return {
+          ...item,
+          summary: null,
+        };
+      }
+
+      return {
+        ...item,
+        summary: truncatePreview(cleaned, MAX_PREVIEW_SUMMARY_LENGTH),
+      };
+    });
+  }
+
+  return items;
+}
+
 /** Exported for tests: derive overallStatus from per-source rows (non-skipped only). */
 export function computeOverallIngestStatus(results: IngestSummary[]): IngestOverallStatus {
   const attempted = results.filter((r) => r.status !== 'skipped');
@@ -77,19 +162,10 @@ export function computeOverallIngestStatus(results: IngestSummary[]): IngestOver
   return 'success';
 }
 
-/** Exported for unit tests (fetch mocked). Requires endpointUrl for fetch paths. */
-export async function ingestOneSource(cfg: {
-  slug: string;
-  fetchKind: 'rss' | 'json_api';
-  endpointUrl: string;
-  provenanceClass: string;
-}): Promise<{
-  items: NormalizedItem[];
-  status: IngestRunStatus;
-  error?: string;
-  httpStatus: number;
-  finalUrl: string | null;
-}> {
+/** Exported for unit tests (fetch mocked). */
+export async function ingestOneSource(
+  cfg: IngestSourceInput,
+): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string }> {
   const res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: 25000 });
 
   if (!res.ok) {
@@ -97,40 +173,37 @@ export async function ingestOneSource(cfg: {
       items: [],
       status: 'failed',
       error: `HTTP ${res.status} ${cfg.endpointUrl}`,
-      httpStatus: res.status,
-      finalUrl: res.finalUrl || cfg.endpointUrl,
     };
   }
 
   try {
+    const contentMode = resolveContentMode(cfg);
+
     if (cfg.fetchKind === 'json_api') {
-      const items =
+      const parsedItems =
         cfg.slug === 'fr-public-inspection'
           ? parseFederalRegisterPiJson(res.text)
           : parseFederalRegisterPublishedJson(res.text);
+
+      const items = applyContentPolicy(parsedItems, contentMode);
 
       if (items.length === 0) {
         return {
           items: [],
           status: 'partial',
           error: 'JSON API parse returned 0 items',
-          httpStatus: res.status,
-          finalUrl: res.finalUrl || cfg.endpointUrl,
         };
       }
 
-      return {
-        items,
-        status: 'success',
-        httpStatus: res.status,
-        finalUrl: res.finalUrl || cfg.endpointUrl,
-      };
+      return { items, status: 'success' };
     }
 
-    const items = await parseRssXmlToItems(res.text, {
+    const parsedItems = await parseRssXmlToItems(res.text, {
       sourceSlug: cfg.slug,
       provenanceClass: cfg.provenanceClass,
     });
+
+    const items = applyContentPolicy(parsedItems, contentMode);
 
     if (items.length === 0) {
       return {
@@ -138,26 +211,13 @@ export async function ingestOneSource(cfg: {
         status: 'partial',
         error:
           'RSS parse returned 0 items (empty feed, non-feed body, HTML error page, or no valid entries)',
-        httpStatus: res.status,
-        finalUrl: res.finalUrl || cfg.endpointUrl,
       };
     }
 
-    return {
-      items,
-      status: 'success',
-      httpStatus: res.status,
-      finalUrl: res.finalUrl || cfg.endpointUrl,
-    };
+    return { items, status: 'success' };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return {
-      items: [],
-      status: 'failed',
-      error: msg,
-      httpStatus: res.status,
-      finalUrl: res.finalUrl || cfg.endpointUrl,
-    };
+    return { items: [], status: 'failed', error: msg };
   }
 }
 
@@ -183,33 +243,12 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
   const results: IngestSummary[] = [];
 
   for (const cfg of configs) {
-    if (!cfg.isEnabled) {
+    if (!cfg.isEnabled || !cfg.endpointUrl) {
       results.push({
         sourceSlug: cfg.slug,
         status: 'skipped',
         itemsUpserted: 0,
-        error: SKIP_DISABLED,
-      });
-      continue;
-    }
-
-    const policy = policySkipReason(cfg);
-    if (policy) {
-      results.push({
-        sourceSlug: cfg.slug,
-        status: 'skipped',
-        itemsUpserted: 0,
-        error: policy,
-      });
-      continue;
-    }
-
-    if (!cfg.endpointUrl) {
-      results.push({
-        sourceSlug: cfg.slug,
-        status: 'skipped',
-        itemsUpserted: 0,
-        error: SKIP_NO_ENDPOINT,
+        error: SKIP_MESSAGE,
       });
       continue;
     }
@@ -234,7 +273,16 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       continue;
     }
 
-    const outcome = await ingestOneSource(cfg);
+    const outcome = await ingestOneSource({
+      slug: cfg.slug,
+      fetchKind: cfg.fetchKind,
+      endpointUrl: cfg.endpointUrl,
+      provenanceClass: cfg.provenanceClass,
+      contentMode: (cfg as unknown as Record<string, unknown>).contentMode as string | null | undefined,
+      content_mode: (cfg as unknown as Record<string, unknown>).content_mode as string | null | undefined,
+      legalMode: (cfg as unknown as Record<string, unknown>).legalMode as string | null | undefined,
+      legal_mode: (cfg as unknown as Record<string, unknown>).legal_mode as string | null | undefined,
+    });
 
     let upserted = 0;
     try {
@@ -249,13 +297,9 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
     }
 
     const finalStatus: IngestRunStatus = outcome.status === 'failed' ? 'failed' : outcome.status;
-        await finishIngestRun(runId, finalStatus, upserted, outcome.error ?? null, {
+
+    await finishIngestRun(runId, finalStatus, upserted, outcome.error ?? null, {
       slug: cfg.slug,
-      endpointUrl: cfg.endpointUrl,
-      finalUrl: outcome.finalUrl,
-      httpStatus: outcome.httpStatus,
-      itemsParsed: outcome.items.length,
-      fetchKind: cfg.fetchKind,
     });
 
     results.push({
