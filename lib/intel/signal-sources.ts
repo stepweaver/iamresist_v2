@@ -240,11 +240,13 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: DEMOCRACY_DOCKET,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       purpose: 'Specialist election and voting-rights litigation reporting.',
       trustedFor: 'Case narrative and filings in the democracy and voting-rights space.',
       notTrustedFor: 'Final judicial disposition without the underlying court documents.',
+      editorialNotes:
+        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
       editorialControls: {
         defaultPriority: 58,
         preferredStateChangeTypes: ['specialist_item'],
@@ -259,11 +261,13 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: LAWFARE,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       purpose: 'National security, courts, and executive-power legal analysis from Lawfare (public site RSS).',
       trustedFor: 'Timely specialist framing and links to primary documents cited in their coverage.',
       notTrustedFor: 'Substitute for court orders, statutes, or agency final rules.',
+      editorialNotes:
+        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
       editorialControls: {
         defaultPriority: 54,
         preferredStateChangeTypes: ['specialist_item'],
@@ -278,11 +282,13 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: PROPUBLICA,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       purpose: 'Investigative reporting feed (nonprofit, public interest).',
       trustedFor: 'Leads and accountability journalism pointers with canonical article links.',
       notTrustedFor: 'Treating RSS blurbs alone as proof; always read the full investigation at ProPublica.',
+      editorialNotes:
+        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
       editorialControls: {
         defaultPriority: 57,
         preferredStateChangeTypes: ['specialist_item'],
@@ -297,11 +303,13 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: AMERICAN_OVERSIGHT,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       purpose: 'FOIA litigation and government accountability updates from American Oversight’s public feed.',
       trustedFor: 'Records-request narratives, lawsuit filings, and transparency campaign pointers.',
       notTrustedFor: 'Verified contents of unreleased records; read linked filings and releases.',
+      editorialNotes:
+        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
       editorialControls: {
         defaultPriority: 55,
         preferredStateChangeTypes: ['specialist_item'],
@@ -352,11 +360,13 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'voices',
       contentUseMode: 'preview_and_link',
       endpointUrl: ROBERT_REICH,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       purpose: 'Creator commentary and economic/political framing via public Substack RSS.',
       trustedFor: 'Interpretation hooks and pointers to the author’s own posts.',
       notTrustedFor: 'Primary government records, wire confirmation, or neutral fact baseline.',
+      editorialNotes:
+        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
       editorialControls: {
         defaultPriority: 46,
         preferredStateChangeTypes: ['commentary_item'],
@@ -371,11 +381,13 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'voices',
       contentUseMode: 'preview_and_link',
       endpointUrl: ON_OFFENSE_PODCAST,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       purpose: 'Public podcast feed (Substack-hosted RSS) for episode discovery and links to show notes.',
       trustedFor: 'Episode titles, dates, and canonical episode/show-note URLs.',
       notTrustedFor: 'Wire news or official documents; audio is consumed on the creator’s platform.',
+      editorialNotes:
+        'Temporarily disabled (stabilization pass): reduce source set to verified core stack before expanding.',
       editorialControls: {
         defaultPriority: 48,
         preferredStateChangeTypes: ['commentary_item'],

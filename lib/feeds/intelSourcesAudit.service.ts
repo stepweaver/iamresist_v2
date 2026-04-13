@@ -26,6 +26,8 @@ export type IntelSourceAuditRow = {
   isCoreSource: boolean;
   lastRunStatus: IngestRunStatus | null;
   lastRunFinishedAt: string | null;
+  lastRunError: string | null;
+  lastRunMeta: Record<string, unknown> | null;
   lastSuccessAt: string | null;
   lastItemFetchedAt: string | null;
   items24h: number;
@@ -38,6 +40,7 @@ export type IntelSourceAuditRow = {
   downranked7d: number;
   suppressed7d: number;
   health: SourceHealth;
+  healthReason: string | null;
   noiseHint: string | null;
   relevanceNotes: string | null;
   noiseNotes: string | null;
@@ -94,6 +97,47 @@ function computeHealth(input: {
   return 'healthy';
 }
 
+function computeHealthReason(input: {
+  health: SourceHealth;
+  isCoreSource: boolean;
+  staleThresholdMinutes: number;
+  lastRunStatus: IngestRunStatus | null;
+  lastRunFinishedAt: string | null;
+  lastSuccessAt: string | null;
+  lastItemFetchedAt: string | null;
+  itemTotal: number;
+  items7d: number;
+  lastRunError: string | null;
+}): string | null {
+  if (input.health === 'disabled') return 'Disabled in manifest';
+
+  if (input.health === 'failing') {
+    if (input.lastRunError) return `Latest run failed: ${input.lastRunError}`;
+    return 'Latest run failed';
+  }
+
+  if (input.health === 'unproven') {
+    if (!input.lastRunFinishedAt) return 'No ingest runs recorded yet';
+    if (input.lastRunStatus && input.lastRunStatus !== 'success') return 'No successful ingest runs yet';
+    return 'No successful ingest runs yet';
+  }
+
+  if (input.health === 'stale') {
+    if (input.isCoreSource && input.itemTotal > 0 && input.items7d === 0) {
+      return 'Core source produced 0 items in the last 7d';
+    }
+    if (input.lastSuccessAt && isOlderThan(input.lastSuccessAt, input.staleThresholdMinutes * 60 * 1000)) {
+      return `Latest successful ingest is older than ${input.staleThresholdMinutes}m`;
+    }
+    if (input.lastItemFetchedAt && isOlderThan(input.lastItemFetchedAt, input.staleThresholdMinutes * 60 * 1000)) {
+      return `Latest item fetch is older than ${input.staleThresholdMinutes}m`;
+    }
+    return 'Stale (outside freshness threshold)';
+  }
+
+  return null;
+}
+
 async function buildIntelSourcesAudit(): Promise<{
   configured: boolean;
   staleThresholdMinutes: number;
@@ -148,14 +192,22 @@ async function buildIntelSourcesAudit(): Promise<{
     ]),
   );
 
-  const latestRunBySource = new Map<string, { status: IngestRunStatus; finished_at: string }>();
+  const latestRunBySource = new Map<
+    string,
+    { status: IngestRunStatus; finished_at: string; error_message: string | null; meta: Record<string, unknown> | null }
+  >();
   const lastSuccessBySource = new Map<string, string>();
   const seenSuccess = new Set<string>();
 
   for (const r of runs) {
     if (!r.source_id || !r.finished_at) continue;
     if (!latestRunBySource.has(r.source_id)) {
-      latestRunBySource.set(r.source_id, { status: r.status, finished_at: r.finished_at });
+      latestRunBySource.set(r.source_id, {
+        status: r.status,
+        finished_at: r.finished_at,
+        error_message: r.error_message ?? null,
+        meta: r.meta ?? null,
+      });
     }
     if (r.status === 'success' && !seenSuccess.has(r.source_id)) {
       lastSuccessBySource.set(r.source_id, r.finished_at);
@@ -189,6 +241,8 @@ async function buildIntelSourcesAudit(): Promise<{
 
     const lastRunStatus = lr?.status ?? null;
     const lastRunFinishedAt = lr?.finished_at ?? null;
+    const lastRunError = lr?.error_message ?? null;
+    const lastRunMeta = lr?.meta ?? null;
     const lastSuccessAt = lastSuccessBySource.get(src.id) ?? null;
 
     const health = computeHealth({
@@ -200,6 +254,19 @@ async function buildIntelSourcesAudit(): Promise<{
       items7d,
       isCoreSource: src.is_core_source,
       staleMs,
+    });
+
+    const healthReason = computeHealthReason({
+      health,
+      isCoreSource: src.is_core_source,
+      staleThresholdMinutes,
+      lastRunStatus,
+      lastRunFinishedAt,
+      lastSuccessAt,
+      lastItemFetchedAt,
+      itemTotal,
+      items7d,
+      lastRunError,
     });
 
     return {
@@ -217,6 +284,8 @@ async function buildIntelSourcesAudit(): Promise<{
       isCoreSource: src.is_core_source,
       lastRunStatus,
       lastRunFinishedAt,
+      lastRunError,
+      lastRunMeta,
       lastSuccessAt,
       lastItemFetchedAt,
       items24h,
@@ -229,6 +298,7 @@ async function buildIntelSourcesAudit(): Promise<{
       downranked7d,
       suppressed7d,
       health,
+      healthReason,
       noiseHint: null,
       noiseNotes,
       relevanceNotes,

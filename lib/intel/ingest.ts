@@ -7,6 +7,7 @@ import {
 } from '@/lib/intel/frApi';
 import { parseRssXmlToItems } from '@/lib/intel/parseRss';
 import { getSignalSources } from '@/lib/intel/signal-sources';
+import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
 import {
   finishIngestRun,
   intelDbConfigured,
@@ -14,10 +15,9 @@ import {
   syncIntelSourcesFromManifest,
   upsertSourceItems,
 } from '@/lib/intel/db';
-import type { IngestRunStatus, NormalizedItem } from '@/lib/intel/types';
+import type { ContentUseMode, FetchKind, IngestRunStatus, NormalizedItem } from '@/lib/intel/types';
 
 const SKIP_MESSAGE = 'Skipped (disabled or missing endpoint URL)';
-const MAX_PREVIEW_SUMMARY_LENGTH = 320;
 
 export type IngestSummaryStatus = IngestRunStatus | 'skipped';
 
@@ -49,7 +49,7 @@ export type IngestOutcome = {
 
 type IngestSourceInput = {
   slug: string;
-  fetchKind: 'rss' | 'json_api';
+  fetchKind: FetchKind;
   endpointUrl: string;
   provenanceClass: string;
 
@@ -78,7 +78,15 @@ function readStringField(
 
 function resolveContentMode(cfg: IngestSourceInput): string | null {
   const direct =
-    readStringField(cfg as unknown as Record<string, unknown>, 'contentMode', 'content_mode', 'legalMode', 'legal_mode');
+    readStringField(
+      cfg as unknown as Record<string, unknown>,
+      'contentMode',
+      'content_mode',
+      'legalMode',
+      'legal_mode',
+      'contentUseMode',
+      'content_use_mode',
+    );
 
   if (direct) return direct;
 
@@ -98,59 +106,32 @@ function resolveContentMode(cfg: IngestSourceInput): string | null {
   );
 }
 
-function stripHtml(input: string): string {
-  return input.replace(/<[^>]+>/g, ' ');
+const CONTENT_USE_MODES: ContentUseMode[] = [
+  'metadata_only',
+  'feed_summary',
+  'preview_and_link',
+  'full_text_if_feed_includes',
+  'manual_review',
+];
+
+function coerceContentUseMode(mode: string | null): ContentUseMode {
+  if (!mode) return 'feed_summary';
+  const normalized = mode.trim().toLowerCase();
+  return (CONTENT_USE_MODES as readonly string[]).includes(normalized)
+    ? (normalized as ContentUseMode)
+    : 'feed_summary';
 }
 
-function normalizeWhitespace(input: string): string {
-  return input.replace(/\s+/g, ' ').trim();
-}
-
-function cleanPreviewText(input: string): string {
-  return normalizeWhitespace(stripHtml(input));
-}
-
-function truncatePreview(input: string, maxLength = MAX_PREVIEW_SUMMARY_LENGTH): string {
-  if (input.length <= maxLength) return input;
-  return `${input.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
-}
-
-function applyContentPolicy(items: NormalizedItem[], mode: string | null): NormalizedItem[] {
-  if (!mode) return items;
-
-  const normalizedMode = mode.trim().toLowerCase();
-
-  if (normalizedMode === 'metadata_only' || normalizedMode === 'manual_review') {
-    return items.map((item) => ({
-      ...item,
-      summary: null,
-    }));
-  }
-
-  if (
-    normalizedMode === 'preview_and_link' ||
-    normalizedMode === 'feed_preview' ||
-    normalizedMode === 'full_feed_item_only_if_already_exposed'
-  ) {
-    return items.map((item) => {
-      if (!item.summary) return item;
-
-      const cleaned = cleanPreviewText(item.summary);
-      if (!cleaned) {
-        return {
-          ...item,
-          summary: null,
-        };
-      }
-
-      return {
-        ...item,
-        summary: truncatePreview(cleaned, MAX_PREVIEW_SUMMARY_LENGTH),
-      };
-    });
-  }
-
-  return items;
+function applyContentUseModeToItems(items: NormalizedItem[], mode: ContentUseMode): NormalizedItem[] {
+  if (items.length === 0) return items;
+  return items.map((it) => {
+    const raw = it.summary;
+    const plain = typeof raw === 'string' && raw.includes('<') ? stripHtmlToText(raw) : raw;
+    return {
+      ...it,
+      summary: applyContentUseModeToSummary(plain, mode),
+    };
+  });
 }
 
 /** Exported for tests: derive overallStatus from per-source rows (non-skipped only). */
@@ -165,7 +146,7 @@ export function computeOverallIngestStatus(results: IngestSummary[]): IngestOver
 /** Exported for unit tests (fetch mocked). */
 export async function ingestOneSource(
   cfg: IngestSourceInput,
-): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string }> {
+): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string; meta?: Record<string, unknown> }> {
   const res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: 25000 });
 
   if (!res.ok) {
@@ -173,11 +154,12 @@ export async function ingestOneSource(
       items: [],
       status: 'failed',
       error: `HTTP ${res.status} ${cfg.endpointUrl}`,
+      meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null },
     };
   }
 
   try {
-    const contentMode = resolveContentMode(cfg);
+    const contentUseMode = coerceContentUseMode(resolveContentMode(cfg));
 
     if (cfg.fetchKind === 'json_api') {
       const parsedItems =
@@ -185,25 +167,42 @@ export async function ingestOneSource(
           ? parseFederalRegisterPiJson(res.text)
           : parseFederalRegisterPublishedJson(res.text);
 
-      const items = applyContentPolicy(parsedItems, contentMode);
+      const items = applyContentUseModeToItems(parsedItems, contentUseMode);
 
       if (items.length === 0) {
         return {
           items: [],
           status: 'partial',
           error: 'JSON API parse returned 0 items',
+          meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null, itemsParsed: 0 },
         };
       }
 
-      return { items, status: 'success' };
+      return {
+        items,
+        status: 'success',
+        meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null, itemsParsed: items.length },
+      };
+    }
+
+    if (cfg.fetchKind !== 'rss') {
+      return {
+        items: [],
+        status: 'failed',
+        error: `Unsupported fetchKind: ${cfg.fetchKind}`,
+        meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null },
+      };
     }
 
     const parsedItems = await parseRssXmlToItems(res.text, {
       sourceSlug: cfg.slug,
       provenanceClass: cfg.provenanceClass,
+      contentUseMode,
+      fetchKind: cfg.fetchKind,
     });
 
-    const items = applyContentPolicy(parsedItems, contentMode);
+    // Content-use policy is applied inside RSS parsing (`parseRss.ts` + `contentUse.ts`).
+    const items = parsedItems;
 
     if (items.length === 0) {
       return {
@@ -211,13 +210,23 @@ export async function ingestOneSource(
         status: 'partial',
         error:
           'RSS parse returned 0 items (empty feed, non-feed body, HTML error page, or no valid entries)',
+        meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null, itemsParsed: 0 },
       };
     }
 
-    return { items, status: 'success' };
+    return {
+      items,
+      status: 'success',
+      meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null, itemsParsed: items.length },
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { items: [], status: 'failed', error: msg };
+    return {
+      items: [],
+      status: 'failed',
+      error: msg,
+      meta: { httpStatus: res.status, finalUrl: res.finalUrl ?? null },
+    };
   }
 }
 
@@ -300,6 +309,9 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
 
     await finishIngestRun(runId, finalStatus, upserted, outcome.error ?? null, {
       slug: cfg.slug,
+      ...(outcome.meta ?? {}),
+      itemsParsed: outcome.meta?.itemsParsed ?? outcome.items.length,
+      itemsUpserted: upserted,
     });
 
     results.push({

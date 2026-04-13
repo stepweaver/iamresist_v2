@@ -94,6 +94,12 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - Optional wire feeds (omit both if blocked — ingest skips them; no silent downgrade): `INTEL_REUTERS_RSS_URL`, `INTEL_AP_RSS_URL`
 - Optional: `INTEL_DESK_STALE_AFTER_MINUTES` (default `90`) — OSINT desk and `/intel/sources` health use this staleness window.
 - Cron: `GET /api/cron/ingest-signal` with `Authorization: Bearer CRON_SECRET` (same secret as `/api/revalidate`).
+  - **Endpoint**: `GET /api/cron/ingest-signal`
+  - **Auth header**: `Authorization: Bearer <CRON_SECRET>`
+  - **CRON_SECRET requirement**: must be non-empty after trim; otherwise the endpoint returns **500** (`CRON_SECRET is not configured`).
+  - **Unauthorized failure mode**: if the header does not exactly match, the endpoint returns **401** (`Unauthorized`).
+  - **Job failure mode**: if `runIntelIngest()` throws or overall ingest is `failed`, the endpoint returns **500** with `overallStatus: failed`.
+  - **Cadence assumption**: schedule it more frequently than `INTEL_DESK_STALE_AFTER_MINUTES` (default 90m), otherwise the desk and `/intel/sources` will show **stale**.
 
 **Stripe / Printify / email** (`lib/env/shop.js`, `lib/env/site.js`)
 
