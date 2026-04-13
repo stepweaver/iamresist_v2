@@ -43,6 +43,11 @@ export async function syncIntelSourcesFromManifest(
     not_trusted_for: c.notTrustedFor,
     editorial_notes: mergeEditorialNotes(c),
     is_core_source: c.isCoreSource,
+    trust_warning_mode: c.trustWarningMode,
+    trust_warning_level: c.trustWarningLevel,
+    requires_independent_verification: c.requiresIndependentVerification,
+    hero_eligibility_mode: c.heroEligibilityMode,
+    trust_warning_text: c.trustWarningText ?? null,
     editorial_controls: editorialControlsForDb(c),
     updated_at: new Date().toISOString(),
   }));
@@ -176,6 +181,11 @@ export type SourceItemRow = {
     slug: string;
     name: string;
     provenance_class: ProvenanceClass;
+    trust_warning_mode?: string | null;
+    trust_warning_level?: string | null;
+    requires_independent_verification?: boolean | null;
+    hero_eligibility_mode?: string | null;
+    trust_warning_text?: string | null;
   } | null;
 };
 
@@ -200,7 +210,12 @@ const SOURCE_ITEMS_LIVE_SELECT = `
       sources (
         slug,
         name,
-        provenance_class
+        provenance_class,
+        trust_warning_mode,
+        trust_warning_level,
+        requires_independent_verification,
+        hero_eligibility_mode,
+        trust_warning_text
       )
     `;
 
@@ -410,6 +425,11 @@ export type IntelSourceRegistryRow = {
   editorial_notes: string | null;
   is_core_source: boolean;
   editorial_controls: Record<string, unknown> | null;
+  trust_warning_mode?: string | null;
+  trust_warning_level?: string | null;
+  requires_independent_verification?: boolean | null;
+  hero_eligibility_mode?: string | null;
+  trust_warning_text?: string | null;
 };
 
 export async function fetchIntelSourcesRegistry(): Promise<IntelSourceRegistryRow[]> {
@@ -417,7 +437,7 @@ export async function fetchIntelSourcesRegistry(): Promise<IntelSourceRegistryRo
   const { data, error } = await supabase
     .from('sources')
     .select(
-      'id, slug, name, provenance_class, fetch_kind, desk_lane, content_use_mode, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source, editorial_controls',
+      'id, slug, name, provenance_class, fetch_kind, desk_lane, content_use_mode, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source, editorial_controls, trust_warning_mode, trust_warning_level, requires_independent_verification, hero_eligibility_mode, trust_warning_text',
     )
     .order('slug');
   if (error) throw new Error(`intel.sources registry: ${error.message}`);

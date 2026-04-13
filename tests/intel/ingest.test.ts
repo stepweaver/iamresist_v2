@@ -22,6 +22,11 @@ function rssCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig {
     trustedFor: 't',
     notTrustedFor: 'n',
     isCoreSource: true,
+    trustWarningMode: 'source_controlled_official_claims',
+    trustWarningLevel: 'caution',
+    requiresIndependentVerification: true,
+    heroEligibilityMode: 'demote_low_substance',
+    trustWarningText: 'Test trust note',
     ...over,
   };
 }

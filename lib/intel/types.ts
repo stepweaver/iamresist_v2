@@ -25,6 +25,15 @@ export type ContentUseMode =
   | 'full_text_if_feed_includes'
   | 'manual_review';
 
+export type TrustWarningMode = 'none' | 'source_controlled_official_claims';
+
+export type TrustWarningLevel = 'info' | 'caution' | 'high';
+
+export type HeroEligibilityMode =
+  | 'normal'
+  | 'demote_low_substance'
+  | 'never_hero_without_corroboration';
+
 /** Hint for rule-based copy; separate from future procedural_stage on events. */
 export type StateChangeType =
   | 'unknown'
@@ -114,6 +123,14 @@ export type SignalSourceConfig = {
   editorialNotes?: string;
   /** Core institutional / document stack vs optional wires or specialists. */
   isCoreSource: boolean;
+
+  /** Trust-warning posture (synced to intel.sources). */
+  trustWarningMode: TrustWarningMode;
+  trustWarningLevel: TrustWarningLevel;
+  requiresIndependentVerification: boolean;
+  heroEligibilityMode: HeroEligibilityMode;
+  /** Short, editorially reviewed explanation (tooltip/inline copy). */
+  trustWarningText?: string | null;
   /** Deterministic relevance / surfacing rules (persisted to DB as JSON). */
   editorialControls?: EditorialControls;
 };

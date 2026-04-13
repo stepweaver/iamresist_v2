@@ -31,6 +31,11 @@ function baseCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig {
     trustedFor: 't',
     notTrustedFor: 'n',
     isCoreSource: true,
+    trustWarningMode: 'none',
+    trustWarningLevel: 'info',
+    requiresIndependentVerification: false,
+    heroEligibilityMode: 'normal',
+    trustWarningText: null,
     ...over,
   };
 }

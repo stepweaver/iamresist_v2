@@ -36,6 +36,24 @@ function SurfaceChip({ surfaceState, isDuplicateLoser }) {
   );
 }
 
+function TrustChip({ badge }) {
+  if (!badge) return null;
+  const base =
+    'font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border border-border rounded';
+  const map = {
+    neutral: 'border-foreground/25 text-foreground/80 bg-foreground/[0.02]',
+    info: 'border-primary/50 text-primary bg-primary/5',
+    caution: 'border-amber-500/45 text-amber-800 dark:text-amber-400/90 bg-amber-500/10',
+    high: 'border-red-500/45 text-red-700 dark:text-red-400 bg-red-500/[0.06]',
+  };
+  const tone = badge.tone && map[badge.tone] ? badge.tone : 'info';
+  return (
+    <span className={`${base} ${map[tone]}`} title={badge.tooltip || 'Trust warning'}>
+      {badge.label}
+    </span>
+  );
+}
+
 function ClusterHint({ clusterKeys }) {
   const keys = clusterKeys && typeof clusterKeys === 'object' ? Object.entries(clusterKeys) : [];
   if (keys.length === 0) return null;
@@ -309,6 +327,11 @@ export default function LiveDeskSection({ desk }) {
                   <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
                     <ProvenanceChip provenanceClass={row.provenanceClass} />
                     <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                    {Array.isArray(row.trustBadges)
+                      ? row.trustBadges.slice(0, 2).map((b) => (
+                          <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
+                        ))
+                      : null}
                     <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
                       {row.sourceName}
                     </span>
@@ -333,6 +356,14 @@ export default function LiveDeskSection({ desk }) {
                   <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed border-l-2 border-primary/60 pl-3">
                     {row.whyItMatters}
                   </p>
+                  {row.trustExplain ? (
+                    <p
+                      className="mt-2 font-mono text-[10px] text-foreground/70 leading-relaxed max-w-3xl"
+                      title={row.trustWarningText || undefined}
+                    >
+                      {row.trustExplain}
+                    </p>
+                  ) : null}
                   {row.summary && row.contentUseMode !== 'metadata_only' ? (
                     <p className="mt-3 text-xs text-foreground/70 leading-relaxed max-w-3xl">
                       {truncatePreview(row.summary, 360)}
@@ -354,6 +385,11 @@ export default function LiveDeskSection({ desk }) {
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <ProvenanceChip provenanceClass={row.provenanceClass} />
                         <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                        {Array.isArray(row.trustBadges)
+                          ? row.trustBadges.slice(0, 1).map((b) => (
+                              <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
+                            ))
+                          : null}
                         <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
                           {row.sourceName}
                         </span>
@@ -398,6 +434,11 @@ export default function LiveDeskSection({ desk }) {
               <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
                 <ProvenanceChip provenanceClass={row.provenanceClass} />
                 <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                {Array.isArray(row.trustBadges)
+                  ? row.trustBadges.slice(0, 2).map((b) => (
+                      <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
+                    ))
+                  : null}
                 <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
                   {row.sourceName}
                 </span>
@@ -422,6 +463,14 @@ export default function LiveDeskSection({ desk }) {
               <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
                 {row.whyItMatters}
               </p>
+              {row.trustExplain ? (
+                <p
+                  className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed max-w-3xl"
+                  title={row.trustWarningText || undefined}
+                >
+                  {row.trustExplain}
+                </p>
+              ) : null}
               {row.summary && row.contentUseMode !== 'metadata_only' ? (
                 <p className="mt-2 text-xs text-foreground/65 leading-relaxed max-w-3xl">
                   {truncatePreview(row.summary)}

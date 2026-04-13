@@ -1,0 +1,132 @@
+import { describe, expect, it } from 'vitest';
+import { computeTrustWarnings } from '@/lib/intel/trustWarnings';
+
+function base(over: Partial<Parameters<typeof computeTrustWarnings>[0]> = {}) {
+  return {
+    source: {
+      trustWarningMode: 'none' as const,
+      trustWarningLevel: 'info' as const,
+      requiresIndependentVerification: false,
+      heroEligibilityMode: 'normal' as const,
+      trustWarningText: null,
+    },
+    item: {
+      title: 'Title',
+      summary: null,
+      sourceSlug: 'x',
+      institutionalArea: 'unknown',
+      missionTags: [],
+      clusterKeys: {},
+    },
+    ...over,
+  };
+}
+
+describe('computeTrustWarnings', () => {
+  it('adds SOURCE-CONTROLLED / OFFICIAL CLAIM / VERIFY INDEPENDENTLY for official-claim sources', () => {
+    const out = computeTrustWarnings(
+      base({
+        source: {
+          trustWarningMode: 'source_controlled_official_claims',
+          trustWarningLevel: 'caution',
+          requiresIndependentVerification: true,
+          heroEligibilityMode: 'demote_low_substance',
+          trustWarningText: 'Official channel note',
+        },
+        item: {
+          title: 'White House statement',
+          summary: 'Some framing',
+          sourceSlug: 'wh-news',
+          institutionalArea: 'white_house',
+          missionTags: ['executive_power'],
+          clusterKeys: {},
+        },
+      }),
+    );
+
+    const labels = out.trustBadges.map((b) => b.label);
+    expect(labels).toContain('SOURCE-CONTROLLED');
+    expect(labels).toContain('OFFICIAL CLAIM');
+    expect(labels).toContain('VERIFY INDEPENDENTLY');
+    expect(out.politically_interested_source).toBe(true);
+    expect(out.official_claim).toBe(true);
+    expect(out.requires_independent_verification).toBe(true);
+    expect(out.trustExplain).toBeTruthy();
+  });
+
+  it('detects ceremonial/low-substance patterns deterministically', () => {
+    const out = computeTrustWarnings(
+      base({
+        source: {
+          trustWarningMode: 'source_controlled_official_claims',
+          trustWarningLevel: 'caution',
+          requiresIndependentVerification: true,
+          heroEligibilityMode: 'demote_low_substance',
+          trustWarningText: null,
+        },
+        item: {
+          title: 'A Proclamation on National Something Day',
+          summary: null,
+          sourceSlug: 'wh-presidential',
+          institutionalArea: 'white_house',
+          missionTags: ['executive_power'],
+          clusterKeys: { proclamation: '123' },
+        },
+      }),
+    );
+
+    expect(out.ceremonial_or_low_substance).toBe(true);
+    expect(out.trustRuleExplanations.map((e) => e.ruleId)).toContain('trust:low_substance_text');
+  });
+
+  it('only emits CONTESTED CLAIM when explicit dispute language and scoped tags are present', () => {
+    const out = computeTrustWarnings(
+      base({
+        source: {
+          trustWarningMode: 'source_controlled_official_claims',
+          trustWarningLevel: 'caution',
+          requiresIndependentVerification: true,
+          heroEligibilityMode: 'demote_low_substance',
+          trustWarningText: null,
+        },
+        item: {
+          title: 'Fact check: judge rebukes false claim',
+          summary: null,
+          sourceSlug: 'wh-news',
+          institutionalArea: 'white_house',
+          missionTags: ['voting_rights'],
+          clusterKeys: {},
+        },
+      }),
+    );
+
+    expect(out.contested_claim).toBe(true);
+    expect(out.trustBadges.map((b) => b.label)).toContain('CONTESTED CLAIM');
+  });
+
+  it('does not emit CONTESTED CLAIM when dispute text is present but tags are out of scope', () => {
+    const out = computeTrustWarnings(
+      base({
+        source: {
+          trustWarningMode: 'source_controlled_official_claims',
+          trustWarningLevel: 'caution',
+          requiresIndependentVerification: true,
+          heroEligibilityMode: 'demote_low_substance',
+          trustWarningText: null,
+        },
+        item: {
+          title: 'Fact check: claim disputed',
+          summary: null,
+          sourceSlug: 'wh-news',
+          institutionalArea: 'white_house',
+          missionTags: ['executive_power'],
+          clusterKeys: {},
+        },
+      }),
+    );
+
+    expect(out.contested_claim).toBe(false);
+    expect(out.trustBadges.map((b) => b.label)).not.toContain('CONTESTED CLAIM');
+  });
+});
+

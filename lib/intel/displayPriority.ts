@@ -25,6 +25,9 @@ type ScoringInput = {
   relevanceScore: number;
   clusterKeys: Record<string, string>;
   publishedAt: string | null;
+  trustWarningMode?: string | null;
+  /** Precomputed for consistency with trustWarnings.ts; may be derived from text patterns. */
+  ceremonialOrLowSubstance?: boolean;
 };
 
 function clamp(n: number): number {
@@ -159,6 +162,19 @@ function scoreNoisePenalties(input: ScoringInput, h: string, explanations: Displ
     if (routine) {
       penalty -= 10;
       explanations.push({ ruleId: 'display:routine_exec', message: 'Penalty: routine White House output' });
+    }
+  }
+
+  // Explicit demotion for source-controlled official-claim surfaces when they look ceremonial/low-substance.
+  // Kept modest to avoid oversteering the desk; the main effect is on lead selection via hero_eligibility_mode.
+  if (input.trustWarningMode === 'source_controlled_official_claims') {
+    const lowSubstance = Boolean(input.ceremonialOrLowSubstance) || Boolean(hasAny(h, CEREMONIAL_EXECUTIVE_PATTERNS));
+    if (lowSubstance) {
+      penalty -= 8;
+      explanations.push({
+        ruleId: 'display:trust_low_substance',
+        message: 'Penalty: source-controlled official messaging that appears low-substance/ceremonial',
+      });
     }
   }
 
