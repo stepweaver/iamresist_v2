@@ -78,27 +78,33 @@ export function computeOverallIngestStatus(results: IngestSummary[]): IngestOver
 }
 
 /** Exported for unit tests (fetch mocked). Requires endpointUrl for fetch paths. */
-export async function ingestOneSource(
-  cfg: SignalSourceConfig,
-): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string }> {
-  if (!cfg.endpointUrl) {
-    return { items: [], status: 'failed', error: 'ingestOneSource: missing endpointUrl' };
-  }
-
+export async function ingestOneSource(cfg: {
+  slug: string;
+  fetchKind: 'rss' | 'json_api';
+  endpointUrl: string;
+  provenanceClass: string;
+}): Promise<{
+  items: NormalizedItem[];
+  status: IngestRunStatus;
+  error?: string;
+  httpStatus: number;
+  finalUrl: string | null;
+}> {
   const res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: 25000 });
+
   if (!res.ok) {
     return {
       items: [],
       status: 'failed',
       error: `HTTP ${res.status} ${cfg.endpointUrl}`,
+      httpStatus: res.status,
+      finalUrl: res.finalUrl || cfg.endpointUrl,
     };
   }
 
   try {
-    let items: NormalizedItem[];
-
     if (cfg.fetchKind === 'json_api') {
-      items =
+      const items =
         cfg.slug === 'fr-public-inspection'
           ? parseFederalRegisterPiJson(res.text)
           : parseFederalRegisterPublishedJson(res.text);
@@ -108,37 +114,50 @@ export async function ingestOneSource(
           items: [],
           status: 'partial',
           error: 'JSON API parse returned 0 items',
+          httpStatus: res.status,
+          finalUrl: res.finalUrl || cfg.endpointUrl,
         };
       }
-    } else if (cfg.fetchKind === 'rss' || cfg.fetchKind === 'podcast_rss') {
-      items = await parseRssXmlToItems(res.text, {
-        sourceSlug: cfg.slug,
-        provenanceClass: cfg.provenanceClass,
-        contentUseMode: cfg.contentUseMode,
-        fetchKind: cfg.fetchKind,
-      });
 
-      if (items.length === 0) {
-        return {
-          items: [],
-          status: 'partial',
-          error:
-            'RSS parse returned 0 items (empty feed, non-feed body, HTML error page, or no valid entries)',
-        };
-      }
-    } else {
       return {
-        items: [],
-        status: 'failed',
-        error: `ingestOneSource: unsupported fetch_kind ${cfg.fetchKind}`,
+        items,
+        status: 'success',
+        httpStatus: res.status,
+        finalUrl: res.finalUrl || cfg.endpointUrl,
       };
     }
 
-    items = normalizeItemsForContentUse(items, cfg);
-    return { items, status: 'success' };
+    const items = await parseRssXmlToItems(res.text, {
+      sourceSlug: cfg.slug,
+      provenanceClass: cfg.provenanceClass,
+    });
+
+    if (items.length === 0) {
+      return {
+        items: [],
+        status: 'partial',
+        error:
+          'RSS parse returned 0 items (empty feed, non-feed body, HTML error page, or no valid entries)',
+        httpStatus: res.status,
+        finalUrl: res.finalUrl || cfg.endpointUrl,
+      };
+    }
+
+    return {
+      items,
+      status: 'success',
+      httpStatus: res.status,
+      finalUrl: res.finalUrl || cfg.endpointUrl,
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { items: [], status: 'failed', error: msg };
+    return {
+      items: [],
+      status: 'failed',
+      error: msg,
+      httpStatus: res.status,
+      finalUrl: res.finalUrl || cfg.endpointUrl,
+    };
   }
 }
 
