@@ -156,10 +156,24 @@ export default function SourcesAuditSection({ audit }) {
       <div className="space-y-8">
         {rows.map((r) => (
           <section key={`gov-${r.id}`} className="machine-panel border border-border p-5 sm:p-6">
-            <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
               <h2 className="section-title text-base font-bold text-foreground">{r.name}</h2>
               <HealthBadge health={r.health} />
             </div>
+
+            {r.lastRunError ? (
+              <div className="mb-4 border border-red-500/30 bg-red-500/[0.04] p-3">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-red-400">Last run error</p>
+                <p className="mt-2 font-mono text-xs leading-relaxed text-red-300 break-words">
+                  {r.lastRunError}
+                </p>
+                {formatRunMeta(r.lastRunMeta) ? (
+                  <p className="mt-2 font-mono text-[10px] leading-relaxed text-hud-dim break-words">
+                    {formatRunMeta(r.lastRunMeta)}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <dl className="grid gap-3 sm:grid-cols-1 text-sm">
               {r.transparencyBadge ? (
                 <div className="border border-primary/35 bg-primary/5 px-3 py-2 rounded">
