@@ -92,7 +92,7 @@ export default function HomeDeskPreviewSection({ osintDesk, voicesDesk }) {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
         <div>
           <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block">
-            Intel desks
+            Intel desk
           </span>
           <p className="text-[11px] sm:text-xs text-foreground/60 font-mono mt-1 max-w-2xl leading-relaxed">
             The top item from each live desk — same ordering as the full OSINT and Voices pages.
