@@ -9,7 +9,7 @@ export const revalidate = 45;
 export const metadata = buildPageMetadata({
   title: 'Intel // OSINT | I AM [RESIST]',
   description:
-    'Public-source intelligence desk: White House actions, Federal Register, GovInfo, optional wire confirmation, and specialist legal/election analysis — normalized into a provenance-ranked feed. Creator commentary desk: /intel/voices; full archive: /voices.',
+    'Public-source intelligence desk: White House actions, Federal Register documents, GovInfo records, specialist legal/election analysis, and selected public-interest reporting — normalized into a provenance-ranked feed. Commentary stays on Voices.',
   urlPath: '/intel/osint',
 });
 
@@ -31,7 +31,7 @@ export default function IntelOsintPage() {
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
         <IntelTabs
-          description="Public-source intelligence desk: White House actions, Federal Register documents, GovInfo records, optional wire confirmation, and specialist legal/election analysis — provenance-ranked. Creator feeds: Intel → Voices tab (/intel/voices). Full archive: /voices."
+          description="Public-source intelligence desk: White House actions, Federal Register documents, GovInfo records, specialist legal/election analysis, and selected public-interest reporting — provenance-ranked. Commentary stays on Voices."
         />
         <Suspense
           fallback={
