@@ -325,8 +325,8 @@ export default function LiveDeskSection({ desk }) {
                     </time>
                   </div>
                   {row.imageUrl ? (
-                    <div className="relative mb-4 aspect-video w-full max-w-2xl overflow-hidden border border-border/60 bg-muted">
-                      <NewswireImage src={row.imageUrl} alt="" />
+                    <div className="relative mb-4 aspect-[4/3] w-full max-w-2xl overflow-hidden border border-border/60 bg-muted sm:aspect-video">
+                      <NewswireImage src={row.imageUrl} alt="" objectPosition="top" />
                     </div>
                   ) : null}
                   <h3 className="section-title text-xl sm:text-2xl font-bold text-foreground mb-2">
@@ -421,8 +421,8 @@ export default function LiveDeskSection({ desk }) {
               }`}
             >
               {row.imageUrl ? (
-                <div className="relative w-full shrink-0 sm:w-36 aspect-video overflow-hidden border border-border/60 bg-muted sm:max-w-[9rem]">
-                  <NewswireImage src={row.imageUrl} alt="" />
+                <div className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-36 sm:w-36 sm:max-w-none">
+                  <NewswireImage src={row.imageUrl} alt="" objectPosition="top" />
                 </div>
               ) : null}
               <div className="min-w-0 flex-1">

@@ -7,13 +7,17 @@ import VoicesFeedSection from '@/components/voices/VoicesFeedSection';
 import ProtestMusicSection from '@/components/home/ProtestMusicSection';
 import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 import { getLatestProtestMusicItem } from '@/lib/feeds/protestMusicFeed.service';
+import { getLiveIntelDesk } from '@/lib/feeds/liveIntel.service';
 import { getNewswireStories, pickDiverseTopStories } from '@/lib/newswire';
+import HomeDeskPreviewSection from '@/components/home/HomeDeskPreviewSection';
 
 export default async function HomeFeed() {
-  const [feedItems, latestProtestMusicItem, newswireStories] = await Promise.all([
+  const [feedItems, latestProtestMusicItem, newswireStories, osintDesk, voicesDesk] = await Promise.all([
     getHomepageIntelFeed(),
     getLatestProtestMusicItem(),
     getNewswireStories(),
+    getLiveIntelDesk('osint'),
+    getLiveIntelDesk('voices'),
   ]);
   const homepageNewswireStories = pickDiverseTopStories(newswireStories ?? [], 3, 1);
 
@@ -27,9 +31,11 @@ export default async function HomeFeed() {
 
       <FeaturedNewswireSection featuredStories={homepageNewswireStories} />
 
+      <HomeDeskPreviewSection osintDesk={osintDesk} voicesDesk={voicesDesk} />
+
       {feedItems?.length > 0 && (
         <div className="mb-6 sm:mb-8">
-          <VoicesFeedSection items={feedItems} title="Intel" showViewAll={true} />
+          <VoicesFeedSection items={feedItems} title="Telescreen" showViewAll={true} />
         </div>
       )}
 

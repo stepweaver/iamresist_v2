@@ -2,8 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-/** Remote RSS/OG images — same as source: cover + center, opacity reveal while loading. */
-export default function NewswireImage({ src, alt = '', onLoadError }) {
+const OBJECT_POS_CLASS = {
+  center: 'object-center',
+  top: 'object-top',
+  bottom: 'object-bottom',
+};
+
+/** Remote RSS/OG images — cover + focal point; img is absolute so the frame always fills (no letterboxing). */
+export default function NewswireImage({ src, alt = '', onLoadError, objectPosition = 'center' }) {
   const [status, setStatus] = useState(src ? 'loading' : 'error');
   const imgRef = useRef(null);
 
@@ -30,9 +36,13 @@ export default function NewswireImage({ src, alt = '', onLoadError }) {
 
   if (status === 'error') return null;
 
+  const posClass = OBJECT_POS_CLASS[objectPosition] ?? OBJECT_POS_CLASS.center;
+
   return (
     <>
-      {status === 'loading' ? <div className="absolute inset-0 bg-muted animate-pulse" /> : null}
+      {status === 'loading' ? (
+        <div className="pointer-events-none absolute inset-0 z-0 bg-muted animate-pulse" aria-hidden />
+      ) : null}
 
       {/* eslint-disable-next-line @next/next/no-img-element -- remote RSS URLs */}
       <img
@@ -40,7 +50,7 @@ export default function NewswireImage({ src, alt = '', onLoadError }) {
         src={src}
         alt={alt}
         referrerPolicy="strict-origin-when-cross-origin"
-        className={`h-full w-full object-cover object-center transition-opacity duration-300 ${
+        className={`absolute inset-0 z-[1] h-full w-full object-cover transition-opacity duration-300 ${posClass} ${
           status === 'loaded' ? 'opacity-100' : 'opacity-0'
         }`}
         loading="lazy"

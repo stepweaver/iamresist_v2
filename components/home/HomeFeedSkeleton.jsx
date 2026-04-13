@@ -59,6 +59,31 @@ export default function HomeFeedSkeleton() {
       </div>
 
       <div className="mb-6 sm:mb-8">
+        <div className="h-3 w-40 bg-foreground/10 rounded animate-pulse mb-2" />
+        <div className="h-3 w-full max-w-xl bg-foreground/10 rounded animate-pulse mb-4" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          {[0, 1].map((col) => (
+            <div key={col} className="space-y-3 sm:space-y-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-3 w-16 bg-foreground/10 rounded animate-pulse" />
+                <div className="h-3 w-14 bg-foreground/10 rounded animate-pulse" />
+              </div>
+              <Card className="p-3 sm:p-4 border-border overflow-hidden">
+                <div className="flex gap-3 sm:gap-4">
+                  <div className="w-[72px] h-[72px] sm:w-20 sm:h-20 bg-foreground/10 rounded shrink-0 animate-pulse" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-3 w-24 bg-foreground/10 rounded animate-pulse" />
+                    <div className="h-4 w-full bg-foreground/10 rounded animate-pulse" />
+                    <div className="h-3 w-20 bg-foreground/10 rounded animate-pulse" />
+                  </div>
+                </div>
+              </Card>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-6 sm:mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Card key={i} className="p-4 border-border overflow-hidden">
