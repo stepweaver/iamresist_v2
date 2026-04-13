@@ -2,6 +2,11 @@
 
 This document mirrors the **version-controlled manifest** in [`lib/intel/signal-sources.ts`](../../lib/intel/signal-sources.ts) and the synced rows in Supabase `intel.sources`. It explains **why each source exists**, **how it is acquired**, and the **content-use posture** (preview vs metadata-only).
 
+## Troubleshooting ingest
+
+- **`source_items_desk_lane_check` on upsert:** Postgres still has the old `osint|voices` check on **`intel.source_items`**. Apply [`20260418201000_intel_source_items_desk_lane_extend.sql`](../../supabase/migrations/20260418201000_intel_source_items_desk_lane_extend.sql) in the Supabase SQL Editor (this is separate from extending `intel.sources` in `20260418120000`).
+- **BLS schedule “0 article links”:** Schedule pages often use **root-relative** links (`href="/news.release/..."`). Ingest passes the fetch `finalUrl` as `baseUrl` so those resolve; ensure you are on a build that includes that parser behavior.
+
 ## Principles
 
 - **No paid wire APIs** in this milestone; optional Reuters/AP remain env-gated RSS URLs only.

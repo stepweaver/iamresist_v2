@@ -246,6 +246,7 @@ export async function ingestOneSource(
           fetchKind: cfg.fetchKind,
         });
       } else if (cfg.slug === 'bls-release-calendar') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
         parsedItems = parseSameHostArticleLinksHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
@@ -253,8 +254,10 @@ export async function ingestOneSource(
           fetchKind: cfg.fetchKind,
           hostname: 'www.bls.gov',
           pathIncludes: 'news.release',
+          baseUrl,
         });
       } else if (cfg.slug === 'bea-release-schedule') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
         parsedItems = parseSameHostArticleLinksHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
@@ -262,13 +265,16 @@ export async function ingestOneSource(
           fetchKind: cfg.fetchKind,
           hostname: 'www.bea.gov',
           pathIncludes: '/news/',
+          baseUrl,
         });
       } else if (cfg.slug === 'usni-fleet-tracker') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
         parsedItems = parseUsniNewsListingHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
           contentUseMode,
           fetchKind: cfg.fetchKind,
+          baseUrl,
         });
       } else {
         return {

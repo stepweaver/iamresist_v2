@@ -208,7 +208,13 @@ export async function upsertSourceItems(
     const { error } = await supabase.from('source_items').upsert(chunk, {
       onConflict: 'source_id,canonical_url',
     });
-    if (error) throw new Error(`source_items upsert: ${error.message}`);
+    if (error) {
+      let detail = error.message;
+      if (/source_items_desk_lane_check/i.test(detail)) {
+        detail += ` — Run SQL in supabase/migrations/20260418201000_intel_source_items_desk_lane_extend.sql (extends intel.source_items desk_lane to match new lanes).`;
+      }
+      throw new Error(`source_items upsert: ${detail}`);
+    }
     total += chunk.length;
   }
   return total;

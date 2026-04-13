@@ -59,4 +59,25 @@ describe('parseSameHostArticleLinksHtml', () => {
     expect(items[0]!.stateChangeType).toBe('scheduled_release');
     expect(items[0]!.canonicalUrl).toContain('news.release');
   });
+
+  it('resolves root-relative hrefs when baseUrl is set (schedule pages)', () => {
+    const html = `
+      <html><body>
+        <p>${'x'.repeat(220)}</p>
+        <a href="/news.release/empsit.htm">Employment Situation</a>
+      </body></html>
+    `;
+    const items = parseSameHostArticleLinksHtml(html, {
+      sourceSlug: 'bls-release-calendar',
+      provenanceClass: 'SCHEDULE',
+      contentUseMode: 'metadata_only',
+      fetchKind: 'html_index',
+      hostname: 'www.bls.gov',
+      pathIncludes: 'news.release',
+      baseUrl: 'https://www.bls.gov/schedule/2026/home.htm',
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]!.canonicalUrl).toContain('news.release');
+    expect(items[0]!.canonicalUrl.startsWith('https://www.bls.gov/')).toBe(true);
+  });
 });

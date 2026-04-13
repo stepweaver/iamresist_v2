@@ -15,6 +15,14 @@ function mapStateChange(slug: string, provenanceClass: string): StateChangeType 
   return 'unknown';
 }
 
+function canonHost(hostname: string): string {
+  return hostname.replace(/^www\./i, '').toLowerCase();
+}
+
+function hostMatchesUrl(u: URL, expectedHost: string): boolean {
+  return canonHost(u.hostname) === canonHost(expectedHost);
+}
+
 /** Derive a readable title from the last URL path segment. */
 function slugToTitle(slug: string): string {
   const t = slug
@@ -122,6 +130,7 @@ export function parseDemocracyDocketNewsAlertsHtml(
 /**
  * Generic listing HTML: same-host links (metadata-only titles from URL slug).
  * Used for BLS/BEA schedule pages and similar.
+ * Pass `baseUrl` (final redirect URL from fetch) so root-relative `href="/news.release/..."` resolves.
  */
 export function parseSameHostArticleLinksHtml(
   html: string,
@@ -134,24 +143,53 @@ export function parseSameHostArticleLinksHtml(
     hostname: string;
     /** If set, pathname must include this substring. */
     pathIncludes?: string;
+    /** Page URL used to resolve relative hrefs (e.g. `https://www.bls.gov/schedule/2026/home.htm`). */
+    baseUrl?: string | null;
   },
 ): NormalizedItem[] {
   if (!html || html.length < 200) return [];
 
   const hostEsc = ctx.hostname.replace(/\./g, '\\.');
-  const hrefRe = new RegExp(`href=["'](https?://${hostEsc}[^"'#\\s]+)`, 'gi');
-  const seen = new Set<string>();
-  const items: NormalizedItem[] = [];
+  const candidateUrls = new Set<string>();
 
-  for (const m of html.matchAll(hrefRe)) {
+  const absRe = new RegExp(`href=["'](https?://${hostEsc}[^"'#\\s]+)`, 'gi');
+  for (const m of html.matchAll(absRe)) {
     const raw = m[1];
-    if (!raw) continue;
+    if (raw) candidateUrls.add(raw);
+  }
+
+  const base = ctx.baseUrl?.trim();
+  if (base) {
+    try {
+      const relRe = /href=["'](\/[^"'#\s]+)/gi;
+      for (const m of html.matchAll(relRe)) {
+        const path = m[1];
+        if (!path) continue;
+        try {
+          const u = new URL(path, base);
+          if (hostMatchesUrl(u, ctx.hostname)) {
+            candidateUrls.add(u.toString());
+          }
+        } catch {
+          /* skip */
+        }
+      }
+    } catch {
+      /* invalid baseUrl */
+    }
+  }
+
+  const items: NormalizedItem[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of candidateUrls) {
     let u: URL;
     try {
       u = new URL(raw);
     } catch {
       continue;
     }
+    if (!hostMatchesUrl(u, ctx.hostname)) continue;
     if (ctx.pathIncludes && !u.pathname.includes(ctx.pathIncludes)) continue;
 
     const canonicalUrl = u.toString();
@@ -169,7 +207,7 @@ export function parseSameHostArticleLinksHtml(
       extractExecutiveClusterKeys(title),
     );
 
-    const base = {
+    const baseItem = {
       externalId: canonicalUrl,
       canonicalUrl,
       title,
@@ -186,13 +224,15 @@ export function parseSameHostArticleLinksHtml(
     };
 
     items.push({
-      ...base,
-      contentHash: hashNormalizedItem(base),
+      ...baseItem,
+      contentHash: hashNormalizedItem(baseItem),
     });
   }
 
   return items;
 }
+
+const USNI_HOST = 'news.usni.org';
 
 /**
  * USNI News listing: article URLs on news.usni.org (e.g. fleet tracker posts).
@@ -204,23 +244,50 @@ export function parseUsniNewsListingHtml(
     provenanceClass: string;
     contentUseMode: ContentUseMode;
     fetchKind: FetchKind;
+    baseUrl?: string | null;
   },
 ): NormalizedItem[] {
   if (!html || html.length < 200) return [];
 
-  const hrefRe = /href=["'](https?:\/\/news\.usni\.org\/[^\s"'#]+)/gi;
-  const seen = new Set<string>();
-  const items: NormalizedItem[] = [];
-
-  for (const m of html.matchAll(hrefRe)) {
+  const candidateUrls = new Set<string>();
+  const hrefAbs = /href=["'](https?:\/\/news\.usni\.org\/[^\s"'#]+)/gi;
+  for (const m of html.matchAll(hrefAbs)) {
     const raw = m[1];
-    if (!raw) continue;
+    if (raw) candidateUrls.add(raw);
+  }
+
+  const base = ctx.baseUrl?.trim();
+  if (base) {
+    try {
+      const hrefRel = /href=["'](\/[^"'#\s]+)/gi;
+      for (const m of html.matchAll(hrefRel)) {
+        const path = m[1];
+        if (!path) continue;
+        try {
+          const u = new URL(path, base);
+          if (canonHost(u.hostname) === canonHost(USNI_HOST)) {
+            candidateUrls.add(u.toString());
+          }
+        } catch {
+          /* skip */
+        }
+      }
+    } catch {
+      /* invalid baseUrl */
+    }
+  }
+
+  const items: NormalizedItem[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of candidateUrls) {
     let u: URL;
     try {
       u = new URL(raw);
     } catch {
       continue;
     }
+    if (canonHost(u.hostname) !== canonHost(USNI_HOST)) continue;
     if (!/fleet|marine|tracker|carrier/i.test(u.pathname)) continue;
 
     const canonicalUrl = u.toString();
@@ -238,7 +305,7 @@ export function parseUsniNewsListingHtml(
       extractExecutiveClusterKeys(title),
     );
 
-    const base = {
+    const baseItem = {
       externalId: canonicalUrl,
       canonicalUrl,
       title,
@@ -255,8 +322,8 @@ export function parseUsniNewsListingHtml(
     };
 
     items.push({
-      ...base,
-      contentHash: hashNormalizedItem(base),
+      ...baseItem,
+      contentHash: hashNormalizedItem(baseItem),
     });
   }
 
