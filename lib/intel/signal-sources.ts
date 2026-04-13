@@ -20,6 +20,8 @@ const COURIER_COVER_UP = 'https://thecoverupnewsletter.substack.com/feed';
 const ROBERT_REICH = 'https://robertreich.substack.com/feed';
 const ON_OFFENSE = 'https://onoffense.substack.com/feed';
 const TOTAL_HYPOCRISY = 'https://totalhypocrisy.substack.com/feed';
+/** WordPress default feed; canonical articles on epsteincoverup.us (linked from /coverage/). */
+const UNCOVERING_EPSTEIN_NETWORK_FEED = 'https://epsteincoverup.us/feed/';
 
 /** Routine Federal Register / PI churn — suppressed from default desk surface (retained in DB). */
 const FR_PROCEDURAL_BLOCK_KEYWORDS = [
@@ -271,7 +273,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'osint',
       contentUseMode: 'feed_summary',
       endpointUrl: DEMOCRACY_DOCKET,
-      isEnabled: false,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -281,7 +283,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Case narrative and filings in the democracy and voting-rights space.',
       notTrustedFor: 'Final judicial disposition without the underlying court documents.',
       editorialNotes:
-        'Keep disabled until endpoint is verified from the production cron runtime. Recent fetches have returned non-parseable content.',
+        'Public WordPress RSS at /feed/ verified 200 application/rss+xml (external curl, 2026-04). Re-check if ingest ever returns HTML or partial parses.',
       editorialControls: {
         defaultPriority: 58,
         preferredStateChangeTypes: ['specialist_item'],
@@ -386,13 +388,13 @@ export function getSignalSources(): SignalSourceConfig[] {
       },
     },
     {
-      slug: 'epstein-coverup-named-unsupported',
-      name: 'EpsteinCoverup (placeholder — unsupported)',
-      provenanceClass: 'INDIE',
-      fetchKind: 'unsupported',
+      slug: 'uncovering-epstein-network',
+      name: 'Uncovering the Epstein Network',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'rss',
       deskLane: 'osint',
-      contentUseMode: 'manual_review',
-      endpointUrl: null,
+      contentUseMode: 'preview_and_link',
+      endpointUrl: UNCOVERING_EPSTEIN_NETWORK_FEED,
       isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
@@ -400,10 +402,16 @@ export function getSignalSources(): SignalSourceConfig[] {
       requiresIndependentVerification: false,
       heroEligibilityMode: 'normal',
       purpose:
-        'Placeholder row: no single canonical “EpsteinCoverup” public feed was identified. Replace with a specific publisher URL if you adopt one.',
-      trustedFor: 'Nothing automatically.',
-      notTrustedFor: 'Any automated ingest until a vetted public feed endpoint is configured.',
-      editorialNotes: 'Registry-only honesty marker; ingest skips this slug.',
+        'Investigative reporting on the Epstein network; public WordPress RSS mirrors posts with canonical links to epsteincoverup.us articles.',
+      trustedFor: 'Headlines, dates, and pointers to the site’s own reporting pages.',
+      notTrustedFor: 'Court filings or law-enforcement evidence; read linked articles and primary sources.',
+      editorialNotes:
+        'Enable after editorial sign-off. Site lists /coverage/ for browsing; ingest uses standard WP /feed/ (same as link rel alternate on the site).',
+      editorialControls: {
+        defaultPriority: 52,
+        preferredStateChangeTypes: ['specialist_item'],
+        allowKeywords: ['Epstein', 'DOJ', 'court', 'files', 'network'],
+      },
     },
     {
       slug: 'robert-reich',

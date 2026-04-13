@@ -99,6 +99,20 @@ describe('ingestOneSource', () => {
     expect(out.items[0]!.summary!.length).toBeLessThanOrEqual(322);
   });
 
+  it('includes bodySample on HTTP error responses', async () => {
+    vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: '<html><title>blocked</title><body>cf challenge</body></html>',
+      finalUrl: 'https://example.com/feed',
+      contentType: 'text/html; charset=UTF-8',
+    });
+    const out = await ingestOneSource(rssCfg());
+    expect(out.status).toBe('failed');
+    expect(out.error).toMatch(/HTTP 403/);
+    expect(out.meta?.bodySample).toBe('<html><title>blocked</title><body>cf challenge</body></html>'.slice(0, 180));
+  });
+
   it('accepts podcast_rss the same way as rss', async () => {
     vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
       ok: true,

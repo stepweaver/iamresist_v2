@@ -67,14 +67,14 @@ The broader **Voices archive** (Notion + media catalog) remains at `/voices`; it
 | `propublica` | RSS | yes | `feed_summary` |
 | `american-oversight` | RSS | yes | `feed_summary` |
 | `courier-the-cover-up` | RSS | **no** | `preview_and_link` — enable after editorial sign-off. |
-| `epstein-coverup-named-unsupported` | n/a | no | Placeholder; no canonical public “EpsteinCoverup” feed identified. |
+| `uncovering-epstein-network` | WordPress RSS (`/feed/`) | **no** | `preview_and_link` — enable after editorial sign-off; canonical articles on epsteincoverup.us. |
 
 ### Creator / commentary (Voices)
 
 | Slug | Feed-native? | Default on | Content posture |
 |------|----------------|------------|-----------------|
 | `robert-reich` | Substack RSS | yes | `preview_and_link` |
-| `on-offense-kris-goldsmith` | Substack podcast RSS | yes | `preview_and_link` |
+| `on-offense-kris-goldsmith` | Substack RSS | yes | `preview_and_link` |
 | `total-hypocrisy` | Substack RSS | **no** | Enable after verifying `/feed`; Patreon audio without public RSS is not ingested. |
 
 ## Migrations

@@ -158,6 +158,7 @@ export async function ingestOneSource(
         httpStatus: res.status,
         finalUrl: res.finalUrl ?? null,
         contentType: res.contentType ?? null,
+        bodySample: res.text.slice(0, 180),
       },
     };
   }
