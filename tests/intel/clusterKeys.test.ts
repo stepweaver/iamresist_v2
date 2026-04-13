@@ -12,7 +12,8 @@ describe('clusterKeys (deterministic)', () => {
     const url = 'https://www.govinfo.gov/app/details/BILLS-119hr123';
     const p = parseBillFromUrl(url);
     expect(p).toEqual({ congress: '119', type: 'hr', number: '123' });
-    expect(billCanonicalKey(p)).toBe('119-hr-123');
+    expect(p).not.toBeNull();
+    expect(billCanonicalKey(p!)).toBe('119-hr-123');
     expect(extractBillClusterKeys(url)).toEqual({ bill: '119-hr-123' });
   });
 

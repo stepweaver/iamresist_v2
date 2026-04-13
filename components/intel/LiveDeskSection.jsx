@@ -88,6 +88,32 @@ function formatFreshnessIso(iso) {
   }
 }
 
+function truncatePreview(text, max = 280) {
+  if (!text || typeof text !== 'string') return '';
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1).trimEnd()}…`;
+}
+
+function linkCtaLabel(row) {
+  const mode = row.contentUseMode;
+  const lane = row.deskLane;
+  if (lane === 'voices' || mode === 'preview_and_link') {
+    return 'Read / listen at source →';
+  }
+  return 'Open canonical →';
+}
+
+function feedTransparencyHint(row) {
+  if (row.deskLane === 'voices' || row.contentUseMode === 'preview_and_link') {
+    return 'Preview via public feed · Read or subscribe at source';
+  }
+  if (row.contentUseMode === 'metadata_only') {
+    return 'Metadata only — full text at source';
+  }
+  return null;
+}
+
 function DeskStateBadge({ freshnessMeta, snapshotFallback }) {
   if (!freshnessMeta) return null;
   const deskState = snapshotFallback ? 'snapshot' : freshnessMeta.deskState;
@@ -137,7 +163,10 @@ export default function LiveDeskSection({ desk }) {
     message,
     freshness,
     freshnessMeta,
+    deskLane = 'osint',
   } = desk;
+
+  const deskLabel = deskLane === 'voices' ? 'Voices' : 'OSINT';
 
   const hasFreshnessData =
     Boolean(freshness?.latestFetchedAt) || Boolean(freshness?.latestSuccessfulIngestAt);
@@ -147,7 +176,7 @@ export default function LiveDeskSection({ desk }) {
     return (
       <section className="border border-border p-6 machine-panel">
         <p className="text-foreground/80 text-sm uppercase tracking-wider">
-          OSINT desk storage is not configured (set Supabase env vars and apply the{' '}
+          Intel desk storage is not configured (set Supabase env vars and apply the{' '}
           <code className="font-mono text-xs">intel</code> schema migrations).
         </p>
       </section>
@@ -195,7 +224,7 @@ export default function LiveDeskSection({ desk }) {
         >
           <span className="font-bold uppercase tracking-wider text-primary">
             {snapshotFallback
-              ? 'Stale — saved OSINT snapshot'
+              ? `Stale — saved ${deskLabel} snapshot`
               : intelSchemaMisconfigured
                 ? 'Supabase configuration'
                 : 'Freshness warning'}
@@ -222,7 +251,7 @@ export default function LiveDeskSection({ desk }) {
       {!liveReadOk && !snapshotFallback && items.length === 0 ? (
         <section className="border border-border p-6 machine-panel">
           <p className="text-foreground/80 text-sm uppercase tracking-wider">
-            Nothing to show yet — OSINT read failed and no saved desk snapshot exists.
+            Nothing to show yet — {deskLabel} read failed and no saved desk snapshot exists.
           </p>
         </section>
       ) : null}
@@ -259,6 +288,16 @@ export default function LiveDeskSection({ desk }) {
               <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
                 {row.whyItMatters}
               </p>
+              {row.summary && row.contentUseMode !== 'metadata_only' ? (
+                <p className="mt-2 text-xs text-foreground/65 leading-relaxed max-w-3xl">
+                  {truncatePreview(row.summary)}
+                </p>
+              ) : null}
+              {feedTransparencyHint(row) ? (
+                <p className="mt-1 font-mono text-[10px] text-primary/80 uppercase tracking-wider">
+                  {feedTransparencyHint(row)}
+                </p>
+              ) : null}
               <RelevanceStrip row={row} />
               <ClusterHint clusterKeys={row.clusterKeys} />
               <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-3">
@@ -268,7 +307,7 @@ export default function LiveDeskSection({ desk }) {
                   rel="noopener noreferrer"
                   className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
                 >
-                  Open canonical →
+                  {linkCtaLabel(row)}
                 </Link>
                 <span className="font-mono text-[10px] text-hud-dim self-center">
                   state: {row.stateChangeType}

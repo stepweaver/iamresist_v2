@@ -39,8 +39,8 @@ export default function SourcesAuditSection({ audit }) {
         <p className="text-red-700 dark:text-red-400 text-sm font-mono">{errorMessage}</p>
         <p className="text-foreground/60 text-xs mt-2 font-mono">
           Apply intel migrations through{' '}
-          <code className="text-primary">20260412160000_intel_milestone1_75_relevance.sql</code> if RPC or columns
-          are missing, then run ingest once to sync manifest fields.
+          <code className="text-primary">20260412170000_intel_source_lanes_content_use.sql</code> (and prior intel
+          migrations) if RPC or columns are missing, then run ingest once to sync manifest fields.
         </p>
       </section>
     );
@@ -55,14 +55,17 @@ export default function SourcesAuditSection({ audit }) {
       </p>
 
       <div className="overflow-x-auto border border-border machine-panel">
-        <table className="w-full min-w-[1280px] text-left text-sm">
+        <table className="w-full min-w-[1520px] text-left text-sm">
           <thead>
             <tr className="border-b border-border font-mono text-[10px] uppercase tracking-wider text-hud-dim">
               <th className="p-3 align-bottom">Health</th>
               <th className="p-3 align-bottom">Source</th>
               <th className="p-3 align-bottom">Class</th>
+              <th className="p-3 align-bottom">Lane</th>
               <th className="p-3 align-bottom">Enabled</th>
               <th className="p-3 align-bottom">Fetch</th>
+              <th className="p-3 align-bottom">Content use</th>
+              <th className="p-3 align-bottom">Acquisition</th>
               <th className="p-3 align-bottom">Last ingest</th>
               <th className="p-3 align-bottom">Last OK</th>
               <th className="p-3 align-bottom">Last item fetch</th>
@@ -93,10 +96,17 @@ export default function SourcesAuditSection({ audit }) {
                   ) : null}
                 </td>
                 <td className="p-3 font-mono text-xs">{r.provenanceClass}</td>
+                <td className="p-3 font-mono text-xs uppercase">{r.deskLane}</td>
                 <td className="p-3 font-mono text-xs">{r.isEnabled ? 'yes' : 'no'}</td>
                 <td className="p-3 font-mono text-[10px] text-foreground/80 max-w-[200px] break-all">
                   {r.fetchKind}
                   <div className="text-hud-dim mt-1 break-all">{r.endpointDisplay}</div>
+                </td>
+                <td className="p-3 font-mono text-[10px] text-foreground/80 max-w-[140px]">
+                  {r.contentUseMode}
+                </td>
+                <td className="p-3 font-mono text-[10px] text-foreground/75 max-w-[160px] leading-snug">
+                  {r.acquisitionSummary}
                 </td>
                 <td className="p-3 font-mono text-[10px]">
                   {r.lastRunStatus ?? '—'}
@@ -132,6 +142,30 @@ export default function SourcesAuditSection({ audit }) {
               <HealthBadge health={r.health} />
             </div>
             <dl className="grid gap-3 sm:grid-cols-1 text-sm">
+              {r.transparencyBadge ? (
+                <div className="border border-primary/35 bg-primary/5 px-3 py-2 rounded">
+                  <dt className="font-mono text-[10px] uppercase text-primary/90 tracking-wider">
+                    Content transparency
+                  </dt>
+                  <dd className="text-foreground/90 mt-1 font-mono text-xs">{r.transparencyBadge}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Desk lane</dt>
+                <dd className="text-foreground/85 mt-1 font-mono text-xs uppercase">{r.deskLane}</dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Fetch kind</dt>
+                <dd className="text-foreground/85 mt-1 font-mono text-xs">{r.fetchKind}</dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Content use mode</dt>
+                <dd className="text-foreground/85 mt-1 font-mono text-xs">{r.contentUseMode}</dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Acquisition</dt>
+                <dd className="text-foreground/85 mt-1 font-mono text-xs">{r.acquisitionSummary}</dd>
+              </div>
               <div>
                 <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Purpose</dt>
                 <dd className="text-foreground/85 mt-1">{r.purpose ?? '—'}</dd>

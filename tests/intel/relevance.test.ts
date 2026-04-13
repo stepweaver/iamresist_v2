@@ -23,6 +23,8 @@ function baseCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig {
     name: 'FR',
     provenanceClass: 'PRIMARY',
     fetchKind: 'json_api',
+    deskLane: 'osint',
+    contentUseMode: 'feed_summary',
     endpointUrl: 'https://x',
     isEnabled: true,
     purpose: 'p',

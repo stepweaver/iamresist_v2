@@ -13,6 +13,14 @@ const GOVINFO_BILLS = 'https://www.govinfo.gov/rss/bills.xml';
 const GOVINFO_CREC = 'https://www.govinfo.gov/rss/crec.xml';
 const SCOTUSBLOG = 'https://www.scotusblog.com/feed/';
 const DEMOCRACY_DOCKET = 'https://www.democracydocket.com/feed/';
+const LAWFARE = 'https://www.lawfaremedia.org/feed/';
+const PROPUBLICA = 'https://feeds.propublica.org/propublica/main';
+const AMERICAN_OVERSIGHT = 'https://americanoversight.org/feed';
+const COURIER_COVER_UP = 'https://thecoverupnewsletter.substack.com/feed';
+const ROBERT_REICH = 'https://robertreich.substack.com/feed';
+/** Substack-hosted podcast RSS (public). */
+const ON_OFFENSE_PODCAST = 'https://api.substack.com/feed/podcast/3764927.rss';
+const TOTAL_HYPOCRISY = 'https://totalhypocrisy.substack.com/feed';
 
 /** Routine Federal Register / PI churn — suppressed from default desk surface (retained in DB). */
 const FR_PROCEDURAL_BLOCK_KEYWORDS = [
@@ -43,7 +51,7 @@ function envTrim(name: string): string | null {
 }
 
 /**
- * Milestone 1 registry. Reuters/AP: set INTEL_REUTERS_RSS_URL / INTEL_AP_RSS_URL or sources stay disabled (fail closed).
+ * Version-controlled registry. Reuters/AP: set INTEL_REUTERS_RSS_URL / INTEL_AP_RSS_URL or sources stay disabled (fail closed).
  */
 export function getSignalSources(): SignalSourceConfig[] {
   const reutersUrl = envTrim('INTEL_REUTERS_RSS_URL');
@@ -55,6 +63,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'White House — News',
       provenanceClass: 'PRIMARY',
       fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: WH_NEWS,
       isEnabled: true,
       isCoreSource: true,
@@ -94,6 +104,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'White House — Presidential Actions',
       provenanceClass: 'PRIMARY',
       fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: WH_PRESIDENTIAL,
       isEnabled: true,
       isCoreSource: true,
@@ -118,6 +130,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'Federal Register — Public Inspection',
       provenanceClass: 'PRIMARY',
       fetchKind: 'json_api',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: FR_PI,
       isEnabled: true,
       isCoreSource: true,
@@ -138,6 +152,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'Federal Register — Published',
       provenanceClass: 'PRIMARY',
       fetchKind: 'json_api',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: FR_PUBLISHED,
       isEnabled: true,
       isCoreSource: true,
@@ -166,6 +182,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'GovInfo — Bills (RSS)',
       provenanceClass: 'PRIMARY',
       fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: GOVINFO_BILLS,
       isEnabled: true,
       isCoreSource: true,
@@ -184,6 +202,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'GovInfo — Congressional Record (RSS)',
       provenanceClass: 'PRIMARY',
       fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: GOVINFO_CREC,
       isEnabled: true,
       isCoreSource: true,
@@ -206,6 +226,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'Reuters (wire)',
       provenanceClass: 'WIRE',
       fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: reutersUrl,
       isEnabled: Boolean(reutersUrl),
       isCoreSource: false,
@@ -226,6 +248,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'Associated Press (wire)',
       provenanceClass: 'WIRE',
       fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: apUrl,
       isEnabled: Boolean(apUrl),
       isCoreSource: false,
@@ -244,6 +268,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'SCOTUSblog',
       provenanceClass: 'SPECIALIST',
       fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: SCOTUSBLOG,
       isEnabled: true,
       isCoreSource: false,
@@ -261,6 +287,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       name: 'Democracy Docket',
       provenanceClass: 'SPECIALIST',
       fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
       endpointUrl: DEMOCRACY_DOCKET,
       isEnabled: true,
       isCoreSource: false,
@@ -271,6 +299,156 @@ export function getSignalSources(): SignalSourceConfig[] {
         defaultPriority: 58,
         preferredStateChangeTypes: ['specialist_item'],
         allowKeywords: ['lawsuit', 'opinion', 'appeals', 'ballot', 'redistrict', 'voting'],
+      },
+    },
+    {
+      slug: 'lawfare',
+      name: 'Lawfare',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
+      endpointUrl: LAWFARE,
+      isEnabled: true,
+      isCoreSource: false,
+      purpose: 'National security, courts, and executive-power legal analysis from Lawfare (public site RSS).',
+      trustedFor: 'Timely specialist framing and links to primary documents cited in their coverage.',
+      notTrustedFor: 'Substitute for court orders, statutes, or agency final rules.',
+      editorialControls: {
+        defaultPriority: 54,
+        preferredStateChangeTypes: ['specialist_item'],
+        allowKeywords: ['court', 'executive', 'congress', 'surveillance', 'election', 'immigration', 'DOJ'],
+      },
+    },
+    {
+      slug: 'propublica',
+      name: 'ProPublica',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
+      endpointUrl: PROPUBLICA,
+      isEnabled: true,
+      isCoreSource: false,
+      purpose: 'Investigative reporting feed (nonprofit, public interest).',
+      trustedFor: 'Leads and accountability journalism pointers with canonical article links.',
+      notTrustedFor: 'Treating RSS blurbs alone as proof; always read the full investigation at ProPublica.',
+      editorialControls: {
+        defaultPriority: 57,
+        preferredStateChangeTypes: ['specialist_item'],
+        allowKeywords: ['lawsuit', 'records', 'court', 'Trump', 'agency', 'investigation'],
+      },
+    },
+    {
+      slug: 'american-oversight',
+      name: 'American Oversight',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
+      endpointUrl: AMERICAN_OVERSIGHT,
+      isEnabled: true,
+      isCoreSource: false,
+      purpose: 'FOIA litigation and government accountability updates from American Oversight’s public feed.',
+      trustedFor: 'Records-request narratives, lawsuit filings, and transparency campaign pointers.',
+      notTrustedFor: 'Verified contents of unreleased records; read linked filings and releases.',
+      editorialControls: {
+        defaultPriority: 55,
+        preferredStateChangeTypes: ['specialist_item'],
+        allowKeywords: ['lawsuit', 'records', 'FOIA', 'transparency', 'court', 'ICE', 'DOJ'],
+      },
+    },
+    {
+      slug: 'courier-the-cover-up',
+      name: 'The Cover-Up (COURIER / Substack)',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'rss',
+      deskLane: 'osint',
+      contentUseMode: 'preview_and_link',
+      endpointUrl: COURIER_COVER_UP,
+      isEnabled: false,
+      isCoreSource: false,
+      purpose:
+        'Optional specialist newsletter on Epstein accountability (public Substack RSS). Disabled by default for editorial sign-off.',
+      trustedFor: 'Syndicated headlines and links to COURIER’s own publication.',
+      notTrustedFor: 'Law enforcement evidence or complete document sets; not a substitute for court records.',
+      editorialNotes: 'Enable in manifest after editorial review. Preview-and-link only.',
+      editorialControls: {
+        defaultPriority: 50,
+        preferredStateChangeTypes: ['specialist_item'],
+      },
+    },
+    {
+      slug: 'epstein-coverup-named-unsupported',
+      name: 'EpsteinCoverup (placeholder — unsupported)',
+      provenanceClass: 'INDIE',
+      fetchKind: 'unsupported',
+      deskLane: 'osint',
+      contentUseMode: 'manual_review',
+      endpointUrl: null,
+      isEnabled: false,
+      isCoreSource: false,
+      purpose:
+        'Placeholder row: no single canonical “EpsteinCoverup” public feed was identified. Replace with a specific publisher URL if you adopt one.',
+      trustedFor: 'Nothing automatically.',
+      notTrustedFor: 'Any automated ingest until a vetted public feed endpoint is configured.',
+      editorialNotes: 'Registry-only honesty marker; ingest skips this slug.',
+    },
+    {
+      slug: 'robert-reich',
+      name: 'Robert Reich (Substack)',
+      provenanceClass: 'COMMENTARY',
+      fetchKind: 'rss',
+      deskLane: 'voices',
+      contentUseMode: 'preview_and_link',
+      endpointUrl: ROBERT_REICH,
+      isEnabled: true,
+      isCoreSource: false,
+      purpose: 'Creator commentary and economic/political framing via public Substack RSS.',
+      trustedFor: 'Interpretation hooks and pointers to the author’s own posts.',
+      notTrustedFor: 'Primary government records, wire confirmation, or neutral fact baseline.',
+      editorialControls: {
+        defaultPriority: 46,
+        preferredStateChangeTypes: ['commentary_item'],
+        allowKeywords: ['Trump', 'democracy', 'economy', 'oligarch', 'worker'],
+      },
+    },
+    {
+      slug: 'on-offense-kris-goldsmith',
+      name: 'On Offense with Kris Goldsmith (podcast RSS)',
+      provenanceClass: 'COMMENTARY',
+      fetchKind: 'podcast_rss',
+      deskLane: 'voices',
+      contentUseMode: 'preview_and_link',
+      endpointUrl: ON_OFFENSE_PODCAST,
+      isEnabled: true,
+      isCoreSource: false,
+      purpose: 'Public podcast feed (Substack-hosted RSS) for episode discovery and links to show notes.',
+      trustedFor: 'Episode titles, dates, and canonical episode/show-note URLs.',
+      notTrustedFor: 'Wire news or official documents; audio is consumed on the creator’s platform.',
+      editorialControls: {
+        defaultPriority: 48,
+        preferredStateChangeTypes: ['commentary_item'],
+      },
+    },
+    {
+      slug: 'total-hypocrisy',
+      name: 'Total Hypocrisy (Substack)',
+      provenanceClass: 'COMMENTARY',
+      fetchKind: 'rss',
+      deskLane: 'voices',
+      contentUseMode: 'preview_and_link',
+      endpointUrl: TOTAL_HYPOCRISY,
+      isEnabled: false,
+      isCoreSource: false,
+      purpose: 'Creator commentary via Substack public RSS when verified (enable after confirming feed returns items).',
+      trustedFor: 'Syndicated post titles and links to Substack.',
+      notTrustedFor: 'Patreon-exclusive audio without a separate public feed.',
+      editorialNotes:
+        'Disabled until feed is verified in production. Patreon-only podcast is not ingested here.',
+      editorialControls: {
+        defaultPriority: 45,
+        preferredStateChangeTypes: ['commentary_item'],
       },
     },
   ];

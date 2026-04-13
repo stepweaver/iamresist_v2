@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 
-import type { StateChangeType } from '@/lib/intel/types';
+import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
+import type { ContentUseMode, FetchKind, StateChangeType } from '@/lib/intel/types';
 import {
   extractBillClusterKeys,
   extractExecutiveClusterKeys,
@@ -34,22 +35,63 @@ function looksLikeHtml(text: string): boolean {
   return t.startsWith('<!doctype') || t.startsWith('<html');
 }
 
-function mapStateChange(
-  slug: string,
-  provenanceClass: string,
-): StateChangeType {
+function mapStateChange(slug: string, provenanceClass: string): StateChangeType {
   if (slug === 'govinfo-crec') return 'congressional_record_feed_item';
   if (slug === 'govinfo-bills') return 'legislative_feed_item';
-  if (provenanceClass === 'WIRE') return 'wire_item';
-  if (provenanceClass === 'SPECIALIST') return 'specialist_item';
   if (slug === 'wh-news') return 'press_statement';
   if (slug === 'wh-presidential') return 'presidential_action';
+  if (provenanceClass === 'WIRE') return 'wire_item';
+  if (provenanceClass === 'COMMENTARY') return 'commentary_item';
+  if (provenanceClass === 'SPECIALIST') return 'specialist_item';
   return 'unknown';
+}
+
+function itemLink(row: Record<string, unknown> & { link?: string; links?: { href?: string }[] }): string {
+  const direct = row.link;
+  if (direct && typeof direct === 'string' && direct.trim()) return direct.trim();
+
+  const enc = row.enclosure as { url?: string } | undefined;
+  if (enc?.url && typeof enc.url === 'string' && enc.url.trim()) return enc.url.trim();
+
+  const links = row.links;
+  if (Array.isArray(links)) {
+    for (const l of links) {
+      if (l?.href && typeof l.href === 'string' && l.href.trim()) return l.href.trim();
+    }
+  }
+  return '';
+}
+
+function pickRawSummary(
+  row: Record<string, unknown>,
+  contentUseMode: ContentUseMode,
+): string | null {
+  const snippet = row.contentSnippet as string | undefined;
+  if (snippet && String(snippet).trim()) return String(snippet).trim();
+
+  const desc = row.description as string | undefined;
+  const summ = row.summary as string | undefined;
+  const fromDesc = desc ? stripHtmlToText(desc) : '';
+  const fromSumm = summ ? stripHtmlToText(summ) : '';
+  const combined = [fromDesc, fromSumm].find((s) => s && s.trim());
+  if (combined) return combined.trim();
+
+  if (contentUseMode === 'full_text_if_feed_includes') {
+    const content = row.content as string | undefined;
+    if (content && String(content).trim()) return stripHtmlToText(content);
+  }
+
+  return null;
 }
 
 export async function parseRssXmlToItems(
   xml: string,
-  ctx: { sourceSlug: string; provenanceClass: string },
+  ctx: {
+    sourceSlug: string;
+    provenanceClass: string;
+    contentUseMode: ContentUseMode;
+    fetchKind: FetchKind;
+  },
 ): Promise<NormalizedItem[]> {
   if (!xml || looksLikeHtml(xml)) return [];
   if (!xml.includes('<rss') && !xml.includes('<feed')) return [];
@@ -63,18 +105,16 @@ export async function parseRssXmlToItems(
       link?: string;
       links?: { href?: string }[];
     };
-    const link = row.link || row.links?.[0]?.href || '';
-    if (!link || typeof link !== 'string') continue;
+    const link = itemLink(row);
+    if (!link) continue;
 
     const title = String(row.title ?? '').trim() || 'Untitled';
     const publishedAt = parseItemDate(row);
     const guid = (row.guid as string) || (row.id as string) || link;
     const externalId = typeof guid === 'string' && guid ? guid : null;
-    const summary =
-      (row.contentSnippet as string) ||
-      (row.summary as string) ||
-      (row.description as string) ||
-      null;
+
+    const rawSummary = pickRawSummary(row, ctx.contentUseMode);
+    const summary = applyContentUseModeToSummary(rawSummary, ctx.contentUseMode);
 
     const clusterKeys = mergeClusterParts(
       extractBillClusterKeys(link),
@@ -85,13 +125,14 @@ export async function parseRssXmlToItems(
 
     const base = {
       externalId,
-      canonicalUrl: link.trim(),
+      canonicalUrl: link,
       title,
-      summary: summary ? String(summary).slice(0, 4000) : null,
+      summary,
       publishedAt,
       structured: {
         feedTitle: feed.title ?? null,
         itemCategories: row.categories ?? null,
+        fetchKind: ctx.fetchKind,
       },
       clusterKeys,
       stateChangeType,

@@ -116,6 +116,46 @@ function sourceBaseline(
       defaultPriority: 56,
     };
   }
+  if (slug === 'lawfare') {
+    return {
+      tags: ['courts', 'federal_agencies', 'international_relevant'],
+      branch: 'judicial',
+      area: 'specialist',
+      defaultPriority: 54,
+    };
+  }
+  if (slug === 'propublica') {
+    return {
+      tags: ['federal_agencies', 'civil_liberties', 'elections'],
+      branch: 'unknown',
+      area: 'specialist',
+      defaultPriority: 57,
+    };
+  }
+  if (slug === 'american-oversight') {
+    return {
+      tags: ['federal_agencies', 'elections', 'voting_rights'],
+      branch: 'administrative',
+      area: 'specialist',
+      defaultPriority: 55,
+    };
+  }
+  if (slug === 'courier-the-cover-up') {
+    return {
+      tags: ['courts', 'civil_liberties'],
+      branch: 'unknown',
+      area: 'specialist',
+      defaultPriority: 50,
+    };
+  }
+  if (slug === 'robert-reich' || slug === 'on-offense-kris-goldsmith' || slug === 'total-hypocrisy') {
+    return {
+      tags: ['economy_major', 'elections', 'protest'],
+      branch: 'unknown',
+      area: 'unknown',
+      defaultPriority: slug === 'on-offense-kris-goldsmith' ? 48 : 46,
+    };
+  }
   return {
     tags: [],
     branch: 'unknown',

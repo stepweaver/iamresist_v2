@@ -18,6 +18,10 @@ export type IntelSourceAuditRow = {
   name: string;
   provenanceClass: string;
   fetchKind: string;
+  deskLane: string;
+  contentUseMode: string;
+  acquisitionSummary: string;
+  transparencyBadge: string | null;
   endpointDisplay: string;
   isEnabled: boolean;
   purpose: string | null;
@@ -58,6 +62,37 @@ function isOlderThan(iso: string | null, maxAgeMs: number): boolean {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return true;
   return Date.now() - t > maxAgeMs;
+}
+
+function acquisitionSummary(fetchKind: string): string {
+  switch (fetchKind) {
+    case 'rss':
+      return 'Feed-native · RSS';
+    case 'podcast_rss':
+      return 'Feed-native · podcast RSS';
+    case 'json_api':
+      return 'Feed-native · JSON API';
+    case 'unsupported':
+      return 'Unsupported (registry only)';
+    case 'manual':
+      return 'Manual (no auto-fetch)';
+    case 'newsletter_only':
+      return 'Newsletter path (no RSS ingest)';
+    case 'scrape':
+      return 'Scrape (not implemented)';
+    default:
+      return fetchKind;
+  }
+}
+
+function transparencyBadge(contentUseMode: string, deskLane: string): string | null {
+  if (deskLane === 'voices' || contentUseMode === 'preview_and_link') {
+    return 'Preview via public feed · Read at source';
+  }
+  if (contentUseMode === 'metadata_only') {
+    return 'Metadata only — link to source for full text';
+  }
+  return null;
 }
 
 function endpointDisplay(slug: string, url: string | null): string {
@@ -212,12 +247,19 @@ async function buildIntelSourcesAudit(): Promise<{
       staleMs,
     });
 
+    const deskLane = src.desk_lane ?? 'osint';
+    const contentUseMode = src.content_use_mode ?? 'feed_summary';
+
     return {
       id: src.id,
       slug: src.slug,
       name: src.name,
       provenanceClass: src.provenance_class,
       fetchKind: src.fetch_kind,
+      deskLane,
+      contentUseMode,
+      acquisitionSummary: acquisitionSummary(src.fetch_kind),
+      transparencyBadge: transparencyBadge(contentUseMode, deskLane),
       endpointDisplay: endpointDisplay(src.slug, src.endpoint_url),
       isEnabled: src.is_enabled,
       purpose: src.purpose,
@@ -287,7 +329,7 @@ async function buildIntelSourcesAudit(): Promise<{
   };
 }
 
-export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v3'], {
+export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v4'], {
   revalidate: 90,
   tags: ['intel-sources'],
 });

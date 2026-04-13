@@ -26,6 +26,9 @@ export function whyItMattersStub(
   if (stateChangeType === 'press_statement') {
     return 'White House communications — compare with agency filings and wire verification.';
   }
+  if (stateChangeType === 'commentary_item' || provenanceClass === 'COMMENTARY') {
+    return 'Creator commentary — not a primary document; follow the canonical link to read or listen at the source.';
+  }
   if (provenanceClass === 'WIRE') {
     return 'Wire-speed headline — use to sanity-check against primary documents.';
   }

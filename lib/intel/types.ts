@@ -6,7 +6,24 @@ export type ProvenanceClass =
   | 'COMMENTARY'
   | 'SCHEDULE';
 
-export type FetchKind = 'rss' | 'json_api';
+export type FetchKind =
+  | 'rss'
+  | 'json_api'
+  | 'podcast_rss'
+  | 'unsupported'
+  | 'manual'
+  | 'newsletter_only'
+  | 'scrape';
+
+export type DeskLane = 'osint' | 'voices';
+
+/** How feed-native text is stored and surfaced; manual_review = registry row only (no auto-fetch). */
+export type ContentUseMode =
+  | 'metadata_only'
+  | 'feed_summary'
+  | 'preview_and_link'
+  | 'full_text_if_feed_includes'
+  | 'manual_review';
 
 /** Hint for rule-based copy; separate from future procedural_stage on events. */
 export type StateChangeType =
@@ -18,7 +35,8 @@ export type StateChangeType =
   | 'legislative_feed_item'
   | 'congressional_record_feed_item'
   | 'wire_item'
-  | 'specialist_item';
+  | 'specialist_item'
+  | 'commentary_item';
 
 /** Deterministic mission vocabulary for OSINT relevance (expand only with explicit rules). */
 export type MissionTag =
@@ -77,6 +95,10 @@ export type SignalSourceConfig = {
   name: string;
   provenanceClass: ProvenanceClass;
   fetchKind: FetchKind;
+  /** OSINT institutional/specialist desk vs ingested creator commentary desk. */
+  deskLane: DeskLane;
+  /** Feed-native text retention policy (enforced at parse + UI). */
+  contentUseMode: ContentUseMode;
   /** When null/empty, source is skipped (wire URLs from env). */
   endpointUrl: string | null;
   isEnabled: boolean;

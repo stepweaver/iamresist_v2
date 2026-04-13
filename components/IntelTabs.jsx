@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/intel/osint", label: "OSINT" },
-  { href: "/voices", label: "Voices" },
+  { href: "/intel/voices", label: "Voices" },
   { href: "/intel/newswire", label: "Newswire" },
   { href: "/intel/sources", label: "Sources" },
 ];
@@ -16,7 +16,7 @@ export default function IntelTabs({ description }) {
     pathname?.startsWith("/intel/osint") || pathname?.startsWith("/intel/live");
   const isSources = pathname?.startsWith("/intel/sources");
   const isNewswire = pathname?.startsWith("/intel/newswire");
-  const isVoices = !isOsint && !isNewswire && !isSources;
+  const isVoices = pathname?.startsWith("/intel/voices");
 
   return (
     <header className="mb-4 sm:mb-5 border-b border-border pb-4 sm:pb-5">
@@ -32,7 +32,7 @@ export default function IntelTabs({ description }) {
             (tab.href === "/intel/osint" && isOsint) ||
             (tab.href === "/intel/sources" && isSources) ||
             (tab.href === "/intel/newswire" && isNewswire) ||
-            (tab.href === "/voices" && isVoices);
+            (tab.href === "/intel/voices" && isVoices);
           return (
             <span key={tab.href} className="flex items-baseline gap-2 sm:gap-4">
               {i > 0 && (
@@ -54,11 +54,11 @@ export default function IntelTabs({ description }) {
           );
         })}
       </nav>
-      {description && (
-        <p className="text-xs sm:text-sm text-foreground/70 uppercase tracking-wider">
+      {description ? (
+        <div className="text-xs sm:text-sm text-foreground/70 uppercase tracking-wider leading-relaxed">
           {description}
-        </p>
-      )}
+        </div>
+      ) : null}
     </header>
   );
 }

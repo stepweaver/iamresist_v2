@@ -4,7 +4,13 @@ import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 import { dbEnv } from '@/lib/env/db';
 import { computeRelevanceProfile, editorialControlsForDb } from '@/lib/intel/relevance';
 import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
-import type { IngestRunStatus, NormalizedItem, ProvenanceClass, SignalSourceConfig } from '@/lib/intel/types';
+import type {
+  DeskLane,
+  IngestRunStatus,
+  NormalizedItem,
+  ProvenanceClass,
+  SignalSourceConfig,
+} from '@/lib/intel/types';
 
 export function intelDbConfigured(): boolean {
   return Boolean(dbEnv.SUPABASE_URL && dbEnv.SUPABASE_SERVICE_ROLE_KEY);
@@ -28,6 +34,8 @@ export async function syncIntelSourcesFromManifest(
     name: c.name,
     provenance_class: c.provenanceClass,
     fetch_kind: c.fetchKind,
+    desk_lane: c.deskLane,
+    content_use_mode: c.contentUseMode,
     endpoint_url: c.endpointUrl,
     is_enabled: c.isEnabled,
     purpose: c.purpose,
@@ -119,6 +127,8 @@ export async function upsertSourceItems(
       structured: it.structured,
       cluster_keys: it.clusterKeys,
       state_change_type: it.stateChangeType,
+      desk_lane: sourceCfg.deskLane,
+      content_use_mode: sourceCfg.contentUseMode,
       mission_tags: rel.mission_tags,
       branch_of_government: rel.branch_of_government,
       institutional_area: rel.institutional_area,
@@ -151,6 +161,8 @@ export type SourceItemRow = {
   canonical_url: string;
   published_at: string | null;
   fetched_at: string;
+  desk_lane: DeskLane;
+  content_use_mode: string;
   cluster_keys: Record<string, string>;
   state_change_type: string;
   mission_tags: string[];
@@ -174,6 +186,8 @@ const SOURCE_ITEMS_LIVE_SELECT = `
       canonical_url,
       published_at,
       fetched_at,
+      desk_lane,
+      content_use_mode,
       cluster_keys,
       state_change_type,
       mission_tags,
@@ -191,12 +205,16 @@ const SOURCE_ITEMS_LIVE_SELECT = `
     `;
 
 /** Surfaced rows only, newest first — avoids suppressed rows consuming the desk fetch budget. */
-export async function fetchSurfacedSourceItemsForLive(limit: number): Promise<SourceItemRow[]> {
+export async function fetchSurfacedSourceItemsForLive(
+  limit: number,
+  deskLane: DeskLane,
+): Promise<SourceItemRow[]> {
   const supabase = client();
   const { data, error } = await supabase
     .from('source_items')
     .select(SOURCE_ITEMS_LIVE_SELECT)
     .eq('surface_state', 'surfaced')
+    .eq('desk_lane', deskLane)
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
@@ -205,13 +223,17 @@ export async function fetchSurfacedSourceItemsForLive(limit: number): Promise<So
 }
 
 /** Small secondary pool for downranked items (still on default surface, sorted after surfaced). */
-export async function fetchDownrankedSourceItemsForLive(limit: number): Promise<SourceItemRow[]> {
+export async function fetchDownrankedSourceItemsForLive(
+  limit: number,
+  deskLane: DeskLane,
+): Promise<SourceItemRow[]> {
   if (limit <= 0) return [];
   const supabase = client();
   const { data, error } = await supabase
     .from('source_items')
     .select(SOURCE_ITEMS_LIVE_SELECT)
     .eq('surface_state', 'downranked')
+    .eq('desk_lane', deskLane)
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
@@ -220,12 +242,16 @@ export async function fetchDownrankedSourceItemsForLive(limit: number): Promise<
 }
 
 /** Suppressed-only fetch for the disclosure section (separate query, tight limit). */
-export async function fetchSuppressedSourceItemsForLive(limit: number): Promise<SourceItemRow[]> {
+export async function fetchSuppressedSourceItemsForLive(
+  limit: number,
+  deskLane: DeskLane,
+): Promise<SourceItemRow[]> {
   const supabase = client();
   const { data, error } = await supabase
     .from('source_items')
     .select(SOURCE_ITEMS_LIVE_SELECT)
     .eq('surface_state', 'suppressed')
+    .eq('desk_lane', deskLane)
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
@@ -264,6 +290,48 @@ export async function fetchIntelFreshnessSnapshot(): Promise<IntelFreshness> {
   };
 }
 
+/** Freshness scoped to one desk lane (items + ingest runs for sources in that lane). */
+export async function fetchIntelFreshnessForDeskLane(deskLane: DeskLane): Promise<IntelFreshness> {
+  const supabase = client();
+
+  const { data: laneSources, error: srcErr } = await supabase
+    .from('sources')
+    .select('id')
+    .eq('desk_lane', deskLane);
+  if (srcErr) throw new Error(`sources lane select: ${srcErr.message}`);
+  const ids: string[] = [];
+  for (const row of laneSources ?? []) {
+    const rec = row as { id?: string | null };
+    if (typeof rec.id === 'string' && rec.id) ids.push(rec.id);
+  }
+
+  const { data: itemRows, error: itemErr } = await supabase
+    .from('source_items')
+    .select('fetched_at')
+    .eq('desk_lane', deskLane)
+    .order('fetched_at', { ascending: false })
+    .limit(1);
+  if (itemErr) throw new Error(`source_items lane freshness: ${itemErr.message}`);
+
+  let latestSuccessfulIngestAt: string | null = null;
+  if (ids.length > 0) {
+    const { data: runRows, error: runErr } = await supabase
+      .from('ingest_runs')
+      .select('finished_at')
+      .eq('status', 'success')
+      .in('source_id', ids)
+      .order('finished_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (runErr) throw new Error(`ingest_runs lane freshness: ${runErr.message}`);
+    latestSuccessfulIngestAt = (runRows?.[0]?.finished_at as string) ?? null;
+  }
+
+  return {
+    latestFetchedAt: (itemRows?.[0]?.fetched_at as string) ?? null,
+    latestSuccessfulIngestAt,
+  };
+}
+
 export type IntelFreshnessMeta = {
   thresholdMinutes: number;
   latestFetchedAgeMinutes: number | null;
@@ -280,11 +348,17 @@ export type LiveDeskSnapshotPayload = {
   freshnessMeta?: IntelFreshnessMeta | null;
 };
 
-export async function saveLiveDeskSnapshot(payload: LiveDeskSnapshotPayload): Promise<void> {
+/** `1` = OSINT desk, `2` = Voices desk — see migration `20260412170000_intel_source_lanes_content_use.sql`. */
+export type LiveDeskSnapshotId = 1 | 2;
+
+export async function saveLiveDeskSnapshot(
+  snapshotId: LiveDeskSnapshotId,
+  payload: LiveDeskSnapshotPayload,
+): Promise<void> {
   const supabase = client();
   const { error } = await supabase.from('live_desk_snapshot').upsert(
     {
-      id: 1,
+      id: snapshotId,
       payload: JSON.parse(JSON.stringify(payload)) as Record<string, unknown>,
       updated_at: new Date().toISOString(),
     },
@@ -293,9 +367,15 @@ export async function saveLiveDeskSnapshot(payload: LiveDeskSnapshotPayload): Pr
   if (error) throw new Error(`live_desk_snapshot upsert: ${error.message}`);
 }
 
-export async function loadLiveDeskSnapshot(): Promise<LiveDeskSnapshotPayload | null> {
+export async function loadLiveDeskSnapshot(
+  snapshotId: LiveDeskSnapshotId,
+): Promise<LiveDeskSnapshotPayload | null> {
   const supabase = client();
-  const { data, error } = await supabase.from('live_desk_snapshot').select('payload').eq('id', 1).maybeSingle();
+  const { data, error } = await supabase
+    .from('live_desk_snapshot')
+    .select('payload')
+    .eq('id', snapshotId)
+    .maybeSingle();
   if (error) throw new Error(`live_desk_snapshot select: ${error.message}`);
   const raw = data?.payload;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -320,6 +400,8 @@ export type IntelSourceRegistryRow = {
   name: string;
   provenance_class: string;
   fetch_kind: string;
+  desk_lane: DeskLane;
+  content_use_mode: string;
   endpoint_url: string | null;
   is_enabled: boolean;
   purpose: string | null;
@@ -335,7 +417,7 @@ export async function fetchIntelSourcesRegistry(): Promise<IntelSourceRegistryRo
   const { data, error } = await supabase
     .from('sources')
     .select(
-      'id, slug, name, provenance_class, fetch_kind, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source, editorial_controls',
+      'id, slug, name, provenance_class, fetch_kind, desk_lane, content_use_mode, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source, editorial_controls',
     )
     .order('slug');
   if (error) throw new Error(`intel.sources registry: ${error.message}`);
