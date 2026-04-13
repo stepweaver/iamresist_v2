@@ -474,16 +474,19 @@ export type IngestRunAuditRow = {
   source_id: string;
   status: IngestRunStatus;
   finished_at: string | null;
+  error_message: string | null;
+  meta: Record<string, unknown> | null;
 };
 
 export async function fetchRecentIngestRunsForAudit(limit = 500): Promise<IngestRunAuditRow[]> {
   const supabase = client();
   const { data, error } = await supabase
     .from('ingest_runs')
-    .select('source_id, status, finished_at')
+    .select('source_id, status, finished_at, error_message, meta')
     .not('source_id', 'is', null)
     .order('finished_at', { ascending: false, nullsFirst: false })
     .limit(limit);
+
   if (error) throw new Error(`ingest_runs audit: ${error.message}`);
   return (data ?? []) as IngestRunAuditRow[];
 }
