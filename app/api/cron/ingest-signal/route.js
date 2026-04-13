@@ -1,6 +1,7 @@
 /**
  * GET /api/cron/ingest-signal
- * Fetches configured intel sources, upserts intel.source_items, revalidates intel caches.
+ * Fetches configured intel sources when due, upserts intel.source_items.
+ * Revalidates intel caches only when ingest changed normalized content.
  * Secured by CRON_SECRET (Authorization: Bearer <CRON_SECRET>).
  */
 
@@ -32,13 +33,18 @@ export async function GET(req) {
     return NextResponse.json({ error: msg, overallStatus: 'failed' }, { status: 500 });
   }
 
-  try {
-    revalidateTag('intel-live');
-    revalidateTag('intel-sources');
-  } catch (e) {
-    console.warn('[ingest-signal] revalidateTag:', e);
+  if (outcome.skipped === 'Supabase not configured') {
+    return NextResponse.json(outcome, { status: 500 });
   }
 
-  const httpStatus = outcome.overallStatus === 'failed' ? 500 : 200;
-  return NextResponse.json(outcome, { status: httpStatus });
+  if (outcome.revalidateIntelCaches) {
+    try {
+      revalidateTag('intel-live');
+      revalidateTag('intel-sources');
+    } catch (e) {
+      console.warn('[ingest-signal] revalidateTag:', e);
+    }
+  }
+
+  return NextResponse.json(outcome, { status: 200 });
 }

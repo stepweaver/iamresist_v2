@@ -134,6 +134,8 @@ export type SignalSourceConfig = {
   trustWarningText?: string | null;
   /** Deterministic relevance / surfacing rules (persisted to DB as JSON). */
   editorialControls?: EditorialControls;
+  /** Minutes between ingest attempts when healthy; clamped 5–1440, default 30. Mirrored to intel.sources. */
+  ingestIntervalMinutes?: number;
 };
 
 export type NormalizedItem = {

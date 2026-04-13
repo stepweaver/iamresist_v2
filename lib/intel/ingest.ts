@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { createHash } from 'node:crypto';
+
 import { fetchTextNoStore } from '@/lib/intel/fetchText';
 import {
   parseFederalRegisterPiJson,
@@ -10,15 +12,41 @@ import { parseRssXmlToItems } from '@/lib/intel/parseRss';
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
 import {
+  fetchIngestSchedulesForSlugs,
   finishIngestRun,
   intelDbConfigured,
   startIngestRun,
   syncIntelSourcesFromManifest,
+  updateSourceIngestSchedule,
   upsertSourceItems,
 } from '@/lib/intel/db';
 import type { ContentUseMode, FetchKind, IngestRunStatus, NormalizedItem } from '@/lib/intel/types';
 
 const SKIP_MESSAGE = 'Skipped (disabled or missing endpoint URL)';
+
+const DEFAULT_INGEST_INTERVAL_MINUTES = 30;
+
+function clampIngestIntervalMinutes(raw: number | undefined): number {
+  const n = raw == null || !Number.isFinite(raw) ? DEFAULT_INGEST_INTERVAL_MINUTES : Math.round(raw);
+  return Math.min(1440, Math.max(5, n));
+}
+
+/** Stable fingerprint of parsed items; null when there is nothing to fingerprint. */
+function fingerprintNormalizedItems(items: NormalizedItem[]): string | null {
+  if (items.length === 0) return null;
+  const sorted = [...items].map((i) => i.contentHash).sort();
+  return createHash('sha256').update(sorted.join('\n')).digest('hex');
+}
+
+/** After an ingest attempt, when should this source be eligible again? */
+function nextIngestAfterAttempt(finalStatus: IngestRunStatus, intervalMinutes: number): Date {
+  const clamped = clampIngestIntervalMinutes(intervalMinutes);
+  if (finalStatus === 'failed') {
+    const retryMinutes = Math.min(15, clamped);
+    return new Date(Date.now() + retryMinutes * 60_000);
+  }
+  return new Date(Date.now() + clamped * 60_000);
+}
 
 export type IngestSummaryStatus = IngestRunStatus | 'skipped';
 
@@ -38,6 +66,8 @@ export type IngestOutcome = {
   overallStatus: IngestOverallStatus;
   finishedAt: string;
   skipped?: string;
+  /** True when at least one due source produced a new content fingerprint vs DB. */
+  revalidateIntelCaches: boolean;
   summary: {
     total: number;
     success: number;
@@ -320,7 +350,7 @@ export async function ingestOneSource(
 }
 
 /**
- * Full ingest pass: sync registry, then fetch each enabled source with a URL.
+ * Full ingest pass: sync registry, then fetch each enabled source with a URL when due.
  */
 export async function runIntelIngest(): Promise<IngestOutcome> {
   const finishedAt = new Date().toISOString();
@@ -331,6 +361,7 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       overallStatus: 'failed',
       finishedAt,
       skipped: 'Supabase not configured',
+      revalidateIntelCaches: false,
       summary: { total: 0, success: 0, partial: 0, failed: 0, skipped: 0 },
       results: [],
     };
@@ -338,7 +369,9 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
 
   const configs = getSignalSources();
   const slugToId = await syncIntelSourcesFromManifest(configs);
+  const schedules = await fetchIngestSchedulesForSlugs(configs.map((c) => c.slug));
   const results: IngestSummary[] = [];
+  let revalidateIntelCaches = false;
 
   for (const cfg of configs) {
     if (!cfg.isEnabled || !cfg.endpointUrl) {
@@ -362,12 +395,38 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       continue;
     }
 
+    const sched = schedules.get(cfg.slug);
+    const manifestInterval = clampIngestIntervalMinutes(cfg.ingestIntervalMinutes);
+    const effectiveInterval =
+      sched?.ingest_interval_minutes != null
+        ? clampIngestIntervalMinutes(sched.ingest_interval_minutes)
+        : manifestInterval;
+    const priorFp = sched?.last_ingest_content_fingerprint ?? null;
+    const nextAt = sched?.next_ingest_at ? new Date(sched.next_ingest_at) : null;
+
+    if (nextAt && !Number.isNaN(nextAt.getTime()) && nextAt.getTime() > Date.now()) {
+      results.push({
+        sourceSlug: cfg.slug,
+        status: 'skipped',
+        itemsUpserted: 0,
+        error: `Not due until ${nextAt.toISOString()}`,
+      });
+      continue;
+    }
+
     let runId: string;
     try {
       runId = await startIngestRun(sourceId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       results.push({ sourceSlug: cfg.slug, status: 'failed', itemsUpserted: 0, error: msg });
+      try {
+        await updateSourceIngestSchedule(sourceId, {
+          next_ingest_at: nextIngestAfterAttempt('failed', effectiveInterval).toISOString(),
+        });
+      } catch (schedErr) {
+        console.warn('[ingest] schedule update after startIngestRun failure:', schedErr);
+      }
       continue;
     }
 
@@ -391,6 +450,13 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       const msg = e instanceof Error ? e.message : String(e);
       await finishIngestRun(runId, 'failed', 0, msg, { slug: cfg.slug });
       results.push({ sourceSlug: cfg.slug, status: 'failed', itemsUpserted: 0, error: msg });
+      try {
+        await updateSourceIngestSchedule(sourceId, {
+          next_ingest_at: nextIngestAfterAttempt('failed', effectiveInterval).toISOString(),
+        });
+      } catch (schedErr) {
+        console.warn('[ingest] schedule update after upsert failure:', schedErr);
+      }
       continue;
     }
 
@@ -402,6 +468,21 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       itemsParsed: outcome.meta?.itemsParsed ?? outcome.items.length,
       itemsUpserted: upserted,
     });
+
+    const newFp = fingerprintNormalizedItems(outcome.items);
+    const contentChanged = newFp !== null && newFp !== priorFp;
+    if (contentChanged) {
+      revalidateIntelCaches = true;
+    }
+
+    try {
+      await updateSourceIngestSchedule(sourceId, {
+        next_ingest_at: nextIngestAfterAttempt(finalStatus, effectiveInterval).toISOString(),
+        ...(contentChanged ? { last_ingest_content_fingerprint: newFp } : {}),
+      });
+    } catch (schedErr) {
+      console.warn('[ingest] schedule update after ingest:', schedErr);
+    }
 
     results.push({
       sourceSlug: cfg.slug,
@@ -425,6 +506,7 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
     ok,
     overallStatus,
     finishedAt,
+    revalidateIntelCaches,
     summary: {
       total: results.length,
       success: successCount,

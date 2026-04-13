@@ -26,6 +26,11 @@ function mergeEditorialNotes(c: SignalSourceConfig): string | null {
   return unique.length ? unique.join(' ') : null;
 }
 
+function clampIngestIntervalMinutes(raw: number | undefined): number {
+  const n = raw == null || !Number.isFinite(raw) ? 30 : Math.round(raw);
+  return Math.min(1440, Math.max(5, n));
+}
+
 export async function syncIntelSourcesFromManifest(
   configs: SignalSourceConfig[],
 ): Promise<Map<string, string>> {
@@ -36,6 +41,7 @@ export async function syncIntelSourcesFromManifest(
     fetch_kind: c.fetchKind,
     desk_lane: c.deskLane,
     content_use_mode: c.contentUseMode,
+    ingest_interval_minutes: clampIngestIntervalMinutes(c.ingestIntervalMinutes),
     endpoint_url: c.endpointUrl,
     is_enabled: c.isEnabled,
     purpose: c.purpose,
@@ -68,6 +74,52 @@ export async function syncIntelSourcesFromManifest(
     if (r.slug && r.id) map.set(r.slug, r.id);
   }
   return map;
+}
+
+export type SourceIngestScheduleRow = {
+  id: string;
+  slug: string;
+  next_ingest_at: string | null;
+  ingest_interval_minutes: number;
+  last_ingest_content_fingerprint: string | null;
+};
+
+export async function fetchIngestSchedulesForSlugs(
+  slugs: string[],
+): Promise<Map<string, SourceIngestScheduleRow>> {
+  if (slugs.length === 0) return new Map();
+  const supabase = client();
+  const { data, error } = await supabase
+    .from('sources')
+    .select('id, slug, next_ingest_at, ingest_interval_minutes, last_ingest_content_fingerprint')
+    .in('slug', slugs);
+  if (error) throw new Error(`intel.sources schedule select: ${error.message}`);
+  const map = new Map<string, SourceIngestScheduleRow>();
+  for (const r of data ?? []) {
+    if (r.slug && r.id) {
+      map.set(r.slug, r as SourceIngestScheduleRow);
+    }
+  }
+  return map;
+}
+
+export async function updateSourceIngestSchedule(
+  sourceId: string,
+  patch: {
+    next_ingest_at: string;
+    last_ingest_content_fingerprint?: string | null;
+  },
+): Promise<void> {
+  const supabase = client();
+  const row: Record<string, unknown> = {
+    next_ingest_at: patch.next_ingest_at,
+    updated_at: new Date().toISOString(),
+  };
+  if (patch.last_ingest_content_fingerprint !== undefined) {
+    row.last_ingest_content_fingerprint = patch.last_ingest_content_fingerprint;
+  }
+  const { error } = await supabase.from('sources').update(row).eq('id', sourceId);
+  if (error) throw new Error(`intel.sources schedule update: ${error.message}`);
 }
 
 export async function startIngestRun(sourceId: string): Promise<string> {
