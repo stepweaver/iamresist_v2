@@ -18,10 +18,6 @@ export type IntelSourceAuditRow = {
   name: string;
   provenanceClass: string;
   fetchKind: string;
-  deskLane: string;
-  contentUseMode: string;
-  acquisitionSummary: string;
-  transparencyBadge: string | null;
   endpointDisplay: string;
   isEnabled: boolean;
   purpose: string | null;
@@ -31,6 +27,8 @@ export type IntelSourceAuditRow = {
   isCoreSource: boolean;
   lastRunStatus: IngestRunStatus | null;
   lastRunFinishedAt: string | null;
+  lastRunError: string | null;
+  lastRunMeta: Record<string, unknown> | null;
   lastSuccessAt: string | null;
   lastItemFetchedAt: string | null;
   items24h: number;
@@ -46,8 +44,6 @@ export type IntelSourceAuditRow = {
   noiseHint: string | null;
   relevanceNotes: string | null;
   noiseNotes: string | null;
-  itemsNeverScored: number;
-  itemsRuleStale: number;
 };
 
 function parseStaleMinutes(): number {
@@ -191,15 +187,33 @@ async function buildIntelSourcesAudit(): Promise<{
     ]),
   );
 
-  const latestRunBySource = new Map<string, { status: IngestRunStatus; finished_at: string }>();
+    const latestRunBySource = new Map<
+    string,
+    {
+      status: IngestRunStatus;
+      finished_at: string;
+      error_message: string | null;
+      meta: Record<string, unknown> | null;
+    }
+  >();
   const lastSuccessBySource = new Map<string, string>();
   const seenSuccess = new Set<string>();
 
   for (const r of runs) {
     if (!r.source_id || !r.finished_at) continue;
+
     if (!latestRunBySource.has(r.source_id)) {
-      latestRunBySource.set(r.source_id, { status: r.status, finished_at: r.finished_at });
+      latestRunBySource.set(r.source_id, {
+        status: r.status,
+        finished_at: r.finished_at,
+        error_message: r.error_message ?? null,
+        meta:
+          r.meta && typeof r.meta === 'object' && !Array.isArray(r.meta)
+            ? (r.meta as Record<string, unknown>)
+            : null,
+      });
     }
+
     if (r.status === 'success' && !seenSuccess.has(r.source_id)) {
       lastSuccessBySource.set(r.source_id, r.finished_at);
       seenSuccess.add(r.source_id);
@@ -230,10 +244,13 @@ async function buildIntelSourcesAudit(): Promise<{
       ec && typeof ec === 'object' && !Array.isArray(ec) && typeof ec.relevanceNotes === 'string'
         ? ec.relevanceNotes
         : null;
+
     const lr = latestRunBySource.get(src.id);
 
     const lastRunStatus = lr?.status ?? null;
     const lastRunFinishedAt = lr?.finished_at ?? null;
+    const lastRunError = lr?.error_message ?? null;
+    const lastRunMeta = lr?.meta ?? null;
     const lastSuccessAt = lastSuccessBySource.get(src.id) ?? null;
 
     const health = computeHealth({
@@ -269,6 +286,8 @@ async function buildIntelSourcesAudit(): Promise<{
       isCoreSource: src.is_core_source,
       lastRunStatus,
       lastRunFinishedAt,
+      lastRunError,
+      lastRunMeta,
       lastSuccessAt,
       lastItemFetchedAt,
       items24h,
