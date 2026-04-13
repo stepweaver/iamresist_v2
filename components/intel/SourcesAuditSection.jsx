@@ -53,9 +53,10 @@ export default function SourcesAuditSection({ audit }) {
       <section className="border border-red-500/40 p-6 machine-panel">
         <p className="text-red-700 dark:text-red-400 text-sm font-mono">{errorMessage}</p>
         <p className="text-foreground/60 text-xs mt-2 font-mono">
-          Apply intel migrations through{' '}
-          <code className="text-primary">20260412160000_intel_milestone1_75_relevance.sql</code> if RPC or columns
-          are missing, then run ingest once to sync manifest fields.
+          Apply intel migrations in order through at least{' '}
+          <code className="text-primary">20260418120000_intel_source_family_desk_lanes.sql</code> (adds{' '}
+          <code className="text-primary">source_family</code>, extended desk lanes, snapshots). If RPCs fail, apply
+          earlier intel migrations first, then run ingest once to sync the manifest.
         </p>
       </section>
     );

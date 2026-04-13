@@ -89,7 +89,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 
 **OSINT intel desk**
 
-- Apply `supabase/migrations/20260412120000_intel_milestone1.sql`, `supabase/migrations/20260412140000_intel_live_desk_snapshot.sql`, `supabase/migrations/20260412150000_intel_milestone1_5_governance.sql`, `supabase/migrations/20260412160000_intel_milestone1_75_relevance.sql`, and `supabase/migrations/20260412170000_intel_source_lanes_content_use.sql` in the SQL Editor. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
+- Apply intel SQL migrations in timestamp order (at minimum through `20260418120000_intel_source_family_desk_lanes.sql` for `source_family` and Defense/Watchdogs/Indicators lanes). Earlier files include `20260412120000_intel_milestone1.sql`, `20260412140000_intel_live_desk_snapshot.sql`, `20260412150000_intel_milestone1_5_governance.sql`, `20260412160000_intel_milestone1_75_relevance.sql`, and `20260412170000_intel_source_lanes_content_use.sql`. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
 - **Required:** Supabase **Project Settings → API → Exposed schemas** must include **`intel`** (not only `public`). Without this, the API returns `Invalid schema: intel` and `/intel/osint` cannot load.
 - Optional wire feeds (omit both if blocked — ingest skips them; no silent downgrade): `INTEL_REUTERS_RSS_URL`, `INTEL_AP_RSS_URL`
 - Optional: `INTEL_DESK_STALE_AFTER_MINUTES` (default `90`) — OSINT desk and `/intel/sources` health use this staleness window.
