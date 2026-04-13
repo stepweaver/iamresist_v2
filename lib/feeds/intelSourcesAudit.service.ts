@@ -1,16 +1,40 @@
 import 'server-only';
 
 import { unstable_cache } from 'next/cache';
-import {
-  fetchIntelSourcesRegistry,
-  fetchRecentIngestRunsForAudit,
-  fetchSourceItemSurfacingStatsAggregates,
-  intelDbConfigured,
-} from '@/lib/intel/db';
-import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
-import type { IngestRunStatus } from '@/lib/intel/types';
+import { client, intelDbConfigured } from '@/lib/intel/db';
 
 export type SourceHealth = 'healthy' | 'stale' | 'failing' | 'disabled' | 'unproven';
+
+type SourceRow = {
+  id: string;
+  slug: string;
+  name: string;
+  provenance_class: string;
+  fetch_kind: string | null;
+  endpoint_url: string | null;
+  is_enabled: boolean | null;
+  purpose: string | null;
+  trusted_for: string | null;
+  not_trusted_for: string | null;
+  editorial_notes: string | null;
+  editorial_controls: Record<string, unknown> | null;
+  is_core_source: boolean | null;
+};
+
+type IngestRunRow = {
+  source_id: string | null;
+  status: 'running' | 'success' | 'partial' | 'failed' | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+  meta: Record<string, unknown> | null;
+};
+
+type SourceItemRow = {
+  source_id: string | null;
+  fetched_at: string | null;
+  surface_state: string | null;
+};
 
 export type IntelSourceAuditRow = {
   id: string;
@@ -25,330 +49,334 @@ export type IntelSourceAuditRow = {
   notTrustedFor: string | null;
   editorialNotes: string | null;
   isCoreSource: boolean;
-  lastRunStatus: IngestRunStatus | null;
+  editorialControls: Record<string, unknown> | null;
+
+  lastRunStatus: 'running' | 'success' | 'partial' | 'failed' | null;
+  lastRunStartedAt: string | null;
   lastRunFinishedAt: string | null;
   lastRunError: string | null;
   lastRunMeta: Record<string, unknown> | null;
+
   lastSuccessAt: string | null;
   lastItemFetchedAt: string | null;
+
+  itemTotal: number;
   items24h: number;
   items7d: number;
-  itemTotal: number;
+
   surfacedTotal: number;
   downrankedTotal: number;
   suppressedTotal: number;
+
   surfaced7d: number;
   downranked7d: number;
   suppressed7d: number;
+
   health: SourceHealth;
-  noiseHint: string | null;
-  relevanceNotes: string | null;
-  noiseNotes: string | null;
+  healthReason: string | null;
 };
 
-function parseStaleMinutes(): number {
-  const raw = process.env.INTEL_DESK_STALE_AFTER_MINUTES;
-  if (raw == null || String(raw).trim() === '') return 90;
-  const n = parseInt(String(raw), 10);
-  return Number.isFinite(n) && n > 0 ? n : 90;
-}
+export type IntelSourcesAuditData = {
+  configured: boolean;
+  versionLabel: string;
+  rows: IntelSourceAuditRow[];
+  message: string | null;
+};
+
+const STALE_AFTER_MINUTES = Number.parseInt(
+  process.env.INTEL_DESK_STALE_AFTER_MINUTES || '90',
+  10,
+);
+const STALE_AFTER_MS = Number.isFinite(STALE_AFTER_MINUTES)
+  ? STALE_AFTER_MINUTES * 60 * 1000
+  : 90 * 60 * 1000;
 
 function isOlderThan(iso: string | null, maxAgeMs: number): boolean {
   if (!iso) return true;
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return true;
-  return Date.now() - t > maxAgeMs;
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return true;
+  return Date.now() - ts > maxAgeMs;
 }
 
-function acquisitionSummary(fetchKind: string): string {
-  switch (fetchKind) {
-    case 'rss':
-      return 'Feed-native · RSS';
-    case 'podcast_rss':
-      return 'Feed-native · podcast RSS';
-    case 'json_api':
-      return 'Feed-native · JSON API';
-    case 'unsupported':
-      return 'Unsupported (registry only)';
-    case 'manual':
-      return 'Manual (no auto-fetch)';
-    case 'newsletter_only':
-      return 'Newsletter path (no RSS ingest)';
-    case 'scrape':
-      return 'Scrape (not implemented)';
-    default:
-      return fetchKind;
+function endpointDisplay(url: string | null): string {
+  if (!url) return '—';
+  try {
+    const u = new URL(url);
+    return `${u.hostname}${u.pathname}`;
+  } catch {
+    return url;
   }
 }
 
-function transparencyBadge(contentUseMode: string, deskLane: string): string | null {
-  if (deskLane === 'voices' || contentUseMode === 'preview_and_link') {
-    return 'Preview via public feed · Read at source';
-  }
-  if (contentUseMode === 'metadata_only') {
-    return 'Metadata only — link to source for full text';
-  }
-  return null;
-}
-
-function endpointDisplay(slug: string, url: string | null): string {
-  if (!url) {
-    if (slug === 'reuters-wire') return 'INTEL_REUTERS_RSS_URL (not set)';
-    if (slug === 'ap-wire') return 'INTEL_AP_RSS_URL (not set)';
-    return '—';
-  }
-  if (slug === 'reuters-wire' || slug === 'ap-wire') {
-    try {
-      const u = new URL(url);
-      const path = u.pathname.length > 56 ? `${u.pathname.slice(0, 56)}…` : u.pathname;
-      return `${u.protocol}//${u.host}${path}`;
-    } catch {
-      return 'Wire URL configured';
-    }
-  }
-  return url;
-}
-
-function computeHealth(input: {
+function healthFromRow(args: {
   isEnabled: boolean;
-  lastRunStatus: IngestRunStatus | null;
+  lastRunStatus: IntelSourceAuditRow['lastRunStatus'];
   lastSuccessAt: string | null;
   lastItemFetchedAt: string | null;
   itemTotal: number;
-  items7d: number;
-  isCoreSource: boolean;
-  staleMs: number;
-}): SourceHealth {
-  if (!input.isEnabled) return 'disabled';
-  if (input.lastRunStatus === 'failed') return 'failing';
-  if (!input.lastSuccessAt && input.itemTotal === 0) return 'unproven';
-  if (input.isCoreSource && input.itemTotal > 0 && input.items7d === 0) return 'stale';
-  if (isOlderThan(input.lastSuccessAt, input.staleMs)) return 'stale';
-  if (isOlderThan(input.lastItemFetchedAt, input.staleMs)) return 'stale';
-  return 'healthy';
+  lastRunError: string | null;
+}): { health: SourceHealth; healthReason: string | null } {
+  const { isEnabled, lastRunStatus, lastSuccessAt, lastItemFetchedAt, itemTotal, lastRunError } =
+    args;
+
+  if (!isEnabled) {
+    return { health: 'disabled', healthReason: 'Source is disabled in the manifest.' };
+  }
+
+  if (!lastRunStatus && itemTotal === 0) {
+    return { health: 'unproven', healthReason: 'No ingest run or items yet.' };
+  }
+
+  if (lastRunStatus === 'failed' && !lastSuccessAt && itemTotal === 0) {
+    return {
+      health: 'failing',
+      healthReason: lastRunError || 'Latest run failed and this source has never succeeded.',
+    };
+  }
+
+  const successIsFresh = !isOlderThan(lastSuccessAt, STALE_AFTER_MS);
+  const itemFetchIsFresh = !isOlderThan(lastItemFetchedAt, STALE_AFTER_MS);
+
+  if (successIsFresh || itemFetchIsFresh) {
+    if (lastRunStatus === 'failed') {
+      return {
+        health: 'stale',
+        healthReason:
+          lastRunError || 'Latest run failed, but the source still has relatively recent data.',
+      };
+    }
+
+    return { health: 'healthy', healthReason: 'Recent success or recent fetched items detected.' };
+  }
+
+  if (lastRunStatus === 'failed') {
+    return {
+      health: 'failing',
+      healthReason: lastRunError || 'Latest run failed and the source is stale.',
+    };
+  }
+
+  return {
+    health: 'stale',
+    healthReason: `No recent success or fetched items within ${STALE_AFTER_MINUTES} minutes.`,
+  };
 }
 
-async function buildIntelSourcesAudit(): Promise<{
-  configured: boolean;
-  staleThresholdMinutes: number;
-  relevanceRuleVersion: string;
-  rows: IntelSourceAuditRow[];
-  errorMessage: string | null;
-}> {
+async function buildIntelSourcesAudit(): Promise<IntelSourcesAuditData> {
   if (!intelDbConfigured()) {
     return {
       configured: false,
-      staleThresholdMinutes: parseStaleMinutes(),
-      relevanceRuleVersion: INTEL_RELEVANCE_RULE_VERSION,
+      versionLabel: process.env.NEXT_PUBLIC_INTEL_RELEVANCE_RULE_VERSION || '—',
       rows: [],
-      errorMessage: 'Supabase credentials not configured.',
+      message: 'Supabase credentials are not configured.',
     };
   }
 
-  const staleThresholdMinutes = parseStaleMinutes();
-  const staleMs = staleThresholdMinutes * 60 * 1000;
+  const supabase = client();
 
-  let registry;
-  try {
-    registry = await fetchIntelSourcesRegistry();
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return {
-      configured: true,
-      staleThresholdMinutes,
-      relevanceRuleVersion: INTEL_RELEVANCE_RULE_VERSION,
-      rows: [],
-      errorMessage: msg,
-    };
-  }
-
-  const [stats, runs] = await Promise.all([
-    fetchSourceItemSurfacingStatsAggregates(),
-    fetchRecentIngestRunsForAudit(500),
+  const [sourcesRes, runsRes, itemsRes] = await Promise.all([
+    supabase
+      .from('sources')
+      .select(
+        'id, slug, name, provenance_class, fetch_kind, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, editorial_controls, is_core_source',
+      )
+      .order('name', { ascending: true }),
+    supabase
+      .from('ingest_runs')
+      .select('source_id, status, started_at, finished_at, error_message, meta')
+      .not('source_id', 'is', null)
+      .order('started_at', { ascending: false, nullsFirst: false })
+      .limit(2000),
+    supabase
+      .from('source_items')
+      .select('source_id, fetched_at, surface_state')
+      .order('fetched_at', { ascending: false, nullsFirst: false })
+      .limit(10000),
   ]);
 
-  const statsBySource = new Map(
-    stats.map((s) => [
-      s.source_id,
-      {
-        itemTotal: Number(s.item_total),
-        items24h: Number(s.items_24h),
-        items7d: Number(s.items_7d),
-        lastItemFetchedAt: s.last_item_fetched_at,
-        surfacedTotal: Number(s.surfaced_total),
-        downrankedTotal: Number(s.downranked_total),
-        suppressedTotal: Number(s.suppressed_total),
-        surfaced7d: Number(s.surfaced_7d),
-        downranked7d: Number(s.downranked_7d),
-        suppressed7d: Number(s.suppressed_7d),
-        neverScored: Number(s.items_never_scored_total) || 0,
-        ruleStale: Number(s.items_rule_stale_total) || 0,
-      },
-    ]),
-  );
+  if (sourcesRes.error) {
+    throw new Error(`sources audit query failed: ${sourcesRes.error.message}`);
+  }
+  if (runsRes.error) {
+    throw new Error(`ingest_runs audit query failed: ${runsRes.error.message}`);
+  }
+  if (itemsRes.error) {
+    throw new Error(`source_items audit query failed: ${itemsRes.error.message}`);
+  }
 
-    const latestRunBySource = new Map<
+  const sources = (sourcesRes.data || []) as SourceRow[];
+  const runs = (runsRes.data || []) as IngestRunRow[];
+  const items = (itemsRes.data || []) as SourceItemRow[];
+
+  const latestRunBySource = new Map<string, IngestRunRow>();
+  const latestSuccessBySource = new Map<string, string>();
+  const statsBySource = new Map<
     string,
     {
-      status: IngestRunStatus;
-      finished_at: string;
-      error_message: string | null;
-      meta: Record<string, unknown> | null;
+      itemTotal: number;
+      items24h: number;
+      items7d: number;
+      surfacedTotal: number;
+      downrankedTotal: number;
+      suppressedTotal: number;
+      surfaced7d: number;
+      downranked7d: number;
+      suppressed7d: number;
+      lastItemFetchedAt: string | null;
     }
   >();
-  const lastSuccessBySource = new Map<string, string>();
-  const seenSuccess = new Set<string>();
 
-  for (const r of runs) {
-    if (!r.source_id || !r.finished_at) continue;
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const weekMs = 7 * dayMs;
 
-    if (!latestRunBySource.has(r.source_id)) {
-      latestRunBySource.set(r.source_id, {
-        status: r.status,
-        finished_at: r.finished_at,
-        error_message: r.error_message ?? null,
-        meta:
-          r.meta && typeof r.meta === 'object' && !Array.isArray(r.meta)
-            ? (r.meta as Record<string, unknown>)
-            : null,
-      });
+  for (const run of runs) {
+    if (!run.source_id) continue;
+
+    if (!latestRunBySource.has(run.source_id)) {
+      latestRunBySource.set(run.source_id, run);
     }
 
-    if (r.status === 'success' && !seenSuccess.has(r.source_id)) {
-      lastSuccessBySource.set(r.source_id, r.finished_at);
-      seenSuccess.add(r.source_id);
+    if (run.status === 'success' && run.finished_at && !latestSuccessBySource.has(run.source_id)) {
+      latestSuccessBySource.set(run.source_id, run.finished_at);
     }
   }
 
-  const rows: IntelSourceAuditRow[] = registry.map((src) => {
-    const st = statsBySource.get(src.id);
-    const itemTotal = st?.itemTotal ?? 0;
-    const items24h = st?.items24h ?? 0;
-    const items7d = st?.items7d ?? 0;
-    const lastItemFetchedAt = st?.lastItemFetchedAt ?? null;
-    const surfacedTotal = st?.surfacedTotal ?? 0;
-    const downrankedTotal = st?.downrankedTotal ?? 0;
-    const suppressedTotal = st?.suppressedTotal ?? 0;
-    const surfaced7d = st?.surfaced7d ?? 0;
-    const downranked7d = st?.downranked7d ?? 0;
-    const suppressed7d = st?.suppressed7d ?? 0;
-    const itemsNeverScored = st?.neverScored ?? 0;
-    const itemsRuleStale = st?.ruleStale ?? 0;
+  for (const item of items) {
+    if (!item.source_id) continue;
 
-    const ec = src.editorial_controls;
-    const noiseNotes =
-      ec && typeof ec === 'object' && !Array.isArray(ec) && typeof ec.noiseNotes === 'string'
-        ? ec.noiseNotes
-        : null;
-    const relevanceNotes =
-      ec && typeof ec === 'object' && !Array.isArray(ec) && typeof ec.relevanceNotes === 'string'
-        ? ec.relevanceNotes
-        : null;
+    const current =
+      statsBySource.get(item.source_id) || {
+        itemTotal: 0,
+        items24h: 0,
+        items7d: 0,
+        surfacedTotal: 0,
+        downrankedTotal: 0,
+        suppressedTotal: 0,
+        surfaced7d: 0,
+        downranked7d: 0,
+        suppressed7d: 0,
+        lastItemFetchedAt: null,
+      };
 
-    const lr = latestRunBySource.get(src.id);
+    current.itemTotal += 1;
 
-    const lastRunStatus = lr?.status ?? null;
-    const lastRunFinishedAt = lr?.finished_at ?? null;
-    const lastRunError = lr?.error_message ?? null;
-    const lastRunMeta = lr?.meta ?? null;
-    const lastSuccessAt = lastSuccessBySource.get(src.id) ?? null;
+    if (!current.lastItemFetchedAt && item.fetched_at) {
+      current.lastItemFetchedAt = item.fetched_at;
+    }
 
-    const health = computeHealth({
-      isEnabled: src.is_enabled,
-      lastRunStatus,
+    const fetchedMs = item.fetched_at ? new Date(item.fetched_at).getTime() : NaN;
+    const is24h = Number.isFinite(fetchedMs) ? now - fetchedMs <= dayMs : false;
+    const is7d = Number.isFinite(fetchedMs) ? now - fetchedMs <= weekMs : false;
+
+    if (is24h) current.items24h += 1;
+    if (is7d) current.items7d += 1;
+
+    if (item.surface_state === 'surfaced') {
+      current.surfacedTotal += 1;
+      if (is7d) current.surfaced7d += 1;
+    } else if (item.surface_state === 'downranked') {
+      current.downrankedTotal += 1;
+      if (is7d) current.downranked7d += 1;
+    } else if (item.surface_state === 'suppressed') {
+      current.suppressedTotal += 1;
+      if (is7d) current.suppressed7d += 1;
+    }
+
+    statsBySource.set(item.source_id, current);
+  }
+
+  const rows: IntelSourceAuditRow[] = sources.map((src) => {
+    const latestRun = latestRunBySource.get(src.id) || null;
+    const stats =
+      statsBySource.get(src.id) || {
+        itemTotal: 0,
+        items24h: 0,
+        items7d: 0,
+        surfacedTotal: 0,
+        downrankedTotal: 0,
+        suppressedTotal: 0,
+        surfaced7d: 0,
+        downranked7d: 0,
+        suppressed7d: 0,
+        lastItemFetchedAt: null,
+      };
+
+    const lastSuccessAt = latestSuccessBySource.get(src.id) || null;
+
+    const { health, healthReason } = healthFromRow({
+      isEnabled: Boolean(src.is_enabled),
+      lastRunStatus: latestRun?.status ?? null,
       lastSuccessAt,
-      lastItemFetchedAt,
-      itemTotal,
-      items7d,
-      isCoreSource: src.is_core_source,
-      staleMs,
+      lastItemFetchedAt: stats.lastItemFetchedAt,
+      itemTotal: stats.itemTotal,
+      lastRunError: latestRun?.error_message ?? null,
     });
-
-    const deskLane = src.desk_lane ?? 'osint';
-    const contentUseMode = src.content_use_mode ?? 'feed_summary';
 
     return {
       id: src.id,
       slug: src.slug,
       name: src.name,
       provenanceClass: src.provenance_class,
-      fetchKind: src.fetch_kind,
-      deskLane,
-      contentUseMode,
-      acquisitionSummary: acquisitionSummary(src.fetch_kind),
-      transparencyBadge: transparencyBadge(contentUseMode, deskLane),
-      endpointDisplay: endpointDisplay(src.slug, src.endpoint_url),
-      isEnabled: src.is_enabled,
+      fetchKind: src.fetch_kind || 'unknown',
+      endpointDisplay: endpointDisplay(src.endpoint_url),
+      isEnabled: Boolean(src.is_enabled),
       purpose: src.purpose,
       trustedFor: src.trusted_for,
       notTrustedFor: src.not_trusted_for,
       editorialNotes: src.editorial_notes,
-      isCoreSource: src.is_core_source,
-      lastRunStatus,
-      lastRunFinishedAt,
-      lastRunError,
-      lastRunMeta,
+      isCoreSource: Boolean(src.is_core_source),
+      editorialControls:
+        src.editorial_controls &&
+        typeof src.editorial_controls === 'object' &&
+        !Array.isArray(src.editorial_controls)
+          ? src.editorial_controls
+          : null,
+
+      lastRunStatus: latestRun?.status ?? null,
+      lastRunStartedAt: latestRun?.started_at ?? null,
+      lastRunFinishedAt: latestRun?.finished_at ?? null,
+      lastRunError: latestRun?.error_message ?? null,
+      lastRunMeta:
+        latestRun?.meta && typeof latestRun.meta === 'object' && !Array.isArray(latestRun.meta)
+          ? latestRun.meta
+          : null,
+
       lastSuccessAt,
-      lastItemFetchedAt,
-      items24h,
-      items7d,
-      itemTotal,
-      surfacedTotal,
-      downrankedTotal,
-      suppressedTotal,
-      surfaced7d,
-      downranked7d,
-      suppressed7d,
+      lastItemFetchedAt: stats.lastItemFetchedAt,
+
+      itemTotal: stats.itemTotal,
+      items24h: stats.items24h,
+      items7d: stats.items7d,
+
+      surfacedTotal: stats.surfacedTotal,
+      downrankedTotal: stats.downrankedTotal,
+      suppressedTotal: stats.suppressedTotal,
+
+      surfaced7d: stats.surfaced7d,
+      downranked7d: stats.downranked7d,
+      suppressed7d: stats.suppressed7d,
+
       health,
-      noiseHint: null,
-      noiseNotes,
-      relevanceNotes,
-      itemsNeverScored,
-      itemsRuleStale,
+      healthReason,
     };
   });
 
-  const primary24h = rows
-    .filter((r) => r.provenanceClass === 'PRIMARY' && r.isEnabled)
-    .map((r) => r.items24h)
-    .sort((a, b) => a - b);
-  const mid = Math.floor(primary24h.length / 2);
-  const medianPrimary24h =
-    primary24h.length === 0
-      ? 0
-      : primary24h.length % 2 === 1
-        ? primary24h[mid]!
-        : (primary24h[mid - 1]! + primary24h[mid]!) / 2;
-
-  for (const r of rows) {
-    const hi = Math.max(80, medianPrimary24h * 3);
-    if (r.isEnabled && r.items24h > hi && medianPrimary24h > 0) {
-      r.noiseHint = `High volume (${r.items24h} in 24h vs ~${Math.round(medianPrimary24h)} median for PRIMARY)`;
-    }
-    if (r.isEnabled && r.itemTotal > 0 && r.suppressedTotal > r.surfacedTotal) {
-      const hint = `More suppressed than surfaced in DB (${r.suppressedTotal} vs ${r.surfacedTotal}); check block rules.`;
-      r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
-    }
-    if (r.isEnabled && r.itemTotal > 0 && r.itemsNeverScored > 0) {
-      const hint = `${r.itemsNeverScored} row(s) missing relevance_computed_at — run /api/cron/intel-rescore.`;
-      r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
-    }
-    if (r.isEnabled && r.itemTotal > 0 && r.itemsRuleStale > 0) {
-      const hint = `${r.itemsRuleStale} row(s) stamped with older rule version than app (${INTEL_RELEVANCE_RULE_VERSION}) — rescore recommended.`;
-      r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
-    }
-  }
+  rows.sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     configured: true,
-    staleThresholdMinutes,
-    relevanceRuleVersion: INTEL_RELEVANCE_RULE_VERSION,
+    versionLabel: process.env.NEXT_PUBLIC_INTEL_RELEVANCE_RULE_VERSION || '—',
     rows,
-    errorMessage: null,
+    message: null,
   };
 }
 
-export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v4'], {
-  revalidate: 90,
-  tags: ['intel-sources'],
-});
+export const getIntelSourcesAudit = unstable_cache(
+  buildIntelSourcesAudit,
+  ['intel-sources-audit-v2'],
+  {
+    revalidate: 60,
+    tags: ['intel-sources'],
+  },
+);
