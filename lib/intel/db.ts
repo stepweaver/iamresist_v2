@@ -473,6 +473,7 @@ export async function fetchSourceItemSurfacingStatsAggregates(): Promise<SourceI
 export type IngestRunAuditRow = {
   source_id: string;
   status: IngestRunStatus;
+  started_at: string | null;
   finished_at: string | null;
   error_message: string | null;
   meta: Record<string, unknown> | null;
@@ -482,9 +483,9 @@ export async function fetchRecentIngestRunsForAudit(limit = 500): Promise<Ingest
   const supabase = client();
   const { data, error } = await supabase
     .from('ingest_runs')
-    .select('source_id, status, finished_at, error_message, meta')
+    .select('source_id, status, started_at, finished_at, error_message, meta')
     .not('source_id', 'is', null)
-    .order('finished_at', { ascending: false, nullsFirst: false })
+    .order('started_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
   if (error) throw new Error(`ingest_runs audit: ${error.message}`);
