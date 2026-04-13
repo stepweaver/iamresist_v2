@@ -249,8 +249,13 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
     }
 
     const finalStatus: IngestRunStatus = outcome.status === 'failed' ? 'failed' : outcome.status;
-    await finishIngestRun(runId, finalStatus, upserted, outcome.error ?? null, {
+        await finishIngestRun(runId, finalStatus, upserted, outcome.error ?? null, {
       slug: cfg.slug,
+      endpointUrl: cfg.endpointUrl,
+      finalUrl: outcome.finalUrl,
+      httpStatus: outcome.httpStatus,
+      itemsParsed: outcome.items.length,
+      fetchKind: cfg.fetchKind,
     });
 
     results.push({
