@@ -79,6 +79,31 @@ function RelevanceStrip({ row }) {
   );
 }
 
+function DisplayPriorityStrip({ row }) {
+  const explain = Array.isArray(row.displayExplanations) ? row.displayExplanations : [];
+  const top = explain.slice(0, 3);
+  if (!top.length) return null;
+  return (
+    <div className="mt-3 space-y-1.5 border border-border/60 bg-foreground/[0.015] px-3 py-2 rounded">
+      <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+        Display (deterministic)
+      </p>
+      <div className="flex flex-wrap gap-2 items-center text-[10px] font-mono text-foreground/75">
+        <span>priority {row.displayPriority ?? '—'}</span>
+        <span className="text-hud-dim">|</span>
+        <span>{row.displayBucket ?? 'routine'}</span>
+      </div>
+      <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px] text-foreground/65 leading-relaxed">
+        {top.map((e) => (
+          <li key={`${e.ruleId}-${e.message.slice(0, 40)}`}>
+            <span className="text-hud-dim">{e.ruleId}</span> — {e.message}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function formatFreshnessIso(iso) {
   if (!iso) return '—';
   try {
@@ -158,6 +183,8 @@ export default function LiveDeskSection({ desk }) {
     liveReadOk,
     intelSchemaMisconfigured,
     items,
+    leadItems = [],
+    secondaryLeadItems = [],
     suppressedItems = [],
     duplicateItems = [],
     message,
@@ -186,6 +213,10 @@ export default function LiveDeskSection({ desk }) {
   const showBanner = Boolean(message) && (stale || snapshotFallback);
   const suppressed = Array.isArray(suppressedItems) ? suppressedItems : [];
   const duplicates = Array.isArray(duplicateItems) ? duplicateItems : [];
+  const leads = Array.isArray(leadItems) ? leadItems : [];
+  const secondary = Array.isArray(secondaryLeadItems) ? secondaryLeadItems : [];
+  const leadIds = new Set([...leads, ...secondary].map((x) => x?.id).filter(Boolean));
+  const rest = Array.isArray(items) ? items.filter((x) => !leadIds.has(x.id)) : [];
 
   return (
     <div className="space-y-6">
@@ -256,8 +287,111 @@ export default function LiveDeskSection({ desk }) {
         </section>
       ) : null}
 
-      <ul className="space-y-4">
-        {items.map((row) => {
+      {deskLane === 'osint' && (leads.length > 0 || secondary.length > 0) ? (
+        <section className="border border-border machine-panel p-5 sm:p-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
+              Lead developments
+            </h2>
+            <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+              Ranked by deterministic display priority (not just freshness)
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {leads.map((row) => {
+              const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
+              return (
+                <article
+                  key={row.id}
+                  className="border border-primary/40 bg-primary/[0.03] p-5 sm:p-6"
+                >
+                  <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
+                    <ProvenanceChip provenanceClass={row.provenanceClass} />
+                    <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                    <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+                      {row.sourceName}
+                    </span>
+                    <span className="text-hud-dim">|</span>
+                    <time
+                      className="font-mono text-[10px] text-hud-dim tracking-wider"
+                      dateTime={row.publishedAt || undefined}
+                    >
+                      {when}
+                    </time>
+                  </div>
+                  <h3 className="section-title text-xl sm:text-2xl font-bold text-foreground mb-2">
+                    <Link
+                      href={row.canonicalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-primary hover:underline"
+                    >
+                      {row.title}
+                    </Link>
+                  </h3>
+                  <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed border-l-2 border-primary/60 pl-3">
+                    {row.whyItMatters}
+                  </p>
+                  {row.summary && row.contentUseMode !== 'metadata_only' ? (
+                    <p className="mt-3 text-xs text-foreground/70 leading-relaxed max-w-3xl">
+                      {truncatePreview(row.summary, 360)}
+                    </p>
+                  ) : null}
+                  <DisplayPriorityStrip row={row} />
+                </article>
+              );
+            })}
+
+            {secondary.length > 0 ? (
+              <div className="space-y-3">
+                <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+                  Secondary
+                </p>
+                <ul className="space-y-3">
+                  {secondary.map((row) => (
+                    <li key={row.id} className="border border-border/80 bg-foreground/[0.01] p-4">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <ProvenanceChip provenanceClass={row.provenanceClass} />
+                        <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                        <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+                          {row.sourceName}
+                        </span>
+                      </div>
+                      <Link
+                        href={row.canonicalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold text-foreground hover:text-primary hover:underline"
+                      >
+                        {row.title}
+                      </Link>
+                      <p className="mt-1 text-[10px] font-mono text-foreground/60">
+                        priority {row.displayPriority ?? '—'} · {row.displayBucket ?? 'routine'}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="space-y-3">
+        {deskLane === 'osint' ? (
+          <div className="flex flex-wrap items-baseline gap-3">
+            <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
+              Live signal desk
+            </h2>
+            <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+              Everything retained; ordered by display buckets then provenance rules
+            </p>
+          </div>
+        ) : null}
+
+        <ul className="space-y-4">
+        {(deskLane === 'osint' ? rest : items).map((row) => {
           const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
           return (
             <li key={row.id} className="machine-panel border border-border p-5 sm:p-6">
@@ -298,6 +432,7 @@ export default function LiveDeskSection({ desk }) {
                   {feedTransparencyHint(row)}
                 </p>
               ) : null}
+              <DisplayPriorityStrip row={row} />
               <RelevanceStrip row={row} />
               <ClusterHint clusterKeys={row.clusterKeys} />
               <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-3">
@@ -316,7 +451,8 @@ export default function LiveDeskSection({ desk }) {
             </li>
           );
         })}
-      </ul>
+        </ul>
+      </section>
 
       {duplicates.length > 0 ? (
         <details className="border border-border machine-panel p-4 sm:p-5 group">
