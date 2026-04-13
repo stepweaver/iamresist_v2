@@ -103,6 +103,23 @@ function hasActionableTrustWarning(row) {
   return badges.some((b) => b?.tone === 'caution' || b?.tone === 'high');
 }
 
+/** Stronger-line title from ingest/rank duplicate explanation; never show raw cluster keys or rule ids. */
+function duplicateGroupingUserNote(row) {
+  const entry = Array.isArray(row.relevanceExplanations)
+    ? row.relevanceExplanations.find((e) => e.ruleId === 'desk:duplicate_cluster')
+    : null;
+  const raw = entry?.message?.trim();
+  if (!raw) {
+    return 'Similar report consolidated under a stronger line above';
+  }
+  const m = raw.match(/stronger line is [“"]([^”"]+)[”"]/i);
+  if (m?.[1]) {
+    const title = m[1].trim();
+    return `Related coverage is grouped with a stronger report above: “${title}”`;
+  }
+  return 'Similar report consolidated under a stronger line above';
+}
+
 function topHumanReason(row) {
   const hiddenRuleIds = new Set([
     'source:baseline',
@@ -516,9 +533,6 @@ export default function LiveDeskSection({ desk }) {
           </p>
           <ul className="mt-4 space-y-3 border-t border-border pt-4">
             {duplicates.map((row) => {
-              const dupNote =
-                Array.isArray(row.relevanceExplanations) &&
-                row.relevanceExplanations.find((e) => e.ruleId === 'desk:duplicate_cluster')?.message;
               return (
                 <li key={row.id} className="text-sm">
                   <Link
@@ -530,7 +544,7 @@ export default function LiveDeskSection({ desk }) {
                     {row.title}
                   </Link>
                   <p className="font-mono text-[10px] text-hud-dim mt-1">
-                    {row.sourceName} · {dupNote?.trim() || 'Similar report consolidated under a stronger line above'}
+                    {row.sourceName} · {duplicateGroupingUserNote(row)}
                   </p>
                 </li>
               );
