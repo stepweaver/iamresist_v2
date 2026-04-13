@@ -40,6 +40,7 @@ export async function syncIntelSourcesFromManifest(
     provenance_class: c.provenanceClass,
     fetch_kind: c.fetchKind,
     desk_lane: c.deskLane,
+    source_family: c.sourceFamily,
     content_use_mode: c.contentUseMode,
     ingest_interval_minutes: clampIngestIntervalMinutes(c.ingestIntervalMinutes),
     endpoint_url: c.endpointUrl,
@@ -196,6 +197,7 @@ export async function upsertSourceItems(
       relevance_explanations: rel.relevance_explanations,
       relevance_computed_at: now,
       relevance_rule_version: INTEL_RELEVANCE_RULE_VERSION,
+      indicator_class: sourceCfg.indicatorClass ?? null,
     };
   });
 
@@ -234,12 +236,14 @@ export type SourceItemRow = {
     slug: string;
     name: string;
     provenance_class: ProvenanceClass;
+    source_family?: string | null;
     trust_warning_mode?: string | null;
     trust_warning_level?: string | null;
     requires_independent_verification?: boolean | null;
     hero_eligibility_mode?: string | null;
     trust_warning_text?: string | null;
   } | null;
+  indicator_class?: string | null;
 };
 
 const SOURCE_ITEMS_LIVE_SELECT = `
@@ -261,10 +265,12 @@ const SOURCE_ITEMS_LIVE_SELECT = `
       surface_state,
       suppression_reason,
       relevance_explanations,
+      indicator_class,
       sources (
         slug,
         name,
         provenance_class,
+        source_family,
         trust_warning_mode,
         trust_warning_level,
         requires_independent_verification,
@@ -417,8 +423,8 @@ export type LiveDeskSnapshotPayload = {
   freshnessMeta?: IntelFreshnessMeta | null;
 };
 
-/** `1` = OSINT desk, `2` = Voices desk — see migration `20260412170000_intel_source_lanes_content_use.sql`. */
-export type LiveDeskSnapshotId = 1 | 2;
+/** `1` OSINT, `2` Voices, `3` Watchdogs, `4` Defense ops, `5` Indicators — see intel migrations. */
+export type LiveDeskSnapshotId = 1 | 2 | 3 | 4 | 5;
 
 export async function saveLiveDeskSnapshot(
   snapshotId: LiveDeskSnapshotId,
@@ -470,6 +476,7 @@ export type IntelSourceRegistryRow = {
   provenance_class: string;
   fetch_kind: string;
   desk_lane: DeskLane;
+  source_family?: string;
   content_use_mode: string;
   endpoint_url: string | null;
   is_enabled: boolean;
@@ -491,7 +498,7 @@ export async function fetchIntelSourcesRegistry(): Promise<IntelSourceRegistryRo
   const { data, error } = await supabase
     .from('sources')
     .select(
-      'id, slug, name, provenance_class, fetch_kind, desk_lane, content_use_mode, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source, editorial_controls, trust_warning_mode, trust_warning_level, requires_independent_verification, hero_eligibility_mode, trust_warning_text',
+      'id, slug, name, provenance_class, fetch_kind, desk_lane, source_family, content_use_mode, endpoint_url, is_enabled, purpose, trusted_for, not_trusted_for, editorial_notes, is_core_source, editorial_controls, trust_warning_mode, trust_warning_level, requires_independent_verification, hero_eligibility_mode, trust_warning_text',
     )
     .order('slug');
   if (error) throw new Error(`intel.sources registry: ${error.message}`);

@@ -15,6 +15,7 @@ function rssCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig {
     provenanceClass: 'PRIMARY',
     fetchKind: 'rss',
     deskLane: 'osint',
+    sourceFamily: 'general',
     contentUseMode: 'feed_summary',
     endpointUrl: 'https://example.com/feed',
     isEnabled: true,

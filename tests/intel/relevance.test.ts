@@ -25,6 +25,7 @@ function baseCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig {
     provenanceClass: 'PRIMARY',
     fetchKind: 'json_api',
     deskLane: 'osint',
+    sourceFamily: 'general',
     contentUseMode: 'feed_summary',
     endpointUrl: 'https://x',
     isEnabled: true,

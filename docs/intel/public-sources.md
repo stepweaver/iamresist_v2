@@ -22,10 +22,28 @@ This document mirrors the **version-controlled manifest** in [`lib/intel/signal-
 
 | Lane | Route | Role |
 |------|--------|------|
-| `osint` | `/intel/osint` | Primaries, optional wires, specialist reporting, accountability feeds. |
+| `osint` | `/intel/osint` | Core U.S. institutional stack: WH, FR, GovInfo, courts/specialist legal accountability. |
+| `defense_ops` | `/intel/defense` | Pentagon / operations-adjacent official releases and specialist posture context (e.g. USNI). |
+| `watchdogs` | `/intel/watchdogs` | Foreign independent and investigative outlets; lead slots require corroboration rules. |
+| `indicators` | `/intel/indicators` | Scheduled macro/statistical releases (BLS/BEA HTML index), placeholders (SAM/OFAC), anecdotal registry rows. |
 | `voices` | `/intel/voices` | Ingested creator/commentary from **public** RSS/podcast feeds. |
 
 The curated **Telescreen** lives at **`/telescreen`** (`/voices` redirects); it is not replaced by `/intel/voices`.
+
+## Source families (`source_family`)
+
+Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.source_family`):
+
+| Value | Typical use |
+|------|----------------|
+| `general` | Legacy default / undifferentiated OSINT or voices. |
+| `defense_primary` | Official U.S. military press (e.g. war.gov RSS). |
+| `combatant_command` | Combatant-command surfaces (reserved for future feeds). |
+| `defense_specialist` | Specialist maritime/posture context (e.g. USNI listing). |
+| `watchdog_global` | Independent cross-border reporting on the Watchdogs desk. |
+| `indicator_hard` | Scheduled releases / structured contracting placeholders. |
+| `indicator_soft` | Reserved for softer thermometers. |
+| `indicator_anecdotal` | Registry-only anecdotal signals (e.g. pizza index placeholder); never auto-ingested by default. |
 
 ## Fetch kinds (`fetch_kind`)
 
@@ -37,6 +55,12 @@ The curated **Telescreen** lives at **`/telescreen`** (`/voices` redirects); it 
 | `unsupported` | No — honest registry placeholder. |
 | `html_index` | Yes — fetches a public listing page and extracts canonical article URLs (e.g. Democracy Docket `/news-alerts/`). |
 | `manual` / `newsletter_only` / `scrape` | No — reserved (or not wired for automated ingest yet). |
+
+### Environment variables (optional feeds)
+
+| Variable | Used by |
+|----------|---------|
+| `INTEL_KYIV_INDEPENDENT_RSS_URL` | `kyiv-independent` — fail-closed when unset (no default RSS on the public site in all environments). |
 
 ## Source list (slug → summary)
 
@@ -78,12 +102,43 @@ The curated **Telescreen** lives at **`/telescreen`** (`/voices` redirects); it 
 | `on-offense-kris-goldsmith` | Substack RSS | yes | `preview_and_link` |
 | `total-hypocrisy` | Substack RSS | **no** | Enable after verifying `/feed`; Patreon audio without public RSS is not ingested. |
 
+### Defense (`defense_ops`)
+
+| Slug | Feed-native? | Default on | Notes |
+|------|----------------|------------|-------|
+| `war-gov-releases` | RSS (`war.gov`) | yes | PRIMARY; trust warning: source-controlled official claims. |
+| `usni-fleet-tracker` | `html_index` (USNI tag listing) | yes | SPECIALIST; metadata-only; not operational orders. |
+
+### Watchdogs (`watchdogs`)
+
+| Slug | Feed-native? | Default on | Notes |
+|------|----------------|------------|-------|
+| `kyiv-independent` | RSS via env | **no** until `INTEL_KYIV_INDEPENDENT_RSS_URL` set | SPECIALIST. |
+| `meduza-english` | RSS | yes | `meduza.io/rss/all` |
+| `mag-972` | RSS | yes | +972 Magazine |
+| `birn-balkaninsight` | RSS | yes | BIRN Balkan Insight |
+| `rappler` | RSS | yes | |
+| `bellingcat` | RSS | yes | |
+| `forbidden-stories` | RSS | yes | |
+| `occrp` | — | **no** | Registry placeholder; public RSS often bot-blocked. |
+
+### Indicators (`indicators`)
+
+| Slug | Feed-native? | Default on | Notes |
+|------|----------------|------------|-------|
+| `bls-release-calendar` | `html_index` | yes | BLS 2026 schedule page → `news.release` links; `SCHEDULE` / `scheduled_release`. |
+| `bea-release-schedule` | `html_index` | yes | BEA news schedule listing. |
+| `sam-gov-contracting` | — | **no** | Placeholder for future SAM API wiring. |
+| `ofac-recent-actions` | — | **no** | Placeholder (legacy OFAC RSS retired). |
+| `indicator-pentagon-pizza` | `manual` | **no** | `indicator_anecdotal`; registry-only. |
+
 ## Migrations
 
 Apply in order (see [`supabase/migrations/`](../../supabase/migrations/)), including:
 
 - `20260412170000_intel_source_lanes_content_use.sql` — lanes, content modes, expanded `fetch_kind`, `commentary_item`, denormalized `source_items` columns, snapshot id `2` for Voices.
+- `20260418120000_intel_source_family_desk_lanes.sql` — `source_family`, lanes `defense_ops` / `watchdogs` / `indicators`, `source_items.indicator_class`, `scheduled_release`, snapshot ids `3`–`5`.
 
 ## Live desk snapshots
 
-`intel.live_desk_snapshot`: **`id = 1`** OSINT desk, **`id = 2`** Voices desk — used when live reads fail.
+`intel.live_desk_snapshot`: **`id = 1`** OSINT, **`2`** Voices, **`3`** Watchdogs, **`4`** Defense, **`5`** Indicators — used when live reads fail.

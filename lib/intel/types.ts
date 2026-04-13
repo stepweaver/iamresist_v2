@@ -16,7 +16,20 @@ export type FetchKind =
   | 'scrape'
   | 'html_index';
 
-export type DeskLane = 'osint' | 'voices';
+export type DeskLane = 'osint' | 'voices' | 'watchdogs' | 'defense_ops' | 'indicators';
+
+/** Editorial grouping (mirrored to intel.sources.source_family). */
+export type SourceFamily =
+  | 'general'
+  | 'defense_primary'
+  | 'combatant_command'
+  | 'defense_specialist'
+  | 'watchdog_global'
+  | 'indicator_hard'
+  | 'indicator_soft'
+  | 'indicator_anecdotal';
+
+export type IndicatorClass = 'hard' | 'soft' | 'anecdotal';
 
 /** How feed-native text is stored and surfaced; manual_review = registry row only (no auto-fetch). */
 export type ContentUseMode =
@@ -46,7 +59,8 @@ export type StateChangeType =
   | 'congressional_record_feed_item'
   | 'wire_item'
   | 'specialist_item'
-  | 'commentary_item';
+  | 'commentary_item'
+  | 'scheduled_release';
 
 /** Deterministic mission vocabulary for OSINT relevance (expand only with explicit rules). */
 export type MissionTag =
@@ -107,6 +121,8 @@ export type SignalSourceConfig = {
   fetchKind: FetchKind;
   /** OSINT institutional/specialist desk vs ingested creator commentary desk. */
   deskLane: DeskLane;
+  /** Grouping for promotion rules and ops (synced to intel.sources.source_family). */
+  sourceFamily: SourceFamily;
   /** Feed-native text retention policy (enforced at parse + UI). */
   contentUseMode: ContentUseMode;
   /** When null/empty, source is skipped (wire URLs from env). */
@@ -136,6 +152,8 @@ export type SignalSourceConfig = {
   editorialControls?: EditorialControls;
   /** Minutes between ingest attempts when healthy; clamped 5–1440, default 30. Mirrored to intel.sources. */
   ingestIntervalMinutes?: number;
+  /** When set, all ingested rows get intel.source_items.indicator_class (thermometer / anecdotal signals). */
+  indicatorClass?: IndicatorClass | null;
 };
 
 export type NormalizedItem = {

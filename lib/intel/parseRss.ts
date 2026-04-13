@@ -48,6 +48,7 @@ function mapStateChange(slug: string, provenanceClass: string): StateChangeType 
   if (slug === 'govinfo-bills') return 'legislative_feed_item';
   if (slug === 'wh-news') return 'press_statement';
   if (slug === 'wh-presidential') return 'presidential_action';
+  if (provenanceClass === 'SCHEDULE') return 'scheduled_release';
   if (provenanceClass === 'WIRE') return 'wire_item';
   if (provenanceClass === 'COMMENTARY') return 'commentary_item';
   if (provenanceClass === 'SPECIALIST') return 'specialist_item';

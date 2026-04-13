@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { parseDemocracyDocketNewsAlertsHtml } from '@/lib/intel/parseHtmlIndex';
+import {
+  parseDemocracyDocketNewsAlertsHtml,
+  parseSameHostArticleLinksHtml,
+} from '@/lib/intel/parseHtmlIndex';
 
 describe('parseDemocracyDocketNewsAlertsHtml', () => {
   it('extracts article URLs and skips pagination', () => {
@@ -32,5 +35,28 @@ describe('parseDemocracyDocketNewsAlertsHtml', () => {
         fetchKind: 'html_index',
       }),
     ).toHaveLength(0);
+  });
+});
+
+describe('parseSameHostArticleLinksHtml', () => {
+  it('extracts bls.gov news.release links', () => {
+    const html = `
+      <html><body>
+        <p>${'x'.repeat(220)}</p>
+        <a href="https://www.bls.gov/news.release/empsit.toc.htm">Employment</a>
+        <a href="https://www.bls.gov/schedule/foo">Other</a>
+      </body></html>
+    `;
+    const items = parseSameHostArticleLinksHtml(html, {
+      sourceSlug: 'bls-release-calendar',
+      provenanceClass: 'SCHEDULE',
+      contentUseMode: 'metadata_only',
+      fetchKind: 'html_index',
+      hostname: 'www.bls.gov',
+      pathIncludes: 'news.release',
+    });
+    expect(items.length).toBeGreaterThanOrEqual(1);
+    expect(items[0]!.stateChangeType).toBe('scheduled_release');
+    expect(items[0]!.canonicalUrl).toContain('news.release');
   });
 });

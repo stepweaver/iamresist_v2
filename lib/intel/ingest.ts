@@ -7,7 +7,11 @@ import {
   parseFederalRegisterPiJson,
   parseFederalRegisterPublishedJson,
 } from '@/lib/intel/frApi';
-import { parseDemocracyDocketNewsAlertsHtml } from '@/lib/intel/parseHtmlIndex';
+import {
+  parseDemocracyDocketNewsAlertsHtml,
+  parseSameHostArticleLinksHtml,
+  parseUsniNewsListingHtml,
+} from '@/lib/intel/parseHtmlIndex';
 import { parseRssXmlToItems } from '@/lib/intel/parseRss';
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
@@ -232,7 +236,41 @@ export async function ingestOneSource(
     }
 
     if (cfg.fetchKind === 'html_index') {
-      if (cfg.slug !== 'democracy-docket') {
+      let parsedItems: NormalizedItem[] = [];
+
+      if (cfg.slug === 'democracy-docket') {
+        parsedItems = parseDemocracyDocketNewsAlertsHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+        });
+      } else if (cfg.slug === 'bls-release-calendar') {
+        parsedItems = parseSameHostArticleLinksHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+          hostname: 'www.bls.gov',
+          pathIncludes: 'news.release',
+        });
+      } else if (cfg.slug === 'bea-release-schedule') {
+        parsedItems = parseSameHostArticleLinksHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+          hostname: 'www.bea.gov',
+          pathIncludes: '/news/',
+        });
+      } else if (cfg.slug === 'usni-fleet-tracker') {
+        parsedItems = parseUsniNewsListingHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+        });
+      } else {
         return {
           items: [],
           status: 'failed',
@@ -244,13 +282,6 @@ export async function ingestOneSource(
           },
         };
       }
-
-      const parsedItems = parseDemocracyDocketNewsAlertsHtml(res.text, {
-        sourceSlug: cfg.slug,
-        provenanceClass: cfg.provenanceClass,
-        contentUseMode,
-        fetchKind: cfg.fetchKind,
-      });
 
       const items = applyContentUseModeToItems(parsedItems, contentUseMode);
 

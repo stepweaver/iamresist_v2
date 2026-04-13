@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/intel/osint", label: "OSINT" },
+  { href: "/intel/defense", label: "Defense" },
+  { href: "/intel/watchdogs", label: "Watchdogs" },
+  { href: "/intel/indicators", label: "Indicators" },
   { href: "/telescreen", label: "Telescreen" },
   { href: "/intel/voices", label: "Voices" },
   { href: "/intel/newswire", label: "Newswire" },
@@ -15,6 +18,9 @@ export default function IntelTabs({ description }) {
   const pathname = usePathname();
   const isOsint =
     pathname?.startsWith("/intel/osint") || pathname?.startsWith("/intel/live");
+  const isDefense = pathname?.startsWith("/intel/defense");
+  const isWatchdogs = pathname?.startsWith("/intel/watchdogs");
+  const isIndicators = pathname?.startsWith("/intel/indicators");
   const isTelescreen =
     pathname === "/telescreen" || pathname?.startsWith("/telescreen/");
   const isSources = pathname?.startsWith("/intel/sources");
@@ -33,6 +39,9 @@ export default function IntelTabs({ description }) {
         {TABS.map((tab, i) => {
           const isActive =
             (tab.href === "/intel/osint" && isOsint) ||
+            (tab.href === "/intel/defense" && isDefense) ||
+            (tab.href === "/intel/watchdogs" && isWatchdogs) ||
+            (tab.href === "/intel/indicators" && isIndicators) ||
             (tab.href === "/telescreen" && isTelescreen) ||
             (tab.href === "/intel/sources" && isSources) ||
             (tab.href === "/intel/newswire" && isNewswire) ||

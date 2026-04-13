@@ -6,6 +6,7 @@ import type {
   NormalizedItem,
   RelevanceExplanation,
   SignalSourceConfig,
+  SourceFamily,
   StateChangeType,
   SurfaceState,
 } from '@/lib/intel/types';
@@ -54,12 +55,53 @@ export function compilePatternList(patterns: string[] | undefined): RegExp[] {
 function sourceBaseline(
   slug: string,
   provenanceClass: string,
+  sourceFamily: SourceFamily,
 ): {
   tags: MissionTag[];
   branch: BranchOfGovernment;
   area: InstitutionalArea;
   defaultPriority: number;
 } {
+  if (sourceFamily === 'defense_primary' || sourceFamily === 'combatant_command') {
+    return {
+      tags: ['international_relevant', 'federal_agencies'],
+      branch: 'executive',
+      area: 'specialist',
+      defaultPriority: 48,
+    };
+  }
+  if (sourceFamily === 'defense_specialist') {
+    return {
+      tags: ['international_relevant'],
+      branch: 'unknown',
+      area: 'specialist',
+      defaultPriority: 46,
+    };
+  }
+  if (sourceFamily === 'watchdog_global') {
+    return {
+      tags: ['international_relevant', 'media_disinfo'],
+      branch: 'unknown',
+      area: 'specialist',
+      defaultPriority: 44,
+    };
+  }
+  if (sourceFamily === 'indicator_hard' || sourceFamily === 'indicator_soft') {
+    return {
+      tags: ['economy_major'],
+      branch: 'administrative',
+      area: 'federal_register',
+      defaultPriority: 42,
+    };
+  }
+  if (sourceFamily === 'indicator_anecdotal') {
+    return {
+      tags: ['international_relevant'],
+      branch: 'unknown',
+      area: 'unknown',
+      defaultPriority: 28,
+    };
+  }
   if (slug === 'wh-news' || slug === 'wh-presidential') {
     return {
       tags: ['executive_power'],
@@ -294,7 +336,7 @@ export function computeRelevanceProfile(
   const explanations: RelevanceExplanation[] = [];
   const haystack = normalizeHaystack(item);
 
-  const baseline = sourceBaseline(cfg.slug, cfg.provenanceClass);
+  const baseline = sourceBaseline(cfg.slug, cfg.provenanceClass, cfg.sourceFamily);
   let tags = new Set<MissionTag>(baseline.tags);
 
   const frType =
