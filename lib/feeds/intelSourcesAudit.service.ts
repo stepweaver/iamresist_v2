@@ -24,31 +24,20 @@ export type IntelSourceAuditRow = {
   notTrustedFor: string | null;
   editorialNotes: string | null;
   isCoreSource: boolean;
-
   lastRunStatus: IngestRunStatus | null;
-  lastRunStartedAt: string | null;
   lastRunFinishedAt: string | null;
-  lastRunError: string | null;
-  lastRunMeta: Record<string, unknown> | null;
-
   lastSuccessAt: string | null;
   lastItemFetchedAt: string | null;
-
   items24h: number;
   items7d: number;
   itemTotal: number;
-
   surfacedTotal: number;
   downrankedTotal: number;
   suppressedTotal: number;
-
   surfaced7d: number;
   downranked7d: number;
   suppressed7d: number;
-
   health: SourceHealth;
-  healthReason: string | null;
-
   noiseHint: string | null;
   relevanceNotes: string | null;
   noiseNotes: string | null;
@@ -74,13 +63,16 @@ function endpointDisplay(slug: string, url: string | null): string {
     if (slug === 'ap-wire') return 'INTEL_AP_RSS_URL (not set)';
     return '—';
   }
-
-  try {
-    const u = new URL(url);
-    return `${u.hostname}${u.pathname}`;
-  } catch {
-    return url;
+  if (slug === 'reuters-wire' || slug === 'ap-wire') {
+    try {
+      const u = new URL(url);
+      const path = u.pathname.length > 56 ? `${u.pathname.slice(0, 56)}…` : u.pathname;
+      return `${u.protocol}//${u.host}${path}`;
+    } catch {
+      return 'Wire URL configured';
+    }
   }
+  return url;
 }
 
 function computeHealth(input: {
@@ -92,60 +84,14 @@ function computeHealth(input: {
   items7d: number;
   isCoreSource: boolean;
   staleMs: number;
-  lastRunError: string | null;
-}): { health: SourceHealth; healthReason: string | null } {
-  const {
-    isEnabled,
-    lastRunStatus,
-    lastSuccessAt,
-    lastItemFetchedAt,
-    itemTotal,
-    items7d,
-    isCoreSource,
-    staleMs,
-    lastRunError,
-  } = input;
-
-  if (!isEnabled) {
-    return { health: 'disabled', healthReason: 'Source is disabled in the manifest.' };
-  }
-
-  if (!lastRunStatus && itemTotal === 0) {
-    return { health: 'unproven', healthReason: 'No ingest run or stored items yet.' };
-  }
-
-  if (lastRunStatus === 'failed' && !lastSuccessAt && itemTotal === 0) {
-    return {
-      health: 'failing',
-      healthReason: lastRunError || 'Latest run failed and this source has never succeeded.',
-    };
-  }
-
-  if (lastRunStatus === 'failed') {
-    return {
-      health: 'failing',
-      healthReason: lastRunError || 'Latest ingest run failed.',
-    };
-  }
-
-  if (isCoreSource && itemTotal > 0 && items7d === 0) {
-    return {
-      health: 'stale',
-      healthReason: 'Core source has stored items, but nothing landed in the last 7 days.',
-    };
-  }
-
-  if (isOlderThan(lastSuccessAt, staleMs) && isOlderThan(lastItemFetchedAt, staleMs)) {
-    return {
-      health: 'stale',
-      healthReason: `No recent success or fetched items within ${Math.round(staleMs / 60000)} minutes.`,
-    };
-  }
-
-  return {
-    health: 'healthy',
-    healthReason: 'Recent success or recent fetched items detected.',
-  };
+}): SourceHealth {
+  if (!input.isEnabled) return 'disabled';
+  if (input.lastRunStatus === 'failed') return 'failing';
+  if (!input.lastSuccessAt && input.itemTotal === 0) return 'unproven';
+  if (input.isCoreSource && input.itemTotal > 0 && input.items7d === 0) return 'stale';
+  if (isOlderThan(input.lastSuccessAt, input.staleMs)) return 'stale';
+  if (isOlderThan(input.lastItemFetchedAt, input.staleMs)) return 'stale';
+  return 'healthy';
 }
 
 async function buildIntelSourcesAudit(): Promise<{
@@ -154,17 +100,16 @@ async function buildIntelSourcesAudit(): Promise<{
   rows: IntelSourceAuditRow[];
   errorMessage: string | null;
 }> {
-  const staleThresholdMinutes = parseStaleMinutes();
-
   if (!intelDbConfigured()) {
     return {
       configured: false,
-      staleThresholdMinutes,
+      staleThresholdMinutes: parseStaleMinutes(),
       rows: [],
       errorMessage: 'Supabase credentials not configured.',
     };
   }
 
+  const staleThresholdMinutes = parseStaleMinutes();
   const staleMs = staleThresholdMinutes * 60 * 1000;
 
   let registry;
@@ -203,37 +148,16 @@ async function buildIntelSourcesAudit(): Promise<{
     ]),
   );
 
-  const latestRunBySource = new Map<
-    string,
-    {
-      status: IngestRunStatus;
-      started_at: string | null;
-      finished_at: string | null;
-      error_message: string | null;
-      meta: Record<string, unknown> | null;
-    }
-  >();
-
+  const latestRunBySource = new Map<string, { status: IngestRunStatus; finished_at: string }>();
   const lastSuccessBySource = new Map<string, string>();
   const seenSuccess = new Set<string>();
 
   for (const r of runs) {
-    if (!r.source_id) continue;
-
+    if (!r.source_id || !r.finished_at) continue;
     if (!latestRunBySource.has(r.source_id)) {
-      latestRunBySource.set(r.source_id, {
-        status: r.status,
-        started_at: r.started_at ?? null,
-        finished_at: r.finished_at ?? null,
-        error_message: r.error_message ?? null,
-        meta:
-          r.meta && typeof r.meta === 'object' && !Array.isArray(r.meta)
-            ? (r.meta as Record<string, unknown>)
-            : null,
-      });
+      latestRunBySource.set(r.source_id, { status: r.status, finished_at: r.finished_at });
     }
-
-    if (r.status === 'success' && r.finished_at && !seenSuccess.has(r.source_id)) {
+    if (r.status === 'success' && !seenSuccess.has(r.source_id)) {
       lastSuccessBySource.set(r.source_id, r.finished_at);
       seenSuccess.add(r.source_id);
     }
@@ -261,17 +185,13 @@ async function buildIntelSourcesAudit(): Promise<{
       ec && typeof ec === 'object' && !Array.isArray(ec) && typeof ec.relevanceNotes === 'string'
         ? ec.relevanceNotes
         : null;
-
     const lr = latestRunBySource.get(src.id);
 
     const lastRunStatus = lr?.status ?? null;
-    const lastRunStartedAt = lr?.started_at ?? null;
     const lastRunFinishedAt = lr?.finished_at ?? null;
-    const lastRunError = lr?.error_message ?? null;
-    const lastRunMeta = lr?.meta ?? null;
     const lastSuccessAt = lastSuccessBySource.get(src.id) ?? null;
 
-    const { health, healthReason } = computeHealth({
+    const health = computeHealth({
       isEnabled: src.is_enabled,
       lastRunStatus,
       lastSuccessAt,
@@ -280,7 +200,6 @@ async function buildIntelSourcesAudit(): Promise<{
       items7d,
       isCoreSource: src.is_core_source,
       staleMs,
-      lastRunError,
     });
 
     return {
@@ -296,31 +215,20 @@ async function buildIntelSourcesAudit(): Promise<{
       notTrustedFor: src.not_trusted_for,
       editorialNotes: src.editorial_notes,
       isCoreSource: src.is_core_source,
-
       lastRunStatus,
-      lastRunStartedAt,
       lastRunFinishedAt,
-      lastRunError,
-      lastRunMeta,
-
       lastSuccessAt,
       lastItemFetchedAt,
-
       items24h,
       items7d,
       itemTotal,
-
       surfacedTotal,
       downrankedTotal,
       suppressedTotal,
-
       surfaced7d,
       downranked7d,
       suppressed7d,
-
       health,
-      healthReason,
-
       noiseHint: null,
       noiseNotes,
       relevanceNotes,
@@ -331,7 +239,6 @@ async function buildIntelSourcesAudit(): Promise<{
     .filter((r) => r.provenanceClass === 'PRIMARY' && r.isEnabled)
     .map((r) => r.items24h)
     .sort((a, b) => a - b);
-
   const mid = Math.floor(primary24h.length / 2);
   const medianPrimary24h =
     primary24h.length === 0
@@ -342,11 +249,9 @@ async function buildIntelSourcesAudit(): Promise<{
 
   for (const r of rows) {
     const hi = Math.max(80, medianPrimary24h * 3);
-
     if (r.isEnabled && r.items24h > hi && medianPrimary24h > 0) {
       r.noiseHint = `High volume (${r.items24h} in 24h vs ~${Math.round(medianPrimary24h)} median for PRIMARY)`;
     }
-
     if (r.isEnabled && r.itemTotal > 0 && r.suppressedTotal > r.surfacedTotal) {
       const hint = `More suppressed than surfaced in DB (${r.suppressedTotal} vs ${r.surfacedTotal}); check block rules.`;
       r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
