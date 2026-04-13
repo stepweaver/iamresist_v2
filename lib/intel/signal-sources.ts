@@ -44,18 +44,10 @@ const FR_PROCEDURAL_BLOCK_KEYWORDS = [
   'postal service',
 ];
 
-function envTrim(name: string): string | null {
-  const v = process.env[name];
-  if (v == null || String(v).trim() === '') return null;
-  return String(v).trim();
-}
-
 /**
  * Version-controlled registry. Reuters/AP: set INTEL_REUTERS_RSS_URL / INTEL_AP_RSS_URL or sources stay disabled (fail closed).
  */
 export function getSignalSources(): SignalSourceConfig[] {
-  const reutersUrl = envTrim('INTEL_REUTERS_RSS_URL');
-  const apUrl = envTrim('INTEL_AP_RSS_URL');
 
   return [
     {
@@ -219,48 +211,6 @@ export function getSignalSources(): SignalSourceConfig[] {
         preferredStateChangeTypes: ['congressional_record_feed_item'],
         blockKeywords: ['prayer of the guest chaplain', 'adjournment'],
         noiseNotes: 'Full CREC RSS is extremely high volume; light block list for obvious procedural chaff.',
-      },
-    },
-    {
-      slug: 'reuters-wire',
-      name: 'Reuters (wire)',
-      provenanceClass: 'WIRE',
-      fetchKind: 'rss',
-      deskLane: 'osint',
-      contentUseMode: 'feed_summary',
-      endpointUrl: reutersUrl,
-      isEnabled: Boolean(reutersUrl),
-      isCoreSource: false,
-      purpose: 'Optional professional wire headlines when a licensed RSS endpoint is configured.',
-      trustedFor: 'Fast, edited wire-format alerts for cross-check against primaries.',
-      notTrustedFor: 'Replacing White House, Federal Register, GovInfo, or court primary documents.',
-      editorialNotes:
-        'Requires INTEL_REUTERS_RSS_URL. Omitted when unset so ingest does not substitute weaker sources.',
-      notes: 'Requires INTEL_REUTERS_RSS_URL. Omitted when unset so ingest does not substitute weaker sources.',
-      editorialControls: {
-        defaultPriority: 48,
-        preferredStateChangeTypes: ['wire_item'],
-        relevanceNotes: 'Wire sits below core primaries in baseline priority; desk sort still provenance-first within a tier.',
-      },
-    },
-    {
-      slug: 'ap-wire',
-      name: 'Associated Press (wire)',
-      provenanceClass: 'WIRE',
-      fetchKind: 'rss',
-      deskLane: 'osint',
-      contentUseMode: 'feed_summary',
-      endpointUrl: apUrl,
-      isEnabled: Boolean(apUrl),
-      isCoreSource: false,
-      purpose: 'Optional AP wire headlines when a licensed RSS endpoint is configured.',
-      trustedFor: 'Wire-speed confirmation alongside institutional primaries.',
-      notTrustedFor: 'Treating wire blurbs as substitutes for official documents or docket PDFs.',
-      editorialNotes: 'Requires INTEL_AP_RSS_URL.',
-      notes: 'Requires INTEL_AP_RSS_URL.',
-      editorialControls: {
-        defaultPriority: 48,
-        preferredStateChangeTypes: ['wire_item'],
       },
     },
     {
