@@ -141,13 +141,26 @@ export function parseSameHostArticleLinksHtml(
     fetchKind: FetchKind;
     /** e.g. `www.bls.gov` */
     hostname: string;
-    /** If set, pathname must include this substring. */
-    pathIncludes?: string;
+    /**
+     * If set, pathname must include this substring, or (when an array) any one of them.
+     * BLS `schedule/.../home.htm` often links to monthly `MM_sched.htm` pages, not directly to `news.release`.
+     */
+    pathIncludes?: string | string[];
     /** Page URL used to resolve relative hrefs (e.g. `https://www.bls.gov/schedule/2026/home.htm`). */
     baseUrl?: string | null;
   },
 ): NormalizedItem[] {
   if (!html || html.length < 200) return [];
+
+  const pathIncludesOk = (pathname: string): boolean => {
+    const p = ctx.pathIncludes;
+    if (p == null) return true;
+    if (Array.isArray(p)) {
+      if (p.length === 0) return true;
+      return p.some((frag) => frag && pathname.includes(frag));
+    }
+    return pathname.includes(p);
+  };
 
   const hostEsc = ctx.hostname.replace(/\./g, '\\.');
   const candidateUrls = new Set<string>();
@@ -190,7 +203,7 @@ export function parseSameHostArticleLinksHtml(
       continue;
     }
     if (!hostMatchesUrl(u, ctx.hostname)) continue;
-    if (ctx.pathIncludes && !u.pathname.includes(ctx.pathIncludes)) continue;
+    if (!pathIncludesOk(u.pathname)) continue;
 
     const canonicalUrl = u.toString();
     if (seen.has(canonicalUrl)) continue;

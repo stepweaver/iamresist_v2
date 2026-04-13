@@ -253,7 +253,8 @@ export async function ingestOneSource(
           contentUseMode,
           fetchKind: cfg.fetchKind,
           hostname: 'www.bls.gov',
-          pathIncludes: 'news.release',
+          // Hub page links to monthly schedule HTML, not always to /news.release/ on the same document.
+          pathIncludes: ['news.release', '_sched_list.htm', '_sched.htm'],
           baseUrl,
         });
       } else if (cfg.slug === 'bea-release-schedule') {

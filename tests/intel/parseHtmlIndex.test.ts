@@ -60,6 +60,27 @@ describe('parseSameHostArticleLinksHtml', () => {
     expect(items[0]!.canonicalUrl).toContain('news.release');
   });
 
+  it('BLS schedule hub: monthly calendar links (no news.release on same page)', () => {
+    const html = `
+      <html><body>
+        <p>${'x'.repeat(220)}</p>
+        <a href="/schedule/2026/04_sched_list.htm">April list</a>
+        <a href="https://www.bls.gov/opub/foo.htm">Other</a>
+      </body></html>
+    `;
+    const items = parseSameHostArticleLinksHtml(html, {
+      sourceSlug: 'bls-release-calendar',
+      provenanceClass: 'SCHEDULE',
+      contentUseMode: 'metadata_only',
+      fetchKind: 'html_index',
+      hostname: 'www.bls.gov',
+      pathIncludes: ['news.release', '_sched_list.htm', '_sched.htm'],
+      baseUrl: 'https://www.bls.gov/schedule/2026/home.htm',
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]!.canonicalUrl).toContain('04_sched_list.htm');
+  });
+
   it('resolves root-relative hrefs when baseUrl is set (schedule pages)', () => {
     const html = `
       <html><body>

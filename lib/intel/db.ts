@@ -20,6 +20,28 @@ function client() {
   return supabaseAdmin().schema('intel');
 }
 
+/**
+ * Legacy `intel.source_items.desk_lane` CHECK historically allowed only `osint` | `voices`.
+ * Manifest lanes `watchdogs` | `defense_ops` | `indicators` are stored as `osint` on the row;
+ * routing uses `intel.sources.desk_lane` via `source_id` filters (see live fetches).
+ */
+export function denormalizedDeskLaneColumn(manifestLane: DeskLane): 'osint' | 'voices' {
+  if (manifestLane === 'voices') return 'voices';
+  return 'osint';
+}
+
+export async function fetchSourceIdsForDeskLane(deskLane: DeskLane): Promise<string[]> {
+  const supabase = client();
+  const { data, error } = await supabase.from('sources').select('id').eq('desk_lane', deskLane);
+  if (error) throw new Error(`sources ids for desk lane: ${error.message}`);
+  const ids: string[] = [];
+  for (const row of data ?? []) {
+    const id = (row as { id?: string }).id;
+    if (typeof id === 'string' && id) ids.push(id);
+  }
+  return ids;
+}
+
 function mergeEditorialNotes(c: SignalSourceConfig): string | null {
   const parts = [c.editorialNotes, c.notes].filter((x): x is string => Boolean(x && String(x).trim()));
   const unique = [...new Set(parts.map((p) => p.trim()))];
@@ -186,7 +208,7 @@ export async function upsertSourceItems(
       structured: it.structured,
       cluster_keys: it.clusterKeys,
       state_change_type: it.stateChangeType,
-      desk_lane: sourceCfg.deskLane,
+      desk_lane: denormalizedDeskLaneColumn(sourceCfg.deskLane),
       content_use_mode: sourceCfg.contentUseMode,
       mission_tags: rel.mission_tags,
       branch_of_government: rel.branch_of_government,
@@ -208,13 +230,7 @@ export async function upsertSourceItems(
     const { error } = await supabase.from('source_items').upsert(chunk, {
       onConflict: 'source_id,canonical_url',
     });
-    if (error) {
-      let detail = error.message;
-      if (/source_items_desk_lane_check/i.test(detail)) {
-        detail += ` — Run SQL in supabase/migrations/20260418201000_intel_source_items_desk_lane_extend.sql (extends intel.source_items desk_lane to match new lanes).`;
-      }
-      throw new Error(`source_items upsert: ${detail}`);
-    }
+    if (error) throw new Error(`source_items upsert: ${error.message}`);
     total += chunk.length;
   }
   return total;
@@ -242,6 +258,7 @@ export type SourceItemRow = {
     slug: string;
     name: string;
     provenance_class: ProvenanceClass;
+    desk_lane?: DeskLane | null;
     source_family?: string | null;
     trust_warning_mode?: string | null;
     trust_warning_level?: string | null;
@@ -276,6 +293,7 @@ const SOURCE_ITEMS_LIVE_SELECT = `
         slug,
         name,
         provenance_class,
+        desk_lane,
         source_family,
         trust_warning_mode,
         trust_warning_level,
@@ -291,11 +309,14 @@ export async function fetchSurfacedSourceItemsForLive(
   deskLane: DeskLane,
 ): Promise<SourceItemRow[]> {
   const supabase = client();
+  const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
+  if (laneSourceIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('source_items')
     .select(SOURCE_ITEMS_LIVE_SELECT)
     .eq('surface_state', 'surfaced')
-    .eq('desk_lane', deskLane)
+    .in('source_id', laneSourceIds)
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
@@ -310,11 +331,14 @@ export async function fetchDownrankedSourceItemsForLive(
 ): Promise<SourceItemRow[]> {
   if (limit <= 0) return [];
   const supabase = client();
+  const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
+  if (laneSourceIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('source_items')
     .select(SOURCE_ITEMS_LIVE_SELECT)
     .eq('surface_state', 'downranked')
-    .eq('desk_lane', deskLane)
+    .in('source_id', laneSourceIds)
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
@@ -328,11 +352,14 @@ export async function fetchSuppressedSourceItemsForLive(
   deskLane: DeskLane,
 ): Promise<SourceItemRow[]> {
   const supabase = client();
+  const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
+  if (laneSourceIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('source_items')
     .select(SOURCE_ITEMS_LIVE_SELECT)
     .eq('surface_state', 'suppressed')
-    .eq('desk_lane', deskLane)
+    .in('source_id', laneSourceIds)
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(limit);
 
@@ -386,12 +413,18 @@ export async function fetchIntelFreshnessForDeskLane(deskLane: DeskLane): Promis
     if (typeof rec.id === 'string' && rec.id) ids.push(rec.id);
   }
 
-  const { data: itemRows, error: itemErr } = await supabase
-    .from('source_items')
-    .select('fetched_at')
-    .eq('desk_lane', deskLane)
-    .order('fetched_at', { ascending: false })
-    .limit(1);
+  let itemRows: { fetched_at?: string }[] | null = null;
+  let itemErr: { message: string } | null = null;
+  if (ids.length > 0) {
+    const res = await supabase
+      .from('source_items')
+      .select('fetched_at')
+      .in('source_id', ids)
+      .order('fetched_at', { ascending: false })
+      .limit(1);
+    itemRows = res.data;
+    itemErr = res.error;
+  }
   if (itemErr) throw new Error(`source_items lane freshness: ${itemErr.message}`);
 
   let latestSuccessfulIngestAt: string | null = null;
@@ -412,6 +445,7 @@ export async function fetchIntelFreshnessForDeskLane(deskLane: DeskLane): Promis
     latestSuccessfulIngestAt,
   };
 }
+
 
 export type IntelFreshnessMeta = {
   thresholdMinutes: number;
