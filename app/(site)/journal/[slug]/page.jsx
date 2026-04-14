@@ -7,6 +7,7 @@ import {
 } from '@/lib/journal';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { formatJournalMetaDate } from '@/lib/utils/date';
+import { buildPageMetadata, defaultOgImage } from '@/lib/metadata';
 
 export const revalidate = 300;
 
@@ -64,10 +65,12 @@ export async function generateMetadata({ params }) {
   if (!entry) entry = await getJournalEntryById(slug);
   if (!entry) return { title: 'Journal Entry Not Found | I AM [RESIST]' };
   const title = entry.title || 'Journal Entry';
-  return {
+  return buildPageMetadata({
     title: `${title} | I AM [RESIST]`,
     description: title,
-  };
+    urlPath: `/journal/${slug}`,
+    images: [defaultOgImage],
+  });
 }
 
 export default async function JournalEntryPage({ params }) {
