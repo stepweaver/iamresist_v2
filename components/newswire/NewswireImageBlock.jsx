@@ -18,7 +18,14 @@ function withRetryParam(src, retryCount) {
   }
 }
 
-export default function NewswireImageBlock({ href, src, alt = '', className = '' }) {
+export default function NewswireImageBlock({
+  href,
+  src,
+  alt = '',
+  className = '',
+  /** When false, omit HUD corner brackets (matches Intel desk thumbnails). */
+  showBrackets = true,
+}) {
   const [failed, setFailed] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -40,11 +47,15 @@ export default function NewswireImageBlock({ href, src, alt = '', className = ''
   const showRemote = Boolean(resolvedSrc) && !failed;
 
   return (
-    <div className={`relative ${className}`}>
-      <span className="tl" aria-hidden />
-      <span className="tr" aria-hidden />
-      <span className="bl" aria-hidden />
-      <span className="br" aria-hidden />
+    <div className={`relative ${showBrackets ? 'target-brackets' : ''} ${className}`}>
+      {showBrackets ? (
+        <>
+          <span className="tl" aria-hidden />
+          <span className="tr" aria-hidden />
+          <span className="bl" aria-hidden />
+          <span className="br" aria-hidden />
+        </>
+      ) : null}
 
       <Link
         href={href || '#'}

@@ -33,7 +33,7 @@ export default function NewswireHeadlinesSection({ stories = [], sources = [] })
   return (
     <section className="mb-8 sm:mb-12">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
-        <h2 className="font-ui text-sm sm:text-base font-bold text-foreground">
+        <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
           Latest Headlines
         </h2>
         {sourceOptions.length > 1 && (
@@ -79,11 +79,13 @@ export default function NewswireHeadlinesSection({ stories = [], sources = [] })
           {sourceFilter ? "No headlines from this source." : "No headlines yet. Feed ingestion in progress."}
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+        <ul className="space-y-4">
           {filteredStories.map((story) => (
-            <NewswireHeadlineCard key={story.id} story={story} />
+            <li key={story.id}>
+              <NewswireHeadlineCard story={story} />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </section>
   );
