@@ -178,4 +178,60 @@ describe('live desk lane routing', () => {
     expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'indicators');
     expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('indicators');
   });
+
+  it('preserves statements lane', async () => {
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    await getLiveIntelDesk('statements');
+    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'statements');
+    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('statements');
+  });
+});
+
+describe('metadata_only on default desk surfaces', () => {
+  beforeEach(() => {
+    fetchSurfacedSourceItemsForLive.mockClear();
+    fetchIntelFreshnessForDeskLane.mockClear();
+  });
+
+  it('excludes metadata_only from OSINT visible desk output', async () => {
+    fetchSurfacedSourceItemsForLive.mockImplementationOnce(async () => [
+      ...OSINT_SURFACED_FIXTURE,
+      {
+        id: 'meta-osint-1',
+        title: 'Procedural schedule pointer',
+        summary: null,
+        canonical_url: 'https://example.com/meta',
+        image_url: null,
+        published_at: new Date().toISOString(),
+        fetched_at: new Date().toISOString(),
+        desk_lane: 'osint',
+        content_use_mode: 'metadata_only',
+        cluster_keys: {},
+        state_change_type: 'scheduled_release',
+        mission_tags: [],
+        branch_of_government: 'unknown',
+        institutional_area: 'unknown',
+        relevance_score: 90,
+        surface_state: 'surfaced',
+        suppression_reason: null,
+        relevance_explanations: [],
+        sources: {
+          slug: 'test-meta',
+          name: 'Test meta',
+          provenance_class: 'SCHEDULE',
+          desk_lane: 'osint',
+          source_family: 'general',
+        },
+      },
+    ]);
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+    const ids = [
+      ...(desk.items ?? []),
+      ...(desk.leadItems ?? []),
+      ...(desk.secondaryLeadItems ?? []),
+    ].map((x: { id: string }) => x.id);
+    expect(ids).not.toContain('meta-osint-1');
+  });
 });

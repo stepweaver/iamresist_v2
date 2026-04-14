@@ -8,6 +8,7 @@ const TABS = [
   { href: "/intel/defense", label: "Defense" },
   { href: "/intel/watchdogs", label: "Watchdogs" },
   { href: "/intel/indicators", label: "Indicators" },
+  { href: "/intel/statements", label: "Statements" },
   { href: "/telescreen", label: "Telescreen" },
   { href: "/intel/voices", label: "Voices" },
   { href: "/intel/newswire", label: "Newswire" },
@@ -21,6 +22,7 @@ export default function IntelTabs({ description }) {
   const isDefense = pathname?.startsWith("/intel/defense");
   const isWatchdogs = pathname?.startsWith("/intel/watchdogs");
   const isIndicators = pathname?.startsWith("/intel/indicators");
+  const isStatements = pathname?.startsWith("/intel/statements");
   const isTelescreen =
     pathname === "/telescreen" || pathname?.startsWith("/telescreen/");
   const isSources = pathname?.startsWith("/intel/sources");
@@ -42,6 +44,7 @@ export default function IntelTabs({ description }) {
             (tab.href === "/intel/defense" && isDefense) ||
             (tab.href === "/intel/watchdogs" && isWatchdogs) ||
             (tab.href === "/intel/indicators" && isIndicators) ||
+            (tab.href === "/intel/statements" && isStatements) ||
             (tab.href === "/telescreen" && isTelescreen) ||
             (tab.href === "/intel/sources" && isSources) ||
             (tab.href === "/intel/newswire" && isNewswire) ||

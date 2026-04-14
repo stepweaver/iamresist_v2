@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 
 import { extractFeedImage, youtubeThumbFromUrl } from '@/lib/feeds/feedItemImage.js';
-import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
+import { applyContentUseModeToSummary, decodeIntelPlainText, stripHtmlToText } from '@/lib/intel/contentUse';
 import type { ContentUseMode, FetchKind, StateChangeType } from '@/lib/intel/types';
 import {
   extractBillClusterKeys,
@@ -117,7 +117,7 @@ export async function parseRssXmlToItems(
     const link = itemLink(row);
     if (!link) continue;
 
-    const title = String(row.title ?? '').trim() || 'Untitled';
+    const title = decodeIntelPlainText(String(row.title ?? '').trim()) || 'Untitled';
     const publishedAt = parseItemDate(row);
     const guid = (row.guid as string) || (row.id as string) || link;
     const externalId = typeof guid === 'string' && guid ? guid : null;

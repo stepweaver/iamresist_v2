@@ -304,10 +304,7 @@ const SOURCE_ITEMS_LIVE_SELECT = `
     `;
 
 /** Surfaced rows only, newest first — avoids suppressed rows consuming the desk fetch budget. */
-export async function fetchSurfacedSourceItemsForLive(
-  limit: number,
-  deskLane: DeskLane,
-): Promise<SourceItemRow[]> {
+async function fetchSurfacedNewestForLive(limit: number, deskLane: DeskLane): Promise<SourceItemRow[]> {
   const supabase = client();
   const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
   if (laneSourceIds.length === 0) return [];
@@ -322,6 +319,46 @@ export async function fetchSurfacedSourceItemsForLive(
 
   if (error) throw new Error(`source_items surfaced select: ${error.message}`);
   return (data ?? []) as SourceItemRow[];
+}
+
+/** Surfaced rows ordered by ingest relevance score (widens ranking candidate pool vs recency-only). */
+async function fetchSurfacedTopRelevanceForLive(limit: number, deskLane: DeskLane): Promise<SourceItemRow[]> {
+  const supabase = client();
+  const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
+  if (laneSourceIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('source_items')
+    .select(SOURCE_ITEMS_LIVE_SELECT)
+    .eq('surface_state', 'surfaced')
+    .in('source_id', laneSourceIds)
+    .order('relevance_score', { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (error) throw new Error(`source_items surfaced relevance select: ${error.message}`);
+  return (data ?? []) as SourceItemRow[];
+}
+
+/**
+ * Union of newest-first + highest-relevance surfaced rows (deduped by id) so desk ranking
+ * is not limited to the most recent `limit` items only.
+ */
+export async function fetchSurfacedSourceItemsForLive(
+  limit: number,
+  deskLane: DeskLane,
+): Promise<SourceItemRow[]> {
+  const [newest, byRel] = await Promise.all([
+    fetchSurfacedNewestForLive(limit, deskLane),
+    fetchSurfacedTopRelevanceForLive(limit, deskLane),
+  ]);
+  const byId = new Map<string, SourceItemRow>();
+  for (const r of newest) {
+    byId.set(r.id, r);
+  }
+  for (const r of byRel) {
+    byId.set(r.id, r);
+  }
+  return Array.from(byId.values());
 }
 
 /** Small secondary pool for downranked items (still on default surface, sorted after surfaced). */
@@ -459,12 +496,15 @@ export type LiveDeskSnapshotPayload = {
   items: unknown[];
   suppressedItems?: unknown[];
   duplicateItems?: unknown[];
+  leadItems?: unknown[];
+  secondaryLeadItems?: unknown[];
+  metadataOnlyItems?: unknown[];
   freshness: IntelFreshness | null;
   freshnessMeta?: IntelFreshnessMeta | null;
 };
 
-/** `1` OSINT, `2` Voices, `3` Watchdogs, `4` Defense ops, `5` Indicators — see intel migrations. */
-export type LiveDeskSnapshotId = 1 | 2 | 3 | 4 | 5;
+/** `1` OSINT, `2` Voices, `3` Watchdogs, `4` Defense ops, `5` Indicators, `6` Statements — see intel migrations. */
+export type LiveDeskSnapshotId = 1 | 2 | 3 | 4 | 5 | 6;
 
 export async function saveLiveDeskSnapshot(
   snapshotId: LiveDeskSnapshotId,
@@ -498,6 +538,9 @@ export async function loadLiveDeskSnapshot(
   const items = Array.isArray(p.items) ? p.items : [];
   const suppressedItems = Array.isArray(p.suppressedItems) ? p.suppressedItems : [];
   const duplicateItems = Array.isArray(p.duplicateItems) ? p.duplicateItems : [];
+  const leadItems = Array.isArray(p.leadItems) ? p.leadItems : [];
+  const secondaryLeadItems = Array.isArray(p.secondaryLeadItems) ? p.secondaryLeadItems : [];
+  const metadataOnlyItems = Array.isArray(p.metadataOnlyItems) ? p.metadataOnlyItems : [];
   const freshness =
     p.freshness && typeof p.freshness === 'object' && !Array.isArray(p.freshness)
       ? (p.freshness as IntelFreshness)
@@ -506,7 +549,16 @@ export async function loadLiveDeskSnapshot(
     p.freshnessMeta && typeof p.freshnessMeta === 'object' && !Array.isArray(p.freshnessMeta)
       ? (p.freshnessMeta as IntelFreshnessMeta)
       : null;
-  return { items, suppressedItems, duplicateItems, freshness, freshnessMeta };
+  return {
+    items,
+    suppressedItems,
+    duplicateItems,
+    leadItems,
+    secondaryLeadItems,
+    metadataOnlyItems,
+    freshness,
+    freshnessMeta,
+  };
 }
 
 export type IntelSourceRegistryRow = {

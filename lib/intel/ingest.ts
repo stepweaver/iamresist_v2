@@ -15,7 +15,7 @@ import {
 import { enrichNormalizedItemsWithImages } from '@/lib/intel/enrichImages';
 import { parseRssXmlToItems } from '@/lib/intel/parseRss';
 import { getSignalSources } from '@/lib/intel/signal-sources';
-import { applyContentUseModeToSummary, stripHtmlToText } from '@/lib/intel/contentUse';
+import { applyContentUseModeToSummary, decodeIntelPlainText, stripHtmlToText } from '@/lib/intel/contentUse';
 import {
   fetchIngestSchedulesForSlugs,
   finishIngestRun,
@@ -162,7 +162,12 @@ function applyContentUseModeToItems(items: NormalizedItem[], mode: ContentUseMod
   if (items.length === 0) return items;
   return items.map((it) => {
     const raw = it.summary;
-    const plain = typeof raw === 'string' && raw.includes('<') ? stripHtmlToText(raw) : raw;
+    const plain =
+      typeof raw === 'string'
+        ? raw.includes('<')
+          ? stripHtmlToText(raw)
+          : decodeIntelPlainText(raw)
+        : raw;
     return {
       ...it,
       summary: applyContentUseModeToSummary(plain, mode),

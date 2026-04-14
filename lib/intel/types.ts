@@ -16,7 +16,13 @@ export type FetchKind =
   | 'scrape'
   | 'html_index';
 
-export type DeskLane = 'osint' | 'voices' | 'watchdogs' | 'defense_ops' | 'indicators';
+export type DeskLane =
+  | 'osint'
+  | 'voices'
+  | 'watchdogs'
+  | 'defense_ops'
+  | 'indicators'
+  | 'statements';
 
 /** Editorial grouping (mirrored to intel.sources.source_family). */
 export type SourceFamily =
@@ -27,7 +33,8 @@ export type SourceFamily =
   | 'watchdog_global'
   | 'indicator_hard'
   | 'indicator_soft'
-  | 'indicator_anecdotal';
+  | 'indicator_anecdotal'
+  | 'claims_public';
 
 export type IndicatorClass = 'hard' | 'soft' | 'anecdotal';
 

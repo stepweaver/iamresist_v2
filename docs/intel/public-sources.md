@@ -31,6 +31,7 @@ This document mirrors the **version-controlled manifest** in [`lib/intel/signal-
 | `defense_ops` | `/intel/defense` | Pentagon / operations-adjacent official releases and specialist posture context (e.g. USNI). |
 | `watchdogs` | `/intel/watchdogs` | Foreign independent and investigative outlets; lead slots require corroboration rules. |
 | `indicators` | `/intel/indicators` | Scheduled macro/statistical releases (BLS/BEA HTML index), placeholders (SAM/OFAC), anecdotal registry rows. |
+| `statements` | `/intel/statements` | Direct political claims / public-import scaffold; isolated ranking; not evidence by itself. |
 | `voices` | `/intel/voices` | Ingested creator/commentary from **public** RSS/podcast feeds. |
 
 The curated **Telescreen** lives at **`/telescreen`** (`/voices` redirects); it is not replaced by `/intel/voices`.
@@ -49,6 +50,7 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 | `indicator_hard` | Scheduled releases / structured contracting placeholders. |
 | `indicator_soft` | Reserved for softer thermometers. |
 | `indicator_anecdotal` | Registry-only anecdotal signals (e.g. pizza index placeholder); never auto-ingested by default. |
+| `claims_public` | Statements lane: public claims / future adapters; high-friction trust posture. |
 
 ## Fetch kinds (`fetch_kind`)
 
@@ -119,7 +121,7 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 | Slug | Feed-native? | Default on | Notes |
 |------|----------------|------------|-------|
 | `kyiv-independent` | RSS via env | **no** until `INTEL_KYIV_INDEPENDENT_RSS_URL` set | SPECIALIST. |
-| `meduza-english` | RSS | yes | `meduza.io/rss/all` |
+| `meduza-english` | RSS | yes | `meduza.io/rss/en/all` (English-only; `/rss/all` is mixed-language) |
 | `mag-972` | RSS | yes | +972 Magazine |
 | `birn-balkaninsight` | RSS | yes | BIRN Balkan Insight |
 | `rappler` | RSS | yes | |

@@ -1,4 +1,5 @@
 import type { ProvenanceClass } from '@/lib/intel/types';
+import { applyEditorialRankingProfile } from '@/lib/intel/rankingProfile';
 
 export type DisplayBucket = 'lead' | 'secondary' | 'routine';
 
@@ -28,6 +29,9 @@ type ScoringInput = {
   trustWarningMode?: string | null;
   /** Precomputed for consistency with trustWarnings.ts; may be derived from text patterns. */
   ceremonialOrLowSubstance?: boolean;
+  deskLane?: string;
+  contentUseMode?: string | null;
+  sourceFamily?: string | null;
 };
 
 function clamp(n: number): number {
@@ -209,7 +213,12 @@ function scoreBoundedRelevance(relevanceScore: number, explanations: DisplayExpl
   return bounded;
 }
 
-function bucketFromScore(score: number): DisplayBucket {
+function bucketFromScore(score: number, deskLane?: string): DisplayBucket {
+  if (deskLane === 'statements') {
+    if (score >= 84) return 'lead';
+    if (score >= 70) return 'secondary';
+    return 'routine';
+  }
   if (score >= 78) return 'lead';
   if (score >= 64) return 'secondary';
   return 'routine';
@@ -227,14 +236,34 @@ export function computeDisplayPriority(input: ScoringInput): DisplayPriorityResu
   score += scoreRecency(input.publishedAt, explanations);
   score += scoreNoisePenalties(input, h, explanations);
 
-  const displayPriority = clamp(score);
-  const displayBucket = bucketFromScore(displayPriority);
+  const prof = applyEditorialRankingProfile({
+    haystack: h,
+    deskLane: input.deskLane ?? 'osint',
+    provenanceClass: input.provenanceClass,
+    stateChangeType: input.stateChangeType,
+    sourceFamily: input.sourceFamily,
+    contentUseMode: input.contentUseMode,
+    sourceSlug: input.sourceSlug,
+  });
+  score += prof.delta;
+  for (const e of prof.explanations) {
+    explanations.push({ ruleId: e.ruleId, message: e.message });
+  }
+
+  let displayPriority = clamp(score);
+  if (input.sourceSlug === 'indicator-pentagon-pizza') {
+    displayPriority = Math.min(displayPriority, 28);
+  }
+  let displayBucket = bucketFromScore(displayPriority, input.deskLane);
+  if (input.sourceSlug === 'indicator-pentagon-pizza') {
+    displayBucket = 'routine';
+  }
 
   explanations.unshift({
     ruleId: 'display:score',
     message: `Display priority ${displayPriority} (bucket: ${displayBucket})`,
   });
 
-  return { displayPriority, displayBucket, displayExplanations: explanations.slice(0, 6) };
+  return { displayPriority, displayBucket, displayExplanations: explanations.slice(0, 8) };
 }
 

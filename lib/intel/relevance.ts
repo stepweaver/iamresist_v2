@@ -102,6 +102,14 @@ function sourceBaseline(
       defaultPriority: 28,
     };
   }
+  if (sourceFamily === 'claims_public') {
+    return {
+      tags: ['media_disinfo'],
+      branch: 'unknown',
+      area: 'unknown',
+      defaultPriority: 34,
+    };
+  }
   if (slug === 'wh-news' || slug === 'wh-presidential') {
     return {
       tags: ['executive_power'],

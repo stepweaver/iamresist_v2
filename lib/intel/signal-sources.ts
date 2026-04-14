@@ -27,7 +27,10 @@ const UNCOVERING_EPSTEIN_NETWORK_FEED = 'https://epsteincoverup.us/feed/';
 /** Renamed department; public RSS (was defense.gov). */
 const WAR_GOV_NEWS_RSS =
   'https://www.war.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945';
-const MEDUZA_EN_RSS = 'https://meduza.io/rss/all';
+/** English-only “all” feed (site `/rss/all` is mixed-language; `/rss/en/all` matches footer link on meduza.io/en). */
+const MEDUZA_EN_RSS = 'https://meduza.io/rss/en/all';
+/** Verified `application/rss+xml`; U.S. Air Force public news releases. */
+const AF_MIL_NEWS_RSS = 'https://www.af.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=1';
 const MAG_972_RSS = 'https://www.972mag.com/feed/';
 const BIRN_RSS = 'https://balkaninsight.com/feed/';
 const RAPPLER_RSS = 'https://www.rappler.com/rss/';
@@ -521,6 +524,54 @@ export function getSignalSources(): SignalSourceConfig[] {
       },
     },
 
+    // --- Statements lane (direct claims / public-import scaffold; not OSINT evidence) ---
+    {
+      slug: 'statements-public-import',
+      name: 'Statements — public import (placeholder)',
+      provenanceClass: 'COMMENTARY',
+      fetchKind: 'manual',
+      deskLane: 'statements',
+      sourceFamily: 'claims_public',
+      contentUseMode: 'manual_review',
+      endpointUrl: null,
+      isEnabled: false,
+      isCoreSource: false,
+      trustWarningMode: 'none',
+      trustWarningLevel: 'high',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'never_hero_without_corroboration',
+      purpose:
+        'Adapter placeholder for future public post URLs or feed-like imports (no login-only scraping in this milestone).',
+      trustedFor: 'Nothing by itself — claims require corroboration from primary records or reporting.',
+      notTrustedFor: 'Treating reposted claims as evidence; substituting for court orders or official releases.',
+      editorialNotes:
+        'Lane is isolated from OSINT ranking; keep disabled until a concrete public-ingest path is approved.',
+      trustWarningText:
+        'Direct claims and political statements can spread misinformation. This lane is claims-only, not evidence.',
+    },
+    {
+      slug: 'statements-rss-sandbox',
+      name: 'Statements — RSS sandbox (disabled)',
+      provenanceClass: 'COMMENTARY',
+      fetchKind: 'rss',
+      deskLane: 'statements',
+      sourceFamily: 'claims_public',
+      contentUseMode: 'feed_summary',
+      endpointUrl: null,
+      isEnabled: false,
+      isCoreSource: false,
+      trustWarningMode: 'none',
+      trustWarningLevel: 'high',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'never_hero_without_corroboration',
+      purpose:
+        'Optional future hook for a vetted, public, high-signal RSS of political claims (disabled until editorial sign-off).',
+      trustedFor: 'Canonical links to public posts when explicitly enabled.',
+      notTrustedFor: 'Firehose partisan feeds or unvetted aggregators.',
+      editorialNotes: 'Disabled by default to avoid turning the lane into undifferentiated social noise.',
+      trustWarningText: 'Claims-only lane: not evidence; verify against primary sources.',
+    },
+
     // --- Defense / operations desk (separate lane) ---
     {
       slug: 'war-gov-releases',
@@ -574,6 +625,121 @@ export function getSignalSources(): SignalSourceConfig[] {
         allowKeywords: ['fleet', 'carrier', 'marine', 'tracker', 'amphibious'],
       },
     },
+    {
+      slug: 'af-mil-news',
+      name: 'U.S. Air Force — News (RSS)',
+      provenanceClass: 'PRIMARY',
+      fetchKind: 'rss',
+      deskLane: 'defense_ops',
+      sourceFamily: 'defense_primary',
+      contentUseMode: 'feed_summary',
+      endpointUrl: AF_MIL_NEWS_RSS,
+      isEnabled: true,
+      isCoreSource: false,
+      trustWarningMode: 'source_controlled_official_claims',
+      trustWarningLevel: 'caution',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'demote_low_substance',
+      trustWarningText:
+        'Official U.S. Air Force channel: authentic provenance for releases; operational claims remain source-controlled.',
+      purpose: 'Department of the Air Force public news RSS (installations, exercises, releases).',
+      trustedFor: 'Official USAF press releases and announcements with canonical links.',
+      notTrustedFor: 'Independent verification of contested operational claims.',
+      editorialNotes: 'RSS URL verified 200 with application/rss+xml; monitor for .mil rate limits in cron.',
+      editorialControls: {
+        defaultPriority: 48,
+        preferredStateChangeTypes: ['press_statement'],
+        allowKeywords: ['exercise', 'deployment', 'strike', 'space', 'bomber', 'fighter'],
+      },
+    },
+    {
+      slug: 'army-mil-news',
+      name: 'U.S. Army — News RSS (placeholder)',
+      provenanceClass: 'PRIMARY',
+      fetchKind: 'rss',
+      deskLane: 'defense_ops',
+      sourceFamily: 'defense_primary',
+      contentUseMode: 'feed_summary',
+      endpointUrl: null,
+      isEnabled: false,
+      isCoreSource: false,
+      trustWarningMode: 'source_controlled_official_claims',
+      trustWarningLevel: 'caution',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'demote_low_substance',
+      purpose:
+        'Placeholder: legacy army.mil RSS paths vary; confirm a working feed URL (often DVIDS or a DesktopModules RSS) before enabling.',
+      trustedFor: 'Official Army public releases when a stable RSS is confirmed.',
+      notTrustedFor: 'Enabling until the feed is verified in production (curl + parse smoke test).',
+      editorialNotes:
+        'Disabled: many .mil RSS endpoints return 403/404 to automated probes; set a verified URL after manual check.',
+    },
+    {
+      slug: 'centcom-press',
+      name: 'CENTCOM — Press/media RSS (placeholder)',
+      provenanceClass: 'PRIMARY',
+      fetchKind: 'rss',
+      deskLane: 'defense_ops',
+      sourceFamily: 'combatant_command',
+      contentUseMode: 'feed_summary',
+      endpointUrl: null,
+      isEnabled: false,
+      isCoreSource: false,
+      trustWarningMode: 'source_controlled_official_claims',
+      trustWarningLevel: 'caution',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'demote_low_substance',
+      purpose:
+        'Placeholder for a CENTCOM public RSS or HTML index path; many centcom.mil endpoints block automated fetches (403).',
+      trustedFor: 'Official U.S. Central Command communications when a stable feed is wired.',
+      notTrustedFor: 'Operational truth without cross-check; not enabled until URL is verified.',
+      editorialNotes:
+        'Deferred: confirm an RSS that returns 200 from the ingest runtime (not just browser); consider html_index fallback.',
+    },
+    {
+      slug: 'eucom-press',
+      name: 'U.S. European Command — Press RSS (placeholder)',
+      provenanceClass: 'PRIMARY',
+      fetchKind: 'rss',
+      deskLane: 'defense_ops',
+      sourceFamily: 'combatant_command',
+      contentUseMode: 'feed_summary',
+      endpointUrl: null,
+      isEnabled: false,
+      isCoreSource: false,
+      trustWarningMode: 'source_controlled_official_claims',
+      trustWarningLevel: 'caution',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'demote_low_substance',
+      purpose:
+        'Placeholder for EUCOM / USEUCOM public press RSS; domain often returns 403 to datacenter crawlers.',
+      trustedFor: 'Official combatant-command messaging once a working feed is confirmed.',
+      notTrustedFor: 'Enabling without a verified ingest smoke test.',
+      editorialNotes:
+        'Deferred: pair with manual verification or alternate host (e.g. defense.gov cross-posts) before enabling.',
+    },
+    {
+      slug: 'dvids-sandbox',
+      name: 'DVIDS — Tagged feed (disabled; firehose risk)',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'rss',
+      deskLane: 'defense_ops',
+      sourceFamily: 'defense_specialist',
+      contentUseMode: 'feed_summary',
+      endpointUrl: null,
+      isEnabled: false,
+      isCoreSource: false,
+      trustWarningMode: 'none',
+      trustWarningLevel: 'info',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'never_hero_without_corroboration',
+      purpose:
+        'Reserved for a tightly scoped DVIDS RSS (unit or tag); broad DVIDS feeds are too noisy for this desk by default.',
+      trustedFor: 'Curated unit output when a narrow, stable RSS URL is configured.',
+      notTrustedFor: 'General DVIDS “all news” ingestion without a narrow tag.',
+      editorialNotes:
+        'Disabled: DVIDS global feeds are a firehose; enable only with a vetted tag/organization URL and editorial notes.',
+    },
 
     // --- Watchdogs / global independent desk ---
     {
@@ -617,7 +783,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustWarningLevel: 'info',
       requiresIndependentVerification: true,
       heroEligibilityMode: 'never_hero_without_corroboration',
-      purpose: 'Independent Russian / post-Soviet coverage (Meduza English RSS).',
+      purpose: 'Independent Russian / post-Soviet coverage in English (`/rss/en/all` — not the mixed-language `/rss/all`).',
       trustedFor: 'Alternative regional narrative and investigation leads with canonical links.',
       notTrustedFor: 'Substitute for primary documents or wire confirmation.',
       editorialControls: {
