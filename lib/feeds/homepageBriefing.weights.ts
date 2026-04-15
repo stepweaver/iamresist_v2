@@ -7,7 +7,6 @@ export type BriefingLane =
   | 'osint'
   | 'watchdogs'
   | 'defense_ops'
-  | 'statements'
   | 'voices';
 
 export const BRIEFING_LANE_WEIGHT: Record<BriefingLane, number> = {
@@ -15,7 +14,6 @@ export const BRIEFING_LANE_WEIGHT: Record<BriefingLane, number> = {
   osint: 1,
   watchdogs: 1.02,
   defense_ops: 1,
-  statements: 0.96,
   /** Commentary lane: surfaces only when raw score is unusually high after weighting. */
   voices: 0.78,
 };
@@ -36,7 +34,6 @@ export function briefingLaneLabel(lane: BriefingLane | string): string {
   if (lane === 'voices') return 'Voices';
   if (lane === 'watchdogs') return 'Watchdogs';
   if (lane === 'defense_ops') return 'Defense';
-  if (lane === 'statements') return 'Statements';
   if (lane === 'osint') return 'OSINT';
   if (lane === 'newswire') return 'Newswire';
   return 'Intel';

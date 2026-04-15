@@ -34,6 +34,7 @@ export type IntelSourceAuditRow = {
   name: string;
   provenanceClass: string;
   fetchKind: string;
+  deskLane: string;
   endpointDisplay: string;
   isEnabled: boolean;
   statusBucket: SourceStatusBucket;
@@ -442,6 +443,7 @@ async function buildIntelSourcesAudit(): Promise<{
       name: src.name,
       provenanceClass: src.provenance_class,
       fetchKind: src.fetch_kind,
+      deskLane: src.desk_lane,
       endpointDisplay: endpointDisplay(src.slug, src.endpoint_url),
       isEnabled: src.is_enabled,
       statusBucket: statusBucket.bucket,
@@ -475,6 +477,15 @@ async function buildIntelSourcesAudit(): Promise<{
     };
   });
 
+  // Public product cleanup: hide internal scaffolds / retired lanes from the public audit surface.
+  const PUBLIC_LANES = new Set(['osint', 'defense_ops', 'watchdogs', 'voices']);
+  const REMOVED_PUBLIC_SOURCES = new Set([
+    'indicator-pentagon-pizza',
+    'sam-gov-contracting',
+    'uncovering-epstein-network',
+  ]);
+  const publicRows = rows.filter((r) => PUBLIC_LANES.has(String(r.deskLane)) && !REMOVED_PUBLIC_SOURCES.has(r.slug));
+
   const primary24h = rows
     .filter((r) => r.provenanceClass === 'PRIMARY' && r.isEnabled)
     .map((r) => r.items24h)
@@ -487,7 +498,7 @@ async function buildIntelSourcesAudit(): Promise<{
         ? primary24h[mid]!
         : (primary24h[mid - 1]! + primary24h[mid]!) / 2;
 
-  for (const r of rows) {
+  for (const r of publicRows) {
     const hi = Math.max(80, medianPrimary24h * 3);
     if (r.isEnabled && r.items24h > hi && medianPrimary24h > 0) {
       r.noiseHint = `High volume (${r.items24h} in 24h vs ~${Math.round(medianPrimary24h)} median for PRIMARY)`;
@@ -501,7 +512,7 @@ async function buildIntelSourcesAudit(): Promise<{
   return {
     configured: true,
     staleThresholdMinutes,
-    rows,
+    rows: publicRows,
     errorMessage: null,
     build: buildInfo(),
   };

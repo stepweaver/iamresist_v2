@@ -21,8 +21,6 @@ const COURIER_COVER_UP = 'https://thecoverupnewsletter.substack.com/feed';
 const ROBERT_REICH = 'https://robertreich.substack.com/feed';
 const ON_OFFENSE = 'https://onoffense.substack.com/feed';
 const TOTAL_HYPOCRISY = 'https://totalhypocrisy.substack.com/feed';
-/** Disabled: HTTP 200 but RSS parses to 0 items in our pipeline; same project uses Substack (`courier-the-cover-up`). */
-const UNCOVERING_EPSTEIN_NETWORK_FEED = 'https://epsteincoverup.us/feed/';
 
 /** Renamed department; public RSS (was defense.gov). */
 const WAR_GOV_NEWS_RSS =
@@ -49,8 +47,6 @@ const KYIV_INDEPENDENT_LISTING_URL = (() => {
   const trimmed = typeof raw === 'string' ? raw.trim() : '';
   return trimmed || KYIV_INDEPENDENT_NEWS_ARCHIVE_DEFAULT;
 })();
-const BLS_SCHEDULE_2026 = 'https://www.bls.gov/schedule/2026/home.htm';
-const BEA_NEWS_SCHEDULE = 'https://www.bea.gov/news/schedule';
 const USNI_FLEET_TAG_PAGE = 'https://news.usni.org/tag/fleet-tracker/';
 const EUCOM_ARTICLES_RSS = 'https://www.eucom.mil/syndication-feed/rss/articles';
 const CENTCOM_PRESS_RELEASES_LISTING = 'https://www.centcom.mil/MEDIA/PRESS-RELEASES/';
@@ -486,33 +482,6 @@ export function getSignalSources(): SignalSourceConfig[] {
       editorialControls: {
         defaultPriority: 50,
         preferredStateChangeTypes: ['specialist_item'],
-      },
-    },
-    {
-      slug: 'uncovering-epstein-network',
-      name: 'Uncovering the Epstein Network',
-      provenanceClass: 'SPECIALIST',
-      fetchKind: 'rss',
-      deskLane: 'osint',
-      sourceFamily: 'general',
-      contentUseMode: 'preview_and_link',
-      endpointUrl: UNCOVERING_EPSTEIN_NETWORK_FEED,
-      isEnabled: false,
-      isCoreSource: false,
-      trustWarningMode: 'none',
-      trustWarningLevel: 'info',
-      requiresIndependentVerification: false,
-      heroEligibilityMode: 'normal',
-      purpose:
-        'Registry row for the epsteincoverup.us project; RSS ingest disabled because /feed/ does not yield items in our parser. Use The Cover-Up Substack (`courier-the-cover-up`) for the working feed; canonical web pages remain on the main site.',
-      trustedFor: 'Headlines, dates, and pointers to the site’s own reporting pages (when ingested via another path).',
-      notTrustedFor: 'Court filings or law-enforcement evidence; read linked articles and primary sources.',
-      editorialNotes:
-        'Disabled as RSS: duplicate of the same editorial project as courier-the-cover-up, and the site feed is not reliable here. Revisit as html_index on /coverage/ if canonical on-domain links are required.',
-      editorialControls: {
-        defaultPriority: 52,
-        preferredStateChangeTypes: ['specialist_item'],
-        allowKeywords: ['Epstein', 'DOJ', 'court', 'files', 'network'],
       },
     },
     {
@@ -1002,81 +971,13 @@ export function getSignalSources(): SignalSourceConfig[] {
         'Uses the public OCCRP RSS (`/en/feed`). The prior `?format=feed&type=rss` endpoint returns HTML in the ingest runtime and parses to 0 items.',
     },
 
-    // --- Indicators / scheduled releases ---
-    {
-      slug: 'bls-release-calendar',
-      name: 'BLS — Release calendar (HTML index)',
-      provenanceClass: 'SCHEDULE',
-      fetchKind: 'html_index',
-      deskLane: 'indicators',
-      sourceFamily: 'indicator_hard',
-      contentUseMode: 'metadata_only',
-      endpointUrl: BLS_SCHEDULE_2026,
-      isEnabled: true,
-      isCoreSource: false,
-      trustWarningMode: 'none',
-      trustWarningLevel: 'info',
-      requiresIndependentVerification: false,
-      heroEligibilityMode: 'normal',
-      purpose: 'BLS publication schedule page — extracts news.release links (CPI, employment, etc.).',
-      trustedFor: 'Upcoming BLS statistical release pointers.',
-      notTrustedFor: 'Actual figures; always read the published release.',
-      editorialControls: {
-        defaultPriority: 40,
-        preferredStateChangeTypes: ['scheduled_release'],
-      },
-    },
-    {
-      slug: 'bea-release-schedule',
-      name: 'BEA — News release schedule (HTML index)',
-      provenanceClass: 'SCHEDULE',
-      fetchKind: 'html_index',
-      deskLane: 'indicators',
-      sourceFamily: 'indicator_hard',
-      contentUseMode: 'metadata_only',
-      endpointUrl: BEA_NEWS_SCHEDULE,
-      isEnabled: true,
-      isCoreSource: false,
-      trustWarningMode: 'none',
-      trustWarningLevel: 'info',
-      requiresIndependentVerification: false,
-      heroEligibilityMode: 'normal',
-      purpose: 'BEA release schedule — extracts /news/ links (GDP, PCE, trade).',
-      trustedFor: 'Upcoming BEA macro release pointers.',
-      notTrustedFor: 'Advance estimates vs revisions; read the release.',
-      editorialControls: {
-        defaultPriority: 40,
-        preferredStateChangeTypes: ['scheduled_release'],
-      },
-    },
-    {
-      slug: 'sam-gov-contracting',
-      name: 'SAM.gov — Contracting (placeholder)',
-      provenanceClass: 'SCHEDULE',
-      fetchKind: 'unsupported',
-      deskLane: 'indicators',
-      sourceFamily: 'indicator_hard',
-      contentUseMode: 'manual_review',
-      endpointUrl: null,
-      isEnabled: false,
-      isCoreSource: false,
-      trustWarningMode: 'none',
-      trustWarningLevel: 'info',
-      requiresIndependentVerification: false,
-      heroEligibilityMode: 'normal',
-      purpose:
-        'Placeholder for SAM.gov Opportunities API wiring (requires an API key + pagination + rate-limit discipline; not wired in this milestone).',
-      trustedFor: 'Defense and federal contracting opportunity/award discovery when implemented.',
-      notTrustedFor: 'Automated award interpretation without reading solicitations.',
-      editorialNotes:
-        'Next step: add a json_api adapter backed by https://api.sam.gov/prod/opportunities/v2/search with an api_key and strict per-run caps (do not attempt without key / ToS review).',
-    },
+    // --- Scheduled releases / reference destinations ---
     {
       slug: 'ofac-recent-actions',
       name: 'OFAC — Recent actions (listing)',
       provenanceClass: 'SCHEDULE',
       fetchKind: 'html_index',
-      deskLane: 'indicators',
+      deskLane: 'osint',
       sourceFamily: 'indicator_hard',
       contentUseMode: 'metadata_only',
       endpointUrl: 'https://ofac.treasury.gov/recent-actions',
@@ -1092,27 +993,6 @@ export function getSignalSources(): SignalSourceConfig[] {
       notTrustedFor: 'Legal compliance determinations without counsel.',
       editorialNotes:
         'OFAC retired RSS as of 2025-01-31; html_index on /recent-actions is the correct low-scope adapter. Keep items metadata-only.',
-    },
-    {
-      slug: 'indicator-pentagon-pizza',
-      name: 'Pentagon Pizza Index (anecdotal)',
-      provenanceClass: 'SCHEDULE',
-      fetchKind: 'manual',
-      deskLane: 'indicators',
-      sourceFamily: 'indicator_anecdotal',
-      contentUseMode: 'manual_review',
-      endpointUrl: null,
-      isEnabled: false,
-      isCoreSource: false,
-      indicatorClass: 'anecdotal',
-      trustWarningMode: 'none',
-      trustWarningLevel: 'high',
-      requiresIndependentVerification: true,
-      heroEligibilityMode: 'never_hero_without_corroboration',
-      purpose:
-        'Registry-only humorous/anecdotal “thermometer” signal (restaurant traffic near the Pentagon). Do not ingest automatically; pair with hard indicators only in UI.',
-      trustedFor: 'Cultural / meme context only.',
-      notTrustedFor: 'Any operational or policy inference.',
     },
   ];
 }
