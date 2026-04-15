@@ -665,7 +665,9 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'defense_specialist',
       contentUseMode: 'metadata_only',
       endpointUrl: USNI_FLEET_TAG_PAGE,
-      isEnabled: true,
+      // Disabled: returns 403 from server/runtime fetch (bot-blocked), which breaks ingest.
+      // Re-enable only after confirming the URL returns 200 from Vercel/cron runtime (not just a browser).
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -675,7 +677,8 @@ export function getSignalSources(): SignalSourceConfig[] {
         'USNI News posts tagged fleet-tracker (approximate carrier/amphib positions from open sources — not primary operational orders).',
       trustedFor: 'Public maritime posture context and specialist summaries with canonical USNI links.',
       notTrustedFor: 'Real-time operational tasking or classified position data.',
-      editorialNotes: 'Ingest uses the public tag listing HTML; titles may be slug-derived where the index omits text.',
+      editorialNotes:
+        'Disabled: endpoint returns 403 to ingest runtime (bot-blocked). Previously: ingest uses the public tag listing HTML; titles may be slug-derived where the index omits text.',
       editorialControls: {
         defaultPriority: 44,
         preferredStateChangeTypes: ['specialist_item'],
@@ -857,7 +860,9 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
       endpointUrl: MAG_972_RSS,
-      isEnabled: true,
+      // Disabled: redirects loop in fetch runtime (eventually "redirect count exceeded" / "fetch failed"), taking down cron.
+      // Re-enable after confirming the feed resolves without redirect loops from the server runtime.
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -866,6 +871,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       purpose: 'Israel–Palestine reporting from Palestinian and Israeli journalists.',
       trustedFor: 'On-the-ground context and independent analysis with outbound links.',
       notTrustedFor: 'Legal status of territories or military claims without independent verification.',
+      editorialNotes:
+        'Disabled: RSS feed redirects loop (adds UTM params and bounces), causing "redirect count exceeded" in ingest runtime.',
       editorialControls: {
         defaultPriority: 45,
         preferredStateChangeTypes: ['specialist_item'],
