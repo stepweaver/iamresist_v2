@@ -18,8 +18,8 @@ export const BRIEFING_LANE_WEIGHT: Record<BriefingLane, number> = {
   voices: 0.78,
 };
 
-/** Top items taken per lane/desk before global merge (reduces one-lane dominance). */
-export const BRIEFING_CANDIDATES_PER_DESK = 5;
+/** Top items taken per lane/desk for lane backstop (see `homepageBriefing.policy.ts`). */
+export { BRIEFING_CANDIDATES_PER_DESK } from './homepageBriefing.policy';
 
 /** Max newswire stories considered (pre-merge), diversity-picked then scored. */
 export const BRIEFING_NEWSWIRE_POOL = 12;
