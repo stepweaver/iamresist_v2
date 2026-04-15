@@ -20,10 +20,10 @@ jobs:
         env:
           # Optional override; defaults to the app's canonical URL (see lib/siteConfig.js).
           BASE_URL: ${{ secrets.IAMRESIST_BASE_URL != '' && secrets.IAMRESIST_BASE_URL || 'https://www.iamresist.org' }}
-          CRON_SECRET: ${{ secrets.IAMRESIST_CRON_SECRET }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
-            echo "Missing IAMRESIST_CRON_SECRET secret" >&2
+            echo "Missing CRON_SECRET secret" >&2
             exit 1
           fi
 
