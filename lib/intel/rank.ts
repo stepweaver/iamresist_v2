@@ -1,4 +1,4 @@
-import type { ProvenanceClass, SurfaceState } from '@/lib/intel/types';
+import type { DeskLane, ProvenanceClass, SurfaceState } from '@/lib/intel/types';
 
 const ORDER: Record<ProvenanceClass, number> = {
   PRIMARY: 0,
@@ -42,6 +42,8 @@ export type LiveDeskItem = LiveRow & {
   institutionalArea: string;
   relevanceExplanations: RelevanceExplanationDTO[];
   isDuplicateLoser: boolean;
+  /** Desk lane context (injected at runtime by live desk services). */
+  deskLane?: DeskLane;
 };
 
 export function compareLiveRows(a: LiveRow, b: LiveRow): number {
