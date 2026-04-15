@@ -34,16 +34,7 @@ export default async function JournalPage() {
       <PageContainer>
         <div className="mb-8">
           <p className="mission-copy text-lg text-foreground/80 max-w-3xl">
-            A space for thoughts, observations, and reflections. Entries below are
-            loaded from Notion when{' '}
-            <span className="font-mono text-sm text-primary/90">
-              NOTION_API_KEY
-            </span>{' '}
-            and{' '}
-            <span className="font-mono text-sm text-primary/90">
-              NOTION_JOURNAL_DB_ID
-            </span>{' '}
-            are configured; only pages with Status = Published are shown.
+            A space for thoughts, observations, and reflections.
           </p>
         </div>
 
