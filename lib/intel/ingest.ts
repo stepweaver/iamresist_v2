@@ -386,11 +386,14 @@ export async function ingestOneSource(
       };
     }
 
+    const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
     const parsedItems = await parseRssXmlToItems(res.text, {
       sourceSlug: cfg.slug,
       provenanceClass: cfg.provenanceClass,
       contentUseMode,
       fetchKind: cfg.fetchKind,
+      deskLane: (manifest?.deskLane as string | undefined) ?? null,
+      sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
     });
 
     // RSS already extracts feed-native images; this only fills gaps.

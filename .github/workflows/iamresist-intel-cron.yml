@@ -1,0 +1,47 @@
+name: iamresist intel cron
+
+on:
+  schedule:
+    # ingest + warm caches frequently; keep rescore less frequent
+    - cron: "*/15 * * * *"
+    - cron: "7 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: iamresist-intel-cron
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call cron endpoints
+        env:
+          BASE_URL: ${{ secrets.IAMRESIST_BASE_URL }}
+          CRON_SECRET: ${{ secrets.IAMRESIST_CRON_SECRET }}
+        run: |
+          if [ -z "$BASE_URL" ]; then
+            echo "Missing IAMRESIST_BASE_URL secret (e.g. https://iamresist.org)" >&2
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Missing IAMRESIST_CRON_SECRET secret" >&2
+            exit 1
+          fi
+
+          TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "[$TS] Warming home caches..."
+          curl -fsS "$BASE_URL/api/cron/warm-home" -H "Authorization: Bearer $CRON_SECRET" >/dev/null
+
+          echo "[$TS] Running intel ingest..."
+          curl -fsS "$BASE_URL/api/cron/ingest-signal" -H "Authorization: Bearer $CRON_SECRET" >/dev/null
+
+          # Run bounded rescore hourly at minute 07 (via separate schedule entry).
+          # Safe to call every run; the endpoint is bounded and will no-op fast when DB is small.
+          echo "[$TS] Running bounded intel rescore..."
+          curl -fsS "$BASE_URL/api/cron/intel-rescore?maxRows=300" -H "Authorization: Bearer $CRON_SECRET" >/dev/null
+
+          echo "[$TS] Keep-alive ping..."
+          curl -fsS "$BASE_URL/api/cron/keep-alive" -H "Authorization: Bearer $CRON_SECRET" >/dev/null
+

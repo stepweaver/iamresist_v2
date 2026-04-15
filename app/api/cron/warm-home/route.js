@@ -5,7 +5,6 @@
  */
 
 import { NextResponse } from 'next/server';
-import { env } from '@/lib/env';
 import { getHomepageVoicesFeed } from '@/lib/voices';
 import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 import { getUnifiedArchivePage } from '@/lib/feeds/unifiedArchive.service';
@@ -13,19 +12,14 @@ import { getNewswireStories } from '@/lib/newswire';
 import { getLatestProtestMusicItem } from '@/lib/feeds/protestMusicFeed.service';
 import { getCurrentBook } from '@/lib/bookclub/service';
 import { getRecentJournalEntries } from '@/lib/journal';
+import { assertCronAuthorized } from '@/lib/ops/cronAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET(req) {
-  const secret = typeof env.CRON_SECRET === 'string' ? env.CRON_SECRET.trim() : '';
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
-  }
-  const auth = req.headers.get('authorization') || '';
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const gate = assertCronAuthorized(req);
+  if (!gate.ok) return gate.response;
 
   await Promise.allSettled([
     getHomepageVoicesFeed(),

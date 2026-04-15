@@ -7,22 +7,15 @@
 
 import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
-import { env } from '@/lib/env';
 import { runIntelIngest } from '@/lib/intel/ingest';
+import { assertCronAuthorized } from '@/lib/ops/cronAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 export async function GET(req) {
-  const secret = typeof env.CRON_SECRET === 'string' ? env.CRON_SECRET.trim() : '';
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
-  }
-
-  const auth = req.headers.get('authorization') || '';
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const gate = assertCronAuthorized(req);
+  if (!gate.ok) return gate.response;
 
   let outcome;
   try {

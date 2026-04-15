@@ -43,11 +43,30 @@ function looksLikeHtml(text: string): boolean {
   return t.startsWith('<!doctype') || t.startsWith('<html');
 }
 
-function mapStateChange(slug: string, provenanceClass: string): StateChangeType {
+function mapStateChange(input: {
+  slug: string;
+  provenanceClass: string;
+  deskLane?: string | null;
+  sourceFamily?: string | null;
+}): StateChangeType {
+  const slug = input.slug;
+  const provenanceClass = input.provenanceClass;
   if (slug === 'govinfo-crec') return 'congressional_record_feed_item';
   if (slug === 'govinfo-bills') return 'legislative_feed_item';
   if (slug === 'wh-news') return 'press_statement';
   if (slug === 'wh-presidential') return 'presidential_action';
+
+  // Primary institutional releases for defense/ops should classify as press statements (not unknown),
+  // otherwise per-source preferredStateChangeTypes mismatches can blanket-downrank the lane.
+  const lane = input.deskLane || null;
+  const fam = input.sourceFamily || null;
+  if (
+    provenanceClass === 'PRIMARY' &&
+    (lane === 'defense_ops' || fam === 'defense_primary' || fam === 'combatant_command')
+  ) {
+    return 'press_statement';
+  }
+
   if (provenanceClass === 'SCHEDULE') return 'scheduled_release';
   if (provenanceClass === 'WIRE') return 'wire_item';
   if (provenanceClass === 'COMMENTARY') return 'commentary_item';
@@ -100,6 +119,8 @@ export async function parseRssXmlToItems(
     provenanceClass: string;
     contentUseMode: ContentUseMode;
     fetchKind: FetchKind;
+    deskLane?: string | null;
+    sourceFamily?: string | null;
   },
 ): Promise<NormalizedItem[]> {
   if (!xml || looksLikeHtml(xml)) return [];
@@ -130,7 +151,12 @@ export async function parseRssXmlToItems(
       extractExecutiveClusterKeys(title),
     );
 
-    const stateChangeType = mapStateChange(ctx.sourceSlug, ctx.provenanceClass);
+    const stateChangeType = mapStateChange({
+      slug: ctx.sourceSlug,
+      provenanceClass: ctx.provenanceClass,
+      deskLane: ctx.deskLane ?? null,
+      sourceFamily: ctx.sourceFamily ?? null,
+    });
 
     const fromFeed = extractFeedImage(row as Record<string, unknown>);
     const imageUrl = fromFeed || youtubeThumbFromUrl(link) || null;

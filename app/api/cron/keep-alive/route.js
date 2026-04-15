@@ -6,20 +6,14 @@
 
 import { NextResponse } from 'next/server';
 import { ping } from '@/lib/db';
-import { env } from '@/lib/env';
+import { assertCronAuthorized } from '@/lib/ops/cronAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 export async function GET(request) {
-  const secret = typeof env.CRON_SECRET === 'string' ? env.CRON_SECRET.trim() : '';
-  if (!secret) {
-    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
-  }
-  const authHeader = request.headers.get('authorization') || '';
-  if (authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const gate = assertCronAuthorized(request);
+  if (!gate.ok) return gate.response;
 
   try {
     await ping();

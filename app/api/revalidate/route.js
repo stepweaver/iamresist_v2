@@ -6,6 +6,7 @@
 
 import { revalidateTag } from 'next/cache';
 import { env } from '@/lib/env';
+import { assertCronAuthorized } from '@/lib/ops/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,15 +28,10 @@ const FEED_TAGS = [
 const TAG_SET = new Set(FEED_TAGS);
 
 export async function POST(req) {
-  const secret = typeof env.CRON_SECRET === 'string' ? env.CRON_SECRET.trim() : '';
-  if (!secret) {
-    return Response.json({ error: 'CRON_SECRET is not configured' }, { status: 500 });
-  }
-
-  const auth = req.headers.get('authorization') || '';
-  if (auth !== `Bearer ${secret}`) {
-    return new Response('Unauthorized', { status: 401 });
-  }
+  // Keep env import to avoid breaking older deployments that rely on env initialization side effects.
+  void env;
+  const gate = assertCronAuthorized(req);
+  if (!gate.ok) return gate.response;
 
   let body = {};
   try {

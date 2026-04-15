@@ -665,9 +665,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'defense_specialist',
       contentUseMode: 'metadata_only',
       endpointUrl: USNI_FLEET_TAG_PAGE,
-      // Disabled: returns 403 from server/runtime fetch (bot-blocked), which breaks ingest.
-      // Re-enable only after confirming the URL returns 200 from Vercel/cron runtime (not just a browser).
-      isEnabled: false,
+      // Keep enabled for visibility; ingest will mark this source failing if bot-blocked.
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -860,9 +859,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
       endpointUrl: MAG_972_RSS,
-      // Disabled: redirects loop in fetch runtime (eventually "redirect count exceeded" / "fetch failed"), taking down cron.
-      // Re-enable after confirming the feed resolves without redirect loops from the server runtime.
-      isEnabled: false,
+      // Keep enabled for visibility; ingest will mark this source failing if redirect loops/bot blocks recur.
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',

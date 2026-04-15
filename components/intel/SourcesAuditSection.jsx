@@ -38,7 +38,7 @@ function HealthBadge({ health }) {
 }
 
 export default function SourcesAuditSection({ audit }) {
-  const { configured, staleThresholdMinutes, rows, errorMessage } = audit;
+  const { configured, staleThresholdMinutes, rows, errorMessage, build } = audit;
 
   if (!configured) {
     return (
@@ -68,6 +68,10 @@ export default function SourcesAuditSection({ audit }) {
       <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
         Stale / health threshold: {staleThresholdMinutes}m (INTEL_DESK_STALE_AFTER_MINUTES) · counts from
         source_items · last run from ingest_runs
+      </p>
+      <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
+        Build: manifest {build?.manifestFingerprint ?? '—'} · rules {build?.relevanceRuleVersion ?? '—'}
+        {build?.gitCommitSha ? ` · sha ${String(build.gitCommitSha).slice(0, 7)}` : ''}
       </p>
 
       <div className="overflow-x-auto border border-border machine-panel">

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { unstable_cache } from 'next/cache';
+import { createHash } from 'node:crypto';
 import {
   fetchIntelSourcesRegistry,
   fetchRecentIngestRunsForAudit,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/intel/db';
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import type { IngestRunStatus } from '@/lib/intel/types';
+import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
 
 export type SourceHealth = 'healthy' | 'stale' | 'failing' | 'disabled' | 'unproven';
 
@@ -48,6 +50,50 @@ export type IntelSourceAuditRow = {
   /** Current `isEnabled` in `signal-sources.ts` (version-controlled manifest). */
   manifestEnabled: boolean;
 };
+
+function stableManifestFingerprint(): string {
+  const sources = getSignalSources()
+    .map((s) => ({
+      slug: s.slug,
+      isEnabled: s.isEnabled,
+      fetchKind: s.fetchKind,
+      endpointUrl: s.endpointUrl,
+      deskLane: s.deskLane,
+      sourceFamily: s.sourceFamily,
+      contentUseMode: s.contentUseMode,
+      provenanceClass: s.provenanceClass,
+      isCoreSource: s.isCoreSource,
+      indicatorClass: s.indicatorClass ?? null,
+      editorialControls: s.editorialControls ?? null,
+    }))
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+
+  const payload = JSON.stringify({
+    schema: 'intel-sources-manifest-v1',
+    ruleVersion: INTEL_RELEVANCE_RULE_VERSION,
+    sources,
+  });
+
+  return createHash('sha256').update(payload).digest('hex').slice(0, 12);
+}
+
+export type IntelSourcesBuildInfo = {
+  manifestFingerprint: string;
+  relevanceRuleVersion: string;
+  gitCommitSha: string | null;
+  deployment: string | null;
+};
+
+function buildInfo(): IntelSourcesBuildInfo {
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null;
+  const deployment = process.env.VERCEL_URL || process.env.VERCEL_DEPLOYMENT_ID || null;
+  return {
+    manifestFingerprint: stableManifestFingerprint(),
+    relevanceRuleVersion: INTEL_RELEVANCE_RULE_VERSION,
+    gitCommitSha: typeof sha === 'string' && sha.trim() ? sha.trim() : null,
+    deployment: typeof deployment === 'string' && deployment.trim() ? deployment.trim() : null,
+  };
+}
 
 function parseStaleMinutes(): number {
   const raw = process.env.INTEL_DESK_STALE_AFTER_MINUTES;
@@ -156,6 +202,7 @@ async function buildIntelSourcesAudit(): Promise<{
   staleThresholdMinutes: number;
   rows: IntelSourceAuditRow[];
   errorMessage: string | null;
+  build: IntelSourcesBuildInfo;
 }> {
   if (!intelDbConfigured()) {
     return {
@@ -163,6 +210,7 @@ async function buildIntelSourcesAudit(): Promise<{
       staleThresholdMinutes: parseStaleMinutes(),
       rows: [],
       errorMessage: 'Supabase credentials not configured.',
+      build: buildInfo(),
     };
   }
 
@@ -181,6 +229,7 @@ async function buildIntelSourcesAudit(): Promise<{
       staleThresholdMinutes,
       rows: [],
       errorMessage: msg,
+      build: buildInfo(),
     };
   }
 
@@ -353,6 +402,7 @@ async function buildIntelSourcesAudit(): Promise<{
     staleThresholdMinutes,
     rows,
     errorMessage: null,
+    build: buildInfo(),
   };
 }
 
