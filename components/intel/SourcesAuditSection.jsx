@@ -37,6 +37,23 @@ function HealthBadge({ health }) {
   return <span className={`${base} ${map[health] || map.unproven}`}>{health}</span>;
 }
 
+function StatusBadge({ bucket }) {
+  const base =
+    'font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border rounded whitespace-nowrap';
+  const map = {
+    enabled_healthy: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400/90 bg-emerald-500/10',
+    enabled_stale: 'border-primary/50 text-primary bg-primary/5',
+    enabled_unproven: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
+    enabled_failing: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
+    disabled_policy: 'border-border text-foreground/55 bg-foreground/5',
+    disabled_placeholder: 'border-border text-foreground/55 bg-foreground/5',
+    disabled_env_gated: 'border-border text-foreground/55 bg-foreground/5',
+    disabled_other: 'border-border text-foreground/55 bg-foreground/5',
+  };
+  if (!bucket) return null;
+  return <span className={`${base} ${map[bucket] || map.disabled_other}`}>{bucket}</span>;
+}
+
 export default function SourcesAuditSection({ audit }) {
   const { configured, staleThresholdMinutes, rows, errorMessage, build } = audit;
 
@@ -96,6 +113,16 @@ export default function SourcesAuditSection({ audit }) {
               <tr key={r.id} className="border-b border-border/80 align-top hover:bg-foreground/[0.02]">
                 <td className="p-3">
                   <HealthBadge health={r.health} />
+                  {r.statusBucket ? (
+                    <div className="mt-2">
+                      <StatusBadge bucket={r.statusBucket} />
+                      {r.statusDetail ? (
+                        <p className="font-mono text-[9px] text-foreground/45 mt-1 max-w-[180px] leading-snug">
+                          {r.statusDetail}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {r.healthReason ? (
                     <p className="font-mono text-[9px] text-foreground/55 mt-2 max-w-[180px] leading-snug">
                       {r.healthReason}

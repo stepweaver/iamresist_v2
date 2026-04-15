@@ -31,19 +31,26 @@ const WAR_GOV_NEWS_RSS =
 const MEDUZA_EN_RSS = 'https://meduza.io/rss/en/all';
 /** Verified `application/rss+xml`; U.S. Air Force public news releases. */
 const AF_MIL_NEWS_RSS = 'https://www.af.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=1';
+/** Army CORE static RSS; organization id 1 is the Army homepage. */
+const ARMY_MIL_NEWS_RSS = 'https://www.army.mil/rss/static/1.xml';
 const MAG_972_RSS = 'https://www.972mag.com/feed/';
 const BIRN_RSS = 'https://balkaninsight.com/feed/';
 const RAPPLER_RSS = 'https://www.rappler.com/rss/';
 const BELLINGCAT_RSS = 'https://www.bellingcat.com/feed/';
 const FORBIDDEN_STORIES_RSS = 'https://forbiddenstories.org/feed/';
-/** Optional: Kyiv Independent has no stable public RSS on the main site; set INTEL_KYIV_INDEPENDENT_RSS_URL when you have a working feed URL. */
-const KYIV_INDEPENDENT_RSS =
-  typeof process !== 'undefined' && process.env.INTEL_KYIV_INDEPENDENT_RSS_URL
-    ? String(process.env.INTEL_KYIV_INDEPENDENT_RSS_URL).trim()
-    : '';
+const KYIV_INDEPENDENT_RSS_DEFAULT = 'https://kyivindependent.com/feed/';
+/** Optional override: set INTEL_KYIV_INDEPENDENT_RSS_URL to a vetted alternate RSS URL. */
+const KYIV_INDEPENDENT_RSS = (() => {
+  if (typeof process === 'undefined') return KYIV_INDEPENDENT_RSS_DEFAULT;
+  const raw = process.env.INTEL_KYIV_INDEPENDENT_RSS_URL;
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  return trimmed || KYIV_INDEPENDENT_RSS_DEFAULT;
+})();
 const BLS_SCHEDULE_2026 = 'https://www.bls.gov/schedule/2026/home.htm';
 const BEA_NEWS_SCHEDULE = 'https://www.bea.gov/news/schedule';
 const USNI_FLEET_TAG_PAGE = 'https://news.usni.org/tag/fleet-tracker/';
+const EUCOM_ARTICLES_RSS = 'https://www.eucom.mil/syndication-feed/rss/articles';
+const CENTCOM_PRESS_RELEASES_LISTING = 'https://www.centcom.mil/MEDIA/PRESS-RELEASES/';
 const HOUSE_JUDICIARY_GOP_PRESS = 'https://judiciary.house.gov/media/press-releases';
 const HOUSE_JUDICIARY_DEM_PRESS =
   'https://democrats-judiciary.house.gov/media-center/press-releases';
@@ -677,7 +684,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Public maritime posture context and specialist summaries with canonical USNI links.',
       notTrustedFor: 'Real-time operational tasking or classified position data.',
       editorialNotes:
-        'Disabled: endpoint returns 403 to ingest runtime (bot-blocked). Previously: ingest uses the public tag listing HTML; titles may be slug-derived where the index omits text.',
+        'Known issue: endpoint may return 403 to the ingest runtime (bot-blocked). Ingest uses the public tag listing HTML; titles may be slug-derived where the index omits text.',
       editorialControls: {
         defaultPriority: 44,
         preferredStateChangeTypes: ['specialist_item'],
@@ -713,69 +720,69 @@ export function getSignalSources(): SignalSourceConfig[] {
     },
     {
       slug: 'army-mil-news',
-      name: 'U.S. Army — News RSS (placeholder)',
+      name: 'U.S. Army — News (RSS)',
       provenanceClass: 'PRIMARY',
       fetchKind: 'rss',
       deskLane: 'defense_ops',
       sourceFamily: 'defense_primary',
       contentUseMode: 'feed_summary',
-      endpointUrl: null,
-      isEnabled: false,
+      endpointUrl: ARMY_MIL_NEWS_RSS,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'source_controlled_official_claims',
       trustWarningLevel: 'caution',
       requiresIndependentVerification: true,
       heroEligibilityMode: 'demote_low_substance',
       purpose:
-        'Placeholder: legacy army.mil RSS paths vary; confirm a working feed URL (often DVIDS or a DesktopModules RSS) before enabling.',
-      trustedFor: 'Official Army public releases when a stable RSS is confirmed.',
-      notTrustedFor: 'Enabling until the feed is verified in production (curl + parse smoke test).',
+        'Official U.S. Army homepage releases via Army CORE static RSS (organization feed).',
+      trustedFor: 'Official Army public releases and announcements with canonical Army.mil links.',
+      notTrustedFor: 'Independent verification of contested operational claims.',
       editorialNotes:
-        'Disabled: many .mil RSS endpoints return 403/404 to automated probes; set a verified URL after manual check.',
+        'Uses Army CORE static RSS (`/rss/static/1.xml`). If .mil blocks the ingest runtime, treat failures as source-scoped (do not poison the run).',
     },
     {
       slug: 'centcom-press',
-      name: 'CENTCOM — Press/media RSS (placeholder)',
+      name: 'CENTCOM — Press releases (listing)',
       provenanceClass: 'PRIMARY',
-      fetchKind: 'rss',
+      fetchKind: 'html_index',
       deskLane: 'defense_ops',
       sourceFamily: 'combatant_command',
-      contentUseMode: 'feed_summary',
-      endpointUrl: null,
-      isEnabled: false,
+      contentUseMode: 'metadata_only',
+      endpointUrl: CENTCOM_PRESS_RELEASES_LISTING,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'source_controlled_official_claims',
       trustWarningLevel: 'caution',
       requiresIndependentVerification: true,
       heroEligibilityMode: 'demote_low_substance',
       purpose:
-        'Placeholder for a CENTCOM public RSS or HTML index path; many centcom.mil endpoints block automated fetches (403).',
-      trustedFor: 'Official U.S. Central Command communications when a stable feed is wired.',
-      notTrustedFor: 'Operational truth without cross-check; not enabled until URL is verified.',
+        'CENTCOM press releases (listing ingest of canonical press-release URLs; metadata-only).',
+      trustedFor: 'Official CENTCOM press-release links and timestamps (as available).',
+      notTrustedFor: 'Independent verification of operational claims; treat as source-controlled statements.',
       editorialNotes:
-        'Deferred: confirm an RSS that returns 200 from the ingest runtime (not just browser); consider html_index fallback.',
+        'Uses html_index on the stable press releases listing (no pagination traversal in ingest). If blocked (403), it should fail source-scoped.',
     },
     {
       slug: 'eucom-press',
-      name: 'U.S. European Command — Press RSS (placeholder)',
+      name: 'U.S. European Command — Articles (RSS)',
       provenanceClass: 'PRIMARY',
       fetchKind: 'rss',
       deskLane: 'defense_ops',
       sourceFamily: 'combatant_command',
       contentUseMode: 'feed_summary',
-      endpointUrl: null,
-      isEnabled: false,
+      endpointUrl: EUCOM_ARTICLES_RSS,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'source_controlled_official_claims',
       trustWarningLevel: 'caution',
       requiresIndependentVerification: true,
       heroEligibilityMode: 'demote_low_substance',
       purpose:
-        'Placeholder for EUCOM / USEUCOM public press RSS; domain often returns 403 to datacenter crawlers.',
-      trustedFor: 'Official combatant-command messaging once a working feed is confirmed.',
-      notTrustedFor: 'Enabling without a verified ingest smoke test.',
+        'Official USEUCOM syndication RSS for published articles.',
+      trustedFor: 'Official EUCOM article links and press-style releases with canonical eucom.mil URLs.',
+      notTrustedFor: 'Independent verification of operational claims; source-controlled framing.',
       editorialNotes:
-        'Deferred: pair with manual verification or alternate host (e.g. defense.gov cross-posts) before enabling.',
+        'Uses eucom.mil syndication feed (`/syndication-feed/rss/articles`). If blocked in runtime, treat failures as source-scoped.',
     },
     {
       slug: 'dvids-sandbox',
@@ -809,18 +816,19 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'watchdogs',
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
-      endpointUrl: KYIV_INDEPENDENT_RSS || null,
-      isEnabled: Boolean(KYIV_INDEPENDENT_RSS),
+      endpointUrl: KYIV_INDEPENDENT_RSS,
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
       requiresIndependentVerification: true,
       heroEligibilityMode: 'never_hero_without_corroboration',
-      purpose: 'English-language Ukraine reporting (enable by setting INTEL_KYIV_INDEPENDENT_RSS_URL to a working RSS URL).',
+      purpose:
+        'English-language Ukraine reporting via public site RSS (override with INTEL_KYIV_INDEPENDENT_RSS_URL if needed).',
       trustedFor: 'Regional on-the-ground reporting pointers with outbound canonical links.',
       notTrustedFor: 'Single-source confirmation of front-line claims without corroboration.',
       editorialNotes:
-        'Fail-closed when env unset: the public site does not expose a reliable default RSS in all environments.',
+        'Defaults to the site RSS (`/feed/`). Keep env override for emergency swaps if the feed changes.',
       editorialControls: {
         defaultPriority: 46,
         preferredStateChangeTypes: ['specialist_item'],
@@ -870,7 +878,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'On-the-ground context and independent analysis with outbound links.',
       notTrustedFor: 'Legal status of territories or military claims without independent verification.',
       editorialNotes:
-        'Disabled: RSS feed redirects loop (adds UTM params and bounces), causing "redirect count exceeded" in ingest runtime.',
+        'Known issue: RSS feed can trigger redirect loops (e.g. tracking query params), which previously caused "redirect count exceeded" in ingest runtime. Guard with redirect-loop protections; treat failures as source-scoped.',
       editorialControls: {
         defaultPriority: 45,
         preferredStateChangeTypes: ['specialist_item'],
@@ -972,22 +980,23 @@ export function getSignalSources(): SignalSourceConfig[] {
       slug: 'occrp',
       name: 'OCCRP',
       provenanceClass: 'SPECIALIST',
-      fetchKind: 'unsupported',
+      fetchKind: 'rss',
       deskLane: 'watchdogs',
       sourceFamily: 'watchdog_global',
-      contentUseMode: 'manual_review',
-      endpointUrl: null,
-      isEnabled: false,
+      contentUseMode: 'feed_summary',
+      endpointUrl: 'https://www.occrp.org/en?format=feed&type=rss',
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
       requiresIndependentVerification: true,
       heroEligibilityMode: 'never_hero_without_corroboration',
       purpose:
-        'Registry placeholder: OCCRP public RSS endpoints are often bot-blocked. Prefer manual review, Aleph workflows, or a stable partner RSS URL when available.',
+        'Cross-border corruption investigations (OCCRP public RSS).',
       trustedFor: 'Cross-border corruption and asset-trail investigations when ingested.',
-      notTrustedFor: 'Automated ingest without verifying the endpoint in your environment.',
-      editorialNotes: 'Enable after confirming a fetchable RSS or JSON listing URL; do not assume occrp.org/en/rss works from all server IPs.',
+      notTrustedFor: 'Independent verification without corroboration; treat as specialist reporting pointers.',
+      editorialNotes:
+        'Uses the public OCCRP RSS (`/en?format=feed&type=rss`). If bot-blocked in runtime, failures must be source-scoped and visible in audit.',
     },
 
     // --- Indicators / scheduled releases ---
@@ -1053,29 +1062,33 @@ export function getSignalSources(): SignalSourceConfig[] {
       requiresIndependentVerification: false,
       heroEligibilityMode: 'normal',
       purpose:
-        'Placeholder for future SAM.gov Opportunities API or award feeds (requires API key / ToS review — not wired in this milestone).',
+        'Placeholder for SAM.gov Opportunities API wiring (requires an API key + pagination + rate-limit discipline; not wired in this milestone).',
       trustedFor: 'Defense and federal contracting opportunity/award discovery when implemented.',
       notTrustedFor: 'Automated award interpretation without reading solicitations.',
+      editorialNotes:
+        'Next step: add a json_api adapter backed by https://api.sam.gov/prod/opportunities/v2/search with an api_key and strict per-run caps (do not attempt without key / ToS review).',
     },
     {
       slug: 'ofac-recent-actions',
-      name: 'OFAC — Recent actions (placeholder)',
+      name: 'OFAC — Recent actions (listing)',
       provenanceClass: 'SCHEDULE',
-      fetchKind: 'unsupported',
+      fetchKind: 'html_index',
       deskLane: 'indicators',
       sourceFamily: 'indicator_hard',
-      contentUseMode: 'manual_review',
-      endpointUrl: null,
-      isEnabled: false,
+      contentUseMode: 'metadata_only',
+      endpointUrl: 'https://ofac.treasury.gov/recent-actions',
+      isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
       requiresIndependentVerification: true,
       heroEligibilityMode: 'normal',
       purpose:
-        'Placeholder: legacy OFAC RSS was retired; monitor recent-actions pages, email alerts, or partner feeds manually.',
+        'OFAC recent actions listing (legacy RSS retired; ingest extracts recent-action detail URLs).',
       trustedFor: 'Sanctions and designation updates when ingested via a supported path.',
       notTrustedFor: 'Legal compliance determinations without counsel.',
+      editorialNotes:
+        'OFAC retired RSS as of 2025-01-31; html_index on /recent-actions is the correct low-scope adapter. Keep items metadata-only.',
     },
     {
       slug: 'indicator-pentagon-pizza',

@@ -37,6 +37,34 @@ describe('ingestOneSource', () => {
     vi.resetAllMocks();
   });
 
+  it('caps very large RSS feeds per-source per-run', async () => {
+    const items = Array.from({ length: 80 }).map((_, i) => {
+      const n = i + 1;
+      return `
+        <item>
+          <title>T${n}</title>
+          <link>https://example.com/p${n}</link>
+          <description>Hi</description>
+        </item>
+      `;
+    });
+    vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: `<?xml version="1.0"?><rss version="2.0"><channel><title>C</title>${items.join(
+        '\n',
+      )}</channel></rss>`,
+      finalUrl: 'https://example.com/feed',
+      contentType: 'application/rss+xml',
+    });
+
+    const out = await ingestOneSource(rssCfg({ slug: 'wh-news' }));
+    expect(out.status).toBe('success');
+    expect(out.items.length).toBeLessThanOrEqual(60);
+    expect(out.meta?.itemsCapped).toBe(true);
+    expect(out.meta?.itemsCap).toBe(60);
+  });
+
   it('marks RSS with 0 items as partial on HTTP 200', async () => {
     vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
       ok: true,

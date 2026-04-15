@@ -7,11 +7,29 @@ import {
 import { hashNormalizedItem } from '@/lib/intel/hash';
 import type { ContentUseMode, FetchKind, NormalizedItem, StateChangeType } from '@/lib/intel/types';
 
-function mapStateChange(slug: string, provenanceClass: string): StateChangeType {
+function mapStateChange(input: {
+  slug: string;
+  provenanceClass: string;
+  deskLane?: string | null;
+  sourceFamily?: string | null;
+}): StateChangeType {
+  const slug = input.slug;
+  const provenanceClass = input.provenanceClass;
   if (provenanceClass === 'SCHEDULE') return 'scheduled_release';
   if (provenanceClass === 'WIRE') return 'wire_item';
   if (provenanceClass === 'COMMENTARY') return 'commentary_item';
   if (provenanceClass === 'SPECIALIST') return 'specialist_item';
+
+  // Match RSS behavior: treat defense/ops primaries as press statements, not unknown.
+  const lane = input.deskLane || null;
+  const fam = input.sourceFamily || null;
+  if (
+    provenanceClass === 'PRIMARY' &&
+    (lane === 'defense_ops' || fam === 'defense_primary' || fam === 'combatant_command')
+  ) {
+    return 'press_statement';
+  }
+
   return 'unknown';
 }
 
@@ -67,6 +85,8 @@ export function parseDemocracyDocketNewsAlertsHtml(
   ctx: {
     sourceSlug: string;
     provenanceClass: string;
+    deskLane?: string | null;
+    sourceFamily?: string | null;
     contentUseMode: ContentUseMode;
     fetchKind: FetchKind;
   },
@@ -115,7 +135,12 @@ export function parseDemocracyDocketNewsAlertsHtml(
         htmlIndex: true,
       },
       clusterKeys,
-      stateChangeType: mapStateChange(ctx.sourceSlug, ctx.provenanceClass),
+      stateChangeType: mapStateChange({
+        slug: ctx.sourceSlug,
+        provenanceClass: ctx.provenanceClass,
+        deskLane: ctx.deskLane ?? null,
+        sourceFamily: ctx.sourceFamily ?? null,
+      }),
     };
 
     items.push({
@@ -137,6 +162,8 @@ export function parseSameHostArticleLinksHtml(
   ctx: {
     sourceSlug: string;
     provenanceClass: string;
+    deskLane?: string | null;
+    sourceFamily?: string | null;
     contentUseMode: ContentUseMode;
     fetchKind: FetchKind;
     /** e.g. `www.bls.gov` */
@@ -233,7 +260,12 @@ export function parseSameHostArticleLinksHtml(
         scheduleListing: true,
       },
       clusterKeys,
-      stateChangeType: mapStateChange(ctx.sourceSlug, ctx.provenanceClass),
+      stateChangeType: mapStateChange({
+        slug: ctx.sourceSlug,
+        provenanceClass: ctx.provenanceClass,
+        deskLane: ctx.deskLane ?? null,
+        sourceFamily: ctx.sourceFamily ?? null,
+      }),
     };
 
     items.push({
@@ -255,6 +287,8 @@ export function parseUsniNewsListingHtml(
   ctx: {
     sourceSlug: string;
     provenanceClass: string;
+    deskLane?: string | null;
+    sourceFamily?: string | null;
     contentUseMode: ContentUseMode;
     fetchKind: FetchKind;
     baseUrl?: string | null;
@@ -331,7 +365,214 @@ export function parseUsniNewsListingHtml(
         usniListing: true,
       },
       clusterKeys,
-      stateChangeType: mapStateChange(ctx.sourceSlug, ctx.provenanceClass),
+      stateChangeType: mapStateChange({
+        slug: ctx.sourceSlug,
+        provenanceClass: ctx.provenanceClass,
+        deskLane: ctx.deskLane ?? null,
+        sourceFamily: ctx.sourceFamily ?? null,
+      }),
+    };
+
+    items.push({
+      ...baseItem,
+      contentHash: hashNormalizedItem(baseItem),
+    });
+  }
+
+  return items;
+}
+
+const CENTCOM_HOST = 'www.centcom.mil';
+
+function canonUrlNoQuery(raw: string, baseUrl?: string | null): string | null {
+  try {
+    const u = baseUrl ? new URL(raw, baseUrl) : new URL(raw);
+    u.hash = '';
+    u.search = '';
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    if (u.protocol === 'http:') u.protocol = 'https:';
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * CENTCOM press releases listing: pulls canonical Press-Release-View Article URLs.
+ * Intentionally does not paginate: listing page only.
+ */
+export function parseCentcomPressReleasesHtml(
+  html: string,
+  ctx: {
+    sourceSlug: string;
+    provenanceClass: string;
+    deskLane?: string | null;
+    sourceFamily?: string | null;
+    contentUseMode: ContentUseMode;
+    fetchKind: FetchKind;
+    baseUrl?: string | null;
+  },
+): NormalizedItem[] {
+  if (!html || html.length < 200) return [];
+
+  const candidateUrls = new Set<string>();
+  const absRe = /href=["'](https?:\/\/www\.centcom\.mil\/MEDIA\/PRESS-RELEASES\/Press-Release-View\/Article\/[^"'#?\s]+)\/?["']/gi;
+  for (const m of html.matchAll(absRe)) {
+    const raw = m[1];
+    if (raw) candidateUrls.add(raw);
+  }
+
+  const base = ctx.baseUrl?.trim();
+  if (base) {
+    const relRe = /href=["'](\/MEDIA\/PRESS-RELEASES\/Press-Release-View\/Article\/[^"'#?\s]+)\/?["']/gi;
+    for (const m of html.matchAll(relRe)) {
+      const path = m[1];
+      if (path) candidateUrls.add(path);
+    }
+  }
+
+  const items: NormalizedItem[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of candidateUrls) {
+    const canonicalUrl = canonUrlNoQuery(raw, base);
+    if (!canonicalUrl) continue;
+    let u: URL;
+    try {
+      u = new URL(canonicalUrl);
+    } catch {
+      continue;
+    }
+    if (!hostMatchesUrl(u, CENTCOM_HOST)) continue;
+    if (!u.pathname.includes('/MEDIA/PRESS-RELEASES/Press-Release-View/Article/')) continue;
+    if (seen.has(canonicalUrl)) continue;
+    seen.add(canonicalUrl);
+
+    const slug = u.pathname.split('/').filter(Boolean).pop() ?? '';
+    if (!slug) continue;
+
+    const title = slugToTitle(slug);
+    const summary = applyContentUseModeToSummary(null, ctx.contentUseMode);
+
+    const clusterKeys = mergeClusterParts(
+      extractBillClusterKeys(canonicalUrl),
+      extractExecutiveClusterKeys(title),
+    );
+
+    const baseItem = {
+      externalId: canonicalUrl,
+      canonicalUrl,
+      title,
+      summary,
+      publishedAt: null as string | null,
+      imageUrl: null as string | null,
+      structured: {
+        fetchKind: ctx.fetchKind,
+        htmlIndex: true,
+        centcomListing: true,
+      },
+      clusterKeys,
+      stateChangeType: mapStateChange({
+        slug: ctx.sourceSlug,
+        provenanceClass: ctx.provenanceClass,
+        deskLane: ctx.deskLane ?? null,
+        sourceFamily: ctx.sourceFamily ?? null,
+      }),
+    };
+
+    items.push({
+      ...baseItem,
+      contentHash: hashNormalizedItem(baseItem),
+    });
+  }
+
+  return items;
+}
+
+const OFAC_HOST = 'ofac.treasury.gov';
+
+/**
+ * OFAC recent actions listing: extracts detail pages under `/recent-actions/{id}`.
+ * Metadata-only (title derived from slug by default).
+ */
+export function parseOfacRecentActionsHtml(
+  html: string,
+  ctx: {
+    sourceSlug: string;
+    provenanceClass: string;
+    deskLane?: string | null;
+    sourceFamily?: string | null;
+    contentUseMode: ContentUseMode;
+    fetchKind: FetchKind;
+    baseUrl?: string | null;
+  },
+): NormalizedItem[] {
+  if (!html || html.length < 200) return [];
+
+  const candidateUrls = new Set<string>();
+  const absRe = /href=["'](https?:\/\/ofac\.treasury\.gov\/recent-actions\/[^"'#?\s]+)\/?["']/gi;
+  for (const m of html.matchAll(absRe)) {
+    const raw = m[1];
+    if (raw) candidateUrls.add(raw);
+  }
+
+  const base = ctx.baseUrl?.trim();
+  if (base) {
+    const relRe = /href=["'](\/recent-actions\/[^"'#?\s]+)\/?["']/gi;
+    for (const m of html.matchAll(relRe)) {
+      const path = m[1];
+      if (path) candidateUrls.add(path);
+    }
+  }
+
+  const items: NormalizedItem[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of candidateUrls) {
+    const canonicalUrl = canonUrlNoQuery(raw, base);
+    if (!canonicalUrl) continue;
+    let u: URL;
+    try {
+      u = new URL(canonicalUrl);
+    } catch {
+      continue;
+    }
+    if (!hostMatchesUrl(u, OFAC_HOST)) continue;
+    if (!u.pathname.startsWith('/recent-actions/')) continue;
+    if (u.pathname === '/recent-actions' || u.pathname === '/recent-actions/') continue;
+    if (seen.has(canonicalUrl)) continue;
+    seen.add(canonicalUrl);
+
+    const slug = u.pathname.split('/').filter(Boolean).pop() ?? '';
+    if (!slug) continue;
+
+    const title = slugToTitle(slug);
+    const summary = applyContentUseModeToSummary(null, ctx.contentUseMode);
+
+    const clusterKeys = mergeClusterParts(
+      extractBillClusterKeys(canonicalUrl),
+      extractExecutiveClusterKeys(title),
+    );
+
+    const baseItem = {
+      externalId: canonicalUrl,
+      canonicalUrl,
+      title,
+      summary,
+      publishedAt: null as string | null,
+      imageUrl: null as string | null,
+      structured: {
+        fetchKind: ctx.fetchKind,
+        htmlIndex: true,
+        ofacRecentActions: true,
+      },
+      clusterKeys,
+      stateChangeType: mapStateChange({
+        slug: ctx.sourceSlug,
+        provenanceClass: ctx.provenanceClass,
+        deskLane: ctx.deskLane ?? null,
+        sourceFamily: ctx.sourceFamily ?? null,
+      }),
     };
 
     items.push({

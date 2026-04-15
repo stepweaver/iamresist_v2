@@ -9,6 +9,8 @@ import {
 } from '@/lib/intel/frApi';
 import {
   parseDemocracyDocketNewsAlertsHtml,
+  parseCentcomPressReleasesHtml,
+  parseOfacRecentActionsHtml,
   parseSameHostArticleLinksHtml,
   parseUsniNewsListingHtml,
 } from '@/lib/intel/parseHtmlIndex';
@@ -30,6 +32,28 @@ import type { ContentUseMode, FetchKind, IngestRunStatus, NormalizedItem } from 
 const SKIP_MESSAGE = 'Skipped (disabled or missing endpoint URL)';
 
 const DEFAULT_INGEST_INTERVAL_MINUTES = 30;
+const DEFAULT_MAX_ITEMS_PER_SOURCE = 60;
+
+function maxItemsForSourceSlug(slug: string): number {
+  if (slug === 'mag-972') return 30;
+  if (slug === 'usni-fleet-tracker') return 25;
+  if (slug === 'democracy-docket') return 40;
+  if (slug === 'centcom-press') return 40;
+  if (slug === 'ofac-recent-actions') return 50;
+  return DEFAULT_MAX_ITEMS_PER_SOURCE;
+}
+
+function fetchTimeoutMsForSourceSlug(slug: string): number {
+  if (slug === 'mag-972') return 18000;
+  if (slug === 'usni-fleet-tracker') return 18000;
+  return 25000;
+}
+
+function capItems(items: NormalizedItem[], max: number): { items: NormalizedItem[]; capped: boolean } {
+  if (max <= 0) return { items: [], capped: items.length > 0 };
+  if (items.length <= max) return { items, capped: false };
+  return { items: items.slice(0, max), capped: true };
+}
 
 function clampIngestIntervalMinutes(raw: number | undefined): number {
   const n = raw == null || !Number.isFinite(raw) ? DEFAULT_INGEST_INTERVAL_MINUTES : Math.round(raw);
@@ -190,7 +214,7 @@ export async function ingestOneSource(
 ): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string; meta?: Record<string, unknown> }> {
   let res;
   try {
-    res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: 25000 });
+    res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: fetchTimeoutMsForSourceSlug(cfg.slug) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return {
@@ -221,6 +245,7 @@ export async function ingestOneSource(
 
   try {
     const contentUseMode = coerceContentUseMode(resolveContentMode(cfg));
+    const maxItems = maxItemsForSourceSlug(cfg.slug);
 
     if (cfg.fetchKind === 'json_api') {
       const parsedItems =
@@ -228,7 +253,8 @@ export async function ingestOneSource(
           ? parseFederalRegisterPiJson(res.text)
           : parseFederalRegisterPublishedJson(res.text);
 
-      const items = applyContentUseModeToItems(parsedItems, contentUseMode);
+      const { items: cappedRaw, capped } = capItems(parsedItems, maxItems);
+      const items = applyContentUseModeToItems(cappedRaw, contentUseMode);
 
       if (items.length === 0) {
         return {
@@ -252,6 +278,7 @@ export async function ingestOneSource(
           finalUrl: res.finalUrl ?? null,
           contentType: res.contentType ?? null,
           itemsParsed: items.length,
+          ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
         },
       };
     }
@@ -263,6 +290,9 @@ export async function ingestOneSource(
         parsedItems = parseDemocracyDocketNewsAlertsHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
+          deskLane: (getSignalSources().find((s) => s.slug === cfg.slug)?.deskLane as string | undefined) ?? null,
+          sourceFamily:
+            (getSignalSources().find((s) => s.slug === cfg.slug)?.sourceFamily as string | undefined) ?? null,
           contentUseMode,
           fetchKind: cfg.fetchKind,
         });
@@ -271,6 +301,9 @@ export async function ingestOneSource(
         parsedItems = parseSameHostArticleLinksHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
+          deskLane: (getSignalSources().find((s) => s.slug === cfg.slug)?.deskLane as string | undefined) ?? null,
+          sourceFamily:
+            (getSignalSources().find((s) => s.slug === cfg.slug)?.sourceFamily as string | undefined) ?? null,
           contentUseMode,
           fetchKind: cfg.fetchKind,
           hostname: 'www.bls.gov',
@@ -283,6 +316,9 @@ export async function ingestOneSource(
         parsedItems = parseSameHostArticleLinksHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
+          deskLane: (getSignalSources().find((s) => s.slug === cfg.slug)?.deskLane as string | undefined) ?? null,
+          sourceFamily:
+            (getSignalSources().find((s) => s.slug === cfg.slug)?.sourceFamily as string | undefined) ?? null,
           contentUseMode,
           fetchKind: cfg.fetchKind,
           hostname: 'www.bea.gov',
@@ -294,6 +330,33 @@ export async function ingestOneSource(
         parsedItems = parseUsniNewsListingHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
+          deskLane: (getSignalSources().find((s) => s.slug === cfg.slug)?.deskLane as string | undefined) ?? null,
+          sourceFamily:
+            (getSignalSources().find((s) => s.slug === cfg.slug)?.sourceFamily as string | undefined) ?? null,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+          baseUrl,
+        });
+      } else if (cfg.slug === 'centcom-press') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
+        const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
+        parsedItems = parseCentcomPressReleasesHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          deskLane: (manifest?.deskLane as string | undefined) ?? null,
+          sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+          baseUrl,
+        });
+      } else if (cfg.slug === 'ofac-recent-actions') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
+        const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
+        parsedItems = parseOfacRecentActionsHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          deskLane: (manifest?.deskLane as string | undefined) ?? null,
+          sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
           contentUseMode,
           fetchKind: cfg.fetchKind,
           baseUrl,
@@ -303,6 +366,9 @@ export async function ingestOneSource(
         parsedItems = parseSameHostArticleLinksHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
+          deskLane: (getSignalSources().find((s) => s.slug === cfg.slug)?.deskLane as string | undefined) ?? null,
+          sourceFamily:
+            (getSignalSources().find((s) => s.slug === cfg.slug)?.sourceFamily as string | undefined) ?? null,
           contentUseMode,
           fetchKind: cfg.fetchKind,
           hostname: 'judiciary.house.gov',
@@ -314,6 +380,9 @@ export async function ingestOneSource(
         parsedItems = parseSameHostArticleLinksHtml(res.text, {
           sourceSlug: cfg.slug,
           provenanceClass: cfg.provenanceClass,
+          deskLane: (getSignalSources().find((s) => s.slug === cfg.slug)?.deskLane as string | undefined) ?? null,
+          sourceFamily:
+            (getSignalSources().find((s) => s.slug === cfg.slug)?.sourceFamily as string | undefined) ?? null,
           contentUseMode,
           fetchKind: cfg.fetchKind,
           hostname: 'democrats-judiciary.house.gov',
@@ -333,7 +402,8 @@ export async function ingestOneSource(
         };
       }
 
-      const items = applyContentUseModeToItems(parsedItems, contentUseMode);
+      const { items: cappedRaw, capped } = capItems(parsedItems, maxItems);
+      const items = applyContentUseModeToItems(cappedRaw, contentUseMode);
 
       if (items.length === 0) {
         return {
@@ -367,6 +437,7 @@ export async function ingestOneSource(
           contentType: res.contentType ?? null,
           itemsParsed: itemsWithImages.length,
           imagesResolved: itemsWithImages.filter((it) => Boolean(it.imageUrl)).length,
+          ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
         },
       };
     }
@@ -396,8 +467,10 @@ export async function ingestOneSource(
       sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
     });
 
+    const { items: cappedParsed, capped } = capItems(parsedItems, maxItems);
+
     // RSS already extracts feed-native images; this only fills gaps.
-    const items = await enrichNormalizedItemsWithImages(parsedItems, {
+    const items = await enrichNormalizedItemsWithImages(cappedParsed, {
       max: 8,
       concurrency: 4,
     });
@@ -427,6 +500,7 @@ export async function ingestOneSource(
         contentType: res.contentType ?? null,
         itemsParsed: items.length,
         imagesResolved: items.filter((it) => Boolean(it.imageUrl)).length,
+        ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
       },
     };
   } catch (e) {
@@ -544,7 +618,11 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      await finishIngestRun(runId, 'failed', 0, msg, { slug: cfg.slug });
+      try {
+        await finishIngestRun(runId, 'failed', 0, msg, { slug: cfg.slug });
+      } catch (runErr) {
+        console.warn('[ingest] finishIngestRun failed after upsert failure (continuing):', runErr);
+      }
       results.push({ sourceSlug: cfg.slug, status: 'failed', itemsUpserted: 0, error: msg });
       try {
         await updateSourceIngestSchedule(sourceId, {
@@ -558,12 +636,16 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
 
     const finalStatus: IngestRunStatus = outcome.status === 'failed' ? 'failed' : outcome.status;
 
-    await finishIngestRun(runId, finalStatus, upserted, outcome.error ?? null, {
-      slug: cfg.slug,
-      ...(outcome.meta ?? {}),
-      itemsParsed: outcome.meta?.itemsParsed ?? outcome.items.length,
-      itemsUpserted: upserted,
-    });
+    try {
+      await finishIngestRun(runId, finalStatus, upserted, outcome.error ?? null, {
+        slug: cfg.slug,
+        ...(outcome.meta ?? {}),
+        itemsParsed: outcome.meta?.itemsParsed ?? outcome.items.length,
+        itemsUpserted: upserted,
+      });
+    } catch (runErr) {
+      console.warn('[ingest] finishIngestRun failed (continuing):', runErr);
+    }
 
     const newFp = fingerprintNormalizedItems(outcome.items);
     const contentChanged = newFp !== null && newFp !== priorFp;

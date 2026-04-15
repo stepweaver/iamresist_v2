@@ -14,6 +14,16 @@ import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
 
 export type SourceHealth = 'healthy' | 'stale' | 'failing' | 'disabled' | 'unproven';
 
+export type SourceStatusBucket =
+  | 'enabled_healthy'
+  | 'enabled_stale'
+  | 'enabled_unproven'
+  | 'enabled_failing'
+  | 'disabled_policy'
+  | 'disabled_placeholder'
+  | 'disabled_env_gated'
+  | 'disabled_other';
+
 export type IntelSourceAuditRow = {
   id: string;
   slug: string;
@@ -22,6 +32,8 @@ export type IntelSourceAuditRow = {
   fetchKind: string;
   endpointDisplay: string;
   isEnabled: boolean;
+  statusBucket: SourceStatusBucket;
+  statusDetail: string | null;
   purpose: string | null;
   trustedFor: string | null;
   notTrustedFor: string | null;
@@ -159,12 +171,24 @@ function computeHealthReason(input: {
   lastRunError: string | null;
   manifestEnabled: boolean;
   registryEnabled: boolean;
+  slug: string;
+  fetchKind: string;
+  endpointUrl: string | null;
 }): string | null {
   if (input.health === 'disabled') {
     if (input.manifestEnabled && !input.registryEnabled) {
       return 'Registry out of date — manifest enables this source; run ingest to sync `sources.is_enabled`.';
     }
     if (!input.manifestEnabled) {
+      const fk = String(input.fetchKind || '');
+      if (fk === 'unsupported' || fk === 'manual') {
+        return 'Disabled by policy/quarantine (non-automated source type).';
+      }
+      if (!input.endpointUrl) {
+        if (input.slug === 'reuters-wire') return 'Env-gated: INTEL_REUTERS_RSS_URL not set.';
+        if (input.slug === 'ap-wire') return 'Env-gated: INTEL_AP_RSS_URL not set.';
+        return 'Placeholder/not wired (no endpoint URL).';
+      }
       return 'Disabled in manifest (`isEnabled: false`); not ingested.';
     }
     return 'Not enabled for ingest (registry).';
@@ -195,6 +219,50 @@ function computeHealthReason(input: {
   }
 
   return null;
+}
+
+function computeStatusBucket(input: {
+  health: SourceHealth;
+  slug: string;
+  manifestEnabled: boolean;
+  registryEnabled: boolean;
+  fetchKind: string;
+  endpointUrl: string | null;
+}): { bucket: SourceStatusBucket; detail: string | null } {
+  if (input.manifestEnabled && input.registryEnabled) {
+    if (input.health === 'healthy') return { bucket: 'enabled_healthy', detail: null };
+    if (input.health === 'stale') return { bucket: 'enabled_stale', detail: null };
+    if (input.health === 'unproven') return { bucket: 'enabled_unproven', detail: null };
+    if (input.health === 'failing') return { bucket: 'enabled_failing', detail: null };
+    return { bucket: 'enabled_failing', detail: null };
+  }
+
+  // Disabled cases (manifest is the policy truth; registry may lag).
+  if (!input.manifestEnabled) {
+    const fk = String(input.fetchKind || '');
+    const policySlugs = new Set([
+      'dvids-sandbox',
+      'statements-public-import',
+      'statements-rss-sandbox',
+      'indicator-pentagon-pizza',
+      'uncovering-epstein-network',
+    ]);
+    if (input.slug === 'reuters-wire') return { bucket: 'disabled_env_gated', detail: 'INTEL_REUTERS_RSS_URL not set' };
+    if (input.slug === 'ap-wire') return { bucket: 'disabled_env_gated', detail: 'INTEL_AP_RSS_URL not set' };
+    if (policySlugs.has(input.slug) || fk === 'manual') {
+      return { bucket: 'disabled_policy', detail: 'Policy/quarantine: not auto-ingested' };
+    }
+    if (!input.endpointUrl || fk === 'unsupported') {
+      return { bucket: 'disabled_placeholder', detail: 'Placeholder/not wired' };
+    }
+    return { bucket: 'disabled_other', detail: 'Disabled in manifest' };
+  }
+
+  if (input.manifestEnabled && !input.registryEnabled) {
+    return { bucket: 'disabled_other', detail: 'Registry not yet synced (run ingest)' };
+  }
+
+  return { bucket: 'disabled_other', detail: 'Disabled' };
 }
 
 async function buildIntelSourcesAudit(): Promise<{
@@ -322,6 +390,15 @@ async function buildIntelSourcesAudit(): Promise<{
 
     const manifestEnabled = manifestBySlug.get(src.slug) ?? false;
 
+    const statusBucket = computeStatusBucket({
+      health,
+      slug: src.slug,
+      manifestEnabled,
+      registryEnabled: src.is_enabled,
+      fetchKind: src.fetch_kind,
+      endpointUrl: src.endpoint_url,
+    });
+
     const healthReason = computeHealthReason({
       health,
       isCoreSource: src.is_core_source,
@@ -335,6 +412,9 @@ async function buildIntelSourcesAudit(): Promise<{
       lastRunError,
       manifestEnabled,
       registryEnabled: src.is_enabled,
+      slug: src.slug,
+      fetchKind: src.fetch_kind,
+      endpointUrl: src.endpoint_url,
     });
 
     return {
@@ -345,6 +425,8 @@ async function buildIntelSourcesAudit(): Promise<{
       fetchKind: src.fetch_kind,
       endpointDisplay: endpointDisplay(src.slug, src.endpoint_url),
       isEnabled: src.is_enabled,
+      statusBucket: statusBucket.bucket,
+      statusDetail: statusBucket.detail,
       manifestEnabled,
       purpose: src.purpose,
       trustedFor: src.trusted_for,
