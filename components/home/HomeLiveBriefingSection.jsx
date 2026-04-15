@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import NewswireHeadlineCard from '@/components/newswire/NewswireHeadlineCard';
-import NewswireImage from '@/components/newswire/NewswireImage';
+import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import { formatDate } from '@/lib/utils/date';
 import { briefingLaneLabel } from '@/lib/feeds/homepageBriefing.weights';
 
@@ -53,13 +53,12 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
     return (
       <article className={`${panelClass} group`}>
         <div className="flex flex-col gap-3 sm:gap-4">
-          <div className="relative w-full aspect-[2/1] max-h-[200px] sm:max-h-none sm:aspect-video rounded overflow-hidden bg-muted">
-            {row.imageUrl ? (
-              <NewswireImage src={row.imageUrl} alt="" objectPosition="top" />
-            ) : (
-              <div className="absolute inset-0 bg-muted" aria-hidden />
-            )}
-          </div>
+          {row.imageUrl ? (
+            <RemoteCoverImage
+              src={row.imageUrl}
+              className="relative w-full aspect-[2/1] max-h-[200px] sm:max-h-none sm:aspect-video rounded overflow-hidden bg-muted"
+            />
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <BriefingLaneBadge lane={row.briefLane} />
             <span className="hud-label text-[10px] sm:text-xs truncate">{row.sourceName}</span>
@@ -93,14 +92,15 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
 
   return (
     <article className={panelClass}>
-      <div className="flex gap-3 sm:gap-4">
-        <div className="relative w-[72px] h-[72px] sm:w-20 sm:h-20 shrink-0 rounded overflow-hidden bg-muted">
-          {row.imageUrl ? (
-            <NewswireImage src={row.imageUrl} alt="" objectPosition="top" />
-          ) : (
-            <div className="absolute inset-0 bg-muted" aria-hidden />
-          )}
-        </div>
+      <div
+        className={row.imageUrl ? 'flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-start' : undefined}
+      >
+        {row.imageUrl ? (
+          <RemoteCoverImage
+            src={row.imageUrl}
+            className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-28 sm:w-28 sm:max-w-none rounded"
+          />
+        ) : null}
         <div className="min-w-0 flex-1 flex flex-col">
           <div className="flex flex-wrap gap-2 mb-1">
             <BriefingLaneBadge lane={row.briefLane} />

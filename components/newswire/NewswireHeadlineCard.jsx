@@ -1,12 +1,24 @@
+'use client';
+
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import NewswireImageBlock from '@/components/newswire/NewswireImageBlock';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 
 export default function NewswireHeadlineCard({ story, compact = false, hero = false }) {
   const { source, title, url, publishedAt, excerpt, image, supportUrl, note } = story;
   const linkUrl = url || '#';
-  const hasImage = Boolean(image);
+  const hasImageFromFeed = Boolean(image);
+  const [imageHidden, setImageHidden] = useState(false);
+
+  useEffect(() => {
+    setImageHidden(false);
+  }, [image]);
+
+  const onImageUnavailable = useCallback(() => setImageHidden(true), []);
+
+  const showImageColumn = hasImageFromFeed && !imageHidden;
   const hasEditorialNote = Boolean(note);
   const metaDate = formatJournalMetaDate(publishedAt);
 
@@ -14,11 +26,12 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
     return (
       <article className="group machine-panel border border-border hover:border-[var(--hud-red)]/50 p-3 sm:p-5 transition-all duration-200 hover:shadow-[0_0_20px_var(--hud-red-dim)]">
         <div className="flex flex-col gap-2 sm:gap-4">
-          {hasImage ? (
+          {showImageColumn ? (
             <NewswireImageBlock
               href={linkUrl}
               src={image}
               alt=""
+              onUnavailable={onImageUnavailable}
               className="block w-full rounded bg-muted shrink-0 overflow-hidden relative aspect-[2/1] max-h-[200px] sm:max-h-none sm:aspect-video"
             />
           ) : (
@@ -97,14 +110,15 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
 
   return (
     <article
-      className={`${panelClass} ${hasImage ? 'flex flex-col gap-4 sm:flex-row sm:gap-5' : ''}`}
+      className={`${panelClass} ${showImageColumn ? 'flex flex-col gap-4 sm:flex-row sm:gap-5' : ''}`}
     >
-      {hasImage ? (
+      {showImageColumn ? (
         <NewswireImageBlock
           href={linkUrl}
           src={image}
           alt=""
           showBrackets={false}
+          onUnavailable={onImageUnavailable}
           className={`block ${imageWrapClass}`}
         />
       ) : (

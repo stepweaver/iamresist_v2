@@ -16,6 +16,8 @@ export type AccountabilityHighlight = {
   severity: number; // 0..100
   title: string;
   canonicalUrl: string;
+  /** RSS/ingest or later OG backfill; merged at desk build time. */
+  imageUrl: string | null;
   publishedAt: string | null;
   provenanceClass: string;
   sourceName: string;
@@ -116,12 +118,16 @@ export function computeAccountabilityHighlights(
     // Skip low-signal classifications.
     if (severity < 72) continue;
 
+    const rawImg = it.imageUrl;
+    const imageUrl = typeof rawImg === 'string' && rawImg.trim() ? rawImg.trim() : null;
+
     scored.push({
       id: it.id,
       eventClass,
       severity,
       title: it.title,
       canonicalUrl: it.canonicalUrl,
+      imageUrl,
       publishedAt: it.publishedAt ?? null,
       provenanceClass: it.provenanceClass,
       sourceName: it.sourceName,

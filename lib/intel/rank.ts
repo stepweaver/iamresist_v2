@@ -42,6 +42,8 @@ export type LiveDeskItem = LiveRow & {
   institutionalArea: string;
   relevanceExplanations: RelevanceExplanationDTO[];
   isDuplicateLoser: boolean;
+  /** From ingest RSS/media or OG backfill in live desk helpers. */
+  imageUrl?: string | null;
   /** Desk lane context (injected at runtime by live desk services). */
   deskLane?: DeskLane;
 };
