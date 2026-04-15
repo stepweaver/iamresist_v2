@@ -3,6 +3,18 @@
     {
       "path": "/api/cron/keep-alive",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/ingest-signal",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/warm-home",
+      "schedule": "*/20 * * * *"
+    },
+    {
+      "path": "/api/cron/intel-rescore",
+      "schedule": "15 */6 * * *"
     }
   ]
 }

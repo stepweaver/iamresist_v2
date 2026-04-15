@@ -44,6 +44,9 @@ const KYIV_INDEPENDENT_RSS =
 const BLS_SCHEDULE_2026 = 'https://www.bls.gov/schedule/2026/home.htm';
 const BEA_NEWS_SCHEDULE = 'https://www.bea.gov/news/schedule';
 const USNI_FLEET_TAG_PAGE = 'https://news.usni.org/tag/fleet-tracker/';
+const HOUSE_JUDICIARY_GOP_PRESS = 'https://judiciary.house.gov/media/press-releases';
+const HOUSE_JUDICIARY_DEM_PRESS =
+  'https://democrats-judiciary.house.gov/media-center/press-releases';
 
 /** Routine Federal Register / PI churn — suppressed from default desk surface (retained in DB). */
 const FR_PROCEDURAL_BLOCK_KEYWORDS = [
@@ -268,6 +271,60 @@ export function getSignalSources(): SignalSourceConfig[] {
         preferredStateChangeTypes: ['congressional_record_feed_item'],
         blockKeywords: ['prayer of the guest chaplain', 'adjournment'],
         noiseNotes: 'Full CREC RSS is extremely high volume; light block list for obvious procedural chaff.',
+      },
+    },
+    {
+      slug: 'house-judiciary-press-gop',
+      name: 'House Judiciary (Majority) — Press Releases',
+      provenanceClass: 'PRIMARY',
+      fetchKind: 'html_index',
+      deskLane: 'osint',
+      sourceFamily: 'claims_public',
+      contentUseMode: 'metadata_only',
+      endpointUrl: HOUSE_JUDICIARY_GOP_PRESS,
+      isEnabled: true,
+      isCoreSource: false,
+      trustWarningMode: 'source_controlled_official_claims',
+      trustWarningLevel: 'caution',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'never_hero_without_corroboration',
+      trustWarningText:
+        'Official committee communications: authentic provenance, but source-controlled framing. Treat as a claims surface for committee actions; verify key assertions with filings, transcripts, and corroborating reporting.',
+      purpose: 'Committee press releases for oversight actions (subpoenas, letters, hearings) and official statements.',
+      trustedFor: 'Noticing new committee actions and official committee posture.',
+      notTrustedFor: 'Independent verification of factual claims or legal conclusions.',
+      editorialControls: {
+        defaultPriority: 56,
+        allowKeywords: ['subpoena', 'contempt', 'hearing', 'deposition', 'letter', 'investigation', 'probe'],
+        blockKeywords: ['weekly schedule', 'icymi'],
+        noiseNotes: 'Press releases are messaging-heavy; allow list focuses on oversight verbs.',
+      },
+    },
+    {
+      slug: 'house-judiciary-press-dem',
+      name: 'House Judiciary (Minority) — Press Releases',
+      provenanceClass: 'PRIMARY',
+      fetchKind: 'html_index',
+      deskLane: 'osint',
+      sourceFamily: 'claims_public',
+      contentUseMode: 'metadata_only',
+      endpointUrl: HOUSE_JUDICIARY_DEM_PRESS,
+      isEnabled: true,
+      isCoreSource: false,
+      trustWarningMode: 'source_controlled_official_claims',
+      trustWarningLevel: 'caution',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'never_hero_without_corroboration',
+      trustWarningText:
+        'Official committee communications: authentic provenance, but source-controlled framing. Treat as a claims surface for committee actions; verify key assertions with filings, transcripts, and corroborating reporting.',
+      purpose: 'Minority press releases that can surface oversight requests, hearing contexts, and documented evidence releases.',
+      trustedFor: 'Noticing minority-side oversight signals and public document drops.',
+      notTrustedFor: 'Independent verification of factual claims or legal conclusions.',
+      editorialControls: {
+        defaultPriority: 54,
+        allowKeywords: ['hearing', 'testimony', 'demand', 'documents', 'investigation', 'oversight'],
+        blockKeywords: ['statement on', 'remarks before'],
+        noiseNotes: 'Keeps messaging-heavy items present but below primary records and corroborated reporting.',
       },
     },
     {

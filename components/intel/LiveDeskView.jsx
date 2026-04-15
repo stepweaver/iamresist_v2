@@ -202,6 +202,52 @@ function CompactFreshnessLine({
   );
 }
 
+function AccountabilityHighlights({ highlights }) {
+  const rows = Array.isArray(highlights) ? highlights : [];
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="border border-border machine-panel p-5 sm:p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
+          Accountability highlights
+        </h2>
+        <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+          Deterministic overlay — provenance-first, no AI
+        </p>
+      </div>
+      <ul className="mt-4 space-y-3">
+        {rows.map((h) => (
+          <li key={h.id} className="border border-primary/35 bg-primary/[0.03] p-4">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <ProvenanceChip provenanceClass={h.provenanceClass} />
+              <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border border-border rounded text-primary border-primary/40 bg-primary/5">
+                {h.eventClass?.replaceAll?.('_', ' ') ?? 'signal'}
+              </span>
+              <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+                {h.sourceName}
+              </span>
+            </div>
+            <Link
+              href={h.canonicalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-foreground hover:text-primary hover:underline"
+            >
+              {h.title}
+            </Link>
+            {Array.isArray(h.explanations) && h.explanations.length ? (
+              <p className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed">
+                {h.explanations.join(' · ')}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * @param {{
  *   desk: Record<string, unknown>,
@@ -233,6 +279,7 @@ export default function LiveDeskView({
     freshness,
     freshnessMeta,
     deskLane = 'osint',
+    accountabilityHighlights = [],
   } = desk;
 
   const deskLabel = deskLabelForLane(deskLane);
@@ -284,6 +331,10 @@ export default function LiveDeskView({
           )}
           {sourceFilterSlot}
         </div>
+      ) : null}
+
+      {!emptyAfterSourceFilter ? (
+        <AccountabilityHighlights highlights={accountabilityHighlights} />
       ) : null}
 
       {showBanner ? (

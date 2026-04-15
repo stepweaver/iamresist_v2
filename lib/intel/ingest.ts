@@ -188,7 +188,22 @@ export function computeOverallIngestStatus(results: IngestSummary[]): IngestOver
 export async function ingestOneSource(
   cfg: IngestSourceInput,
 ): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string; meta?: Record<string, unknown> }> {
-  const res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: 25000 });
+  let res;
+  try {
+    res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: 25000 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      items: [],
+      status: 'failed',
+      error: msg,
+      meta: {
+        httpStatus: 0,
+        finalUrl: null,
+        contentType: null,
+      },
+    };
+  }
 
   if (!res.ok) {
     return {
@@ -281,6 +296,28 @@ export async function ingestOneSource(
           provenanceClass: cfg.provenanceClass,
           contentUseMode,
           fetchKind: cfg.fetchKind,
+          baseUrl,
+        });
+      } else if (cfg.slug === 'house-judiciary-press-gop') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
+        parsedItems = parseSameHostArticleLinksHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+          hostname: 'judiciary.house.gov',
+          pathIncludes: '/media/press-releases',
+          baseUrl,
+        });
+      } else if (cfg.slug === 'house-judiciary-press-dem') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
+        parsedItems = parseSameHostArticleLinksHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+          hostname: 'democrats-judiciary.house.gov',
+          pathIncludes: '/media-center/press-releases',
           baseUrl,
         });
       } else {
