@@ -41,6 +41,7 @@ export default function VoicesArchiveClient({
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const sentinelRef = useRef(null);
+  const skipFilterScrollRef = useRef(true);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -68,6 +69,20 @@ export default function VoicesArchiveClient({
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Keep results in view after changing section / voice / artist (not on initial mount).
+  useEffect(() => {
+    if (skipFilterScrollRef.current) {
+      skipFilterScrollRef.current = false;
+      return;
+    }
+    requestAnimationFrame(() => {
+      document.getElementById('telescreen-archive-primary')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, [sourceParam, voiceParam, artistParam]);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
@@ -179,69 +194,10 @@ export default function VoicesArchiveClient({
 
   return (
     <div className="space-y-5">
-      {/* Row 1: Source dropdown + Refresh */}
-      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-        <FilterDropdown
-          label="Section"
-          selectedLabel={selectedSourceLabel}
-          options={SOURCE_OPTIONS}
-          value={sourceParam}
-          onChange={(v) => handleSourceSelect(v)}
-          isOpen={sourceDropdownOpen}
-          onToggle={() => setSourceDropdownOpen((o) => !o)}
-          onClose={() => setSourceDropdownOpen(false)}
-          ariaLabel="Choose section"
-        />
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="button-label flex items-center gap-1.5 text-xs font-bold text-foreground/70 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Refresh collection"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
-          Refresh
-        </button>
-      </div>
-
-      {/* Row 2: Voice / Artist when relevant */}
-      {(showVoiceFilter || showArtistFilter) && (
-        <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 items-stretch sm:items-end">
-          {showVoiceFilter && (
-            <FilterDropdown
-              label="Voice"
-              selectedLabel={currentVoice || "All voices"}
-              options={voiceOptions}
-              value={currentVoice ?? voiceParam}
-              onChange={(v) => handleVoiceChange(v || null)}
-              isOpen={voiceDropdownOpen}
-              onToggle={() => setVoiceDropdownOpen((o) => !o)}
-              onClose={() => setVoiceDropdownOpen(false)}
-              ariaLabel="Choose voice"
-              className="relative flex-1 min-w-0"
-            />
-          )}
-          {showArtistFilter && (
-            <FilterDropdown
-              label="Artist"
-              selectedLabel={currentArtist || "All artists"}
-              options={artistOptions}
-              value={currentArtist ?? artistParam}
-              onChange={(v) => handleArtistChange(v || null)}
-              isOpen={artistDropdownOpen}
-              onToggle={() => setArtistDropdownOpen((o) => !o)}
-              onClose={() => setArtistDropdownOpen(false)}
-              ariaLabel="Choose artist"
-              className="relative flex-1 min-w-0"
-            />
-          )}
-        </div>
-      )}
-
-      {/* Sticky breadcrumbs */}
+      {/* Sticky breadcrumbs — context while scrolling */}
       <nav
         aria-label="Breadcrumb"
-        className="sticky top-0 z-20 -mx-1 px-1 sm:-mx-2 sm:px-2 lg:-mx-3 lg:px-3 py-2.5 mt-4 bg-background border-b border-border shadow-[0_1px_0_0_var(--border-color)]"
+        className="sticky top-0 z-20 -mx-1 px-1 sm:-mx-2 sm:px-2 lg:-mx-3 lg:px-3 py-2.5 bg-background border-b border-border shadow-[0_1px_0_0_var(--border-color)]"
       >
         <ol className="nav-label flex items-center gap-2 text-xs sm:text-sm font-bold text-foreground/70 max-w-[1600px] mx-auto flex-wrap">
           <li>
@@ -277,7 +233,69 @@ export default function VoicesArchiveClient({
         </ol>
       </nav>
 
-      {/* Items list */}
+      {/* Filters sit directly above the grid so choosing a section does not leave results far below */}
+      <div
+        id="telescreen-archive-toolbar"
+        className="flex flex-col gap-4 sm:gap-3 border-b border-border/60 pb-4 scroll-mt-20"
+      >
+        <div className="flex flex-wrap items-end gap-3 sm:gap-4">
+          <FilterDropdown
+            label="Section"
+            selectedLabel={selectedSourceLabel}
+            options={SOURCE_OPTIONS}
+            value={sourceParam}
+            onChange={(v) => handleSourceSelect(v)}
+            isOpen={sourceDropdownOpen}
+            onToggle={() => setSourceDropdownOpen((o) => !o)}
+            onClose={() => setSourceDropdownOpen(false)}
+            ariaLabel="Choose section"
+          />
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="button-label flex items-center gap-1.5 text-xs font-bold text-foreground/70 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Refresh collection"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+            Refresh
+          </button>
+        </div>
+        {(showVoiceFilter || showArtistFilter) && (
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 items-stretch sm:items-end">
+            {showVoiceFilter && (
+              <FilterDropdown
+                label="Voice"
+                selectedLabel={currentVoice || "All voices"}
+                options={voiceOptions}
+                value={currentVoice ?? voiceParam}
+                onChange={(v) => handleVoiceChange(v || null)}
+                isOpen={voiceDropdownOpen}
+                onToggle={() => setVoiceDropdownOpen((o) => !o)}
+                onClose={() => setVoiceDropdownOpen(false)}
+                ariaLabel="Choose voice"
+                className="relative flex-1 min-w-0"
+              />
+            )}
+            {showArtistFilter && (
+              <FilterDropdown
+                label="Artist"
+                selectedLabel={currentArtist || "All artists"}
+                options={artistOptions}
+                value={currentArtist ?? artistParam}
+                onChange={(v) => handleArtistChange(v || null)}
+                isOpen={artistDropdownOpen}
+                onToggle={() => setArtistDropdownOpen((o) => !o)}
+                onClose={() => setArtistDropdownOpen(false)}
+                ariaLabel="Choose artist"
+                className="relative flex-1 min-w-0"
+              />
+            )}
+          </div>
+        )}
+      </div>
+
+      <div id="telescreen-archive-primary">
       {items.length === 0 ? (
         <p className="system-label text-foreground/70 text-sm">
           No videos match the current filters.
@@ -315,6 +333,7 @@ export default function VoicesArchiveClient({
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

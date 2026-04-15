@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import NewswireImage from '@/components/newswire/NewswireImage';
+import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import { formatDate } from '@/lib/utils/date';
 
 export function deskLabelForLane(deskLane) {
@@ -217,32 +217,47 @@ function AccountabilityHighlights({ highlights }) {
         </p>
       </div>
       <ul className="mt-4 space-y-3">
-        {rows.map((h) => (
-          <li key={h.id} className="border border-primary/35 bg-primary/[0.03] p-4">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <ProvenanceChip provenanceClass={h.provenanceClass} />
-              <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border border-border rounded text-primary border-primary/40 bg-primary/5">
-                {h.eventClass?.replaceAll?.('_', ' ') ?? 'signal'}
-              </span>
-              <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-                {h.sourceName}
-              </span>
-            </div>
-            <Link
-              href={h.canonicalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-bold text-foreground hover:text-primary hover:underline"
-            >
-              {h.title}
-            </Link>
-            {Array.isArray(h.explanations) && h.explanations.length ? (
-              <p className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed">
-                {h.explanations.join(' · ')}
-              </p>
-            ) : null}
-          </li>
-        ))}
+        {rows.map((h) => {
+          const src = typeof h.imageUrl === 'string' && h.imageUrl.trim() ? h.imageUrl.trim() : null;
+          return (
+            <li key={h.id} className="border border-primary/35 bg-primary/[0.03] p-4">
+              <div
+                className={src ? 'flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-start' : undefined}
+              >
+                {src ? (
+                  <RemoteCoverImage
+                    src={src}
+                    className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-28 sm:w-28 sm:max-w-none rounded"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <ProvenanceChip provenanceClass={h.provenanceClass} />
+                    <span className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border border-border rounded text-primary border-primary/40 bg-primary/5">
+                      {h.eventClass?.replaceAll?.('_', ' ') ?? 'signal'}
+                    </span>
+                    <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+                      {h.sourceName}
+                    </span>
+                  </div>
+                  <Link
+                    href={h.canonicalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-foreground hover:text-primary hover:underline"
+                  >
+                    {h.title}
+                  </Link>
+                  {Array.isArray(h.explanations) && h.explanations.length ? (
+                    <p className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed">
+                      {h.explanations.join(' · ')}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -317,24 +332,15 @@ export default function LiveDeskView({
     <div className="space-y-6">
       {laneWarningSlot}
 
-      {(showFreshnessStrip && freshness) || sourceFilterSlot ? (
+      {showFreshnessStrip && freshness ? (
         <div className="flex flex-wrap items-center justify-between gap-3 gap-y-2">
-          {showFreshnessStrip && freshness ? (
-            <CompactFreshnessLine
-              snapshotFallback={snapshotFallback}
-              dataStale={dataStale}
-              freshness={freshness}
-              freshnessMeta={freshnessMeta}
-            />
-          ) : (
-            <span />
-          )}
-          {sourceFilterSlot}
+          <CompactFreshnessLine
+            snapshotFallback={snapshotFallback}
+            dataStale={dataStale}
+            freshness={freshness}
+            freshnessMeta={freshnessMeta}
+          />
         </div>
-      ) : null}
-
-      {!emptyAfterSourceFilter ? (
-        <AccountabilityHighlights highlights={accountabilityHighlights} />
       ) : null}
 
       {showBanner ? (
@@ -351,6 +357,15 @@ export default function LiveDeskView({
                 : 'Freshness warning'}
           </span>
           <p className="mt-1 font-mono text-xs text-foreground/80">{message}</p>
+        </div>
+      ) : null}
+
+      {sourceFilterSlot ? (
+        <div
+          id="intel-desk-source-filter-bar"
+          className="flex flex-wrap items-center justify-end gap-3 gap-y-2 border-b border-border/60 pb-3 scroll-mt-[max(0.5rem,env(safe-area-inset-top))]"
+        >
+          {sourceFilterSlot}
         </div>
       ) : null}
 
@@ -383,6 +398,7 @@ export default function LiveDeskView({
         </section>
       ) : null}
 
+      <div id="intel-desk-primary-stack" className="space-y-6 scroll-mt-20">
       {!emptyAfterSourceFilter && hasAnyDeskContent && usesLeadBlockLayout && (leads.length > 0 || secondary.length > 0) ? (
         <section className="border border-border machine-panel p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-3">
@@ -422,9 +438,10 @@ export default function LiveDeskView({
                     </time>
                   </div>
                   {row.imageUrl ? (
-                    <div className="relative mb-4 aspect-[4/3] w-full max-w-2xl overflow-hidden border border-border/60 bg-muted sm:aspect-video">
-                      <NewswireImage src={row.imageUrl} alt="" objectPosition="top" />
-                    </div>
+                    <RemoteCoverImage
+                      src={row.imageUrl}
+                      className="relative mb-4 w-full max-w-2xl overflow-hidden border border-border/60 bg-muted aspect-[2/1] max-h-[200px] sm:max-h-none sm:aspect-video"
+                    />
                   ) : null}
                   <h3 className="section-title text-xl sm:text-2xl font-bold text-foreground mb-2">
                     <Link
@@ -519,9 +536,10 @@ export default function LiveDeskView({
                 }`}
               >
                 {row.imageUrl ? (
-                  <div className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-36 sm:w-36 sm:max-w-none">
-                    <NewswireImage src={row.imageUrl} alt="" objectPosition="top" />
-                  </div>
+                  <RemoteCoverImage
+                    src={row.imageUrl}
+                    className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-36 sm:w-36 sm:max-w-none"
+                  />
                 ) : null}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
@@ -591,6 +609,11 @@ export default function LiveDeskView({
           })}
         </ul>
       </section>
+      ) : null}
+      </div>
+
+      {!emptyAfterSourceFilter ? (
+        <AccountabilityHighlights highlights={accountabilityHighlights} />
       ) : null}
 
       {!emptyAfterSourceFilter && deskLane === 'indicators' && metaOnly.length > 0 ? (

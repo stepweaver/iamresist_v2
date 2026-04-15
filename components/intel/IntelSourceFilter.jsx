@@ -38,6 +38,13 @@ export default function IntelSourceFilter({ options = [], value, onChange }) {
                 onClick={() => {
                   onChange(opt.value);
                   setOpen(false);
+                  requestAnimationFrame(() => {
+                    const primary = document.getElementById('intel-desk-primary-stack');
+                    const filterBar = document.getElementById('intel-desk-source-filter-bar');
+                    const target =
+                      primary && primary.getBoundingClientRect().height > 2 ? primary : filterBar;
+                    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  });
                 }}
                 className={`w-full text-left px-3 py-2 text-xs hover:bg-primary/10 ${
                   value === opt.value ? 'bg-primary/15 text-primary' : 'text-foreground'
