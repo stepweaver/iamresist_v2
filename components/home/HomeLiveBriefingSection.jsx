@@ -22,6 +22,29 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
       ? 'Read / listen at source'
       : 'Open canonical';
 
+  const reasonLabels = Array.isArray(row.promotionReasons) ? row.promotionReasons : [];
+  const why =
+    reasonLabels.length > 0
+      ? reasonLabels
+          .slice(0, 3)
+          .map((c) => {
+            if (c === 'fresh_high_priority_event') return 'fresh · high priority';
+            if (c === 'primary_source') return 'primary source';
+            if (c === 'court_or_legal_action') return 'court/legal';
+            if (c === 'accountability_signal') return 'accountability';
+            if (c === 'corroborated_multi_source') return 'corroborated';
+            if (c === 'corroborated_multi_lane') return 'cross-lane';
+            if (c === 'new_phase_in_active_story') return 'new phase';
+            if (c === 'contradiction_or_evasion') return 'contradiction/evasion';
+            if (c === 'resignation_or_ethics_signal') return 'ethics/resignation';
+            if (c === 'major_government_action') return 'major action';
+            if (c === 'claims_lane_penalty') return 'claims surface';
+            if (c === 'repeat_coverage_penalty') return 'repeat coverage';
+            return String(c).replace(/_/g, ' ');
+          })
+          .join(' · ')
+      : null;
+
   const panelClass = compact
     ? 'border border-border machine-panel p-3 sm:p-4 hover:border-primary/35 transition-colors'
     : 'border border-border machine-panel p-3 sm:p-5 hover:border-primary/35 transition-colors';
@@ -44,6 +67,11 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
               <span className="timestamp text-[10px] sm:text-xs text-foreground/50 tabular-nums">{when}</span>
             ) : null}
           </div>
+          {why ? (
+            <p className="font-mono text-[10px] sm:text-xs text-foreground/60 leading-relaxed">
+              Why: {why}
+            </p>
+          ) : null}
           <h2 className="font-ui text-base sm:text-xl lg:text-2xl font-bold leading-snug text-foreground">
             <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline">
               {row.title || 'Untitled'}
@@ -78,6 +106,11 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
             <BriefingLaneBadge lane={row.briefLane} />
           </div>
           <span className="hud-label text-[10px] sm:text-xs truncate">{row.sourceName}</span>
+          {why ? (
+            <p className="font-mono text-[10px] text-foreground/60 leading-relaxed mt-1">
+              Why: {why}
+            </p>
+          ) : null}
           <h3 className="font-ui text-sm sm:text-base font-bold leading-snug text-foreground mt-1 line-clamp-3">
             <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline">
               {row.title || 'Untitled'}
