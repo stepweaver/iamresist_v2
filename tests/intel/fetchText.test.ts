@@ -29,6 +29,43 @@ describe('fetchTextNoStore', () => {
     }
   });
 
+  it('includes redirect chain on redirect-loop errors', async () => {
+    const fetchMock = vi.fn();
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response('', {
+          status: 301,
+          headers: { location: 'https://example.com/b?utm_source=x' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('', {
+          status: 301,
+          headers: { location: 'https://example.com/a?utm_medium=y' },
+        }),
+      );
+
+    const oldFetch = globalThis.fetch;
+    // @ts-expect-error test override
+    globalThis.fetch = fetchMock;
+    try {
+      try {
+        await fetchTextNoStore('https://example.com/a');
+        throw new Error('Expected redirect loop');
+      } catch (e) {
+        const redirects =
+          e && typeof e === 'object' && 'redirects' in e && Array.isArray((e as { redirects?: unknown }).redirects)
+            ? (e as { redirects: unknown[] }).redirects
+            : null;
+        expect(Array.isArray(redirects)).toBe(true);
+        expect((redirects || []).length).toBeGreaterThanOrEqual(1);
+        expect(String(((redirects || [])[0] || {}).from || '')).toContain('example.com');
+      }
+    } finally {
+      globalThis.fetch = oldFetch;
+    }
+  });
+
   it('stops after maxRedirects', async () => {
     const fetchMock = vi.fn();
     fetchMock

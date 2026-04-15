@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   parseDemocracyDocketNewsAlertsHtml,
   parseSameHostArticleLinksHtml,
+  parseKyivIndependentNewsArchiveHtml,
+  parse972MagazineHomepageHtml,
 } from '@/lib/intel/parseHtmlIndex';
 
 describe('parseDemocracyDocketNewsAlertsHtml', () => {
@@ -100,5 +102,57 @@ describe('parseSameHostArticleLinksHtml', () => {
     expect(items).toHaveLength(1);
     expect(items[0]!.canonicalUrl).toContain('news.release');
     expect(items[0]!.canonicalUrl.startsWith('https://www.bls.gov/')).toBe(true);
+  });
+});
+
+describe('parseKyivIndependentNewsArchiveHtml', () => {
+  it('extracts kyivindependent.com article links and ignores navigation', () => {
+    const html = `
+      <html><body>
+        <p>${'x'.repeat(320)}</p>
+        <a href="https://kyivindependent.com/ukraine-war-latest-something/">Story</a>
+        <a href="https://www.kyivindependent.com/some-investigation/">Story 2</a>
+        <a href="https://kyivindependent.com/news-archive/">Archive</a>
+        <a href="https://kyivindependent.com/tag/news-feed/">Tag</a>
+      </body></html>
+    `;
+    const items = parseKyivIndependentNewsArchiveHtml(html, {
+      sourceSlug: 'kyiv-independent',
+      provenanceClass: 'SPECIALIST',
+      contentUseMode: 'feed_summary',
+      fetchKind: 'html_index',
+      baseUrl: 'https://www.kyivindependent.com/news-archive/',
+    });
+    const urls = items.map((i) => i.canonicalUrl).sort();
+    expect(urls.length).toBeGreaterThanOrEqual(2);
+    expect(urls.some((u) => u.includes('/news-archive'))).toBe(false);
+    expect(urls.some((u) => u.includes('/tag/'))).toBe(false);
+    expect(urls.every((u) => u.startsWith('https://kyivindependent.com/'))).toBe(true);
+  });
+});
+
+describe('parse972MagazineHomepageHtml', () => {
+  it('extracts WordPress-style /YYYY/MM/ permalinks and ignores non-article links', () => {
+    const html = `
+      <html><body>
+        <p>${'x'.repeat(320)}</p>
+        <a href="https://www.972mag.com/2026/03/some-story/">Story</a>
+        <a href="https://www.972mag.com/2026/03/another-story/?utm_source=x">Story 2</a>
+        <a href="https://www.972mag.com/about/">About</a>
+        <a href="https://www.972mag.com/feed/">Feed</a>
+      </body></html>
+    `;
+    const items = parse972MagazineHomepageHtml(html, {
+      sourceSlug: 'mag-972',
+      provenanceClass: 'SPECIALIST',
+      contentUseMode: 'feed_summary',
+      fetchKind: 'html_index',
+      baseUrl: 'https://www.972mag.com/',
+    });
+    const urls = items.map((i) => i.canonicalUrl).sort();
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toMatch(/\/\d{4}\/\d{2}\//);
+    expect(urls[1]).toMatch(/\/\d{4}\/\d{2}\//);
+    expect(urls[1]!.includes('?')).toBe(false);
   });
 });

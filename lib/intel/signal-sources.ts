@@ -33,18 +33,21 @@ const MEDUZA_EN_RSS = 'https://meduza.io/rss/en/all';
 const AF_MIL_NEWS_RSS = 'https://www.af.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=1';
 /** Army CORE static RSS; organization id 1 is the Army homepage. */
 const ARMY_MIL_NEWS_RSS = 'https://www.army.mil/rss/static/1.xml';
-const MAG_972_RSS = 'https://www.972mag.com/feed/';
+const MAG_972_HOME = 'https://www.972mag.com/';
 const BIRN_RSS = 'https://balkaninsight.com/feed/';
 const RAPPLER_RSS = 'https://www.rappler.com/rss/';
 const BELLINGCAT_RSS = 'https://www.bellingcat.com/feed/';
 const FORBIDDEN_STORIES_RSS = 'https://forbiddenstories.org/feed/';
-const KYIV_INDEPENDENT_RSS_DEFAULT = 'https://kyivindependent.com/feed/';
-/** Optional override: set INTEL_KYIV_INDEPENDENT_RSS_URL to a vetted alternate RSS URL. */
-const KYIV_INDEPENDENT_RSS = (() => {
-  if (typeof process === 'undefined') return KYIV_INDEPENDENT_RSS_DEFAULT;
-  const raw = process.env.INTEL_KYIV_INDEPENDENT_RSS_URL;
+const KYIV_INDEPENDENT_NEWS_ARCHIVE_DEFAULT = 'https://www.kyivindependent.com/news-archive/';
+/**
+ * Optional override: set INTEL_KYIV_INDEPENDENT_LISTING_URL to a vetted alternate public listing URL
+ * (html_index). This replaces the prior RSS default, because `/feed/` now returns 404 in the ingest runtime.
+ */
+const KYIV_INDEPENDENT_LISTING_URL = (() => {
+  if (typeof process === 'undefined') return KYIV_INDEPENDENT_NEWS_ARCHIVE_DEFAULT;
+  const raw = process.env.INTEL_KYIV_INDEPENDENT_LISTING_URL;
   const trimmed = typeof raw === 'string' ? raw.trim() : '';
-  return trimmed || KYIV_INDEPENDENT_RSS_DEFAULT;
+  return trimmed || KYIV_INDEPENDENT_NEWS_ARCHIVE_DEFAULT;
 })();
 const BLS_SCHEDULE_2026 = 'https://www.bls.gov/schedule/2026/home.htm';
 const BEA_NEWS_SCHEDULE = 'https://www.bea.gov/news/schedule';
@@ -812,11 +815,11 @@ export function getSignalSources(): SignalSourceConfig[] {
       slug: 'kyiv-independent',
       name: 'The Kyiv Independent',
       provenanceClass: 'SPECIALIST',
-      fetchKind: 'rss',
+      fetchKind: 'html_index',
       deskLane: 'watchdogs',
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
-      endpointUrl: KYIV_INDEPENDENT_RSS,
+      endpointUrl: KYIV_INDEPENDENT_LISTING_URL,
       isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
@@ -824,11 +827,11 @@ export function getSignalSources(): SignalSourceConfig[] {
       requiresIndependentVerification: true,
       heroEligibilityMode: 'never_hero_without_corroboration',
       purpose:
-        'English-language Ukraine reporting via public site RSS (override with INTEL_KYIV_INDEPENDENT_RSS_URL if needed).',
+        'English-language Ukraine reporting via public site listing (html_index; override with INTEL_KYIV_INDEPENDENT_LISTING_URL if needed).',
       trustedFor: 'Regional on-the-ground reporting pointers with outbound canonical links.',
       notTrustedFor: 'Single-source confirmation of front-line claims without corroboration.',
       editorialNotes:
-        'Defaults to the site RSS (`/feed/`). Keep env override for emergency swaps if the feed changes.',
+        'RSS `/feed/` currently returns 404 in the ingest runtime; adapter uses `/news-archive/` HTML listing and extracts canonical article URLs (titles slug-derived). Keep env override for emergency swaps if the site changes.',
       editorialControls: {
         defaultPriority: 46,
         preferredStateChangeTypes: ['specialist_item'],
@@ -862,11 +865,11 @@ export function getSignalSources(): SignalSourceConfig[] {
       slug: 'mag-972',
       name: '+972 Magazine',
       provenanceClass: 'SPECIALIST',
-      fetchKind: 'rss',
+      fetchKind: 'html_index',
       deskLane: 'watchdogs',
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
-      endpointUrl: MAG_972_RSS,
+      endpointUrl: MAG_972_HOME,
       // Keep enabled for visibility; ingest will mark this source failing if redirect loops/bot blocks recur.
       isEnabled: true,
       isCoreSource: false,
@@ -878,7 +881,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'On-the-ground context and independent analysis with outbound links.',
       notTrustedFor: 'Legal status of territories or military claims without independent verification.',
       editorialNotes:
-        'Known issue: RSS feed can trigger redirect loops (e.g. tracking query params), which previously caused "redirect count exceeded" in ingest runtime. Guard with redirect-loop protections; treat failures as source-scoped.',
+        'RSS feed currently self-redirects (loop) in the ingest runtime; adapter uses homepage HTML listing and extracts recent /YYYY/MM/ permalinks. Guard with redirect-loop protections; treat failures as source-scoped.',
       editorialControls: {
         defaultPriority: 45,
         preferredStateChangeTypes: ['specialist_item'],
@@ -984,7 +987,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       deskLane: 'watchdogs',
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
-      endpointUrl: 'https://www.occrp.org/en?format=feed&type=rss',
+      endpointUrl: 'https://www.occrp.org/en/feed',
       isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
@@ -996,7 +999,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Cross-border corruption and asset-trail investigations when ingested.',
       notTrustedFor: 'Independent verification without corroboration; treat as specialist reporting pointers.',
       editorialNotes:
-        'Uses the public OCCRP RSS (`/en?format=feed&type=rss`). If bot-blocked in runtime, failures must be source-scoped and visible in audit.',
+        'Uses the public OCCRP RSS (`/en/feed`). The prior `?format=feed&type=rss` endpoint returns HTML in the ingest runtime and parses to 0 items.',
     },
 
     // --- Indicators / scheduled releases ---

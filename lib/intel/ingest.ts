@@ -10,6 +10,8 @@ import {
 import {
   parseDemocracyDocketNewsAlertsHtml,
   parseCentcomPressReleasesHtml,
+  parseKyivIndependentNewsArchiveHtml,
+  parse972MagazineHomepageHtml,
   parseOfacRecentActionsHtml,
   parseSameHostArticleLinksHtml,
   parseUsniNewsListingHtml,
@@ -217,6 +219,10 @@ export async function ingestOneSource(
     res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: fetchTimeoutMsForSourceSlug(cfg.slug) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    const redirects =
+      e && typeof e === 'object' && 'redirects' in e && Array.isArray((e as { redirects?: unknown }).redirects)
+        ? (e as { redirects: unknown[] }).redirects
+        : null;
     return {
       items: [],
       status: 'failed',
@@ -225,6 +231,12 @@ export async function ingestOneSource(
         httpStatus: 0,
         finalUrl: null,
         contentType: null,
+        failureCategory: msg.toLowerCase().includes('redirect loop')
+          ? 'redirect_loop'
+          : msg.toLowerCase().includes('redirect count exceeded')
+            ? 'redirect_count_exceeded'
+            : 'fetch_error',
+        ...(redirects ? { redirects } : {}),
       },
     };
   }
@@ -238,6 +250,15 @@ export async function ingestOneSource(
         httpStatus: res.status,
         finalUrl: res.finalUrl ?? null,
         contentType: res.contentType ?? null,
+        failureCategory:
+          res.status === 403
+            ? 'http_403'
+            : res.status === 404
+              ? 'http_404'
+              : res.status >= 500
+                ? 'http_5xx'
+                : 'http_error',
+        ...(res.redirects?.length ? { redirects: res.redirects } : {}),
         bodySample: res.text.slice(0, 180),
       },
     };
@@ -349,6 +370,30 @@ export async function ingestOneSource(
           fetchKind: cfg.fetchKind,
           baseUrl,
         });
+      } else if (cfg.slug === 'kyiv-independent') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
+        const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
+        parsedItems = parseKyivIndependentNewsArchiveHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          deskLane: (manifest?.deskLane as string | undefined) ?? null,
+          sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+          baseUrl,
+        });
+      } else if (cfg.slug === 'mag-972') {
+        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
+        const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
+        parsedItems = parse972MagazineHomepageHtml(res.text, {
+          sourceSlug: cfg.slug,
+          provenanceClass: cfg.provenanceClass,
+          deskLane: (manifest?.deskLane as string | undefined) ?? null,
+          sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
+          contentUseMode,
+          fetchKind: cfg.fetchKind,
+          baseUrl,
+        });
       } else if (cfg.slug === 'ofac-recent-actions') {
         const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
         const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
@@ -416,6 +461,8 @@ export async function ingestOneSource(
             finalUrl: res.finalUrl ?? null,
             contentType: res.contentType ?? null,
             itemsParsed: 0,
+            failureCategory: 'parser_no_entries',
+            ...(res.redirects?.length ? { redirects: res.redirects } : {}),
             bodySample: res.text.slice(0, 180),
           },
         };
@@ -437,6 +484,7 @@ export async function ingestOneSource(
           contentType: res.contentType ?? null,
           itemsParsed: itemsWithImages.length,
           imagesResolved: itemsWithImages.filter((it) => Boolean(it.imageUrl)).length,
+          ...(res.redirects?.length ? { redirects: res.redirects } : {}),
           ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
         },
       };
@@ -476,6 +524,10 @@ export async function ingestOneSource(
     });
 
     if (items.length === 0) {
+      const ct = (res.contentType || '').toLowerCase();
+      const text = (res.text || '').trim().toLowerCase();
+      const looksHtml = text.startsWith('<!doctype') || text.startsWith('<html');
+      const looksXml = res.text.includes('<rss') || res.text.includes('<feed');
       return {
         items: [],
         status: 'partial',
@@ -486,6 +538,12 @@ export async function ingestOneSource(
           finalUrl: res.finalUrl ?? null,
           contentType: res.contentType ?? null,
           itemsParsed: 0,
+          failureCategory: looksHtml || ct.includes('text/html')
+            ? 'feed_non_xml_body'
+            : looksXml
+              ? 'parser_no_entries'
+              : 'feed_non_xml_body',
+          ...(res.redirects?.length ? { redirects: res.redirects } : {}),
           bodySample: res.text.slice(0, 180),
         },
       };
@@ -500,6 +558,7 @@ export async function ingestOneSource(
         contentType: res.contentType ?? null,
         itemsParsed: items.length,
         imagesResolved: items.filter((it) => Boolean(it.imageUrl)).length,
+        ...(res.redirects?.length ? { redirects: res.redirects } : {}),
         ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
       },
     };
@@ -513,6 +572,8 @@ export async function ingestOneSource(
         httpStatus: res.status,
         finalUrl: res.finalUrl ?? null,
         contentType: res.contentType ?? null,
+        failureCategory: 'parse_error',
+        ...(res.redirects?.length ? { redirects: res.redirects } : {}),
         bodySample: res.text.slice(0, 180),
       },
     };

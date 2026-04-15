@@ -19,6 +19,10 @@ export type SourceStatusBucket =
   | 'enabled_stale'
   | 'enabled_unproven'
   | 'enabled_failing'
+  | 'enabled_blocked'
+  | 'enabled_misconfigured'
+  | 'enabled_quarantined'
+  | 'enabled_parser_mismatch'
   | 'disabled_policy'
   | 'disabled_placeholder'
   | 'disabled_env_gated'
@@ -228,12 +232,26 @@ function computeStatusBucket(input: {
   registryEnabled: boolean;
   fetchKind: string;
   endpointUrl: string | null;
+  lastRunMeta: Record<string, unknown> | null;
 }): { bucket: SourceStatusBucket; detail: string | null } {
   if (input.manifestEnabled && input.registryEnabled) {
     if (input.health === 'healthy') return { bucket: 'enabled_healthy', detail: null };
     if (input.health === 'stale') return { bucket: 'enabled_stale', detail: null };
     if (input.health === 'unproven') return { bucket: 'enabled_unproven', detail: null };
-    if (input.health === 'failing') return { bucket: 'enabled_failing', detail: null };
+    if (input.health === 'failing') {
+      const meta = input.lastRunMeta && typeof input.lastRunMeta === 'object' && !Array.isArray(input.lastRunMeta)
+        ? input.lastRunMeta
+        : null;
+      const fc = meta && typeof (meta as any).failureCategory === 'string' ? String((meta as any).failureCategory) : '';
+      if (fc === 'http_403') return { bucket: 'enabled_blocked', detail: 'Blocked by source (HTTP 403 / bot protection suspected)' };
+      if (fc === 'http_404') return { bucket: 'enabled_misconfigured', detail: 'Endpoint not found (HTTP 404)' };
+      if (fc === 'redirect_loop' || fc === 'redirect_count_exceeded') {
+        return { bucket: 'enabled_quarantined', detail: 'Redirect instability (loop / excessive redirects)' };
+      }
+      if (fc === 'feed_non_xml_body') return { bucket: 'enabled_parser_mismatch', detail: 'Non-XML body returned for feed (likely HTML error/interstitial)' };
+      if (fc === 'parser_no_entries') return { bucket: 'enabled_parser_mismatch', detail: 'Parser found 0 entries (markup/feed shape changed or empty)' };
+      return { bucket: 'enabled_failing', detail: null };
+    }
     return { bucket: 'enabled_failing', detail: null };
   }
 
@@ -397,6 +415,7 @@ async function buildIntelSourcesAudit(): Promise<{
       registryEnabled: src.is_enabled,
       fetchKind: src.fetch_kind,
       endpointUrl: src.endpoint_url,
+      lastRunMeta,
     });
 
     const healthReason = computeHealthReason({

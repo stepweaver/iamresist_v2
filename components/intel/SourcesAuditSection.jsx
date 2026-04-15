@@ -15,10 +15,14 @@ function formatRunMeta(meta) {
   const httpStatus = typeof meta.httpStatus === 'number' ? meta.httpStatus : null;
   const finalUrl = typeof meta.finalUrl === 'string' ? meta.finalUrl : null;
   const itemsParsed = typeof meta.itemsParsed === 'number' ? meta.itemsParsed : null;
+  const failureCategory = typeof meta.failureCategory === 'string' ? meta.failureCategory : null;
+  const redirects = Array.isArray(meta.redirects) ? meta.redirects : null;
 
   const parts = [];
+  if (failureCategory) parts.push(failureCategory);
   if (httpStatus != null) parts.push(`HTTP ${httpStatus}`);
   if (itemsParsed != null) parts.push(`parsed ${itemsParsed}`);
+  if (redirects && redirects.length) parts.push(`redirects ${redirects.length}`);
   if (finalUrl) parts.push(finalUrl);
 
   return parts.length ? parts.join(' · ') : null;
@@ -45,6 +49,10 @@ function StatusBadge({ bucket }) {
     enabled_stale: 'border-primary/50 text-primary bg-primary/5',
     enabled_unproven: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
     enabled_failing: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
+    enabled_blocked: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
+    enabled_misconfigured: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
+    enabled_quarantined: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
+    enabled_parser_mismatch: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
     disabled_policy: 'border-border text-foreground/55 bg-foreground/5',
     disabled_placeholder: 'border-border text-foreground/55 bg-foreground/5',
     disabled_env_gated: 'border-border text-foreground/55 bg-foreground/5',

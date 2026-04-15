@@ -3,12 +3,21 @@ import 'server-only';
 const DEFAULT_UA =
   'Mozilla/5.0 (compatible; iamresist-intel/1.0; +https://www.iamresist.org/legal)';
 
+const BROWSERISH_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+
 export type FetchTextResult = {
   ok: boolean;
   status: number;
   text: string;
   finalUrl: string;
   contentType: string | null;
+  redirects: {
+    status: number;
+    from: string;
+    to: string;
+    location: string;
+  }[];
 };
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -92,22 +101,46 @@ export async function fetchTextNoStore(
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const headers = {
+    // Some public sites (notably .mil syndication/listing endpoints) return 403 to non-browser-ish clients.
+    // Keep this modest and transparent: do not emulate cookies or JS execution; only broaden UA + nav-like headers.
+    const headers: Record<string, string> = {
       Accept:
         'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, application/json;q=0.8, text/html;q=0.7, */*;q=0.5',
       'Accept-Language': 'en-US,en;q=0.9',
       'Cache-Control': 'no-cache',
       Pragma: 'no-cache',
       'User-Agent': DEFAULT_UA,
-    } as const;
+    };
+
+    const browserishHosts = new Set(['www.centcom.mil', 'www.eucom.mil']);
+    let host = '';
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      host = '';
+    }
+    const useBrowserish = host && browserishHosts.has(host.toLowerCase());
+    if (useBrowserish) {
+      headers.Accept = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+      headers['User-Agent'] = BROWSERISH_UA;
+      headers['Upgrade-Insecure-Requests'] = '1';
+      headers['Sec-Fetch-Dest'] = 'document';
+      headers['Sec-Fetch-Mode'] = 'navigate';
+      headers['Sec-Fetch-Site'] = 'none';
+      headers['Sec-Fetch-User'] = '?1';
+    }
 
     let currentUrl = url;
     const seen = new Set<string>();
+    const redirects: FetchTextResult['redirects'] = [];
 
     for (let i = 0; i <= maxRedirects; i++) {
       const loopKey = normalizeForLoopCheck(currentUrl);
       if (seen.has(loopKey)) {
-        throw new Error(`Redirect loop detected: ${loopKey}`);
+        const err = new Error(`Redirect loop detected: ${loopKey}`);
+        // Attach redirect chain for ingest diagnostics (do not log full bodies).
+        Object.assign(err, { redirects });
+        throw err;
       }
       seen.add(loopKey);
 
@@ -129,10 +162,16 @@ export async function fetchTextNoStore(
             text,
             finalUrl: res.url || currentUrl,
             contentType: res.headers.get('content-type'),
+            redirects,
           };
         }
+        redirects.push({ status: res.status, from: currentUrl, to: nextUrl, location });
         if (i === maxRedirects) {
-          throw new Error(`Redirect count exceeded (${maxRedirects}) for ${normalizeForLoopCheck(url)}`);
+          const err = new Error(
+            `Redirect count exceeded (${maxRedirects}) for ${normalizeForLoopCheck(url)}`,
+          );
+          Object.assign(err, { redirects });
+          throw err;
         }
         currentUrl = nextUrl;
         continue;
@@ -145,10 +184,13 @@ export async function fetchTextNoStore(
         text,
         finalUrl: res.url || currentUrl,
         contentType: res.headers.get('content-type'),
+        redirects,
       };
     }
 
-    throw new Error(`Redirect count exceeded (${maxRedirects}) for ${normalizeForLoopCheck(url)}`);
+    const err = new Error(`Redirect count exceeded (${maxRedirects}) for ${normalizeForLoopCheck(url)}`);
+    Object.assign(err, { redirects });
+    throw err;
   } finally {
     clearTimeout(t);
   }
