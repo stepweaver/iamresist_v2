@@ -80,6 +80,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 
 - `NOTION_API_KEY`
 - `NOTION_JOURNAL_DB_ID`, `NOTION_VOICES_DB_ID`, `NOTION_CURATED_ARTICLES_DB_ID`, `NOTION_BOOKS_DB_ID`, `NOTION_CURATED_VIDEOS_DB_ID`, `NOTION_PROTEST_MUSIC_DB_ID`
+- `NOTION_WEEKLY_BRIEFS_DB_ID`
 - Reading journal / entries: `NOTION_ENTRIES_DATABASE_ID` (or aliases noted in that module)
 
 **Supabase** (`lib/env/db.js`)
