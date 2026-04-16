@@ -97,6 +97,7 @@ export function parseDemocracyDocketNewsAlertsHtml(
     /href=["'](https?:\/\/(?:www\.)?democracydocket\.com\/news-alerts\/[^"'#?\s]+)/gi;
   const seen = new Set<string>();
   const items: NormalizedItem[] = [];
+  let pos = 0;
 
   for (const m of html.matchAll(hrefRe)) {
     const raw = m[1];
@@ -133,6 +134,7 @@ export function parseDemocracyDocketNewsAlertsHtml(
       structured: {
         fetchKind: ctx.fetchKind,
         htmlIndex: true,
+        sourcePosition: pos + 1,
       },
       clusterKeys,
       stateChangeType: mapStateChange({
@@ -147,6 +149,7 @@ export function parseDemocracyDocketNewsAlertsHtml(
       ...base,
       contentHash: hashNormalizedItem(base),
     });
+    pos += 1;
   }
 
   return items;
@@ -221,6 +224,7 @@ export function parseSameHostArticleLinksHtml(
 
   const items: NormalizedItem[] = [];
   const seen = new Set<string>();
+  let pos = 0;
 
   for (const raw of candidateUrls) {
     let u: URL;
@@ -258,6 +262,7 @@ export function parseSameHostArticleLinksHtml(
         fetchKind: ctx.fetchKind,
         htmlIndex: true,
         scheduleListing: true,
+        sourcePosition: pos + 1,
       },
       clusterKeys,
       stateChangeType: mapStateChange({
@@ -272,6 +277,7 @@ export function parseSameHostArticleLinksHtml(
       ...baseItem,
       contentHash: hashNormalizedItem(baseItem),
     });
+    pos += 1;
   }
 
   return items;
@@ -326,6 +332,7 @@ export function parseUsniNewsListingHtml(
 
   const items: NormalizedItem[] = [];
   const seen = new Set<string>();
+  let pos = 0;
 
   for (const raw of candidateUrls) {
     let u: URL;
@@ -363,6 +370,7 @@ export function parseUsniNewsListingHtml(
         fetchKind: ctx.fetchKind,
         htmlIndex: true,
         usniListing: true,
+        sourcePosition: pos + 1,
       },
       clusterKeys,
       stateChangeType: mapStateChange({
@@ -377,6 +385,7 @@ export function parseUsniNewsListingHtml(
       ...baseItem,
       contentHash: hashNormalizedItem(baseItem),
     });
+    pos += 1;
   }
 
   return items;
@@ -433,6 +442,7 @@ export function parseCentcomPressReleasesHtml(
 
   const items: NormalizedItem[] = [];
   const seen = new Set<string>();
+  let pos = 0;
 
   for (const raw of candidateUrls) {
     const canonicalUrl = canonUrlNoQuery(raw, base);
@@ -470,6 +480,7 @@ export function parseCentcomPressReleasesHtml(
         fetchKind: ctx.fetchKind,
         htmlIndex: true,
         centcomListing: true,
+        sourcePosition: pos + 1,
       },
       clusterKeys,
       stateChangeType: mapStateChange({
@@ -484,6 +495,7 @@ export function parseCentcomPressReleasesHtml(
       ...baseItem,
       contentHash: hashNormalizedItem(baseItem),
     });
+    pos += 1;
   }
 
   return items;
@@ -527,6 +539,7 @@ export function parseOfacRecentActionsHtml(
 
   const items: NormalizedItem[] = [];
   const seen = new Set<string>();
+  let pos = 0;
 
   for (const raw of candidateUrls) {
     const canonicalUrl = canonUrlNoQuery(raw, base);
@@ -565,6 +578,7 @@ export function parseOfacRecentActionsHtml(
         fetchKind: ctx.fetchKind,
         htmlIndex: true,
         ofacRecentActions: true,
+        sourcePosition: pos + 1,
       },
       clusterKeys,
       stateChangeType: mapStateChange({
@@ -579,6 +593,7 @@ export function parseOfacRecentActionsHtml(
       ...baseItem,
       contentHash: hashNormalizedItem(baseItem),
     });
+    pos += 1;
   }
 
   return items;
@@ -664,6 +679,7 @@ export function parseKyivIndependentNewsArchiveHtml(
 
   const items: NormalizedItem[] = [];
   const seen = new Set<string>();
+  let pos = 0;
 
   for (const raw of candidateUrls) {
     const canonicalUrl = normalizeKyivIndependentArticleUrl(raw, base);
@@ -697,6 +713,7 @@ export function parseKyivIndependentNewsArchiveHtml(
         fetchKind: ctx.fetchKind,
         htmlIndex: true,
         kyivNewsArchive: true,
+        sourcePosition: pos + 1,
       },
       clusterKeys,
       stateChangeType: mapStateChange({
@@ -711,6 +728,7 @@ export function parseKyivIndependentNewsArchiveHtml(
       ...baseItem,
       contentHash: hashNormalizedItem(baseItem),
     });
+    pos += 1;
   }
 
   return items;
@@ -773,6 +791,7 @@ export function parse972MagazineHomepageHtml(
 
   const items: NormalizedItem[] = [];
   const seen = new Set<string>();
+  let pos = 0;
   for (const raw of candidateUrls) {
     const canonicalUrl = normalize972ArticleUrl(raw, base);
     if (!canonicalUrl || seen.has(canonicalUrl)) continue;
@@ -805,6 +824,7 @@ export function parse972MagazineHomepageHtml(
         fetchKind: ctx.fetchKind,
         htmlIndex: true,
         mag972Homepage: true,
+        sourcePosition: pos + 1,
       },
       clusterKeys,
       stateChangeType: mapStateChange({
@@ -819,6 +839,7 @@ export function parse972MagazineHomepageHtml(
       ...baseItem,
       contentHash: hashNormalizedItem(baseItem),
     });
+    pos += 1;
   }
 
   return items;

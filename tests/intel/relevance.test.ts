@@ -150,4 +150,100 @@ describe('computeRelevanceProfile', () => {
     expect(p.relevance_score).toBeGreaterThan(55);
     expect(p.institutional_area).toBe('white_house');
   });
+
+  it('gives a modest sourcePosition boost that does not overpower stronger deterministic evidence', () => {
+    const cfg = baseCfg({
+      slug: 'fr-published',
+      provenanceClass: 'PRIMARY',
+      sourceFamily: 'general',
+      trustWarningMode: 'none',
+      editorialControls: {
+        defaultPriority: 40,
+        allowKeywords: ['sanctions'],
+      },
+    });
+
+    const weakTop = baseItem({
+      title: 'Routine bulletin',
+      structured: { sourcePosition: 1 },
+      stateChangeType: 'published_document',
+    });
+    const strongLower = baseItem({
+      title: 'New sanctions announced',
+      structured: { sourcePosition: 8 },
+      stateChangeType: 'published_document',
+    });
+
+    const pWeak = computeRelevanceProfile(weakTop, cfg);
+    const pStrong = computeRelevanceProfile(strongLower, cfg);
+
+    expect(pWeak.relevance_score).toBeLessThan(pStrong.relevance_score);
+    expect(pWeak.relevance_explanations.some((e) => e.ruleId === 'upstream:source_position_boost')).toBe(true);
+    expect(pStrong.relevance_explanations.some((e) => e.ruleId === 'editorial:allow_keyword')).toBe(true);
+  });
+
+  it('uses upstream categories as controlled hints when they corroborate minimal text evidence', () => {
+    const cfg = baseCfg({
+      slug: 'kyiv-independent',
+      provenanceClass: 'SPECIALIST',
+      sourceFamily: 'defense_specialist',
+      trustWarningMode: 'none',
+      editorialControls: { defaultPriority: 44 },
+    });
+
+    const item = baseItem({
+      title: 'Kyiv officials report overnight strikes',
+      summary: null,
+      structured: { itemCategories: ['Ukraine', 'War'] },
+      stateChangeType: 'specialist_item',
+    });
+
+    const p = computeRelevanceProfile(item, cfg);
+    expect(p.mission_tags).toContain('international_relevant');
+    const e = p.relevance_explanations.find((x) => x.ruleId === 'upstream:category_hint');
+    expect(e).toBeTruthy();
+    expect(e?.meta && Array.isArray(e.meta['matchedHints']) ? e.meta['matchedHints'] : []).toContain('ukraine');
+  });
+
+  it('does not allow upstream metadata to boost commentary items', () => {
+    const cfg = baseCfg({
+      slug: 'creator-x',
+      provenanceClass: 'COMMENTARY',
+      fetchKind: 'rss',
+      deskLane: 'voices',
+      sourceFamily: 'claims_public',
+      trustWarningMode: 'source_controlled_official_claims',
+      editorialControls: { defaultPriority: 46 },
+    });
+
+    const item = baseItem({
+      title: 'Hot take on geopolitics',
+      structured: { sourcePosition: 1, itemCategories: ['Ukraine', 'Iran'] },
+      stateChangeType: 'commentary_item',
+    });
+
+    const p = computeRelevanceProfile(item, cfg);
+    expect(p.relevance_explanations.some((e) => String(e.ruleId).startsWith('upstream:'))).toBe(false);
+  });
+
+  it('sourcePosition boost decays quickly and is capped', () => {
+    const cfg = baseCfg({
+      slug: 'fr-published',
+      provenanceClass: 'PRIMARY',
+      trustWarningMode: 'none',
+      editorialControls: { defaultPriority: 40 },
+    });
+    const base = baseItem({ title: 'Routine notice', stateChangeType: 'published_document' });
+
+    const p1 = computeRelevanceProfile({ ...base, structured: { sourcePosition: 1 } }, cfg);
+    const p5 = computeRelevanceProfile({ ...base, structured: { sourcePosition: 5 } }, cfg);
+    const p12 = computeRelevanceProfile({ ...base, structured: { sourcePosition: 12 } }, cfg);
+
+    expect(p1.relevance_score).toBeGreaterThan(p5.relevance_score);
+    expect(p5.relevance_score).toBeGreaterThanOrEqual(p12.relevance_score);
+
+    const e1 = p1.relevance_explanations.find((e) => e.ruleId === 'upstream:source_position_boost');
+    expect(e1).toBeTruthy();
+    expect(e1?.meta?.['sourcePosition']).toBe(1);
+  });
 });

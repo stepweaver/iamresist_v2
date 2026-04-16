@@ -105,6 +105,7 @@ export type SurfaceState = 'surfaced' | 'downranked' | 'suppressed';
 export type RelevanceExplanation = {
   ruleId: string;
   message: string;
+  meta?: Record<string, unknown>;
 };
 
 /** Optional per-source rules mirrored to intel.sources.editorial_controls. */

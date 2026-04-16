@@ -191,6 +191,25 @@ describe('ingestOneSource', () => {
     expect(out.items).toHaveLength(1);
     expect(out.items[0]!.title).toBe('Episode 1');
   });
+
+  it('captures RSS item order as structured.sourcePosition', async () => {
+    vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: `<?xml version="1.0"?><rss version="2.0"><channel><title>C</title>
+        <item><title>T1</title><link>https://example.com/p1</link><description>Hi</description></item>
+        <item><title>T2</title><link>https://example.com/p2</link><description>Hi</description></item>
+      </channel></rss>`,
+      finalUrl: 'https://example.com/feed',
+      contentType: 'application/rss+xml',
+    });
+
+    const out = await ingestOneSource(rssCfg({ slug: 'wh-news', trustWarningMode: 'none' }));
+    expect(out.status).toBe('success');
+    expect(out.items).toHaveLength(2);
+    expect(out.items[0]!.structured.sourcePosition).toBe(1);
+    expect(out.items[1]!.structured.sourcePosition).toBe(2);
+  });
 });
 
 describe('computeOverallIngestStatus', () => {

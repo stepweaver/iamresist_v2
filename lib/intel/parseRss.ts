@@ -130,7 +130,8 @@ export async function parseRssXmlToItems(
   const items = feed.items ?? [];
 
   const out: NormalizedItem[] = [];
-  for (const it of items) {
+  for (let idx = 0; idx < items.length; idx++) {
+    const it = items[idx]!;
     const row = it as unknown as Record<string, unknown> & {
       link?: string;
       links?: { href?: string }[];
@@ -172,6 +173,7 @@ export async function parseRssXmlToItems(
         feedTitle: feed.title ?? null,
         itemCategories: row.categories ?? null,
         fetchKind: ctx.fetchKind,
+        sourcePosition: idx + 1,
       },
       clusterKeys,
       stateChangeType,

@@ -10,6 +10,7 @@ import type {
   StateChangeType,
   SurfaceState,
 } from '@/lib/intel/types';
+import { sourcePositionBoost, upstreamCategoriesContribution } from '@/lib/intel/upstreamSignals';
 
 export type RelevanceProfile = {
   mission_tags: MissionTag[];
@@ -392,6 +393,19 @@ export function computeRelevanceProfile(
   }
 
   let score = priority + editorial.score;
+
+  // Upstream metadata signals: supporting inputs only (never authoritative).
+  const pos = sourcePositionBoost({ item, cfg });
+  if (pos.explain) explanations.push(pos.explain);
+  score += pos.boost;
+
+  const cats = upstreamCategoriesContribution({ item, cfg, haystack });
+  if (cats.explain) explanations.push(cats.explain);
+  if (cats.missionTags.length) {
+    for (const t of cats.missionTags) tags.add(t);
+  }
+  score += cats.boost;
+
   score = clampScore(score);
 
   const surface: SurfaceState = editorial.surface === 'downranked' ? 'downranked' : 'surfaced';

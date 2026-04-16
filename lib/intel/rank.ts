@@ -30,6 +30,7 @@ export type LiveRow = {
 export type RelevanceExplanationDTO = {
   ruleId: string;
   message: string;
+  meta?: Record<string, unknown>;
 };
 
 /** Live desk row after relevance + optional duplicate overlay (Milestone 1.75). */

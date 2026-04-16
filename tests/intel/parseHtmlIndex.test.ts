@@ -22,6 +22,8 @@ describe('parseDemocracyDocketNewsAlertsHtml', () => {
       fetchKind: 'html_index',
     });
     expect(items).toHaveLength(2);
+    expect(items[0]!.structured.sourcePosition).toBe(1);
+    expect(items[1]!.structured.sourcePosition).toBe(2);
     const urls = items.map((i) => i.canonicalUrl).sort();
     expect(urls[0]).toContain('/news-alerts/gop-kansas-act/');
     expect(urls[1]).toContain('/news-alerts/voter-purge-case/');
@@ -60,6 +62,7 @@ describe('parseSameHostArticleLinksHtml', () => {
     expect(items.length).toBeGreaterThanOrEqual(1);
     expect(items[0]!.stateChangeType).toBe('scheduled_release');
     expect(items[0]!.canonicalUrl).toContain('news.release');
+    expect(typeof items[0]!.structured.sourcePosition).toBe('number');
   });
 
   it('BLS schedule hub: monthly calendar links (no news.release on same page)', () => {
