@@ -81,9 +81,22 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
   /** Same embed query string as source `InlinePlayerModal.jsx` (autoplay, no mute param). */
   const embedUrl = useMemo(() => {
     if (!videoId) return "";
-    const origin =
-      typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${origin}`;
+
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const params = new URLSearchParams({
+      autoplay: "1",
+      mute: "1",
+      playsinline: "1",
+      rel: "0",
+      modestbranding: "1",
+      enablejsapi: "1",
+    });
+
+    if (origin) {
+      params.set("origin", origin);
+    }
+
+    return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
   }, [videoId]);
 
   /** Match production: no "more from" RSS fetch for protest-music (sidebar uses page list only). */
@@ -272,11 +285,10 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
                     type="button"
                     onClick={() => onSelectItem?.(sibling)}
                     aria-current={playing ? "true" : undefined}
-                    className={`flex w-full items-center gap-3 border p-2 text-left transition-colors ${
-                      playing
+                    className={`flex w-full items-center gap-3 border p-2 text-left transition-colors ${playing
                         ? "border-primary/60 bg-primary/10"
                         : "border-border/30 hover:border-border/60 hover:bg-military-grey/15"
-                    }`}
+                      }`}
                   >
                     <div className="relative h-11 w-20 shrink-0 overflow-hidden bg-military-grey">
                       {thumbUrl ? (
