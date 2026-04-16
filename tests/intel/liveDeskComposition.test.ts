@@ -6,6 +6,7 @@ vi.mock('next/cache', () => ({
 
 vi.mock('@/lib/feeds/ogImage.js', () => ({
   fetchOgImageUncached: async () => null,
+  fetchOgImageFetchCached: async () => null,
 }));
 
 const OSINT_SURFACED_FIXTURE = [

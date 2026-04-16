@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createHash } from 'node:crypto';
+import pLimit from 'p-limit';
 
 import { fetchTextNoStore } from '@/lib/intel/fetchText';
 import {
@@ -604,26 +605,37 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
   const results: IngestSummary[] = [];
   let revalidateIntelCaches = false;
 
-  for (const cfg of configs) {
+  const concurrencyRaw = process.env.INTEL_INGEST_CONCURRENCY;
+  const concurrency = Math.min(
+    4,
+    Math.max(1, Number.isFinite(parseInt(String(concurrencyRaw ?? ''), 10)) ? parseInt(String(concurrencyRaw), 10) : 1),
+  );
+  const limit = pLimit(concurrency);
+
+  async function ingestOneCfg(cfg: (typeof configs)[number]): Promise<{ summary: IngestSummary; contentChanged: boolean }> {
     if (!cfg.isEnabled || !cfg.endpointUrl) {
-      results.push({
-        sourceSlug: cfg.slug,
-        status: 'skipped',
-        itemsUpserted: 0,
-        error: SKIP_MESSAGE,
-      });
-      continue;
+      return {
+        summary: {
+          sourceSlug: cfg.slug,
+          status: 'skipped',
+          itemsUpserted: 0,
+          error: SKIP_MESSAGE,
+        },
+        contentChanged: false,
+      };
     }
 
     const sourceId = slugToId.get(cfg.slug);
     if (!sourceId) {
-      results.push({
-        sourceSlug: cfg.slug,
-        status: 'failed',
-        itemsUpserted: 0,
-        error: 'Source id missing after sync',
-      });
-      continue;
+      return {
+        summary: {
+          sourceSlug: cfg.slug,
+          status: 'failed',
+          itemsUpserted: 0,
+          error: 'Source id missing after sync',
+        },
+        contentChanged: false,
+      };
     }
 
     const sched = schedules.get(cfg.slug);
@@ -636,13 +648,15 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
     const nextAt = sched?.next_ingest_at ? new Date(sched.next_ingest_at) : null;
 
     if (nextAt && !Number.isNaN(nextAt.getTime()) && nextAt.getTime() > Date.now()) {
-      results.push({
+      return {
+        summary: {
         sourceSlug: cfg.slug,
         status: 'skipped',
         itemsUpserted: 0,
         error: `Not due until ${nextAt.toISOString()}`,
-      });
-      continue;
+        },
+        contentChanged: false,
+      };
     }
 
     let runId: string;
@@ -650,7 +664,6 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       runId = await startIngestRun(sourceId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      results.push({ sourceSlug: cfg.slug, status: 'failed', itemsUpserted: 0, error: msg });
       try {
         await updateSourceIngestSchedule(sourceId, {
           next_ingest_at: nextIngestAfterAttempt('failed', effectiveInterval).toISOString(),
@@ -658,7 +671,10 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       } catch (schedErr) {
         console.warn('[ingest] schedule update after startIngestRun failure:', schedErr);
       }
-      continue;
+      return {
+        summary: { sourceSlug: cfg.slug, status: 'failed', itemsUpserted: 0, error: msg },
+        contentChanged: false,
+      };
     }
 
     const outcome = await ingestOneSource({
@@ -684,7 +700,6 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       } catch (runErr) {
         console.warn('[ingest] finishIngestRun failed after upsert failure (continuing):', runErr);
       }
-      results.push({ sourceSlug: cfg.slug, status: 'failed', itemsUpserted: 0, error: msg });
       try {
         await updateSourceIngestSchedule(sourceId, {
           next_ingest_at: nextIngestAfterAttempt('failed', effectiveInterval).toISOString(),
@@ -692,7 +707,10 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       } catch (schedErr) {
         console.warn('[ingest] schedule update after upsert failure:', schedErr);
       }
-      continue;
+      return {
+        summary: { sourceSlug: cfg.slug, status: 'failed', itemsUpserted: 0, error: msg },
+        contentChanged: false,
+      };
     }
 
     const finalStatus: IngestRunStatus = outcome.status === 'failed' ? 'failed' : outcome.status;
@@ -710,9 +728,6 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
 
     const newFp = fingerprintNormalizedItems(outcome.items);
     const contentChanged = newFp !== null && newFp !== priorFp;
-    if (contentChanged) {
-      revalidateIntelCaches = true;
-    }
 
     try {
       await updateSourceIngestSchedule(sourceId, {
@@ -723,12 +738,16 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
       console.warn('[ingest] schedule update after ingest:', schedErr);
     }
 
-    results.push({
-      sourceSlug: cfg.slug,
-      status: finalStatus,
-      itemsUpserted: upserted,
-      error: outcome.error,
-    });
+    return {
+      summary: { sourceSlug: cfg.slug, status: finalStatus, itemsUpserted: upserted, error: outcome.error },
+      contentChanged,
+    };
+  }
+
+  const perCfg = await Promise.all(configs.map((cfg) => limit(() => ingestOneCfg(cfg))));
+  for (const r of perCfg) {
+    results.push(r.summary);
+    if (r.contentChanged) revalidateIntelCaches = true;
   }
 
   const skippedCount = results.filter((r) => r.status === 'skipped').length;

@@ -1,4 +1,4 @@
-import { getAllVoices } from "@/lib/notion/voices.repo";
+import { getAllVoicesCached } from "@/lib/notion/voices.repo";
 import { getProtestMusicArtists } from "@/lib/notion/protestMusic.repo";
 import { getUnifiedArchivePage } from "@/lib/feeds/unifiedArchive.service";
 import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
@@ -12,8 +12,7 @@ export default async function VoicesArchiveContent({
   currentArtist = null,
 }) {
   // Get all voices for filter dropdown (only enabled ones with feedUrl)
-  const allVoices = await getAllVoices();
-  const voices = allVoices.filter((v) => v.enabled && v.feedUrl).sort((a, b) => a.title.localeCompare(b.title));
+  const voices = (await getAllVoicesCached()).sort((a, b) => a.title.localeCompare(b.title));
 
   const artists = await getProtestMusicArtists({ limit: 400 });
 
