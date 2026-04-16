@@ -41,7 +41,7 @@ export default function Home() {
                 <div>
                   <div className="inline-block border-l-4 border-primary pl-3 sm:pl-4">
                     <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.4em] block mb-1.5 whitespace-nowrap text-primary">
-                      BRIEFING PACKET // PUBLIC RELEASE
+                      RESISTANCE SIGNAL // PUBLIC RELEASE
                     </span>
                     <h1 className="hero-title text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold leading-tight whitespace-nowrap">
                       I AM <RotatingWord />
