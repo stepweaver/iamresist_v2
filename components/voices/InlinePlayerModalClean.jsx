@@ -79,14 +79,13 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   const videoId = getYoutubeVideoId(item?.url, item?.sourceId);
   const isYouTube = Boolean(videoId);
-  /** Same embed query string as source `InlinePlayerModal.jsx` (autoplay, no mute param). */
+  /** Same embed query string as source `InlinePlayerModal.jsx` (autoplay, no forced mute). */
   const embedUrl = useMemo(() => {
     if (!videoId) return "";
 
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const params = new URLSearchParams({
       autoplay: "1",
-      mute: "1",
       playsinline: "1",
       rel: "0",
       modestbranding: "1",
