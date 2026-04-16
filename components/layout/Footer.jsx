@@ -6,6 +6,7 @@ export default function Footer() {
 
   const footerLinks = [
     { href: '/', label: 'BRIEFING' },
+    { href: '/subscribe', label: 'BRIEF' },
     { href: '/about', label: 'MISSION' },
     { href: '/telescreen', label: 'INTEL' },
     { href: '/journal', label: 'JOURNAL' },

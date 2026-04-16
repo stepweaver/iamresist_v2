@@ -5,6 +5,7 @@ import CurrentlyReadingCardSkeleton from '@/components/home/CurrentlyReadingCard
 import HomeLiveBriefingSection from '@/components/home/HomeLiveBriefingSection';
 import VoicesFeedSection from '@/components/voices/VoicesFeedSection';
 import ProtestMusicSection from '@/components/home/ProtestMusicSection';
+import ResistanceBriefSignup from '@/components/subscribe/ResistanceBriefSignup';
 import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 import { getLatestProtestMusicItem } from '@/lib/feeds/protestMusicFeed.service';
 import { getHomeLiveBriefing } from '@/lib/feeds/homepageBriefing.service';
@@ -19,6 +20,9 @@ export default async function HomeFeed() {
   return (
     <div className="w-full max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-4 sm:py-6">
       <ShopPromoSection />
+      <div className="mb-6 sm:mb-8">
+        <ResistanceBriefSignup source="home" />
+      </div>
 
       <Suspense fallback={<CurrentlyReadingCardSkeleton />}>
         <CurrentlyReadingCard />
