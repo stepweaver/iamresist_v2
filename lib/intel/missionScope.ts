@@ -4,10 +4,16 @@ const POSITIVE_PATTERNS = [
   /\bvance\b/i,
   /\bhegseth\b/i,
   /\bwhite\s+house\b/i,
+  /\bpresident(?:ial)?\b/i,
+  /\bexecutive\s+order\b/i,
+  /\bexecutive\s+action\b/i,
+  /\bpresidential\s+action\b/i,
+  /\bmemorandum\b/i,
+  /\bproclamation\b/i,
   /\bcabinet\b/i,
   /\bcongress\b/i,
   /\bsenate\b/i,
-  /\bhouse\b/i,
+  /\brepresentatives?\b/i,
   /\bsupreme\s+court\b/i,
   /\bcourt\b/i,
   /\bjudge\b/i,
@@ -119,12 +125,13 @@ export function assessMissionScope({
   const softOffTopic = !hardOffTopic && softOffTopicHits.length > 0 && !hasPositive;
 
   const allowedOnHomepageCommentary = hasPositive && !hardOffTopic && !softOffTopic;
-  const allowedOnIntelDesk = hasPositive && !hardOffTopic && !softOffTopic;
+  const allowedOnIntelDesk = !hardOffTopic && !softOffTopic;
 
-  let scoreDelta = positiveHits.length * 8;
-  scoreDelta -= sportsHits.length * 18;
-  scoreDelta -= softOffTopicHits.length * 10;
-  scoreDelta = Math.max(-30, Math.min(24, scoreDelta));
+  let scoreDelta = 0;
+  scoreDelta += Math.min(positiveHits.length, 3) * 6;
+  if (hardOffTopic) scoreDelta -= 24;
+  else if (softOffTopic) scoreDelta -= 12;
+  scoreDelta = Math.max(-24, Math.min(18, scoreDelta));
 
   const reason = hardOffTopic
     ? `Off-topic: sports-only item (${sportsHits.join(', ')})`

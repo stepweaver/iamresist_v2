@@ -229,18 +229,24 @@ function frTypeTags(frType: string | null | undefined): MissionTag[] {
 /** Cross-cutting title/summary keywords → mission tags (deterministic). */
 function keywordMissionTags(haystack: string): MissionTag[] {
   const tags: MissionTag[] = [];
-  if (/\bexecutive\s+order\b/i.test(haystack) || /\be\.o\.\s*\d/i.test(haystack)) {
+  if (
+    /\bexecutive\s+order\b/i.test(haystack) ||
+    /\be\.o\.\s*\d/i.test(haystack) ||
+    /\bexecutive\s+action\b/i.test(haystack) ||
+    /\bpresidential\s+action\b/i.test(haystack) ||
+    /\bmemorandum\b/i.test(haystack) ||
+    /\bproclamation\b/i.test(haystack)
+  ) {
     tags.push('executive_power');
   }
-  if (/\bproclamation\b/i.test(haystack)) tags.push('executive_power');
   if (/\bvoting\b|\ballot\b|\bredistrict/i.test(haystack)) tags.push('voting_rights');
   if (/\belection\b|\bFEC\b|\bcampaign\b/i.test(haystack)) tags.push('elections');
-  if (/\bfirst\s+amendment\b|\bFourth\s+Amendment\b|\bcivil\s+rights\b/i.test(haystack)) {
+  if (/\bfirst\s+amendment\b|\bfourth\s+amendment\b|\bcivil\s+rights\b/i.test(haystack)) {
     tags.push('civil_liberties');
   }
   if (/\bimmigration\b|\basylum\b|\bdeport/i.test(haystack)) tags.push('civil_liberties');
-  if (/\bsec\b|\bSEC\b|\bfederal\s+reserve\b|\btariff\b/i.test(haystack)) tags.push('economy_major');
-  if (/\bNATO\b|\bUkraine\b|\bUN\b|\btreaty\b/i.test(haystack)) tags.push('international_relevant');
+  if (/\bsec\b|\bfederal\s+reserve\b|\btariff\b/i.test(haystack)) tags.push('economy_major');
+  if (/\bnato\b|\bukraine\b|\bun\b|\btreaty\b/i.test(haystack)) tags.push('international_relevant');
   return uniqTags(tags);
 }
 
@@ -347,7 +353,7 @@ export function computeRelevanceProfile(
   const haystack = normalizeHaystack(item);
 
   const baseline = sourceBaseline(cfg.slug, cfg.provenanceClass, cfg.sourceFamily);
-  let tags = new Set<MissionTag>(baseline.tags);
+  const tags = new Set<MissionTag>(baseline.tags);
 
   const frType =
     typeof item.structured?.fr_type === 'string' ? (item.structured.fr_type as string) : null;
@@ -370,10 +376,11 @@ export function computeRelevanceProfile(
     message: `Baseline from source “${cfg.slug}”: branch ${baseline.branch}, area ${baseline.area}.`,
   });
 
-  let priority =
+  const priority =
     cfg.editorialControls?.defaultPriority != null
-      ? cfg.editorialControls.defaultPriority!
+      ? cfg.editorialControls.defaultPriority
       : baseline.defaultPriority;
+
   explanations.push({
     ruleId: 'score:default_priority',
     message: `Default priority ${priority} (${cfg.editorialControls?.defaultPriority != null ? 'manifest' : 'catalog default'}).`,
@@ -401,18 +408,13 @@ export function computeRelevanceProfile(
       : [],
   });
 
-  const requiresMissionAnchor =
-    cfg.sourceFamily === 'general' || cfg.sourceFamily === 'watchdog_global';
+  const clearlyOffTopic =
+    mission.positiveHits.length === 0 && (mission.hardOffTopic || mission.softOffTopic);
 
-  if (requiresMissionAnchor && mission.positiveHits.length === 0) {
-    const reason =
-      mission.hardOffTopic || mission.softOffTopic
-        ? mission.reason
-        : 'Suppressed: broad-feed item had no civic mission anchor.';
-
+  if (clearlyOffTopic) {
     explanations.push({
       ruleId: 'mission:off_topic',
-      message: reason,
+      message: mission.reason,
     });
 
     return {
@@ -421,7 +423,7 @@ export function computeRelevanceProfile(
       institutional_area: baseline.area,
       relevance_score: 0,
       surface_state: 'suppressed',
-      suppression_reason: reason,
+      suppression_reason: mission.reason,
       relevance_explanations: explanations,
     };
   }
@@ -432,8 +434,24 @@ export function computeRelevanceProfile(
   });
 
   let score = priority + editorial.score;
+  let surface: SurfaceState =
+    editorial.surface === 'downranked' ? 'downranked' : 'surfaced';
 
-  // Upstream metadata signals: supporting inputs only (never authoritative).
+  const broadFeedNeedsAnchor =
+    cfg.sourceFamily === 'watchdog_global' ||
+    cfg.provenanceClass === 'WIRE' ||
+    cfg.slug === 'reuters-wire' ||
+    cfg.slug === 'ap-wire';
+
+  if (broadFeedNeedsAnchor && mission.positiveHits.length === 0) {
+    surface = 'downranked';
+    score -= 10;
+    explanations.push({
+      ruleId: 'mission:no_anchor',
+      message: 'Downranked: broad reporting item lacked a strong civic mission anchor.',
+    });
+  }
+
   const pos = sourcePositionBoost({ item, cfg });
   if (pos.explain) explanations.push(pos.explain);
   score += pos.boost;
@@ -446,10 +464,7 @@ export function computeRelevanceProfile(
   score += cats.boost;
 
   score += mission.scoreDelta;
-
   score = clampScore(score);
-
-  const surface: SurfaceState = editorial.surface === 'downranked' ? 'downranked' : 'surfaced';
 
   return {
     mission_tags: uniqTags(tags),

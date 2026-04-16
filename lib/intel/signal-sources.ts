@@ -53,6 +53,7 @@ const CENTCOM_PRESS_RELEASES_LISTING = 'https://www.centcom.mil/MEDIA/PRESS-RELE
 const HOUSE_JUDICIARY_GOP_PRESS = 'https://judiciary.house.gov/media/press-releases';
 const HOUSE_JUDICIARY_DEM_PRESS =
   'https://democrats-judiciary.house.gov/media-center/press-releases';
+const ISW_FEEDS_PAGE = 'https://www.understandingwar.org/feeds2';
 
 /** Routine Federal Register / PI churn — suppressed from default desk surface (retained in DB). */
 const FR_PROCEDURAL_BLOCK_KEYWORDS = [
@@ -805,6 +806,45 @@ export function getSignalSources(): SignalSourceConfig[] {
         defaultPriority: 46,
         preferredStateChangeTypes: ['specialist_item'],
         allowKeywords: ['Ukraine', 'Kyiv', 'Russia', 'missile', 'drone', 'Zelensky'],
+      },
+    },
+    {
+      slug: 'isw-feeds',
+      name: 'Institute for the Study of War — Feeds',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'html_index',
+      deskLane: 'watchdogs',
+      sourceFamily: 'watchdog_global',
+      contentUseMode: 'feed_summary',
+      endpointUrl: ISW_FEEDS_PAGE,
+      isEnabled: true,
+      isCoreSource: false,
+      trustWarningMode: 'none',
+      trustWarningLevel: 'info',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'never_hero_without_corroboration',
+      purpose:
+        'ISW public feeds page covering recurring Ukraine and Iran war updates.',
+      trustedFor:
+        'High-signal specialist reporting pointers and recurring campaign assessments.',
+      notTrustedFor:
+        'Single-source confirmation of battlefield or state claims without corroboration.',
+      editorialNotes:
+        'Uses the public feeds page as html_index to capture recurring “Russian Offensive Campaign Assessment” and “Iran Update” posts.',
+      editorialControls: {
+        defaultPriority: 47,
+        preferredStateChangeTypes: ['specialist_item'],
+        allowKeywords: [
+          'Ukraine',
+          'Russia',
+          'Iran',
+          'missile',
+          'drone',
+          'strike',
+          'ceasefire',
+          'sanctions',
+          'nuclear',
+        ],
       },
     },
     {
