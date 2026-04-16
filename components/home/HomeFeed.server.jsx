@@ -6,20 +6,15 @@ import HomeLiveBriefingSection from '@/components/home/HomeLiveBriefingSection';
 import VoicesFeedSection from '@/components/voices/VoicesFeedSection';
 import ProtestMusicSection from '@/components/home/ProtestMusicSection';
 import ResistanceBriefSignup from '@/components/subscribe/ResistanceBriefSignup';
-import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
-import { getLatestProtestMusicItem } from '@/lib/feeds/protestMusicFeed.service';
-import { getHomeLiveBriefing } from '@/lib/feeds/homepageBriefing.service';
+import { getHomepagePayload } from '@/lib/feeds/homepagePayload.service';
 
 export default async function HomeFeed() {
-  const [feedItems, latestProtestMusicItem, briefing] = await Promise.all([
-    getHomepageIntelFeed(),
-    getLatestProtestMusicItem(),
-    getHomeLiveBriefing(),
-  ]);
+  const { feedItems, latestProtestMusicItem, briefing } = await getHomepagePayload();
 
   return (
     <div className="w-full max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-4 sm:py-6">
       <ShopPromoSection />
+
       <div className="mb-6 sm:mb-8">
         <ResistanceBriefSignup source="home" />
       </div>
