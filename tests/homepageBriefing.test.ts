@@ -351,3 +351,41 @@ describe('passesFallbackGate (voices commentary)', () => {
     vi.useRealTimers();
   });
 });
+
+describe('homepage briefing payload shape', () => {
+  it('includes briefing desk explain metadata (limits + per-lane counts)', async () => {
+    vi.resetModules();
+
+    vi.doMock('next/cache', () => {
+      return {
+        unstable_cache: (cb: unknown) => cb,
+      };
+    });
+
+    vi.doMock('@/lib/feeds/liveIntel.service', () => {
+      return {
+        getLiveIntelDeskForHomepageBriefing: vi.fn(async (lane: string) => {
+          if (lane === 'watchdogs') return { configured: true, items: [{ id: 'w1' }] };
+          if (lane === 'defense_ops') return { configured: true, items: [{ id: 'd1' }, { id: 'd2' }] };
+          if (lane === 'voices') return { configured: true, items: [] };
+          return { configured: true, items: [{ id: 'o1' }] };
+        }),
+      };
+    });
+
+    vi.doMock('@/lib/newswire', async () => {
+      const actual = await vi.importActual<typeof import('@/lib/newswire')>('@/lib/newswire');
+      return { ...actual, getNewswireStories: vi.fn(async () => []) };
+    });
+
+    const { getHomeLiveBriefingWithExplain } = await import('@/lib/feeds/homepageBriefing.service');
+    const payload = await getHomeLiveBriefingWithExplain();
+
+    expect(payload).toHaveProperty('items');
+    expect(payload).toHaveProperty('explain.pool.briefingDesk.limits');
+    expect(payload.explain.pool.briefingDesk.desks.osint).toBe(1);
+    expect(payload.explain.pool.briefingDesk.desks.watchdogs).toBe(1);
+    expect(payload.explain.pool.briefingDesk.desks.defense_ops).toBe(2);
+    expect(payload.explain.pool.briefingDesk.desks.voices).toBe(0);
+  });
+});
