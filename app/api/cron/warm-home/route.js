@@ -5,12 +5,10 @@
  */
 
 import { NextResponse } from 'next/server';
+import { getHomepagePayload } from '@/lib/feeds/homepagePayload.service';
 import { getHomepageVoicesFeed } from '@/lib/voices';
-import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 import { getUnifiedArchivePage } from '@/lib/feeds/unifiedArchive.service';
 import { getNewswireStories } from '@/lib/newswire';
-import { getLatestProtestMusicItem } from '@/lib/feeds/protestMusicFeed.service';
-import { getHomeLiveBriefing } from '@/lib/feeds/homepageBriefing.service';
 import { getCurrentBook } from '@/lib/bookclub/service';
 import { getRecentJournalEntries } from '@/lib/journal';
 import { assertCronAuthorized } from '@/lib/ops/cronAuth';
@@ -23,12 +21,10 @@ export async function GET(req) {
   if (!gate.ok) return gate.response;
 
   await Promise.allSettled([
+    getHomepagePayload(),
     getHomepageVoicesFeed(),
-    getHomepageIntelFeed(),
-    getHomeLiveBriefing(),
     getUnifiedArchivePage(1, 20, {}),
     getNewswireStories(),
-    getLatestProtestMusicItem(),
     getCurrentBook(),
     getRecentJournalEntries(1),
   ]);

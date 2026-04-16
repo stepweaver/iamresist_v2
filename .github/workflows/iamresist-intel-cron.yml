@@ -2,7 +2,6 @@ name: iamresist intel cron
 
 on:
   schedule:
-    # ingest + warm caches frequently; keep rescore less frequent
     - cron: "*/15 * * * *"
     - cron: "7 * * * *"
   workflow_dispatch: {}
@@ -18,7 +17,6 @@ jobs:
     steps:
       - name: Call cron endpoints
         env:
-          # Optional override; defaults to the app's canonical URL (see lib/siteConfig.js).
           BASE_URL: ${{ secrets.IAMRESIST_BASE_URL != '' && secrets.IAMRESIST_BASE_URL || 'https://www.iamresist.org' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
@@ -28,17 +26,25 @@ jobs:
           fi
 
           TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "[$TS] Warming home caches..."
-          curl -fsS "$BASE_URL/api/cron/warm-home" -H "Authorization: Bearer $CRON_SECRET" >/dev/null
 
           echo "[$TS] Running intel ingest..."
-          curl -fsS "$BASE_URL/api/cron/ingest-signal" -H "Authorization: Bearer $CRON_SECRET" >/dev/null
+          curl -fsS "$BASE_URL/api/cron/ingest-signal" \
+            -H "Authorization: Bearer $CRON_SECRET" >/dev/null
 
-          # Run bounded rescore hourly at minute 07 (via separate schedule entry).
-          # Safe to call every run; the endpoint is bounded and will no-op fast when DB is small.
           echo "[$TS] Running bounded intel rescore..."
-          curl -fsS "$BASE_URL/api/cron/intel-rescore?maxRows=300" -H "Authorization: Bearer $CRON_SECRET" >/dev/null
+          curl -fsS "$BASE_URL/api/cron/intel-rescore?maxRows=300" \
+            -H "Authorization: Bearer $CRON_SECRET" >/dev/null
+
+          echo "[$TS] Revalidating caches..."
+          curl -fsS -X POST "$BASE_URL/api/revalidate" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            --data '{"tags":["homepage-briefing","homepage-intel-feed","voices-feed","voices-homepage-feed","intel-live","intel-sources","newswire","curated-videos","protest-music","unified-archive","journal","bookclub"]}' >/dev/null
+
+          echo "[$TS] Warming homepage and related caches..."
+          curl -fsS "$BASE_URL/api/cron/warm-home" \
+            -H "Authorization: Bearer $CRON_SECRET" >/dev/null
 
           echo "[$TS] Keep-alive ping..."
-          curl -fsS "$BASE_URL/api/cron/keep-alive" -H "Authorization: Bearer $CRON_SECRET" >/dev/null
-
+          curl -fsS "$BASE_URL/api/cron/keep-alive" \
+            -H "Authorization: Bearer $CRON_SECRET" >/dev/null

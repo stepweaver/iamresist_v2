@@ -10,13 +10,14 @@ import { assertCronAuthorized } from '@/lib/ops/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
-/** Tags passed to `unstable_cache` / `fetch(..., { next: { tags } })` anywhere in lib/app — keep in sync when adding caches. */
 const FEED_TAGS = [
   'unified-archive',
   'voices-feed',
   'voices-homepage-feed',
   'homepage-intel-feed',
+  'homepage-briefing',
   'intel-live',
+  'intel-sources',
   'newswire',
   'voices-more',
   'protest-music',
@@ -28,8 +29,8 @@ const FEED_TAGS = [
 const TAG_SET = new Set(FEED_TAGS);
 
 export async function POST(req) {
-  // Keep env import to avoid breaking older deployments that rely on env initialization side effects.
   void env;
+
   const gate = assertCronAuthorized(req);
   if (!gate.ok) return gate.response;
 
@@ -55,6 +56,7 @@ export async function POST(req) {
     for (const tag of tagsToRun) {
       revalidateTag(tag);
     }
+
     return Response.json({ ok: true, revalidated: tagsToRun });
   } catch (err) {
     console.error('[revalidate] Failed:', err);

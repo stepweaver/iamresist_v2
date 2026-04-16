@@ -34,6 +34,7 @@ export async function GET(req) {
     try {
       revalidateTag('intel-live');
       revalidateTag('intel-sources');
+      revalidateTag('homepage-briefing');
     } catch (e) {
       console.warn('[ingest-signal] revalidateTag:', e);
     }

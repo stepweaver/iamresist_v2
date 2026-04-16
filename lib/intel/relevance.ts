@@ -11,6 +11,7 @@ import type {
   SurfaceState,
 } from '@/lib/intel/types';
 import { sourcePositionBoost, upstreamCategoriesContribution } from '@/lib/intel/upstreamSignals';
+import { assessMissionScope } from '@/lib/intel/missionScope';
 
 export type RelevanceProfile = {
   mission_tags: MissionTag[];
@@ -392,6 +393,44 @@ export function computeRelevanceProfile(
     };
   }
 
+  const mission = assessMissionScope({
+    title: item.title,
+    summary: item.summary ?? '',
+    categories: Array.isArray(item.structured?.itemCategories)
+      ? item.structured.itemCategories.filter((v): v is string => typeof v === 'string')
+      : [],
+  });
+
+  const requiresMissionAnchor =
+    cfg.sourceFamily === 'general' || cfg.sourceFamily === 'watchdog_global';
+
+  if (requiresMissionAnchor && mission.positiveHits.length === 0) {
+    const reason =
+      mission.hardOffTopic || mission.softOffTopic
+        ? mission.reason
+        : 'Suppressed: broad-feed item had no civic mission anchor.';
+
+    explanations.push({
+      ruleId: 'mission:off_topic',
+      message: reason,
+    });
+
+    return {
+      mission_tags: uniqTags(tags),
+      branch_of_government: baseline.branch,
+      institutional_area: baseline.area,
+      relevance_score: 0,
+      surface_state: 'suppressed',
+      suppression_reason: reason,
+      relevance_explanations: explanations,
+    };
+  }
+
+  explanations.push({
+    ruleId: 'mission:scope',
+    message: mission.reason,
+  });
+
   let score = priority + editorial.score;
 
   // Upstream metadata signals: supporting inputs only (never authoritative).
@@ -405,6 +444,8 @@ export function computeRelevanceProfile(
     for (const t of cats.missionTags) tags.add(t);
   }
   score += cats.boost;
+
+  score += mission.scoreDelta;
 
   score = clampScore(score);
 
