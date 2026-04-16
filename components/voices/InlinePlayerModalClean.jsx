@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/utils/date";
 
 const MOBILE_RELATED_CAP = 4;
 const DESKTOP_RELATED_CAP = 6;
+const YOUTUBE_PLAYER_ORIGINS = ["https://www.youtube.com", "https://www.youtube-nocookie.com"];
 
 function isSameItem(a, b) {
   const aYt = getYoutubeVideoId(a?.url, a?.sourceId);
@@ -222,11 +223,13 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     if (!iframe) return;
 
     function subscribe() {
-      iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening" }), "https://www.youtube.com");
+      for (const origin of YOUTUBE_PLAYER_ORIGINS) {
+        iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening" }), origin);
+      }
     }
 
     function onMessage(e) {
-      if (e.origin !== "https://www.youtube.com") return;
+      if (!YOUTUBE_PLAYER_ORIGINS.includes(e.origin)) return;
       let data = e.data;
       if (typeof data === "string") {
         try {
