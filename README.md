@@ -82,6 +82,15 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - `NOTION_JOURNAL_DB_ID`, `NOTION_VOICES_DB_ID`, `NOTION_CURATED_ARTICLES_DB_ID`, `NOTION_BOOKS_DB_ID`, `NOTION_CURATED_VIDEOS_DB_ID`, `NOTION_PROTEST_MUSIC_DB_ID`
 - `NOTION_WEEKLY_BRIEFS_DB_ID`
 - Reading journal / entries: `NOTION_ENTRIES_DATABASE_ID` (or aliases noted in that module)
+- Weekly Brief AI draft route additionally uses `OPENAI_API_KEY` and optional `WEEKLY_BRIEF_DRAFT_MODEL`
+
+**Weekly Brief AI draft contract**
+
+- Weekly Brief AI drafting uses the **Notion page body** as the thought-dump source.
+- Row-level `thoughtDump` properties may still exist in code for compatibility, but they are **not** used by the AI drafting route.
+- `selectedCandidateIds` are the primary candidate-selection mechanism.
+- Body URL matching is **fallback-only** when explicit `selectedCandidateIds` are absent.
+- `AI Draft` is the only required persisted field written back for this slice.
 
 **Supabase** (`lib/env/db.js`)
 
