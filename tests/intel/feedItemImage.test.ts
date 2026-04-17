@@ -49,7 +49,20 @@ describe('feedItemImage', () => {
     } as Record<string, unknown>);
 
     expect(result.image).toContain('img.haarets.co.il');
+    expect(result.image).toContain('width=1200');
+    expect(result.image).not.toContain('height=81');
     expect(result.skippedByPolicy).toBe(false);
     expect(result.firstCandidate?.resolvedUrl).toContain('img.haarets.co.il');
+  });
+
+  it('prefers the largest srcset candidate instead of the first tiny one', () => {
+    const result = inspectFeedItemImage({
+      link: 'https://www.aljazeera.com/news/2026/04/17/story',
+      description:
+        '<picture><source srcset="https://www.aljazeera.com/wp-content/uploads/2026/04/thumb.jpg 320w, https://www.aljazeera.com/wp-content/uploads/2026/04/hero.jpg 1280w" /></picture>',
+    } as Record<string, unknown>);
+
+    expect(result.image).toBe('https://www.aljazeera.com/wp-content/uploads/2026/04/hero.jpg');
+    expect(result.acceptedCandidate?.stage).toBe('html:srcset');
   });
 });

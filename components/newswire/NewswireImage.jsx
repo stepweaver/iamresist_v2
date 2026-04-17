@@ -34,6 +34,14 @@ export default function NewswireImage({ src, alt = '', onLoadError, objectPositi
     }
   }, [status, onLoadError]);
 
+  useEffect(() => {
+    if (!src || status !== 'loading') return undefined;
+    const timer = window.setTimeout(() => {
+      setStatus((current) => (current === 'loading' ? 'error' : current));
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [src, status]);
+
   if (status === 'error') return null;
 
   const posClass = OBJECT_POS_CLASS[objectPosition] ?? OBJECT_POS_CLASS.center;

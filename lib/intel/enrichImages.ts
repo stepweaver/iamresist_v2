@@ -3,7 +3,10 @@ import 'server-only';
 import pLimit from 'p-limit';
 
 import { polishFeedCardImageUrl, shouldSkipFeedImageCandidate } from '@/lib/feeds/feedItemImage.js';
-import { fetchOgImageUncached } from '@/lib/feeds/ogImage.js';
+import {
+  fetchOgImageUncached,
+  fetchSourceScopedArticleImageUncached,
+} from '@/lib/feeds/ogImage.js';
 import type { NormalizedItem } from '@/lib/intel/types';
 
 type EnrichImagesOptions = {
@@ -31,8 +34,9 @@ export async function enrichNormalizedItemsWithImages(
       limit(async () => {
         try {
           const og = await fetchOgImageUncached(it.canonicalUrl);
-          if (og && !shouldSkipFeedImageCandidate(og)) {
-            it.imageUrl = polishFeedCardImageUrl(og) ?? og;
+          const fallback = og || (await fetchSourceScopedArticleImageUncached(it.canonicalUrl));
+          if (fallback && !shouldSkipFeedImageCandidate(fallback)) {
+            it.imageUrl = polishFeedCardImageUrl(fallback) ?? fallback;
           }
         } catch {
           // keep null; image enrichment should never fail the ingest
