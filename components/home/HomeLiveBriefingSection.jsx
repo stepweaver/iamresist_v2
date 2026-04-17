@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import NewswireHeadlineCard from '@/components/newswire/NewswireHeadlineCard';
 import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
+import ShareButton from '@/components/ShareButton';
 import { formatDate } from '@/lib/utils/date';
 import { briefingLaneLabel } from '@/lib/feeds/homepageBriefing.weights';
 
@@ -48,6 +49,7 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
   const panelClass = compact
     ? 'border border-border machine-panel p-3 sm:p-4 hover:border-primary/35 transition-colors'
     : 'border border-border machine-panel p-3 sm:p-5 hover:border-primary/35 transition-colors';
+  const shareDescription = row.sourceName || row.whyItMatters || '';
 
   if (hero) {
     return (
@@ -76,15 +78,23 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
               {row.title || 'Untitled'}
             </a>
           </h2>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline w-fit"
-          >
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {linkLabel}
-          </a>
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {linkLabel}
+            </a>
+            <ShareButton
+              url={url}
+              title={row.title}
+              description={shareDescription}
+              heading="Share Intel item"
+            />
+          </div>
         </div>
       </article>
     );
@@ -119,15 +129,23 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
           {when ? (
             <span className="timestamp text-[10px] sm:text-xs text-foreground/50 tabular-nums mt-1">{when}</span>
           ) : null}
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline mt-2"
-          >
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {linkLabel}
-          </a>
+          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {linkLabel}
+            </a>
+            <ShareButton
+              url={url}
+              title={row.title}
+              description={shareDescription}
+              heading="Share Intel item"
+            />
+          </div>
         </div>
       </div>
     </article>

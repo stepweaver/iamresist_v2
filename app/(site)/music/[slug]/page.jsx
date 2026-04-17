@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Card from '@/components/Card';
 import ShareButton from '@/components/ShareButton';
 import { getProtestSongBySlug } from '@/lib/protestMusic';
+import { buildTelescreenHref, TELESCREEN_MODES } from '@/lib/telescreen';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 import { getYoutubeVideoId, detectVideoPlatform } from '@/lib/utils/youtube';
 import { buildSongMetadata } from '@/lib/metadata';
@@ -35,6 +36,7 @@ export default async function ProtestSongPage({ params }) {
   const platform = detectVideoPlatform(song.url);
   const displayDate = song.createdTime ? formatJournalMetaDate(song.createdTime) : '';
   const shareUrl = `${getCanonicalBaseUrl()}/music/${slug}`;
+  const musicArchiveHref = buildTelescreenHref({ mode: TELESCREEN_MODES.music });
 
   return (
     <main
@@ -55,7 +57,7 @@ export default async function ProtestSongPage({ params }) {
           </Link>
           <span className="mx-2 text-foreground/40">/</span>
           <Link
-            href="/telescreen?mode=protest-music"
+            href={musicArchiveHref}
             className="text-foreground/60 hover:text-primary transition-colors font-bold"
           >
             Protest Music
@@ -112,6 +114,7 @@ export default async function ProtestSongPage({ params }) {
                   title={`${song.title} — ${song.artist}`}
                   description={song.description?.slice(0, 160)}
                   iconOnly={false}
+                  heading="Share song"
                 />
               )}
             </div>
@@ -120,7 +123,7 @@ export default async function ProtestSongPage({ params }) {
 
         <p className="mt-6 text-center">
           <Link
-            href="/telescreen?mode=protest-music"
+            href={musicArchiveHref}
             className="nav-label text-sm text-foreground/60 hover:text-primary transition-colors font-bold"
           >
             ← More protest music

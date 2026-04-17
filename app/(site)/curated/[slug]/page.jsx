@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Card from '@/components/Card';
 import ShareButton from '@/components/ShareButton';
 import { getCuratedVideoBySlug } from '@/lib/curated';
+import { buildTelescreenHref, TELESCREEN_MODES } from '@/lib/telescreen';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 import { getYoutubeVideoId, detectVideoPlatform } from '@/lib/utils/youtube';
 import { buildVideoMetadata } from '@/lib/metadata';
@@ -38,6 +39,7 @@ export default async function CuratedVideoPage({ params }) {
       ? formatJournalMetaDate(video.dateAdded)
       : '';
   const shareUrl = `${getCanonicalBaseUrl()}/curated/${slug}`;
+  const curatedArchiveHref = buildTelescreenHref({ mode: TELESCREEN_MODES.curated });
 
   return (
     <main
@@ -58,7 +60,7 @@ export default async function CuratedVideoPage({ params }) {
           </Link>
           <span className="mx-2 text-foreground/40">/</span>
           <Link
-            href="/telescreen"
+            href={curatedArchiveHref}
             className="text-foreground/60 hover:text-primary transition-colors font-bold"
           >
             Curated Videos
@@ -119,7 +121,7 @@ export default async function CuratedVideoPage({ params }) {
 
         <p className="mt-6 text-center">
           <Link
-            href="/telescreen"
+            href={curatedArchiveHref}
             className="nav-label text-sm text-foreground/60 hover:text-primary transition-colors font-bold"
           >
             ← More curated videos
