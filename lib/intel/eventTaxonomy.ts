@@ -1,6 +1,7 @@
 export const EVENT_TYPES = [
   'bill_filed',
   'bill_cosponsored',
+  'congress_urgency',
   'executive_action',
   'court_order',
   'injunction',
@@ -35,6 +36,7 @@ export type EventType = (typeof EVENT_TYPES)[number];
 export const EVENT_SEVERITY: Record<EventType, number> = {
   injunction: 1.0,
   court_order: 0.92,
+  congress_urgency: 0.84,
   contempt_threat: 0.9,
   subpoena_ignored: 0.88,
   subpoena_issued: 0.78,

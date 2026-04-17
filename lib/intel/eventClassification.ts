@@ -60,6 +60,22 @@ const RE_MIL_ACTION: RegExp[] = [
 
 const RE_VOTE_CALLED: RegExp[] = [/\bvote\b/i, /\bto\s+vote\b/i, /\bwill\s+vote\b/i, /\bvote\s+scheduled\b/i];
 const RE_VOTE_FAILED: RegExp[] = [/\bvote\s+failed\b/i, /\bfailed\s+to\s+pass\b/i, /\bdefeated\b/i];
+const RE_CONGRESS_URGENCY: RegExp[] = [
+  /\bfisa\b/i,
+  /\bsection\s*702\b/i,
+  /\b702\b/i,
+  /\bsurveillance\b/i,
+  /\breauthoriz(?:ation|e|ed|ing)?\b/i,
+  /\bextension\b/i,
+  /\bfloor\s+vote\b/i,
+  /\bemergency\s+vote\b/i,
+  /\blate[-\s]?night\s+vote\b/i,
+  /\brules\s+vote\b/i,
+  /\bcloture\b/i,
+  /\bprocedural\s+showdown\b/i,
+  /\bhouse\s*\/\s*senate\s+showdown\b/i,
+  /\bhouse\s+and\s+senate\s+showdown\b/i,
+];
 
 const RE_POLICY_CHANGE: RegExp[] = [
   /\bpolicy\b/i,
@@ -104,6 +120,14 @@ function provenanceIsStrong(p: ProvenanceClass): boolean {
   return p === 'PRIMARY' || p === 'SPECIALIST';
 }
 
+function hasLegislativeContext(item: Pick<ClassifiableItem, 'missionTags' | 'institutionalArea'>, h: string): boolean {
+  return (
+    hasTag(item.missionTags, 'congress') ||
+    item.institutionalArea === 'congress' ||
+    /\b(congress|senate|house|cloture|rules committee)\b/i.test(h)
+  );
+}
+
 /**
  * Deterministic, tunable classification for promotion purposes.
  * It is not a claim of truth — only a label for "what kind of change this looks like".
@@ -113,6 +137,15 @@ export function classifyEvent(
 ): EventClassification {
   const signals: EventSignal[] = [];
   const h = haystack(item.title, item.summary);
+  const legislativeContext = hasLegislativeContext(item, h);
+
+  if (legislativeContext && hasAny(h, RE_CONGRESS_URGENCY)) {
+    signals.push({
+      ruleId: 'event:congress_urgency',
+      message: 'Congressional procedural/surveillance urgency language detected',
+    });
+    return { eventType: 'congress_urgency', signals };
+  }
 
   // Hard keys first (clusterKeys already deterministic).
   if (item.clusterKeys?.bill) {
@@ -211,7 +244,7 @@ export function classifyEvent(
     signals.push({ ruleId: 'event:vote_failed', message: 'Vote-failed language' });
     return { eventType: 'vote_failed', signals };
   }
-  if (hasAny(h, RE_VOTE_CALLED) && hasTag(item.missionTags, 'congress')) {
+  if (hasAny(h, RE_VOTE_CALLED) && legislativeContext) {
     signals.push({ ruleId: 'event:vote_called', message: 'Vote language + congress tag' });
     return { eventType: 'vote_called', signals };
   }

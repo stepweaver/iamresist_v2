@@ -9,6 +9,8 @@ export type PromotionReasonCode =
   | 'accountability_signal'
   | 'corroborated_multi_source'
   | 'corroborated_multi_lane'
+  | 'corroborated_multi_family'
+  | 'congress_urgency'
   | 'new_phase_in_active_story'
   | 'watched_theme_match'
   | 'contradiction_or_evasion'
@@ -60,6 +62,53 @@ export type PromotedCluster = {
   decision: GlobalPromotionDecision;
 };
 
+type ClassifiedClusterItem = {
+  item: PromotableItem;
+  eventType: string;
+  severity: number;
+};
+
+const HARD_CLUSTER_KEY_PRIORITY = [
+  'bill',
+  'executive_order',
+  'proclamation',
+  'fr_document_number',
+  'case_number',
+  'docket',
+] as const;
+
+const CONGRESS_URGENCY_PATTERNS: RegExp[] = [
+  /\bfisa\b/i,
+  /\bsection\s*702\b/i,
+  /\bsurveillance\b/i,
+  /\breauthoriz(?:ation|e|ed|ing)?\b/i,
+  /\bextension\b/i,
+  /\bfloor\s+vote\b/i,
+  /\bemergency\s+vote\b/i,
+  /\blate[-\s]?night\s+vote\b/i,
+  /\brules\s+vote\b/i,
+  /\bcloture\b/i,
+  /\bprocedural\s+showdown\b/i,
+  /\bhouse\s*\/\s*senate\s+showdown\b/i,
+  /\bhouse\s+and\s+senate\s+showdown\b/i,
+];
+
+const SURVEILLANCE_PATTERNS: RegExp[] = [
+  /\bfisa\b/i,
+  /\bsection\s*702\b/i,
+  /\bsurveillance\b/i,
+  /\bwiretap\b/i,
+  /\bspy(?:ing)?\b/i,
+];
+
+const OVERSIGHT_PATTERNS: RegExp[] = [
+  /\boversight\b/i,
+  /\bsubpoena\b/i,
+  /\binspector\s+general\b/i,
+  /\bwhistleblower\b/i,
+  /\bhearing\b/i,
+];
+
 function clamp(n: number, min = 0, max = 100): number {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, Math.round(n)));
@@ -72,8 +121,8 @@ function hoursSince(iso: string | null | undefined): number | null {
   return (Date.now() - t) / 3600000;
 }
 
-function normTitleTokens(title: string): string[] {
-  const t = String(title ?? '')
+function normStoryTokens(text: string): string[] {
+  const t = String(text ?? '')
     .toLowerCase()
     .replace(/https?:\/\/\S+/g, ' ')
     .replace(/[^a-z0-9\s-]/g, ' ')
@@ -115,11 +164,11 @@ function normTitleTokens(title: string): string[] {
     'why',
     'how',
   ]);
-  const toks = t
+  return t
     .split(' ')
     .map((x) => x.trim())
-    .filter((x) => x.length >= 4 && !stop.has(x));
-  return toks.slice(0, 18);
+    .filter((x) => x.length >= 4 && !stop.has(x))
+    .slice(0, 24);
 }
 
 function jaccard(a: string[], b: string[]): number {
@@ -132,51 +181,115 @@ function jaccard(a: string[], b: string[]): number {
   return union === 0 ? 0 : inter / union;
 }
 
-function provenanceWeight(p: ProvenanceClass): number {
-  if (p === 'PRIMARY') return 12;
-  if (p === 'SPECIALIST') return 8;
-  if (p === 'WIRE') return 4;
-  if (p === 'INDIE') return 2;
-  if (p === 'COMMENTARY') return -8;
-  if (p === 'SCHEDULE') return -10;
+function hasAny(text: string, patterns: RegExp[]): boolean {
+  return patterns.some((re) => re.test(text));
+}
+
+function clusterHaystack(items: PromotableItem[]): string {
+  return items.map((item) => `${item.title}\n${item.summary ?? ''}`).join('\n').toLowerCase();
+}
+
+function clusterMissionTags(items: PromotableItem[]): Set<string> {
+  return new Set(items.flatMap((item) => (Array.isArray(item.missionTags) ? item.missionTags : [])));
+}
+
+function representativeProvenanceWeight(p: ProvenanceClass): number {
+  if (p === 'PRIMARY') return 16;
+  if (p === 'SPECIALIST') return 12;
+  if (p === 'WIRE') return 8;
+  if (p === 'INDIE') return 4;
+  if (p === 'COMMENTARY') return -4;
+  if (p === 'SCHEDULE') return -8;
   return 0;
 }
 
-function accountabilityBoost(item: PromotableItem): number {
-  const tags = new Set(item.missionTags ?? []);
-  let b = 0;
-  if (tags.has('courts')) b += 10;
-  if (tags.has('voting_rights') || tags.has('elections')) b += 8;
-  if (tags.has('civil_liberties')) b += 8;
-  if (tags.has('executive_power')) b += 6;
-  if (tags.has('federal_agencies')) b += 4;
-  return Math.min(18, b);
+function clusterProvenanceContribution(p: ProvenanceClass): number {
+  if (p === 'PRIMARY') return 8;
+  if (p === 'SPECIALIST') return 6;
+  if (p === 'WIRE') return 3;
+  if (p === 'INDIE') return 1;
+  if (p === 'COMMENTARY') return -2;
+  if (p === 'SCHEDULE') return -6;
+  return 0;
 }
 
-function pickBestItem(items: PromotableItem[]): PromotableItem {
-  const sorted = [...items].sort((a, b) => {
-    const da = typeof a.displayPriority === 'number' ? a.displayPriority : 50;
-    const db = typeof b.displayPriority === 'number' ? b.displayPriority : 50;
-    if (db !== da) return db - da;
-    const pa = provenanceWeight(a.provenanceClass);
-    const pb = provenanceWeight(b.provenanceClass);
-    if (pb !== pa) return pb - pa;
-    const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-    const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-    return tb - ta;
+function classifyClusterItems(items: PromotableItem[]): ClassifiedClusterItem[] {
+  return items.map((item) => {
+    const eventType = classifyEvent(item).eventType;
+    const severity = EVENT_SEVERITY[eventType as keyof typeof EVENT_SEVERITY] ?? 0.3;
+    return { item, eventType, severity };
   });
-  return sorted[0]!;
 }
 
-function clusterKeyForItem(it: PromotableItem): string | null {
-  if (it.canonicalUrl) return `url:${it.canonicalUrl}`;
-  const ck = it.clusterKeys;
-  if (ck && typeof ck === 'object') {
-    for (const [k, v] of Object.entries(ck)) {
-      if (typeof v === 'string' && v.trim()) return `ck:${k}:${v.trim()}`;
+function representativeScore(entry: ClassifiedClusterItem): number {
+  const displayPriority = typeof entry.item.displayPriority === 'number' ? entry.item.displayPriority : 50;
+  let score = Math.round((displayPriority - 50) / 4);
+  score += representativeProvenanceWeight(entry.item.provenanceClass);
+  score += Math.round((entry.severity - 0.3) * 14);
+
+  if (entry.eventType === 'generic_report') score -= 2;
+  if (entry.eventType === 'statement_claim' || entry.eventType === 'official_statement') score -= 4;
+  if (entry.item.provenanceClass === 'COMMENTARY') score -= 4;
+  if (entry.item.deskLane === 'statements' || entry.item.trustWarningMode === 'source_controlled_official_claims') {
+    score -= 4;
+  }
+
+  return score;
+}
+
+function pickBestItem(entries: ClassifiedClusterItem[]): PromotableItem {
+  const sorted = [...entries].sort((a, b) => {
+    const sa = representativeScore(a);
+    const sb = representativeScore(b);
+    if (sb !== sa) return sb - sa;
+
+    const da = typeof a.item.displayPriority === 'number' ? a.item.displayPriority : 50;
+    const db = typeof b.item.displayPriority === 'number' ? b.item.displayPriority : 50;
+    if (db !== da) return db - da;
+
+    const ta = a.item.publishedAt ? new Date(a.item.publishedAt).getTime() : 0;
+    const tb = b.item.publishedAt ? new Date(b.item.publishedAt).getTime() : 0;
+    if (tb !== ta) return tb - ta;
+
+    const slug = a.item.sourceSlug.localeCompare(b.item.sourceSlug);
+    if (slug !== 0) return slug;
+
+    return a.item.id.localeCompare(b.item.id);
+  });
+  return sorted[0]!.item;
+}
+
+function clusterKeysForItem(it: PromotableItem): string[] {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  const clusterKeys = it.clusterKeys && typeof it.clusterKeys === 'object' ? it.clusterKeys : {};
+
+  for (const key of HARD_CLUSTER_KEY_PRIORITY) {
+    const value = clusterKeys[key];
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const composed = `ck:${key}:${value.trim()}`;
+    if (!seen.has(composed)) {
+      seen.add(composed);
+      keys.push(composed);
     }
   }
-  return null;
+
+  for (const [key, value] of Object.entries(clusterKeys).sort(([a], [b]) => a.localeCompare(b))) {
+    if (HARD_CLUSTER_KEY_PRIORITY.includes(key as (typeof HARD_CLUSTER_KEY_PRIORITY)[number])) continue;
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const composed = `ck:${key}:${value.trim()}`;
+    if (!seen.has(composed)) {
+      seen.add(composed);
+      keys.push(composed);
+    }
+  }
+
+  if (it.canonicalUrl) {
+    const composed = `url:${it.canonicalUrl}`;
+    if (!seen.has(composed)) keys.push(composed);
+  }
+
+  return keys;
 }
 
 function closeInTime(a: PromotableItem, b: PromotableItem, hours = 36): boolean {
@@ -186,34 +299,82 @@ function closeInTime(a: PromotableItem, b: PromotableItem, hours = 36): boolean 
   return Math.abs(ta - tb) <= hours * 3600000;
 }
 
+function similarStory(a: PromotableItem, aClass: string, b: PromotableItem, bClass: string): boolean {
+  if (aClass !== bClass) return false;
+  if (!closeInTime(a, b, 30)) return false;
+
+  const aTokens = normStoryTokens(`${a.title} ${a.summary ?? ''}`);
+  const bTokens = normStoryTokens(`${b.title} ${b.summary ?? ''}`);
+  const similarity = jaccard(aTokens, bTokens);
+  const shared = aTokens.filter((token) => bTokens.includes(token)).length;
+
+  if (similarity >= 0.72) return true;
+  if (shared >= 3 && similarity >= 0.34) return true;
+  if (shared >= 2 && similarity >= 0.42) return true;
+  return false;
+}
+
 /**
  * Conservative, ephemeral clustering for promotion.
  * Order of operations:
- * - hard merge by canonicalUrl
- * - then hard merge by deterministic clusterKeys (bill/fr/eo/etc)
- * - then optional title similarity (tight threshold + time window + same event type)
+ * - hard merge by deterministic clusterKeys or canonicalUrl overlap
+ * - then optional title/topic similarity (tight threshold + time window + same event type)
  */
 export function buildPromotionClusters(items: PromotableItem[]): PromotableItem[][] {
   const pool = (Array.isArray(items) ? items : []).filter(
     (it) => it && it.surfaceState !== 'suppressed' && !it.isDuplicateLoser,
   );
 
-  const byHard = new Map<string, PromotableItem[]>();
+  const itemById = new Map(pool.map((item) => [item.id, item]));
+  const itemKeys = new Map<string, string[]>();
+  const keyToItemIds = new Map<string, string[]>();
   const leftovers: PromotableItem[] = [];
-  for (const it of pool) {
-    const key = clusterKeyForItem(it);
-    if (!key) {
-      leftovers.push(it);
+
+  for (const item of pool) {
+    const keys = clusterKeysForItem(item);
+    if (keys.length === 0) {
+      leftovers.push(item);
       continue;
     }
-    const arr = byHard.get(key) ?? [];
-    arr.push(it);
-    byHard.set(key, arr);
+    itemKeys.set(item.id, keys);
+    for (const key of keys) {
+      const arr = keyToItemIds.get(key) ?? [];
+      arr.push(item.id);
+      keyToItemIds.set(key, arr);
+    }
   }
 
-  const hardClusters = Array.from(byHard.values()).filter((c) => c.length > 0);
-  const singles = hardClusters.filter((c) => c.length === 1).map((c) => c[0]!);
-  const multi = hardClusters.filter((c) => c.length > 1);
+  const hardClusters: PromotableItem[][] = [];
+  const visited = new Set<string>();
+
+  for (const item of pool) {
+    if (visited.has(item.id) || !itemKeys.has(item.id)) continue;
+
+    const clusterIds = new Set<string>();
+    const queue = [item.id];
+    visited.add(item.id);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      clusterIds.add(currentId);
+      for (const key of itemKeys.get(currentId) ?? []) {
+        for (const neighborId of keyToItemIds.get(key) ?? []) {
+          if (visited.has(neighborId)) continue;
+          visited.add(neighborId);
+          queue.push(neighborId);
+        }
+      }
+    }
+
+    hardClusters.push(
+      Array.from(clusterIds)
+        .map((id) => itemById.get(id)!)
+        .filter(Boolean),
+    );
+  }
+
+  const singles = hardClusters.filter((cluster) => cluster.length === 1).map((cluster) => cluster[0]!);
+  const multi = hardClusters.filter((cluster) => cluster.length > 1);
 
   const candidateSingles = [...singles, ...leftovers];
   const used = new Set<string>();
@@ -222,22 +383,17 @@ export function buildPromotionClusters(items: PromotableItem[]): PromotableItem[
   for (let i = 0; i < candidateSingles.length; i++) {
     const a = candidateSingles[i]!;
     if (used.has(a.id)) continue;
-    const aClass = classifyEvent(a);
-    const aToks = normTitleTokens(a.title);
+    const aClass = classifyEvent(a).eventType;
     const group: PromotableItem[] = [a];
     used.add(a.id);
 
     for (let j = i + 1; j < candidateSingles.length; j++) {
       const b = candidateSingles[j]!;
       if (used.has(b.id)) continue;
-      if (!closeInTime(a, b, 30)) continue;
-      const bClass = classifyEvent(b);
-      if (bClass.eventType !== aClass.eventType) continue;
-      const sim = jaccard(aToks, normTitleTokens(b.title));
-      if (sim >= 0.74) {
-        group.push(b);
-        used.add(b.id);
-      }
+      const bClass = classifyEvent(b).eventType;
+      if (!similarStory(a, aClass, b, bClass)) continue;
+      group.push(b);
+      used.add(b.id);
     }
 
     softClusters.push(group);
@@ -246,119 +402,243 @@ export function buildPromotionClusters(items: PromotableItem[]): PromotableItem[
   return [...multi, ...softClusters];
 }
 
+function accountabilityBoost(cluster: PromotableItem[]): number {
+  const tags = clusterMissionTags(cluster);
+  const h = clusterHaystack(cluster);
+  let boost = 0;
+
+  if (tags.has('courts')) boost += 8;
+  if (tags.has('voting_rights') || tags.has('elections')) boost += 7;
+  if (tags.has('civil_liberties')) boost += 8;
+  if (tags.has('executive_power')) boost += 6;
+  if (tags.has('federal_agencies')) boost += 4;
+  if (tags.has('congress')) boost += 7;
+  if (hasAny(h, SURVEILLANCE_PATTERNS)) boost += 5;
+  if (hasAny(h, OVERSIGHT_PATTERNS)) boost += 4;
+
+  return Math.min(24, boost);
+}
+
+function congressUrgencyBoost(cluster: PromotableItem[], classified: ClassifiedClusterItem[]): number {
+  if (classified.some((entry) => entry.eventType === 'congress_urgency')) return 10;
+
+  const tags = clusterMissionTags(cluster);
+  const h = clusterHaystack(cluster);
+  const legislativeContext =
+    tags.has('congress') || /\b(congress|senate|house|cloture|rules committee)\b/i.test(h);
+  if (!legislativeContext) return 0;
+
+  const hasSurveillance = hasAny(h, SURVEILLANCE_PATTERNS);
+  const hasUrgency = hasAny(h, CONGRESS_URGENCY_PATTERNS);
+  if (hasSurveillance && hasUrgency) return 9;
+  if (hasUrgency) return 6;
+  return 0;
+}
+
+function momentumBoost(cluster: PromotableItem[]): { delta: number; latestHours: number | null; spanHours: number } {
+  const stamps = cluster
+    .map((item) => (item.publishedAt ? new Date(item.publishedAt).getTime() : NaN))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+
+  if (stamps.length === 0) return { delta: 0, latestHours: null, spanHours: 0 };
+
+  const latest = stamps[stamps.length - 1]!;
+  const latestHours = (Date.now() - latest) / 3600000;
+  const spanHours = (latest - stamps[0]!) / 3600000;
+  let delta = 0;
+
+  if (cluster.length >= 2 && latestHours <= 6) delta += 2;
+  if (cluster.length >= 3 && latestHours <= 12) delta += 2;
+  if (spanHours >= 6 && latestHours <= 6) delta += 4;
+
+  return { delta: Math.min(8, delta), latestHours, spanHours };
+}
+
 function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDecision {
-  const representative = pickBestItem(cluster);
-  const cls = classifyEvent(representative);
-  const severity = EVENT_SEVERITY[cls.eventType as keyof typeof EVENT_SEVERITY] ?? 0.3;
+  const classified = classifyClusterItems(cluster);
+  const representative = pickBestItem(classified);
+  const strongest = [...classified].sort((a, b) => b.severity - a.severity || a.eventType.localeCompare(b.eventType))[0]!;
+  const momentum = momentumBoost(cluster);
 
   const contributions: PromotionContribution[] = [];
-  let score = typeof representative.displayPriority === 'number' ? representative.displayPriority : 50;
-  contributions.push({ code: 'base_displayPriority', delta: score - 50, message: 'Base: desk display priority' });
+  let score = 50;
 
-  const sevDelta = Math.round((severity - 0.3) * 30); // centered around generic_report-ish
-  score += sevDelta;
+  const representativeDisplayPriority =
+    typeof representative.displayPriority === 'number' ? representative.displayPriority : 50;
+  const representativeDelta = clamp(Math.round((representativeDisplayPriority - 50) / 3), -12, 12);
+  score += representativeDelta;
   contributions.push({
-    code: `event:${cls.eventType}`,
-    delta: sevDelta,
-    message: `Event severity (${cls.eventType})`,
+    code: 'representative_display_priority',
+    delta: representativeDelta,
+    message: 'Bounded representative display priority',
   });
 
-  const acc = accountabilityBoost(representative);
-  score += acc;
-  if (acc) {
+  const eventDelta = Math.round((strongest.severity - 0.3) * 24);
+  score += eventDelta;
+  contributions.push({
+    code: `event:${strongest.eventType}`,
+    delta: eventDelta,
+    message: `Strongest event support in cluster (${strongest.eventType})`,
+  });
+
+  const accountabilityDelta = accountabilityBoost(cluster);
+  score += accountabilityDelta;
+  if (accountabilityDelta) {
     contributions.push({
-      code: 'accountability',
-      delta: acc,
-      message: 'Accountability relevance (mission tags)',
+      code: 'accountability_signal',
+      delta: accountabilityDelta,
+      message: 'Accountability relevance across the cluster',
     });
   }
 
-  const prov = provenanceWeight(representative.provenanceClass);
-  score += prov;
-  contributions.push({ code: 'provenance', delta: prov, message: `Provenance class ${representative.provenanceClass}` });
-
-  const hrs = hoursSince(representative.publishedAt);
-  if (hrs != null) {
-    const rec = hrs <= 2 ? 10 : hrs <= 6 ? 7 : hrs <= 18 ? 4 : hrs <= 48 ? 1 : 0;
-    score += rec;
-    if (rec) contributions.push({ code: 'freshness', delta: rec, message: 'Freshness (published time)' });
+  const congressUrgencyDelta = congressUrgencyBoost(cluster, classified);
+  score += congressUrgencyDelta;
+  if (congressUrgencyDelta) {
+    contributions.push({
+      code: 'congress_urgency',
+      delta: congressUrgencyDelta,
+      message: 'Congressional procedural/surveillance urgency',
+    });
   }
 
-  // Corroboration (multi-source / multi-lane / multi-family).
-  const sources = new Set(cluster.map((x) => x.sourceSlug).filter(Boolean));
-  const lanes = new Set(cluster.map((x) => x.deskLane ?? 'unknown').filter(Boolean));
-  const families = new Set(cluster.map((x) => x.sourceFamily ?? 'general').filter(Boolean));
-  const corroborationBoost = Math.min(12, Math.max(0, (sources.size - 1) * 4));
-  score += corroborationBoost;
-  if (corroborationBoost) {
-    contributions.push({ code: 'corroboration', delta: corroborationBoost, message: 'Corroboration (multi-source)' });
-  }
-  if (lanes.size >= 2) {
-    score += 4;
-    contributions.push({ code: 'multi_lane', delta: 4, message: 'Corroboration (multi-lane)' });
-  }
-  if (families.size >= 2) {
-    score += 4;
-    contributions.push({ code: 'multi_family', delta: 4, message: 'Corroboration (multi-family)' });
+  const provenanceDelta = clusterProvenanceContribution(representative.provenanceClass);
+  score += provenanceDelta;
+  contributions.push({
+    code: 'representative_provenance',
+    delta: provenanceDelta,
+    message: `Representative provenance (${representative.provenanceClass})`,
+  });
+
+  if (momentum.latestHours != null) {
+    const freshnessDelta = momentum.latestHours <= 2 ? 8 : momentum.latestHours <= 6 ? 5 : momentum.latestHours <= 18 ? 2 : 0;
+    score += freshnessDelta;
+    if (freshnessDelta) {
+      contributions.push({
+        code: 'freshness',
+        delta: freshnessDelta,
+        message: 'Freshest item in cluster',
+      });
+    }
   }
 
-  // Penalize repeat coverage inside cluster: too many items from same source.
+  const sources = new Set(cluster.map((item) => item.sourceSlug).filter(Boolean));
+  const lanes = new Set(cluster.map((item) => item.deskLane ?? 'unknown').filter(Boolean));
+  const families = new Set(cluster.map((item) => item.sourceFamily ?? 'general').filter(Boolean));
+
+  const sourceDelta = Math.min(18, Math.max(0, (sources.size - 1) * 6));
+  score += sourceDelta;
+  if (sourceDelta) {
+    contributions.push({
+      code: 'corroborated_multi_source',
+      delta: sourceDelta,
+      message: 'Corroboration from multiple sources',
+    });
+  }
+
+  const laneDelta = Math.min(10, Math.max(0, (lanes.size - 1) * 5));
+  score += laneDelta;
+  if (laneDelta) {
+    contributions.push({
+      code: 'corroborated_multi_lane',
+      delta: laneDelta,
+      message: 'Corroboration across desks/lanes',
+    });
+  }
+
+  const familyDelta = Math.min(8, Math.max(0, (families.size - 1) * 4));
+  score += familyDelta;
+  if (familyDelta) {
+    contributions.push({
+      code: 'corroborated_multi_family',
+      delta: familyDelta,
+      message: 'Corroboration across source families',
+    });
+  }
+
+  score += momentum.delta;
+  if (momentum.delta) {
+    contributions.push({
+      code: 'new_phase_in_active_story',
+      delta: momentum.delta,
+      message: 'Fresh movement inside an active story cluster',
+    });
+  }
+
   const countBySource = new Map<string, number>();
-  for (const it of cluster) {
-    const k = it.sourceSlug || 'unknown';
-    countBySource.set(k, (countBySource.get(k) ?? 0) + 1);
+  for (const item of cluster) {
+    const key = item.sourceSlug || 'unknown';
+    countBySource.set(key, (countBySource.get(key) ?? 0) + 1);
   }
   const maxSameSource = Math.max(...Array.from(countBySource.values()));
   if (maxSameSource >= 3 && sources.size === 1) {
     score -= 10;
-    contributions.push({ code: 'repeat_penalty', delta: -10, message: 'Penalty: repeated coverage (single-source cluster)' });
+    contributions.push({
+      code: 'repeat_coverage_penalty',
+      delta: -10,
+      message: 'Penalty: repeated coverage without outside corroboration',
+    });
   } else if (maxSameSource >= 4) {
     score -= 6;
-    contributions.push({ code: 'repeat_penalty', delta: -6, message: 'Penalty: repeated coverage (same-source dominance)' });
+    contributions.push({
+      code: 'repeat_coverage_penalty',
+      delta: -6,
+      message: 'Penalty: same-source dominance inside cluster',
+    });
   }
 
-  // Statements/claims discipline: statement-like sources cannot overpower without corroboration.
-  const statementLike = representative.deskLane === 'statements' || representative.trustWarningMode === 'source_controlled_official_claims';
+  const statementLike =
+    representative.deskLane === 'statements' ||
+    representative.trustWarningMode === 'source_controlled_official_claims';
   if (statementLike && (sources.size < 2 || families.size < 2)) {
     score -= 12;
-    contributions.push({ code: 'claims_lane_penalty', delta: -12, message: 'Penalty: claims/statement surface without corroboration' });
+    contributions.push({
+      code: 'claims_lane_penalty',
+      delta: -12,
+      message: 'Penalty: claims/statement representative without corroboration',
+    });
   }
 
   const totalScore = clamp(score, 0, 100);
 
   const reasons: PromotionReasonCode[] = [];
-  if (hrs != null && hrs <= 6 && severity >= 0.68 && totalScore >= 70) reasons.push('fresh_high_priority_event');
+  if (momentum.latestHours != null && momentum.latestHours <= 6 && strongest.severity >= 0.68 && totalScore >= 70) {
+    reasons.push('fresh_high_priority_event');
+  }
   if (representative.provenanceClass === 'PRIMARY') reasons.push('primary_source');
-  if (cls.eventType === 'injunction' || cls.eventType === 'court_order' || (representative.missionTags ?? []).includes('courts')) {
+  if (
+    strongest.eventType === 'injunction' ||
+    strongest.eventType === 'court_order' ||
+    (representative.missionTags ?? []).includes('courts')
+  ) {
     reasons.push('court_or_legal_action');
   }
-  if (accountabilityBoost(representative) >= 10) reasons.push('accountability_signal');
-  if (sources.size >= 2) reasons.push('corroborated_multi_source');
-  if (lanes.size >= 2) reasons.push('corroborated_multi_lane');
-  if (cls.eventType === 'contradiction') reasons.push('contradiction_or_evasion');
-  if (cls.eventType === 'resignation' || cls.eventType === 'ethics_probe') reasons.push('resignation_or_ethics_signal');
-  if (cls.eventType === 'executive_action' || cls.eventType === 'policy_change' || cls.eventType === 'sanctions_action') {
+  if (accountabilityDelta >= 10) reasons.push('accountability_signal');
+  if (sourceDelta > 0) reasons.push('corroborated_multi_source');
+  if (laneDelta > 0) reasons.push('corroborated_multi_lane');
+  if (familyDelta > 0) reasons.push('corroborated_multi_family');
+  if (congressUrgencyDelta > 0) reasons.push('congress_urgency');
+  if (strongest.eventType === 'contradiction') reasons.push('contradiction_or_evasion');
+  if (strongest.eventType === 'resignation' || strongest.eventType === 'ethics_probe') {
+    reasons.push('resignation_or_ethics_signal');
+  }
+  if (
+    strongest.eventType === 'executive_action' ||
+    strongest.eventType === 'policy_change' ||
+    strongest.eventType === 'sanctions_action' ||
+    strongest.eventType === 'military_action'
+  ) {
     reasons.push('major_government_action');
   }
   if (maxSameSource >= 3) reasons.push('repeat_coverage_penalty');
   if (statementLike && (sources.size < 2 || families.size < 2)) reasons.push('claims_lane_penalty');
-
-  // Momentum: new item on an older cluster within window.
-  const times = cluster
-    .map((x) => (x.publishedAt ? new Date(x.publishedAt).getTime() : NaN))
-    .filter((x) => Number.isFinite(x));
-  if (times.length >= 2) {
-    const min = Math.min(...times);
-    const max = Math.max(...times);
-    const spanH = (max - min) / 3600000;
-    if (spanH >= 10 && hrs != null && hrs <= 3) reasons.push('new_phase_in_active_story');
-  }
+  if (momentum.delta > 0 && momentum.spanHours >= 6) reasons.push('new_phase_in_active_story');
 
   return {
     totalScore,
     reasons: Array.from(new Set(reasons)),
     contributions,
-    eventType: cls.eventType,
+    eventType: strongest.eventType,
     corroboration: {
       itemCount: cluster.length,
       sourceCount: sources.size,
@@ -370,15 +650,23 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
 
 export function promoteGlobally(items: PromotableItem[], opts?: { limit?: number }): PromotedCluster[] {
   const clusters = buildPromotionClusters(items);
-  const enriched: PromotedCluster[] = clusters.map((c, idx) => {
-    const rep = pickBestItem(c);
-    const decision = computeDecisionForCluster(c);
-    const clusterId = `pcl_${idx}_${rep.id}`;
-    return { clusterId, representativeId: rep.id, representative: rep, items: c, decision };
+  const enriched: PromotedCluster[] = clusters.map((cluster, idx) => {
+    const representative = pickBestItem(classifyClusterItems(cluster));
+    const decision = computeDecisionForCluster(cluster);
+    const clusterId = `pcl_${idx}_${representative.id}`;
+    return {
+      clusterId,
+      representativeId: representative.id,
+      representative,
+      items: cluster,
+      decision,
+    };
   });
 
-  const sorted = enriched.sort((a, b) => b.decision.totalScore - a.decision.totalScore);
+  const sorted = enriched.sort((a, b) => {
+    if (b.decision.totalScore !== a.decision.totalScore) return b.decision.totalScore - a.decision.totalScore;
+    return a.representativeId.localeCompare(b.representativeId);
+  });
   const limit = Math.max(1, Math.min(12, Number(opts?.limit) || 6));
   return sorted.slice(0, limit);
 }
-
