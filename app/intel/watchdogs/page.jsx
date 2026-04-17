@@ -9,7 +9,7 @@ export const revalidate = 45;
 export const metadata = buildPageMetadata({
   title: 'Intel // Watchdogs | I AM [RESIST]',
   description:
-    'Foreign independent and investigative outlets — corroboration-gated surfacing; not merged with the core U.S. institutional OSINT desk.',
+    'Foreign independent and investigative outlets - corroboration-gated selection; not merged with the core U.S. institutional OSINT desk.',
   urlPath: '/intel/watchdogs',
 });
 
@@ -30,10 +30,10 @@ export default function IntelWatchdogsPage() {
       }}
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs description="Independent and regional watchdog reporting — specialist provenance; lead slots require corroboration (shared cluster key or cross-family mission tag)." />
+        <IntelTabs description="Independent and regional watchdog reporting - specialist provenance; lead slots require corroboration (shared cluster key or cross-family mission tag)." />
         <Suspense
           fallback={
-            <p className="text-foreground/70 uppercase tracking-wider text-sm">Loading Watchdogs desk…</p>
+            <p className="text-foreground/70 uppercase tracking-wider text-sm">Loading Watchdogs desk...</p>
           }
         >
           <WatchdogsContent />

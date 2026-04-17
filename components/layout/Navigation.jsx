@@ -14,7 +14,6 @@ const NAV_LINKS = [
   { href: '/journal', label: 'JOURNAL' },
   { href: '/timeline', label: 'TIMELINE' },
   { href: '/shop', label: 'SUPPLY' },
-  { href: '/legal', label: 'LEGAL' },
 ];
 
 function CartNavLink({ totalQuantity, cartBounce }) {
@@ -144,20 +143,6 @@ export default function Navigation() {
 
         {mobileMenuOpen && (
           <div id="mobile-menu" className="md:hidden border-t border-border py-4" role="menu">
-            <Link
-              href="/shop/cart"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`nav-label flex items-center justify-between px-4 py-3 text-sm font-bold tracking-[0.15em] border-l-2 ${
-                pathname === '/shop/cart' ? 'text-primary border-primary bg-primary/5' : 'text-foreground/60 hover:text-foreground border-transparent'
-              }`}
-            >
-              Cart
-              {totalQuantity > 0 && (
-                <span className={`bg-primary text-background text-xs px-2 py-0.5 rounded-full ${cartBounce ? 'animate-cart-bounce' : ''}`}>
-                  {totalQuantity}
-                </span>
-              )}
-            </Link>
             {NAV_LINKS.map((link) => {
               const isActive = isNavLinkActive(link, pathname);
               return (

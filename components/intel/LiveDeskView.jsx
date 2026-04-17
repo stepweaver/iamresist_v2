@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
+import ShareButton from '@/components/ShareButton';
 import { formatDate } from '@/lib/utils/date';
 
 export function deskLabelForLane(deskLane) {
@@ -57,6 +58,23 @@ function SurfaceChip({ surfaceState, isDuplicateLoser }) {
       {surfaceState}
       {isDuplicateLoser ? ' · dup' : ''}
     </span>
+  );
+}
+
+function ShareRowButton({ row, heading = 'Share report', className = '' }) {
+  const shareUrl =
+    typeof row?.canonicalUrl === 'string' && row.canonicalUrl.trim() ? row.canonicalUrl.trim() : '';
+
+  if (!shareUrl) return null;
+
+  return (
+    <ShareButton
+      url={shareUrl}
+      title={row?.title}
+      description={row?.sourceName || row?.summary || ''}
+      heading={heading}
+      className={className}
+    />
   );
 }
 
@@ -248,6 +266,14 @@ function AccountabilityHighlights({ highlights }) {
                   >
                     {h.title}
                   </Link>
+                  <div className="mt-3 border-t border-border pt-3">
+                    <ShareButton
+                      url={h.canonicalUrl}
+                      title={h.title}
+                      description={h.sourceName}
+                      heading="Share Intel item"
+                    />
+                  </div>
                   {Array.isArray(h.explanations) && h.explanations.length ? (
                     <p className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed">
                       {h.explanations.join(' · ')}
@@ -299,6 +325,7 @@ export default function LiveDeskView({
 
   const deskLabel = deskLabelForLane(deskLane);
   const usesLeadBlockLayout = deskLane !== 'voices';
+  const showInternalDiagnostics = Boolean(desk?.showInternalDiagnostics);
 
   const hasFreshnessData =
     Boolean(freshness?.latestFetchedAt) || Boolean(freshness?.latestSuccessfulIngestAt);
@@ -420,7 +447,9 @@ export default function LiveDeskView({
                 >
                   <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
                     <ProvenanceChip provenanceClass={row.provenanceClass} />
-                    <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                    {showInternalDiagnostics ? (
+                      <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                    ) : null}
                     {Array.isArray(row.trustBadges)
                       ? row.trustBadges.slice(0, 2).map((b) => (
                           <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
@@ -470,6 +499,9 @@ export default function LiveDeskView({
                     </p>
                   ) : null}
                   <CompactSignalMeta row={row} showBucket />
+                  <div className="mt-4 border-t border-border pt-3">
+                    <ShareRowButton row={row} heading="Share Intel item" />
+                  </div>
                 </article>
               );
             })}
@@ -484,7 +516,9 @@ export default function LiveDeskView({
                     <li key={row.id} className="border border-border/80 bg-foreground/[0.01] p-4">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <ProvenanceChip provenanceClass={row.provenanceClass} />
-                        <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                        {showInternalDiagnostics ? (
+                          <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                        ) : null}
                         {Array.isArray(row.trustBadges)
                           ? row.trustBadges.slice(0, 1).map((b) => (
                               <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
@@ -503,6 +537,9 @@ export default function LiveDeskView({
                         {row.title}
                       </Link>
                       <CompactSignalMeta row={row} showBucket />
+                      <div className="mt-3 border-t border-border pt-3">
+                        <ShareRowButton row={row} heading="Share Intel item" />
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -544,7 +581,9 @@ export default function LiveDeskView({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
                     <ProvenanceChip provenanceClass={row.provenanceClass} />
-                    <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                    {showInternalDiagnostics ? (
+                      <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                    ) : null}
                     {Array.isArray(row.trustBadges)
                       ? row.trustBadges.slice(0, 2).map((b) => (
                           <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
@@ -602,6 +641,7 @@ export default function LiveDeskView({
                     >
                       {linkCtaLabel(row)}
                     </Link>
+                    <ShareRowButton row={row} heading="Share Intel item" />
                   </div>
                 </div>
               </li>
@@ -638,6 +678,9 @@ export default function LiveDeskView({
                   {row.title}
                 </Link>
                 <p className="font-mono text-[10px] text-hud-dim mt-1">{row.sourceName}</p>
+                <div className="mt-2">
+                  <ShareRowButton row={row} heading="Share Intel item" />
+                </div>
               </li>
             ))}
           </ul>
@@ -670,6 +713,9 @@ export default function LiveDeskView({
                   <p className="font-mono text-[10px] text-hud-dim mt-1">
                     {row.sourceName} · {duplicateGroupingUserNote(row)}
                   </p>
+                  <div className="mt-2">
+                    <ShareRowButton row={row} heading="Share Intel item" />
+                  </div>
                 </li>
               );
             })}
@@ -703,6 +749,9 @@ export default function LiveDeskView({
                   {row.suppressionReason?.trim() ||
                     'Available in the full record, but not elevated on the main desk'}
                 </p>
+                <div className="mt-2">
+                  <ShareRowButton row={row} heading="Share Intel item" />
+                </div>
               </li>
             ))}
           </ul>
