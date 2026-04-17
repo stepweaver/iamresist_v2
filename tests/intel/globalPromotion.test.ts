@@ -316,5 +316,183 @@ describe('promoteGlobally', () => {
     expect(withCommentary.decision.totalScore).toBeGreaterThan(withoutCommentary.decision.totalScore);
     expect(withCommentary.decision.reasons).toContain('corroborated_multi_source');
   });
+
+  it('uses trusted creator convergence to lift corroborating watchdog and OSINT support', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-17T12:00:00.000Z'));
+
+    const creatorA = mkIntelItem({
+      id: 'creator-a',
+      title: 'Creator tracks ICE detention raid fallout in Los Angeles',
+      summary: 'Multiple communities document the same detention crackdown',
+      sourceSlug: 'creator-a',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      missionTags: ['executive_power', 'civil_liberties'],
+      displayPriority: 78,
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T10:30:00.000Z',
+    });
+    const creatorB = mkIntelItem({
+      id: 'creator-b',
+      title: 'Trusted voice maps Los Angeles detention raid fallout and ICE crackdown',
+      summary: 'Another independent creator surfaces the same detention operation',
+      sourceSlug: 'creator-b',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      missionTags: ['executive_power', 'civil_liberties'],
+      displayPriority: 76,
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T09:50:00.000Z',
+    });
+    const watchdog = mkIntelItem({
+      id: 'watchdog-ice',
+      title: 'Watchdog documents Los Angeles detention raid fallout after ICE crackdown',
+      summary: 'Monitors corroborate detainee counts and operational timeline',
+      sourceSlug: 'watchdog-ice',
+      sourceFamily: 'watchdog_global',
+      provenanceClass: 'SPECIALIST',
+      deskLane: 'watchdogs',
+      missionTags: ['executive_power', 'civil_liberties'],
+      displayPriority: 65,
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T10:45:00.000Z',
+    });
+    const osint = mkIntelItem({
+      id: 'osint-ice',
+      title: 'OSINT confirms Los Angeles detention raid routes after ICE crackdown',
+      summary: 'Geolocated footage corroborates the same operation',
+      sourceSlug: 'osint-ice',
+      sourceFamily: 'general',
+      provenanceClass: 'WIRE',
+      deskLane: 'osint',
+      missionTags: ['executive_power', 'civil_liberties'],
+      displayPriority: 63,
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T11:10:00.000Z',
+    });
+    const unrelated = mkIntelItem({
+      id: 'routine-other',
+      title: 'Routine budget hearing update',
+      sourceSlug: 'routine-other',
+      provenanceClass: 'PRIMARY',
+      deskLane: 'watchdogs',
+      missionTags: ['congress'],
+      displayPriority: 72,
+    });
+
+    const out = promoteGlobally([creatorA, creatorB, watchdog, osint, unrelated], { limit: 3 });
+    expect(out[0].representativeId).toBe('watchdog-ice');
+    expect(out[0].decision.reasons).toContain('trusted_creator_convergence');
+    expect(out[0].decision.reasons).toContain('creator_led_story_with_corroboration');
+    expect(out[0].decision.creatorConvergence.active).toBe(true);
+    expect(out[0].decision.creatorConvergence.sourceCount).toBe(2);
+    expect(out[0].decision.contributions.some((c) => c.code === 'trusted_creator_convergence')).toBe(true);
+
+    vi.useRealTimers();
+  });
+
+  it('does not give an isolated creator item a convergence boost', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-17T12:00:00.000Z'));
+
+    const creator = mkIntelItem({
+      id: 'solo-creator',
+      title: 'Creator warns of a possible contract scandal',
+      summary: 'Single creator item without corroboration',
+      sourceSlug: 'solo-creator',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      displayPriority: 84,
+      publishedAt: '2026-04-17T10:00:00.000Z',
+    });
+    const watchdog = mkIntelItem({
+      id: 'watchdog-alone',
+      title: 'Watchdog filing on agency disclosures',
+      summary: 'Separate accountability item',
+      sourceSlug: 'watchdog-alone',
+      sourceFamily: 'watchdog_global',
+      provenanceClass: 'PRIMARY',
+      deskLane: 'watchdogs',
+      missionTags: ['federal_agencies'],
+      displayPriority: 67,
+      publishedAt: '2026-04-17T09:30:00.000Z',
+    });
+
+    const out = promoteGlobally([creator, watchdog], { limit: 2 });
+    const creatorCluster = out.find((cluster) => cluster.representativeId === 'solo-creator');
+    expect(creatorCluster?.decision.reasons).not.toContain('trusted_creator_convergence');
+    expect(creatorCluster?.decision.creatorConvergence.active).toBe(false);
+    expect(creatorCluster?.decision.contributions.some((c) => c.code === 'trusted_creator_convergence')).toBe(false);
+
+    vi.useRealTimers();
+  });
+
+  it('does not let unsupported creator-only chatter dominate promotion', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-17T12:00:00.000Z'));
+
+    const creatorA = mkIntelItem({
+      id: 'noise-a',
+      title: 'Creator reacts to vague rumors about a media shakeup',
+      summary: 'Live reaction without corroborating reporting',
+      sourceSlug: 'noise-a',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      displayPriority: 88,
+      clusterKeys: { topic: 'media-rumor-wave' },
+      publishedAt: '2026-04-17T10:00:00.000Z',
+    });
+    const creatorB = mkIntelItem({
+      id: 'noise-b',
+      title: 'Another creator reacts to the same media shakeup rumors',
+      summary: 'Second creator echoes the chatter',
+      sourceSlug: 'noise-b',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      displayPriority: 87,
+      clusterKeys: { topic: 'media-rumor-wave' },
+      publishedAt: '2026-04-17T09:40:00.000Z',
+    });
+    const hardA = mkIntelItem({
+      id: 'hard-a',
+      title: 'Inspector general subpoena expands prison abuse investigation',
+      summary: 'Documented accountability escalation',
+      sourceSlug: 'hard-a',
+      sourceFamily: 'watchdog_global',
+      provenanceClass: 'PRIMARY',
+      deskLane: 'watchdogs',
+      missionTags: ['civil_liberties', 'federal_agencies'],
+      displayPriority: 68,
+      clusterKeys: { investigation: 'prison-abuse-1' },
+      publishedAt: '2026-04-17T10:50:00.000Z',
+    });
+    const hardB = mkIntelItem({
+      id: 'hard-b',
+      title: 'OSINT verifies prison abuse investigation after inspector general subpoena',
+      summary: 'Independent corroboration of the same accountability story',
+      sourceSlug: 'hard-b',
+      sourceFamily: 'general',
+      provenanceClass: 'WIRE',
+      deskLane: 'osint',
+      missionTags: ['civil_liberties'],
+      displayPriority: 64,
+      clusterKeys: { investigation: 'prison-abuse-1' },
+      publishedAt: '2026-04-17T11:05:00.000Z',
+    });
+
+    const out = promoteGlobally([creatorA, creatorB, hardA, hardB], { limit: 2 });
+    expect(out[0].representativeId).toBe('hard-a');
+    expect(out[0].decision.totalScore).toBeGreaterThan(out[1]!.decision.totalScore);
+    expect(out[1]!.decision.reasons).toContain('creator_support_noted');
+    expect(out[1]!.decision.reasons).not.toContain('trusted_creator_convergence');
+
+    vi.useRealTimers();
+  });
 });
 

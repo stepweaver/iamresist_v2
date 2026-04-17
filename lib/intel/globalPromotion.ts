@@ -17,6 +17,9 @@ export type PromotionReasonCode =
   | 'resignation_or_ethics_signal'
   | 'major_government_action'
   | 'underreported_but_high_impact'
+  | 'trusted_creator_convergence'
+  | 'creator_led_story_with_corroboration'
+  | 'creator_support_noted'
   | 'repeat_coverage_penalty'
   | 'claims_lane_penalty';
 
@@ -52,6 +55,15 @@ export type GlobalPromotionDecision = {
     laneCount: number;
     familyCount: number;
   };
+  creatorConvergence: {
+    active: boolean;
+    itemCount: number;
+    sourceCount: number;
+    supportingItemCount: number;
+    supportingLaneCount: number;
+    sharedTokens: string[];
+    latestHours: number | null;
+  };
 };
 
 export type PromotedCluster = {
@@ -66,6 +78,19 @@ type ClassifiedClusterItem = {
   item: PromotableItem;
   eventType: string;
   severity: number;
+};
+
+type CreatorConvergenceSignal = {
+  active: boolean;
+  itemCount: number;
+  sourceCount: number;
+  supportingItemCount: number;
+  supportingLaneCount: number;
+  sharedTokens: string[];
+  latestHours: number | null;
+  delta: number;
+  creatorLedWithCorroboration: boolean;
+  creatorSupportNoted: boolean;
 };
 
 const HARD_CLUSTER_KEY_PRIORITY = [
@@ -211,6 +236,10 @@ function clusterProvenanceContribution(p: ProvenanceClass): number {
   if (p === 'COMMENTARY') return -2;
   if (p === 'SCHEDULE') return -6;
   return 0;
+}
+
+function isTrustedCreatorItem(item: PromotableItem): boolean {
+  return item.deskLane === 'voices' || item.provenanceClass === 'COMMENTARY';
 }
 
 function classifyClusterItems(items: PromotableItem[]): ClassifiedClusterItem[] {
@@ -455,11 +484,110 @@ function momentumBoost(cluster: PromotableItem[]): { delta: number; latestHours:
   return { delta: Math.min(8, delta), latestHours, spanHours };
 }
 
+function creatorConvergenceSignal(cluster: PromotableItem[], classified: ClassifiedClusterItem[]): CreatorConvergenceSignal {
+  const creatorEntries = classified.filter((entry) => isTrustedCreatorItem(entry.item));
+  const creatorItems = creatorEntries.map((entry) => entry.item);
+  const creatorSources = new Set(creatorItems.map((item) => item.sourceSlug).filter(Boolean));
+  const supportingItems = cluster.filter((item) => !isTrustedCreatorItem(item));
+  const supportingLanes = new Set(
+    supportingItems.map((item) => item.deskLane ?? 'unknown').filter((lane) => lane !== 'voices'),
+  );
+
+  const publishedHours = creatorItems
+    .map((item) => hoursSince(item.publishedAt))
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const latestHours = publishedHours.length ? Math.min(...publishedHours) : null;
+
+  if (creatorItems.length < 2 || creatorSources.size < 2) {
+    return {
+      active: false,
+      itemCount: creatorItems.length,
+      sourceCount: creatorSources.size,
+      supportingItemCount: supportingItems.length,
+      supportingLaneCount: supportingLanes.size,
+      sharedTokens: [],
+      latestHours,
+      delta: 0,
+      creatorLedWithCorroboration: false,
+      creatorSupportNoted: false,
+    };
+  }
+
+  if (latestHours == null || latestHours > 36) {
+    return {
+      active: false,
+      itemCount: creatorItems.length,
+      sourceCount: creatorSources.size,
+      supportingItemCount: supportingItems.length,
+      supportingLaneCount: supportingLanes.size,
+      sharedTokens: [],
+      latestHours,
+      delta: 0,
+      creatorLedWithCorroboration: false,
+      creatorSupportNoted: false,
+    };
+  }
+
+  const tokenCounts = new Map<string, number>();
+  for (const item of creatorItems) {
+    const itemTokens = new Set(normStoryTokens(`${item.title} ${item.summary ?? ''}`));
+    for (const token of itemTokens) {
+      tokenCounts.set(token, (tokenCounts.get(token) ?? 0) + 1);
+    }
+  }
+
+  const sharedTokens = Array.from(tokenCounts.entries())
+    .filter(([, count]) => count >= 2)
+    .map(([token]) => token)
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, 6);
+
+  const creatorEventTypes = new Set(
+    creatorEntries
+      .map((entry) => entry.eventType)
+      .filter((eventType) => eventType && eventType !== 'generic_report' && eventType !== 'statement_claim'),
+  );
+  const active = sharedTokens.length >= 2 || creatorEventTypes.size === 1;
+  if (!active) {
+    return {
+      active: false,
+      itemCount: creatorItems.length,
+      sourceCount: creatorSources.size,
+      supportingItemCount: supportingItems.length,
+      supportingLaneCount: supportingLanes.size,
+      sharedTokens,
+      latestHours,
+      delta: 0,
+      creatorLedWithCorroboration: false,
+      creatorSupportNoted: false,
+    };
+  }
+
+  const creatorLedWithCorroboration = supportingItems.length > 0 && supportingLanes.size > 0;
+  const baseDelta = creatorLedWithCorroboration
+    ? 3 + Math.min(2, creatorSources.size - 2) + Math.min(1, sharedTokens.length >= 3 ? 1 : 0)
+    : 0;
+
+  return {
+    active: true,
+    itemCount: creatorItems.length,
+    sourceCount: creatorSources.size,
+    supportingItemCount: supportingItems.length,
+    supportingLaneCount: supportingLanes.size,
+    sharedTokens,
+    latestHours,
+    delta: Math.min(6, Math.max(0, baseDelta)),
+    creatorLedWithCorroboration,
+    creatorSupportNoted: true,
+  };
+}
+
 function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDecision {
   const classified = classifyClusterItems(cluster);
   const representative = pickBestItem(classified);
   const strongest = [...classified].sort((a, b) => b.severity - a.severity || a.eventType.localeCompare(b.eventType))[0]!;
   const momentum = momentumBoost(cluster);
+  const creatorConvergence = creatorConvergenceSignal(cluster, classified);
 
   const contributions: PromotionContribution[] = [];
   let score = 50;
@@ -556,6 +684,23 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
     });
   }
 
+  if (creatorConvergence.creatorSupportNoted) {
+    contributions.push({
+      code: 'creator_support_noted',
+      delta: 0,
+      message: `Trusted creator support noted (${creatorConvergence.itemCount} items, ${creatorConvergence.sourceCount} creators)`,
+    });
+  }
+
+  if (creatorConvergence.delta > 0) {
+    score += creatorConvergence.delta;
+    contributions.push({
+      code: 'trusted_creator_convergence',
+      delta: creatorConvergence.delta,
+      message: 'Trusted creator convergence helped surface a corroborated live story',
+    });
+  }
+
   score += momentum.delta;
   if (momentum.delta) {
     contributions.push({
@@ -617,6 +762,11 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
   if (sourceDelta > 0) reasons.push('corroborated_multi_source');
   if (laneDelta > 0) reasons.push('corroborated_multi_lane');
   if (familyDelta > 0) reasons.push('corroborated_multi_family');
+  if (creatorConvergence.active) reasons.push('creator_support_noted');
+  if (creatorConvergence.delta > 0) reasons.push('trusted_creator_convergence');
+  if (creatorConvergence.creatorLedWithCorroboration && creatorConvergence.delta > 0) {
+    reasons.push('creator_led_story_with_corroboration');
+  }
   if (congressUrgencyDelta > 0) reasons.push('congress_urgency');
   if (strongest.eventType === 'contradiction') reasons.push('contradiction_or_evasion');
   if (strongest.eventType === 'resignation' || strongest.eventType === 'ethics_probe') {
@@ -644,6 +794,15 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
       sourceCount: sources.size,
       laneCount: lanes.size,
       familyCount: families.size,
+    },
+    creatorConvergence: {
+      active: creatorConvergence.active,
+      itemCount: creatorConvergence.itemCount,
+      sourceCount: creatorConvergence.sourceCount,
+      supportingItemCount: creatorConvergence.supportingItemCount,
+      supportingLaneCount: creatorConvergence.supportingLaneCount,
+      sharedTokens: creatorConvergence.sharedTokens,
+      latestHours: creatorConvergence.latestHours,
     },
   };
 }

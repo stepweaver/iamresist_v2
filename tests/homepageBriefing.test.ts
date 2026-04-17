@@ -434,6 +434,44 @@ describe('Prompt 3 homepage merge behavior', () => {
     vi.useRealTimers();
   });
 
+  it('7. carries creator-led corroboration reasons without making commentary the representative item', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+
+    const promotedHardSignal = mkIntel({
+      id: 'creator-led-watchdog',
+      lane: 'watchdogs',
+      origin: 'promoted',
+      rawScore: 73,
+      title: 'Watchdog verifies detention raid fallout after creator convergence',
+      summary: 'Hard-signal reporting becomes the representative item for the live story',
+      sourceFamily: 'watchdog_global',
+      provenanceClass: 'PRIMARY',
+      promotionReasons: [
+        'trusted_creator_convergence',
+        'creator_led_story_with_corroboration',
+        'corroborated_multi_lane',
+      ],
+      promotionEventType: 'generic_report',
+    });
+    const voiceBackstop = mkIntel({
+      id: 'creator-commentary',
+      lane: 'voices',
+      rawScore: 75,
+      title: 'Creators converge on detention raid fallout',
+      summary: 'Trusted voices surface the same live story early',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+    });
+
+    const out = mergeAndRankBriefingCandidates([voiceBackstop, promotedHardSignal]);
+    expect(out[0].intelItem.id).toBe('creator-led-watchdog');
+    expect(out[0].briefingExplain?.promotionReasons).toContain('trusted_creator_convergence');
+    expect(out[0].briefingExplain?.promotionReasons).toContain('creator_led_story_with_corroboration');
+
+    vi.useRealTimers();
+  });
+
   it('6. keeps off-mission leakage suppressed by weak weights and merge priority', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(now));
