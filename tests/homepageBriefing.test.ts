@@ -454,6 +454,24 @@ describe('Prompt 3 homepage merge behavior', () => {
       ],
       promotionEventType: 'generic_report',
     });
+    promotedHardSignal.intelItem.globalPromotion = {
+      contributions: [
+        {
+          code: 'trusted_creator_convergence',
+          delta: 12,
+          message: 'Trusted creators converged on the same live story',
+        },
+      ],
+      creatorConvergence: {
+        active: true,
+        itemCount: 2,
+        sourceCount: 2,
+        supportingItemCount: 1,
+        supportingLaneCount: 1,
+        sharedTokens: ['detention', 'raid', 'fallout'],
+        latestHours: 3,
+      },
+    };
     const voiceBackstop = mkIntel({
       id: 'creator-commentary',
       lane: 'voices',
@@ -468,6 +486,13 @@ describe('Prompt 3 homepage merge behavior', () => {
     expect(out[0].intelItem.id).toBe('creator-led-watchdog');
     expect(out[0].briefingExplain?.promotionReasons).toContain('trusted_creator_convergence');
     expect(out[0].briefingExplain?.promotionReasons).toContain('creator_led_story_with_corroboration');
+    expect(out[0].briefingExplain?.representative?.itemId).toBe('creator-led-watchdog');
+    expect(out[0].briefingExplain?.creatorConvergence?.active).toBe(true);
+    expect(
+      out[0].briefingExplain?.promotionContributions?.some(
+        (contribution) => contribution.code === 'trusted_creator_convergence',
+      ),
+    ).toBe(true);
 
     vi.useRealTimers();
   });

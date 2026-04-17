@@ -9,12 +9,12 @@ import { ShoppingCart } from 'lucide-react';
 
 const NAV_LINKS = [
   { href: "/", label: "HOME" },
+  { href: "/about", label: "ABOUT" },
   { href: "/intel/osint", label: "INTEL" },
   { href: "/telescreen", label: "TELESCREEN" },
   { href: "/journal", label: "JOURNAL" },
   { href: "/book-club", label: "BOOK CLUB" },
   { href: "/shop", label: "SHOP" },
-  { href: "/about", label: "ABOUT" },
 ];
 
 function CartNavLink({ totalQuantity, cartBounce }) {

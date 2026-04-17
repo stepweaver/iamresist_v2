@@ -53,6 +53,11 @@ export type FeedImageAuditPayload = {
     totalMissingItems: number;
     byAction: Record<AuditAction, number>;
     topFailureCategories: Array<{ category: string; count: number }>;
+    skipReasons: Array<{ reason: string; count: number }>;
+    articleFetchErrors: Array<{ category: string; count: number }>;
+    sourcesWithMostMissingImages: Array<{ sourceSlug: string; count: number }>;
+    cleanTextOnlyPreferredCount: number;
+    sourceSpecificRuleCandidates: number;
   };
   sources: {
     haaretz: FeedImageAuditRow[];
@@ -306,6 +311,26 @@ function summarizeFailureCategories(rows: FeedImageAuditRow[]) {
     .map(([category, count]) => ({ category, count }));
 }
 
+function summarizeRowsBy<T extends string>(rows: FeedImageAuditRow[], pick: (row: FeedImageAuditRow) => T | null | undefined) {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = pick(row);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([value, count]) => ({ value, count }));
+}
+
+function summarizeSources(rows: FeedImageAuditRow[]) {
+  return summarizeRowsBy(rows, (row) => row.sourceSlug).map(({ value, count }) => ({
+    sourceSlug: value,
+    count,
+  }));
+}
+
 export async function getFeedImageAudit(opts?: {
   newswireSample?: number;
   liveDeskPerLane?: number;
@@ -351,6 +376,19 @@ export async function getFeedImageAudit(opts?: {
       totalMissingItems: allRows.length,
       byAction,
       topFailureCategories: summarizeFailureCategories(allRows),
+      skipReasons: summarizeRowsBy(allRows, (row) => row.skipReason).map(({ value, count }) => ({
+        reason: value,
+        count,
+      })),
+      articleFetchErrors: summarizeRowsBy(allRows, (row) => row.articleFetchErrorCategory).map(
+        ({ value, count }) => ({
+          category: value,
+          count,
+        }),
+      ),
+      sourcesWithMostMissingImages: summarizeSources(allRows),
+      cleanTextOnlyPreferredCount: allRows.filter((row) => row.recommendedAction === 'keep_text_only').length,
+      sourceSpecificRuleCandidates: allRows.filter((row) => row.recommendedAction === 'add_source_specific_rule').length,
     },
     sources: {
       haaretz: allRows.filter((row) => row.sourceSlug === 'haaretz'),
