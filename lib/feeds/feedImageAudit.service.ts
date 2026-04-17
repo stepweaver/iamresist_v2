@@ -14,6 +14,16 @@ import { buildFeedImageAuditRow } from '@/lib/feeds/feedImageAudit.shared';
 
 type ArticleProbe = Awaited<ReturnType<typeof inspectArticleImageCandidates>>;
 
+function isAuditableRssSource(
+  source: { slug: string; endpoint_url?: string | null; fetch_kind?: string } | undefined,
+): source is { slug: string; endpoint_url: string; fetch_kind: string } {
+  return Boolean(
+    source &&
+      source.endpoint_url &&
+      (source.fetch_kind === 'rss' || source.fetch_kind === 'podcast_rss'),
+  );
+}
+
 export type FeedImageAuditPayload = {
   generatedAt: string;
   scope: {
@@ -98,15 +108,20 @@ async function buildNewswireSection(sampleLimit: number) {
   const stories = (await getNewswireStories()).slice(0, sampleLimit);
   const feedMaps = await Promise.all(
     NEWSWIRE_SOURCES.filter((source) => source.automation === 'rss' && source.status === 'active').map(
-      async (source) => ({
-        slug: source.slug,
-        map: toFeedAuditMap(
-          await fetchFeedItemsForAudit(source.rssUrl, {
-            limit: sampleLimit,
-            tags: ['newswire', `newswire:${source.slug}`, 'feed-image-audit'],
-          }),
-        ),
-      }),
+      async (source) => {
+        const rssUrl = typeof source.rssUrl === 'string' ? source.rssUrl : '';
+        return {
+          slug: source.slug,
+          map: toFeedAuditMap(
+            rssUrl
+              ? await fetchFeedItemsForAudit(rssUrl, {
+                  limit: sampleLimit,
+                  tags: ['newswire', `newswire:${source.slug}`, 'feed-image-audit'],
+                })
+              : [],
+          ),
+        };
+      },
     ),
   );
   const feedBySource = new Map(feedMaps.map((entry) => [entry.slug, entry.map]));
@@ -166,12 +181,14 @@ async function buildIntelSection(liveDeskPerLane: number) {
     })),
   );
   const missingItems = visibleItems.filter((item) => !item.imageUrl);
-  const rssSourcesToFetch = [...new Set(
-    missingItems
-      .map((item) => sourceBySlug.get(item.sourceSlug))
-      .filter((source) => source?.endpoint_url && (source.fetch_kind === 'rss' || source.fetch_kind === 'podcast_rss'))
-      .map((source) => source.slug),
-  )];
+  const rssSourceSlugSet = new Set<string>();
+  for (const item of missingItems) {
+    const source = sourceBySlug.get(item.sourceSlug);
+    if (isAuditableRssSource(source)) {
+      rssSourceSlugSet.add(source.slug);
+    }
+  }
+  const rssSourcesToFetch = [...rssSourceSlugSet];
 
   const feedBySource = new Map<string, Map<string, FeedAuditMatchShape>>();
   await Promise.all(

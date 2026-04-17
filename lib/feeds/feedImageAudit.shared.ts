@@ -16,8 +16,10 @@ export type ArticleProbeShape = {
   fetchOk: boolean;
   fetchStatus: number | null;
   fetchErrorCategory: string | null;
+  finalUrl?: string | null;
   ogImageUrl: string | null;
   articleImageUrl: string | null;
+  articleImageCandidates?: Array<string | null>;
 };
 
 export type FeedAuditMatchShape = {
