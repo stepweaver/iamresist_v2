@@ -128,10 +128,10 @@ export function assessMissionScope({
   const allowedOnIntelDesk = !hardOffTopic && !softOffTopic;
 
   let scoreDelta = 0;
-  scoreDelta += Math.min(positiveHits.length, 3) * 6;
-  if (hardOffTopic) scoreDelta -= 24;
-  else if (softOffTopic) scoreDelta -= 12;
-  scoreDelta = Math.max(-24, Math.min(18, scoreDelta));
+  scoreDelta += Math.min(positiveHits.length, 2) * 3;
+  if (hardOffTopic) scoreDelta -= 16;
+  else if (softOffTopic) scoreDelta -= 8;
+  scoreDelta = Math.max(-16, Math.min(6, scoreDelta));
 
   const reason = hardOffTopic
     ? `Off-topic: sports-only item (${sportsHits.join(', ')})`

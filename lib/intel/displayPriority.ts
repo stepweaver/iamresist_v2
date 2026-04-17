@@ -96,6 +96,7 @@ const HIGH_IMPACT_PATTERNS: RegExp[] = [
   /\border\b/i,
   /\bcertiorari\b/i,
   /\bgrant(?:ed)?\b/i,
+  /\bsubpoena\b/i,
   /\bfinal\s+rule\b/i,
   /\binterim\s+final\b/i,
   /\bexecutive\s+order\b/i,
@@ -106,35 +107,35 @@ function scoreMissionBoost(tags: string[], explanations: DisplayExplanation[]): 
   let boost = 0;
 
   if (t.has('voting_rights')) {
-    boost += 14;
+    boost += 8;
     explanations.push({ ruleId: 'display:tag', message: 'Boost: voting_rights' });
   }
   if (t.has('elections')) {
-    boost += 10;
+    boost += 6;
     explanations.push({ ruleId: 'display:tag', message: 'Boost: elections' });
   }
   if (t.has('courts')) {
-    boost += 12;
+    boost += 7;
     explanations.push({ ruleId: 'display:tag', message: 'Boost: courts' });
   }
   if (t.has('civil_liberties')) {
-    boost += 12;
+    boost += 6;
     explanations.push({ ruleId: 'display:tag', message: 'Boost: civil_liberties' });
   }
   if (t.has('executive_power')) {
-    boost += 8;
+    boost += 5;
     explanations.push({ ruleId: 'display:tag', message: 'Boost: executive_power' });
   }
   if (t.has('regulation')) {
-    boost += 6;
+    boost += 3;
     explanations.push({ ruleId: 'display:tag', message: 'Boost: regulation' });
   }
   if (t.has('congress')) {
-    boost += 6;
+    boost += 7;
     explanations.push({ ruleId: 'display:tag', message: 'Boost: congress' });
   }
 
-  return Math.min(boost, 28);
+  return Math.min(boost, 16);
 }
 
 function scoreImpactText(h: string, explanations: DisplayExplanation[]): number {
@@ -196,10 +197,9 @@ function scoreRecency(publishedAt: string | null, explanations: DisplayExplanati
   if (hrs == null) return 0;
   if (hrs <= 2) {
     explanations.push({ ruleId: 'display:recency', message: 'Small boost: very fresh' });
-    return 4;
+    return 3;
   }
-  if (hrs <= 6) return 2;
-  if (hrs <= 18) return 1;
+  if (hrs <= 6) return 1;
   return 0;
 }
 

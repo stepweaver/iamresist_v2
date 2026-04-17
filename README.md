@@ -4,6 +4,8 @@ Production-facing Next.js app for **[iamresist.org](https://www.iamresist.org)**
 
 This repository is the **structured rebuild** of an earlier organically grown codebase. Same public URLs and behavior bar, clearer domain boundaries, App Router patterns, and production-grade security headers.
 
+Repository-specific Codex/editorial guidance lives in [AGENTS.md](./AGENTS.md).
+
 ---
 
 ## Stack

@@ -27,6 +27,18 @@ describe('applyEditorialRankingProfile', () => {
     expect(explanations.some((e) => e.ruleId === 'profile:exec_agency')).toBe(true);
   });
 
+  it('boosts congressional oversight language', () => {
+    const { delta, explanations } = applyEditorialRankingProfile({
+      haystack: 'Senate committee issues subpoena in oversight clash over shutdown funding',
+      deskLane: 'osint',
+      provenanceClass: 'PRIMARY',
+      stateChangeType: 'published_document',
+      sourceFamily: 'general',
+    });
+    expect(delta).toBeGreaterThan(0);
+    expect(explanations.some((e) => e.ruleId === 'profile:congress')).toBe(true);
+  });
+
   it('boosts defense tempo keywords', () => {
     const { delta, explanations } = applyEditorialRankingProfile({
       haystack: 'CENTCOM confirms strike exercise near NATO deployment',
@@ -106,5 +118,39 @@ describe('computeDisplayPriority + ranking profile', () => {
       sourceFamily: 'claims_public',
     });
     expect(st.displayPriority).toBeLessThan(osint.displayPriority);
+  });
+
+  it('does not automatically crush commentary with strong mission-relevant institutional hooks', () => {
+    const commentary = computeDisplayPriority({
+      ...base,
+      title: 'Commentary: Senate oversight hearing presses DOJ on surveillance authorities',
+      summary: 'A detailed analysis of the hearing and subpoena fight',
+      provenanceClass: 'COMMENTARY',
+      stateChangeType: 'commentary_item',
+      missionTags: ['congress', 'civil_liberties'],
+      branchOfGovernment: 'legislative',
+      institutionalArea: 'congress',
+      deskLane: 'voices',
+      contentUseMode: 'feed_summary',
+      sourceFamily: 'claims_public',
+    });
+
+    const noise = computeDisplayPriority({
+      ...base,
+      title: 'Commentary: just a hot take on politics today',
+      summary: 'Thread reacting to vibes',
+      provenanceClass: 'COMMENTARY',
+      stateChangeType: 'commentary_item',
+      missionTags: [],
+      branchOfGovernment: 'unknown',
+      institutionalArea: 'unknown',
+      deskLane: 'voices',
+      contentUseMode: 'feed_summary',
+      sourceFamily: 'claims_public',
+    });
+
+    expect(commentary.displayPriority).toBeGreaterThan(noise.displayPriority);
+    expect(commentary.displayExplanations.map((e) => e.ruleId)).not.toContain('profile:commentary_default');
+    expect(noise.displayExplanations.map((e) => e.ruleId)).toContain('profile:commentary_default');
   });
 });

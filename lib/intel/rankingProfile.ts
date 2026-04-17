@@ -34,6 +34,20 @@ const EXEC_AND_AGENCY: RegExp[] = [
   /\bdepartment\s+of\s+defense\b/i,
 ];
 
+const CONGRESS_AND_OVERSIGHT: RegExp[] = [
+  /\bcongress\b/i,
+  /\bsenate\b/i,
+  /\bhouse\b/i,
+  /\bcommittee\b/i,
+  /\bsubpoena\b/i,
+  /\boversight\b/i,
+  /\bappropriations?\b/i,
+  /\bshutdown\b/i,
+  /\bcensure\b/i,
+  /\bimpeach(?:ment|ed|es)?\b/i,
+  /\bwar\s+powers\b/i,
+];
+
 const DEFENSE_TEMPO: RegExp[] = [
   /\bdeployment\b/i,
   /\bstrike\b/i,
@@ -67,6 +81,19 @@ const GENERIC_COMMENTARY_NOISE: RegExp[] = [
   /\bhot\s+take\b/i,
   /\bjust\s+asking\b/i,
   /\bTHREAD\b/i,
+];
+
+const LIVE_MISSION_SIGNAL: RegExp[] = [
+  /\bsubpoena\b/i,
+  /\bhearing\b/i,
+  /\bvote\b/i,
+  /\bwhistleblower\b/i,
+  /\binspector\s+general\b/i,
+  /\bsurveillance\b/i,
+  /\bdeport(?:ation|ed|ing)?\b/i,
+  /\bdetain(?:ed|ing)?\b/i,
+  /\bcrackdown\b/i,
+  /\bprotest\b/i,
 ];
 
 function firstMatch(text: string, patterns: RegExp[]): RegExp | null {
@@ -104,36 +131,51 @@ export function applyEditorialRankingProfile(input: {
     delta -= 35;
     explanations.push({
       ruleId: 'profile:pentagon_pizza',
-      message: 'Penalty: anecdotal indicator — not a hard signal',
+      message: 'Penalty: anecdotal indicator - not a hard signal',
     });
   }
 
   if (lane === 'statements') {
-    delta -= 18;
+    delta -= 14;
     explanations.push({
       ruleId: 'profile:statements_lane',
-      message: 'Penalty: claims lane — ranked below hard action by default',
+      message: 'Penalty: claims lane - ranked below hard action by default',
     });
   }
 
-  if (firstMatch(h, COURT_AND_LITIGATION)) {
-    delta += 14;
+  const courtSignal = Boolean(firstMatch(h, COURT_AND_LITIGATION));
+  const execSignal = Boolean(firstMatch(h, EXEC_AND_AGENCY));
+  const congressSignal = Boolean(firstMatch(h, CONGRESS_AND_OVERSIGHT));
+  const defenseSignal = Boolean(firstMatch(h, DEFENSE_TEMPO));
+  const liveMissionSignal = Boolean(firstMatch(h, LIVE_MISSION_SIGNAL));
+  const institutionalHook = courtSignal || execSignal || congressSignal || defenseSignal;
+
+  if (courtSignal) {
+    delta += 8;
     explanations.push({ ruleId: 'profile:court', message: 'Boost: court / litigation signal' });
   }
 
-  if (firstMatch(h, EXEC_AND_AGENCY)) {
-    delta += 10;
+  if (execSignal) {
+    delta += 6;
     explanations.push({
       ruleId: 'profile:exec_agency',
       message: 'Boost: executive / agency / cabinet signal',
     });
   }
 
-  if (firstMatch(h, DEFENSE_TEMPO)) {
-    delta += 8;
+  if (congressSignal) {
+    delta += 7;
+    explanations.push({
+      ruleId: 'profile:congress',
+      message: 'Boost: congressional / oversight signal',
+    });
+  }
+
+  if (defenseSignal) {
+    delta += 4;
     explanations.push({ ruleId: 'profile:defense', message: 'Boost: defense / operations tempo' });
   } else if (lane === 'defense_ops') {
-    delta += 2;
+    delta += 1;
     explanations.push({
       ruleId: 'profile:defense_lane',
       message: 'Small boost: defense operations lane context',
@@ -141,7 +183,7 @@ export function applyEditorialRankingProfile(input: {
   }
 
   if (input.sourceFamily === 'watchdog_global' && firstMatch(h, REGION_PRIORITY)) {
-    delta += 6;
+    delta += 4;
     explanations.push({
       ruleId: 'profile:watchdog_region',
       message: 'Boost: independent watchdog on priority region / conflict',
@@ -150,16 +192,16 @@ export function applyEditorialRankingProfile(input: {
 
   const isWire = input.provenanceClass === 'WIRE';
   const isCommentary = input.provenanceClass === 'COMMENTARY' || input.stateChangeType === 'commentary_item';
-  if (isCommentary && !firstMatch(h, COURT_AND_LITIGATION) && !firstMatch(h, EXEC_AND_AGENCY)) {
-    delta -= 8;
+  if (isCommentary && !institutionalHook && !liveMissionSignal) {
+    delta -= 5;
     explanations.push({
       ruleId: 'profile:commentary_default',
-      message: 'Penalty: routine commentary — below hard action by default',
+      message: 'Penalty: routine commentary - below hard action by default',
     });
   }
 
-  if (isWire && !firstMatch(h, COURT_AND_LITIGATION) && !firstMatch(h, EXEC_AND_AGENCY)) {
-    delta -= 4;
+  if (isWire && !institutionalHook) {
+    delta -= 2;
     explanations.push({
       ruleId: 'profile:wire_without_hard_signal',
       message: 'Penalty: wire alert without strong institutional signal',
