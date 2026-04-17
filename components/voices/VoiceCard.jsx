@@ -80,6 +80,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
   const hasDescription = Boolean(description);
   const hasEditorialNote =
     hasDescription && (item.isCurated === true || item.sourceType === 'protest-music');
+  const hasSourcePreview = hasDescription && !hasEditorialNote;
 
   const showThumb = Boolean(thumbSrc);
   const canPlayInline = Boolean(isYouTube && typeof onPlay === 'function');
@@ -218,9 +219,16 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
             </p>
           </>
         ) : description ? (
-          <p className="prose-copy text-foreground/70 mb-4 line-clamp-3">
-            {description}
-          </p>
+          <>
+            {hasSourcePreview ? (
+              <span className="font-mono mb-2 block text-[10px] uppercase tracking-wider text-foreground/60">
+                Source preview
+              </span>
+            ) : null}
+            <p className="prose-copy text-foreground/70 mb-4 line-clamp-3">
+              {description}
+            </p>
+          </>
         ) : null}
 
         <div className="flex items-center justify-between pt-4 border-t border-border">

@@ -73,7 +73,7 @@ export default async function ProtestSongPage({ params }) {
           {platform === 'youtube' && youtubeId && (
             <div className="relative w-full aspect-video bg-military-grey">
               <iframe
-                src={`https://www.youtube.com/embed/${youtubeId}`}
+                src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
                 title={song.title || 'YouTube video'}
                 className="absolute inset-0 h-full w-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

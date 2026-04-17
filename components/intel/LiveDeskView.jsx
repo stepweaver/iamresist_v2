@@ -112,6 +112,14 @@ function linkCtaLabel(row) {
   return 'Open canonical →';
 }
 
+function previewLabel(row) {
+  if (!row?.summary || row.contentUseMode === 'metadata_only') return null;
+  if (row.deskLane === 'voices' || row.contentUseMode === 'preview_and_link') {
+    return 'Feed preview';
+  }
+  return 'Source preview';
+}
+
 function feedTransparencyHint(row) {
   if (row.deskLane === 'voices' || row.contentUseMode === 'preview_and_link') {
     return 'Preview via public feed · Read or subscribe at source';
@@ -482,6 +490,9 @@ export default function LiveDeskView({
                       {row.title}
                     </Link>
                   </h3>
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-primary">
+                    Why it matters
+                  </p>
                   <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed border-l-2 border-primary/60 pl-3">
                     {row.whyItMatters}
                   </p>
@@ -494,9 +505,14 @@ export default function LiveDeskView({
                     </p>
                   ) : null}
                   {row.summary && row.contentUseMode !== 'metadata_only' ? (
-                    <p className="mt-3 text-xs text-foreground/70 leading-relaxed max-w-3xl">
-                      {truncatePreview(row.summary, 360)}
-                    </p>
+                    <div className="mt-3 max-w-3xl">
+                      <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
+                        {previewLabel(row)}
+                      </p>
+                      <p className="text-xs text-foreground/70 leading-relaxed">
+                        {truncatePreview(row.summary, 360)}
+                      </p>
+                    </div>
                   ) : null}
                   <CompactSignalMeta row={row} showBucket />
                   <div className="mt-4 border-t border-border pt-3">
@@ -610,6 +626,9 @@ export default function LiveDeskView({
                       {row.title}
                     </Link>
                   </h2>
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-primary">
+                    Why it matters
+                  </p>
                   <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
                     {row.whyItMatters}
                   </p>
@@ -622,9 +641,14 @@ export default function LiveDeskView({
                     </p>
                   ) : null}
                   {row.summary && row.contentUseMode !== 'metadata_only' ? (
-                    <p className="mt-2 text-xs text-foreground/65 leading-relaxed max-w-3xl">
-                      {truncatePreview(row.summary)}
-                    </p>
+                    <div className="mt-2 max-w-3xl">
+                      <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
+                        {previewLabel(row)}
+                      </p>
+                      <p className="text-xs text-foreground/65 leading-relaxed">
+                        {truncatePreview(row.summary)}
+                      </p>
+                    </div>
                   ) : null}
                   {feedTransparencyHint(row) ? (
                     <p className="mt-1 font-mono text-[10px] text-primary/80 uppercase tracking-wider">

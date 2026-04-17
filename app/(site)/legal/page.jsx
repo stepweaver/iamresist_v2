@@ -81,6 +81,12 @@ export default function LegalPage() {
                 commentary and framing.
               </p>
               <p>
+                Where practical, the site uses visible labels such as
+                "Source preview," "Feed preview," "Source excerpt,"
+                "Editorial note," "Commentary," and "Why it matters" to make
+                that separation clearer.
+              </p>
+              <p>
                 A headline, excerpt, or summary shown on this site may come from
                 a publisher feed, a platform feed, or our own short editorial
                 note attached to a linked item. Full context remains with the

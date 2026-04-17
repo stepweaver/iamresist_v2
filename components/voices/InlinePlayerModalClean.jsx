@@ -65,6 +65,20 @@ function intelUrlForCreator(item) {
   return `/telescreen?source=voices&voice=${encodeURIComponent(slug)}`;
 }
 
+function descriptionLabel(item) {
+  if (!item?.description) return null;
+  if (item.isCurated === true || item.sourceType === "protest-music") {
+    return {
+      text: "Editorial note",
+      className: "text-primary",
+    };
+  }
+  return {
+    text: "Source preview",
+    className: "text-foreground/60",
+  };
+}
+
 export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem }) {
   const [lazyExtraItems, setLazyExtraItems] = useState([]);
   const [lazyExtraLoading, setLazyExtraLoading] = useState(false);
@@ -261,6 +275,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       : item.isProtestMusic === true && item.songSlug && baseUrl
         ? `${baseUrl}/music/${item.songSlug}`
         : item.url || "";
+  const descriptionMeta = descriptionLabel(item);
 
   const renderRelatedList = (cap) => {
     const shown = moreFromCreator.slice(0, cap);
@@ -452,9 +467,18 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
             <div ref={mainScrollRef} className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
               <div className="space-y-4 px-4 py-3">
                 {item.description ? (
-                  <p className="prose-copy whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
-                    {item.description}
-                  </p>
+                  <div>
+                    {descriptionMeta ? (
+                      <p
+                        className={`mb-2 font-mono text-[10px] uppercase tracking-wider ${descriptionMeta.className}`}
+                      >
+                        {descriptionMeta.text}
+                      </p>
+                    ) : null}
+                    <p className="prose-copy whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
+                      {item.description}
+                    </p>
+                  </div>
                 ) : null}
                 {item.voice ? <div className="md:hidden">{renderRelatedList(MOBILE_RELATED_CAP)}</div> : null}
               </div>

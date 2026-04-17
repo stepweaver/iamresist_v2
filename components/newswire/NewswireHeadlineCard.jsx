@@ -50,6 +50,10 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
           <div>
             {hasEditorialNote ? (
               <span className="kicker text-[10px] sm:text-xs font-bold text-primary mb-2 block">Editorial note</span>
+            ) : excerpt ? (
+              <span className="kicker text-[10px] sm:text-xs font-bold text-foreground/65 mb-2 block">
+                Source preview
+              </span>
             ) : null}
             <h2 className="font-ui text-base sm:text-xl lg:text-2xl font-bold leading-snug mb-1.5 sm:mb-3 break-words text-foreground">
               <Link
@@ -147,6 +151,10 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
 
         {hasEditorialNote ? (
           <p className="font-mono text-[10px] text-primary uppercase tracking-wider mb-1">Editorial note</p>
+        ) : excerpt ? (
+          <p className="font-mono text-[10px] text-foreground/60 uppercase tracking-wider mb-1">
+            Source preview
+          </p>
         ) : null}
 
         <h2
