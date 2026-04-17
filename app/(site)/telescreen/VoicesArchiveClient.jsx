@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
@@ -8,16 +8,25 @@ import FilterDropdown from "@/components/FilterDropdown";
 import VoiceCard from "@/components/voices/VoiceCard";
 import InlinePlayerModal from "@/components/voices/InlinePlayerModalClean";
 import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
+import { buildTelescreenHref, TELESCREEN_MODES, TELESCREEN_MODE_OPTIONS } from "@/lib/telescreen";
 
-const SOURCE_OPTIONS = [
-  { value: "", label: "All" },
-  { value: "voices", label: "Voices of Dissent" },
-  { value: "curated-videos", label: "Curated Videos" },
-  { value: "protest-music", label: "Protest Music" },
-  { value: "books", label: "Books" },
-  { value: "resources", label: "Resources" },
-  { value: "journal", label: "Journal" },
-];
+const MODE_COPY = {
+  [TELESCREEN_MODES.curated]: {
+    title: "Curated Videos",
+    detail: "Editorial picks from the wall-mounted feed.",
+    empty: "No curated videos are available right now.",
+  },
+  [TELESCREEN_MODES.voices]: {
+    title: "Voices of Dissent",
+    detail: "Creator video feeds with a direct voice selector.",
+    empty: "No voice videos match the current filters.",
+  },
+  [TELESCREEN_MODES.music]: {
+    title: "Protest Music",
+    detail: "Songs and performances, with artist filtering up front.",
+    empty: "No protest music matches the current filters.",
+  },
+};
 
 export default function VoicesArchiveClient({
   initialItems,
@@ -25,7 +34,7 @@ export default function VoicesArchiveClient({
   voices,
   artists = [],
   currentVoice,
-  currentSource,
+  currentMode,
   currentArtist,
 }) {
   const router = useRouter();
@@ -35,7 +44,7 @@ export default function VoicesArchiveClient({
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
-  const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
+  const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
@@ -43,25 +52,24 @@ export default function VoicesArchiveClient({
   const sentinelRef = useRef(null);
   const shouldScrollResultsRef = useRef(false);
 
+  const modeParam = searchParams.get("mode") || TELESCREEN_MODES.curated;
+  const voiceParam = searchParams.get("voice") ?? "";
+  const artistParam = searchParams.get("artist") ?? "";
+  const activeMode = currentMode || modeParam || TELESCREEN_MODES.curated;
+
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     router.refresh();
     setTimeout(() => setRefreshing(false), 1500);
   }, [router]);
 
-  const voiceParam = searchParams.get("voice") ?? "";
-  const sourceParam = searchParams.get("source") ?? "";
-  const artistParam = searchParams.get("artist") ?? "";
-
-  // Reset when filters change via URL (server sends new initialItems)
   useEffect(() => {
     setItems(initialItems);
     setHasMore(initialHasMore);
     setPage(1);
     setActiveItem(null);
-  }, [voiceParam, sourceParam, artistParam, initialItems, initialHasMore]);
+  }, [modeParam, voiceParam, artistParam, initialItems, initialHasMore]);
 
-  // Scroll detection to prevent immediate page-2 loads
   useEffect(() => {
     const onScroll = () => {
       if (window.scrollY > 0) setHasUserScrolled(true);
@@ -70,19 +78,18 @@ export default function VoicesArchiveClient({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Keep results in view only after in-page filter changes initiated from this client.
   useEffect(() => {
     if (!shouldScrollResultsRef.current) {
       return;
     }
     shouldScrollResultsRef.current = false;
     requestAnimationFrame(() => {
-      document.getElementById('telescreen-archive-primary')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
+      document.getElementById("telescreen-archive-primary")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
       });
     });
-  }, [sourceParam, voiceParam, artistParam]);
+  }, [modeParam, voiceParam, artistParam]);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
@@ -91,8 +98,8 @@ export default function VoicesArchiveClient({
     const params = new URLSearchParams();
     params.set("page", String(nextPage));
     params.set("limit", String(VOICES_ARCHIVE_PAGE_SIZE));
+    if (activeMode !== TELESCREEN_MODES.curated) params.set("mode", activeMode);
     if (voiceParam) params.set("voice", voiceParam);
-    if (sourceParam) params.set("source", sourceParam);
     if (artistParam) params.set("artist", artistParam);
 
     try {
@@ -107,235 +114,209 @@ export default function VoicesArchiveClient({
     } finally {
       setLoading(false);
     }
-  }, [page, hasMore, loading, voiceParam, sourceParam, artistParam]);
+  }, [activeMode, artistParam, hasMore, loading, page, voiceParam]);
 
-  // IntersectionObserver for infinite scroll
   useEffect(() => {
     if (!hasMore || !hasUserScrolled) return;
     const el = sentinelRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      () => loadMore(),
-      { root: null, rootMargin: "200px", threshold: 0 }
-    );
+    const observer = new IntersectionObserver(() => loadMore(), {
+      root: null,
+      rootMargin: "200px",
+      threshold: 0,
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, [hasMore, hasUserScrolled, loadMore]);
 
-  const buildSearchParams = useCallback(
-    (overrides = {}) => {
-      const params = new URLSearchParams();
-      const v = overrides.voice !== undefined ? (overrides.voice == null ? "" : overrides.voice) : voiceParam;
-      const s = overrides.source !== undefined ? (overrides.source == null ? "" : overrides.source) : sourceParam;
-      const a = overrides.artist !== undefined ? (overrides.artist == null ? "" : overrides.artist) : artistParam;
-      if (v) params.set("voice", v);
-      if (s) params.set("source", s);
-      if (a) params.set("artist", a);
-      return params;
+  const navigateTo = useCallback(
+    ({ mode, voice, artist }) => {
+      shouldScrollResultsRef.current = true;
+      router.push(buildTelescreenHref({ mode, voice, artist }));
     },
-    [voiceParam, sourceParam, artistParam]
+    [router]
   );
 
-  const handleSourceChange = useCallback(
-    (source) => {
-      shouldScrollResultsRef.current = true;
-      const params = buildSearchParams({
-        source: source ? source : null,
-        voice: source === "protest-music" ? null : source ? undefined : null,
-        artist: source === "voices" ? null : source ? undefined : null,
+  const handleModeSelect = useCallback(
+    (mode) => {
+      setModeDropdownOpen(false);
+      navigateTo({
+        mode,
+        voice: mode === TELESCREEN_MODES.voices ? voiceParam || null : null,
+        artist: mode === TELESCREEN_MODES.music ? artistParam || null : null,
       });
-      const qs = params.toString();
-      router.push(qs ? `/telescreen?${qs}` : "/telescreen");
     },
-    [router, buildSearchParams]
+    [artistParam, navigateTo, voiceParam]
   );
 
   const handleVoiceChange = useCallback(
     (voice) => {
-      shouldScrollResultsRef.current = true;
       setVoiceDropdownOpen(false);
-      const params = buildSearchParams({ voice: voice || undefined });
-      router.push(`/telescreen?${params.toString()}`);
+      navigateTo({ mode: TELESCREEN_MODES.voices, voice: voice || null, artist: null });
     },
-    [router, buildSearchParams]
+    [navigateTo]
   );
 
   const handleArtistChange = useCallback(
     (artist) => {
-      shouldScrollResultsRef.current = true;
       setArtistDropdownOpen(false);
-      const params = buildSearchParams({ artist: artist || undefined });
-      router.push(`/telescreen?${params.toString()}`);
+      navigateTo({ mode: TELESCREEN_MODES.music, voice: null, artist: artist || null });
     },
-    [router, buildSearchParams]
+    [navigateTo]
   );
 
-  const showVoiceFilter = sourceParam === "voices";
-  const showArtistFilter = sourceParam === "protest-music" && artists.length > 0;
+  const showVoiceFilter = activeMode === TELESCREEN_MODES.voices;
+  const showArtistFilter = activeMode === TELESCREEN_MODES.music && artists.length > 0;
+  const selectedModeLabel =
+    TELESCREEN_MODE_OPTIONS.find((option) => option.value === activeMode)?.label || "Curated Videos";
+  const selectedVoiceLabel =
+    voices.find((voice) => voice.slug === (currentVoice ?? voiceParam))?.title || "All voices";
+  const selectedArtistLabel =
+    artists.find((artist) => artist.slug === (currentArtist ?? artistParam))?.title || "All artists";
 
-  const selectedSourceLabel =
-    SOURCE_OPTIONS.find(
-      (o) => (o.value === "" && !sourceParam) || o.value === sourceParam
-    )?.label ?? "All";
-
-  const voiceOptions = [
-    { value: "", label: "All voices" },
-    ...voices.map((v) => ({ value: v.slug, label: v.title })),
-  ];
-  const artistOptions = [
-    { value: "", label: "All artists" },
-    ...artists.map((a) => ({ value: a.slug, label: a.title })),
-  ];
-
-  const handleSourceSelect = useCallback(
-    (source) => {
-      setSourceDropdownOpen(false);
-      handleSourceChange(source || undefined);
-    },
-    [handleSourceChange]
+  const voiceOptions = useMemo(
+    () => [{ value: "", label: "All voices" }, ...voices.map((voice) => ({ value: voice.slug, label: voice.title }))],
+    [voices]
   );
+  const artistOptions = useMemo(
+    () => [{ value: "", label: "All artists" }, ...artists.map((artist) => ({ value: artist.slug, label: artist.title }))],
+    [artists]
+  );
+
+  const modeCopy = MODE_COPY[activeMode] || MODE_COPY[TELESCREEN_MODES.curated];
 
   return (
     <div className="space-y-5">
-      {/* Sticky breadcrumbs — context while scrolling */}
       <nav
         aria-label="Breadcrumb"
         className="sticky top-0 z-20 -mx-1 px-1 sm:-mx-2 sm:px-2 lg:-mx-3 lg:px-3 py-2.5 bg-background border-b border-border shadow-[0_1px_0_0_var(--border-color)]"
       >
         <ol className="nav-label flex items-center gap-2 text-xs sm:text-sm font-bold text-foreground/70 max-w-[1600px] mx-auto flex-wrap">
           <li>
-            <Link
-              href={sourceParam ? `/telescreen?source=${sourceParam}` : "/telescreen"}
-              className="hover:text-primary transition-colors"
-            >
-              {sourceParam === "curated-videos"
-                ? "Curated Videos"
-                : sourceParam === "protest-music"
-                  ? "Protest Music"
-                  : sourceParam === "voices"
-                    ? "Voices of Dissent"
-                    : sourceParam === "books"
-                      ? "Books"
-                      : sourceParam === "resources"
-                        ? "Resources"
-                        : sourceParam === "journal"
-                          ? "Journal"
-                          : "Collection"}
+            <Link href={buildTelescreenHref({ mode: activeMode })} className="hover:text-primary transition-colors">
+              {modeCopy.title}
             </Link>
           </li>
-          {(showVoiceFilter && voiceParam) || (showArtistFilter && artistParam) ? (
+          {(showVoiceFilter && (currentVoice || voiceParam)) || (showArtistFilter && (currentArtist || artistParam)) ? (
             <>
-              <li aria-hidden className="text-foreground/40">/</li>
+              <li aria-hidden className="text-foreground/40">
+                /
+              </li>
               <li className="text-foreground truncate" aria-current="page">
-                {voiceParam
-                  ? voices.find((v) => v.slug === voiceParam)?.title ?? voiceParam
-                  : artists.find((a) => a.slug === artistParam)?.title ?? artistParam}
+                {showVoiceFilter ? selectedVoiceLabel : selectedArtistLabel}
               </li>
             </>
           ) : null}
         </ol>
       </nav>
 
-      {/* Filters sit directly above the grid so choosing a section does not leave results far below */}
-      <div
-        id="telescreen-archive-toolbar"
-        className="flex flex-col gap-4 sm:gap-3 border-b border-border/60 pb-4 scroll-mt-20"
-      >
-        <div className="flex flex-wrap items-end gap-3 sm:gap-4">
-          <FilterDropdown
-            label="Section"
-            selectedLabel={selectedSourceLabel}
-            options={SOURCE_OPTIONS}
-            value={sourceParam}
-            onChange={(v) => handleSourceSelect(v)}
-            isOpen={sourceDropdownOpen}
-            onToggle={() => setSourceDropdownOpen((o) => !o)}
-            onClose={() => setSourceDropdownOpen(false)}
-            ariaLabel="Choose section"
-          />
+      <section className="machine-panel border border-border p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase block">
+              Telescreen mode
+            </span>
+            <h2 className="section-title text-xl sm:text-2xl font-bold text-foreground">{modeCopy.title}</h2>
+            <p className="text-xs sm:text-sm text-foreground/70 uppercase tracking-wider">{modeCopy.detail}</p>
+          </div>
           <button
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="button-label flex items-center gap-1.5 text-xs font-bold text-foreground/70 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="button-label inline-flex items-center gap-1.5 text-xs font-bold text-foreground/70 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Refresh collection"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
             Refresh
           </button>
         </div>
-        {(showVoiceFilter || showArtistFilter) && (
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 items-stretch sm:items-end">
-            {showVoiceFilter && (
+
+        <div
+          id="telescreen-archive-toolbar"
+          className="flex flex-col gap-4 sm:gap-3 border-t border-border/60 pt-4 scroll-mt-20"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <FilterDropdown
+              label="Mode"
+              selectedLabel={selectedModeLabel}
+              options={TELESCREEN_MODE_OPTIONS}
+              value={activeMode}
+              onChange={handleModeSelect}
+              isOpen={modeDropdownOpen}
+              onToggle={() => setModeDropdownOpen((open) => !open)}
+              onClose={() => setModeDropdownOpen(false)}
+              ariaLabel="Choose telescreen mode"
+              className="relative min-w-0 lg:w-[20rem]"
+            />
+
+            {showVoiceFilter ? (
               <FilterDropdown
                 label="Voice"
-                selectedLabel={currentVoice || "All voices"}
+                selectedLabel={selectedVoiceLabel}
                 options={voiceOptions}
                 value={currentVoice ?? voiceParam}
-                onChange={(v) => handleVoiceChange(v || null)}
+                onChange={(value) => handleVoiceChange(value || null)}
                 isOpen={voiceDropdownOpen}
-                onToggle={() => setVoiceDropdownOpen((o) => !o)}
+                onToggle={() => setVoiceDropdownOpen((open) => !open)}
                 onClose={() => setVoiceDropdownOpen(false)}
                 ariaLabel="Choose voice"
-                className="relative flex-1 min-w-0"
+                className="relative min-w-0 lg:flex-1"
               />
-            )}
-            {showArtistFilter && (
+            ) : null}
+
+            {showArtistFilter ? (
               <FilterDropdown
                 label="Artist"
-                selectedLabel={currentArtist || "All artists"}
+                selectedLabel={selectedArtistLabel}
                 options={artistOptions}
                 value={currentArtist ?? artistParam}
-                onChange={(v) => handleArtistChange(v || null)}
+                onChange={(value) => handleArtistChange(value || null)}
                 isOpen={artistDropdownOpen}
-                onToggle={() => setArtistDropdownOpen((o) => !o)}
+                onToggle={() => setArtistDropdownOpen((open) => !open)}
                 onClose={() => setArtistDropdownOpen(false)}
                 ariaLabel="Choose artist"
-                className="relative flex-1 min-w-0"
+                className="relative min-w-0 lg:flex-1"
               />
-            )}
+            ) : null}
           </div>
-        )}
-      </div>
+        </div>
+      </section>
 
       <div id="telescreen-archive-primary">
-      {items.length === 0 ? (
-        <p className="system-label text-foreground/70 text-sm">
-          No videos match the current filters.
-        </p>
-      ) : (
-        <>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {items.map((it, index) => (
-              <li key={`${it.id ?? it.url}-${index}`}>
-                <VoiceCard item={it} onPlay={setActiveItem} priority={index < 6} />
-              </li>
-            ))}
-          </ul>
+        {items.length === 0 ? (
+          <p className="system-label text-foreground/70 text-sm">{modeCopy.empty}</p>
+        ) : (
+          <>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {items.map((item, index) => (
+                <li key={`${item.id ?? item.url}-${index}`}>
+                  <VoiceCard item={item} onPlay={setActiveItem} priority={index < 6} />
+                </li>
+              ))}
+            </ul>
 
-          {activeItem && (
-            <InlinePlayerModal
-              item={activeItem}
-              allItems={items}
-              onClose={() => setActiveItem(null)}
-              onSelectItem={setActiveItem}
-            />
-          )}
+            {activeItem ? (
+              <InlinePlayerModal
+                item={activeItem}
+                allItems={items}
+                onClose={() => setActiveItem(null)}
+                onSelectItem={setActiveItem}
+              />
+            ) : null}
 
-          {/* Sentinel for infinite scroll */}
-          {hasMore && (
-            <div ref={sentinelRef} className="py-6" aria-hidden>
-              {loading && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="machine-panel border border-border animate-pulse h-64" />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
+            {hasMore ? (
+              <div ref={sentinelRef} className="py-6" aria-hidden>
+                {loading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div key={index} className="machine-panel border border-border animate-pulse h-64" />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );

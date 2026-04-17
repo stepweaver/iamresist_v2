@@ -55,7 +55,7 @@ export default async function ProtestSongPage({ params }) {
           </Link>
           <span className="mx-2 text-foreground/40">/</span>
           <Link
-            href="/telescreen?source=protest-music"
+            href="/telescreen?mode=protest-music"
             className="text-foreground/60 hover:text-primary transition-colors font-bold"
           >
             Protest Music
@@ -120,7 +120,7 @@ export default async function ProtestSongPage({ params }) {
 
         <p className="mt-6 text-center">
           <Link
-            href="/telescreen?source=protest-music"
+            href="/telescreen?mode=protest-music"
             className="nav-label text-sm text-foreground/60 hover:text-primary transition-colors font-bold"
           >
             ← More protest music

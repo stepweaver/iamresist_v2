@@ -8,7 +8,7 @@ import VoicesArchiveClient from "./VoicesArchiveClient";
 export default async function VoicesArchiveContent({
   filters = {},
   currentVoice = null,
-  currentSource = null,
+  currentMode = null,
   currentArtist = null,
 }) {
   // Get all voices for filter dropdown (only enabled ones with feedUrl)
@@ -26,7 +26,7 @@ export default async function VoicesArchiveContent({
       voices={voices}
       artists={artists}
       currentVoice={currentVoice}
-      currentSource={currentSource}
+      currentMode={currentMode}
       currentArtist={currentArtist}
     />
   );

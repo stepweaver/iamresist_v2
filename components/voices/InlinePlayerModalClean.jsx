@@ -10,6 +10,7 @@ import useHorizontalSwipe from "@/components/useHorizontalSwipe";
 import useModalFocusTrap from "@/components/useModalFocusTrap";
 import { getYoutubeVideoId, youtubeThumbnailCandidates } from "@/lib/utils/youtube";
 import { formatDate } from "@/lib/utils/date";
+import { buildTelescreenHref, TELESCREEN_MODES } from "@/lib/telescreen";
 
 const MOBILE_RELATED_CAP = 4;
 const DESKTOP_RELATED_CAP = 6;
@@ -57,12 +58,12 @@ function intelUrlForCreator(item) {
   if (!item?.voice?.slug) return "/telescreen";
   const slug = item.voice.slug;
   if (item.sourceType === "protest-music") {
-    return `/telescreen?source=protest-music&artist=${encodeURIComponent(slug)}`;
+    return buildTelescreenHref({ mode: TELESCREEN_MODES.music, artist: slug });
   }
   if (item.sourceType === "curated-videos" || slug === "curated-videos") {
-    return "/telescreen?source=curated-videos";
+    return buildTelescreenHref({ mode: TELESCREEN_MODES.curated });
   }
-  return `/telescreen?source=voices&voice=${encodeURIComponent(slug)}`;
+  return buildTelescreenHref({ mode: TELESCREEN_MODES.voices, voice: slug });
 }
 
 function descriptionLabel(item) {

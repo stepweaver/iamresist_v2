@@ -84,10 +84,10 @@ export default async function BookDetailPage({ params }) {
       <div className="max-w-[1100px] mx-auto px-2 sm:px-3 lg:px-4 pt-6 pb-10">
         <nav className="mb-5">
           <Link
-            href="/telescreen?source=books"
+            href="/book-club"
             className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold"
           >
-            ← Back to Telescreen (books)
+            ← Back to Book Club
           </Link>
         </nav>
 
