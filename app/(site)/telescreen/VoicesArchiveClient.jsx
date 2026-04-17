@@ -52,10 +52,10 @@ export default function VoicesArchiveClient({
   const sentinelRef = useRef(null);
   const shouldScrollResultsRef = useRef(false);
 
-  const modeParam = searchParams.get("mode") || TELESCREEN_MODES.curated;
+  const modeParam = searchParams.get("mode") || TELESCREEN_MODES.voices;
   const voiceParam = searchParams.get("voice") ?? "";
   const artistParam = searchParams.get("artist") ?? "";
-  const activeMode = currentMode || modeParam || TELESCREEN_MODES.curated;
+  const activeMode = currentMode || modeParam || TELESCREEN_MODES.voices;
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -98,7 +98,7 @@ export default function VoicesArchiveClient({
     const params = new URLSearchParams();
     params.set("page", String(nextPage));
     params.set("limit", String(VOICES_ARCHIVE_PAGE_SIZE));
-    if (activeMode !== TELESCREEN_MODES.curated) params.set("mode", activeMode);
+    if (activeMode !== TELESCREEN_MODES.voices) params.set("mode", activeMode);
     if (voiceParam) params.set("voice", voiceParam);
     if (artistParam) params.set("artist", artistParam);
 
@@ -168,7 +168,7 @@ export default function VoicesArchiveClient({
   const showVoiceFilter = activeMode === TELESCREEN_MODES.voices;
   const showArtistFilter = activeMode === TELESCREEN_MODES.music && artists.length > 0;
   const selectedModeLabel =
-    TELESCREEN_MODE_OPTIONS.find((option) => option.value === activeMode)?.label || "Curated Videos";
+  TELESCREEN_MODE_OPTIONS.find((option) => option.value === activeMode)?.label || "Voices of Dissent";
   const selectedVoiceLabel =
     voices.find((voice) => voice.slug === (currentVoice ?? voiceParam))?.title || "All voices";
   const selectedArtistLabel =
@@ -183,7 +183,7 @@ export default function VoicesArchiveClient({
     [artists]
   );
 
-  const modeCopy = MODE_COPY[activeMode] || MODE_COPY[TELESCREEN_MODES.curated];
+  const modeCopy = MODE_COPY[activeMode] || MODE_COPY[TELESCREEN_MODES.voices];
 
   return (
     <div className="space-y-5">
