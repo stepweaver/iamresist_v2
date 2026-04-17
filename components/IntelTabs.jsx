@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -15,6 +16,11 @@ const TABS = [
 
 export default function IntelTabs({ description }) {
   const pathname = usePathname();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [pathname]);
+
   const isOsint =
     pathname?.startsWith("/intel/osint") || pathname?.startsWith("/intel/live");
   const isDefense = pathname?.startsWith("/intel/defense");
@@ -52,6 +58,7 @@ export default function IntelTabs({ description }) {
               )}
               <Link
                 href={tab.href}
+                scroll
                 className={`text-base sm:text-lg font-bold uppercase tracking-wider transition-colors ${
                   isActive
                     ? "text-foreground"

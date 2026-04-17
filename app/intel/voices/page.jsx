@@ -36,7 +36,7 @@ export default function IntelVoicesDeskPage() {
             <>
               <strong className="text-foreground/90">Intel voices</strong> — text and audio from public feeds. Curated
               video and music live on{' '}
-              <Link href="/telescreen" className="text-primary hover:underline font-bold">
+              <Link href="/telescreen" scroll className="text-primary hover:underline font-bold">
                 Telescreen
               </Link>
               .

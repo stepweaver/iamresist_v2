@@ -41,7 +41,7 @@ export default function VoicesArchiveClient({
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const sentinelRef = useRef(null);
-  const skipFilterScrollRef = useRef(true);
+  const shouldScrollResultsRef = useRef(false);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -70,12 +70,12 @@ export default function VoicesArchiveClient({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Keep results in view after changing section / voice / artist (not on initial mount).
+  // Keep results in view only after in-page filter changes initiated from this client.
   useEffect(() => {
-    if (skipFilterScrollRef.current) {
-      skipFilterScrollRef.current = false;
+    if (!shouldScrollResultsRef.current) {
       return;
     }
+    shouldScrollResultsRef.current = false;
     requestAnimationFrame(() => {
       document.getElementById('telescreen-archive-primary')?.scrollIntoView({
         behavior: 'smooth',
@@ -138,6 +138,7 @@ export default function VoicesArchiveClient({
 
   const handleSourceChange = useCallback(
     (source) => {
+      shouldScrollResultsRef.current = true;
       const params = buildSearchParams({
         source: source ? source : null,
         voice: source === "protest-music" ? null : source ? undefined : null,
@@ -151,6 +152,7 @@ export default function VoicesArchiveClient({
 
   const handleVoiceChange = useCallback(
     (voice) => {
+      shouldScrollResultsRef.current = true;
       setVoiceDropdownOpen(false);
       const params = buildSearchParams({ voice: voice || undefined });
       router.push(`/telescreen?${params.toString()}`);
@@ -160,6 +162,7 @@ export default function VoicesArchiveClient({
 
   const handleArtistChange = useCallback(
     (artist) => {
+      shouldScrollResultsRef.current = true;
       setArtistDropdownOpen(false);
       const params = buildSearchParams({ artist: artist || undefined });
       router.push(`/telescreen?${params.toString()}`);
