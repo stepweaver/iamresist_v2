@@ -162,6 +162,308 @@ describe('mergeAndRankBriefingCandidates', () => {
     expect(out[0].briefingExplain?.origin).toBe('promoted');
     expect(out[0].briefingExplain?.selectionPhase).toBe('primary');
     expect(out[0].briefingExplain?.promotionReasons).toContain('accountability_signal');
+    expect(out[0].briefingExplain?.promotedPriorityApplied).toBe(true);
+    expect(out[0].briefingExplain?.sameStoryCoherenceSupport?.applied).toBe(false);
+  });
+});
+
+describe('Prompt 3 homepage merge behavior', () => {
+  const now = '2026-04-17T12:00:00.000Z';
+
+  function mkIntel({
+    id,
+    lane,
+    origin = 'lane_backstop',
+    rawScore,
+    publishedAt = '2026-04-17T10:00:00.000Z',
+    title,
+    summary,
+    sourceSlug,
+    sourceFamily = 'general',
+    provenanceClass = 'PRIMARY',
+    promotionReasons,
+    promotionEventType,
+  }: {
+    id: string;
+    lane: 'osint' | 'watchdogs' | 'defense_ops' | 'voices';
+    origin?: 'promoted' | 'lane_backstop';
+    rawScore: number;
+    publishedAt?: string;
+    title: string;
+    summary?: string;
+    sourceSlug?: string;
+    sourceFamily?: string;
+    provenanceClass?: string;
+    promotionReasons?: string[];
+    promotionEventType?: string;
+  }) {
+    return {
+      kind: 'intel' as const,
+      briefLane: lane,
+      briefingOrigin: origin as 'promoted' | 'lane_backstop',
+      rawScore,
+      weightedScore: rawScore * BRIEFING_LANE_WEIGHT[lane],
+      intelItem: {
+        id,
+        canonicalUrl: `https://example.test/${id}`,
+        title,
+        summary: summary ?? null,
+        sourceName: sourceSlug ?? `${lane}-source`,
+        sourceSlug: sourceSlug ?? `${lane}-${id}`,
+        sourceFamily,
+        publishedAt,
+        deskLane: lane,
+        displayPriority: rawScore,
+        provenanceClass,
+        promotionReasons: promotionReasons ?? [],
+        promotionEventType: promotionEventType ?? 'generic_report',
+      },
+    };
+  }
+
+  function mkNewswire({
+    id,
+    rawScore,
+    title,
+    excerpt,
+    publishedAt = '2026-04-17T09:30:00.000Z',
+    sourceSlug = 'ap',
+  }: {
+    id: string;
+    rawScore: number;
+    title: string;
+    excerpt?: string;
+    publishedAt?: string;
+    sourceSlug?: string;
+  }) {
+    return {
+      kind: 'newswire' as const,
+      briefLane: 'newswire' as const,
+      briefingOrigin: 'newswire' as const,
+      rawScore,
+      weightedScore: rawScore * BRIEFING_LANE_WEIGHT.newswire,
+      story: {
+        id,
+        url: `https://wire.test/${id}`,
+        title,
+        excerpt: excerpt ?? '',
+        sourceSlug,
+        publishedAt,
+      },
+    };
+  }
+
+  it('1. lets a strong promoted cluster survive against lane-backstop filler', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+
+    const promoted = mkIntel({
+      id: 'promo-1',
+      lane: 'watchdogs',
+      origin: 'promoted',
+      rawScore: 62,
+      title: 'Inspector general subpoena expands surveillance oversight fight',
+      summary: 'Corroborated accountability cluster on the live surveillance fight',
+      promotionReasons: ['accountability_signal', 'corroborated_multi_source'],
+      promotionEventType: 'hearing',
+    });
+    const fillerA = mkIntel({
+      id: 'fill-a',
+      lane: 'osint',
+      rawScore: 64,
+      title: 'Routine agency update',
+      summary: 'Solid but isolated item',
+    });
+    const fillerB = mkIntel({
+      id: 'fill-b',
+      lane: 'defense_ops',
+      rawScore: 63,
+      title: 'Routine theater update',
+      summary: 'Another decent but isolated item',
+    });
+
+    const out = mergeAndRankBriefingCandidates([fillerA, fillerB, promoted]);
+    expect(out[0].intelItem.id).toBe('promo-1');
+    expect(out[0].briefingExplain?.promotedPriorityApplied).toBe(true);
+
+    vi.useRealTimers();
+  });
+
+  it('2. no longer crushes a strong voices-backed promoted story', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+
+    const voicesPromoted = mkIntel({
+      id: 'voices-promo',
+      lane: 'voices',
+      origin: 'promoted',
+      rawScore: 72,
+      title: 'Creators converge on late-night FISA surveillance showdown',
+      summary: 'Multiple trusted voices and desks point to the same 702 vote fight',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      promotionReasons: ['congress_urgency', 'corroborated_multi_lane'],
+      promotionEventType: 'congress_urgency',
+    });
+    const backstop = mkIntel({
+      id: 'backstop',
+      lane: 'watchdogs',
+      rawScore: 66,
+      title: 'Routine oversight memo',
+      summary: 'Useful but less urgent than the promoted surveillance cluster',
+    });
+
+    const out = mergeAndRankBriefingCandidates([backstop, voicesPromoted]);
+    expect(out[0].intelItem.id).toBe('voices-promo');
+    expect(out[0].briefingExplain?.weightedLaneScore).toBeCloseTo(72 * BRIEFING_LANE_WEIGHT.voices, 2);
+
+    vi.useRealTimers();
+  });
+
+  it('3. still keeps stale voices commentary from padding the rail', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+
+    const fresh = mkIntel({
+      id: 'fresh-1',
+      lane: 'watchdogs',
+      rawScore: 61,
+      title: 'New watchdog filing',
+    });
+    const staleVoice = mkIntel({
+      id: 'stale-voice',
+      lane: 'voices',
+      rawScore: 83,
+      publishedAt: '2026-01-01T12:00:00.000Z',
+      title: 'Old recycled take',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+    });
+
+    const out = mergeAndRankBriefingCandidates([fresh, staleVoice]);
+    expect(out.map((item) => (item.kind === 'intel' ? item.intelItem.id : item.story.id))).toEqual(['fresh-1']);
+
+    vi.useRealTimers();
+  });
+
+  it('4. helps a supporting newswire item survive when it reinforces a top promoted story', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+
+    const promoted = mkIntel({
+      id: 'promo-wire-anchor',
+      lane: 'watchdogs',
+      origin: 'promoted',
+      rawScore: 67,
+      title: 'Inspector general subpoena expands FISA surveillance fight',
+      summary: 'Oversight and surveillance pressure accelerate around the same live story',
+      promotionReasons: ['accountability_signal', 'congress_urgency'],
+      promotionEventType: 'hearing',
+    });
+    const coherentNewswire = mkNewswire({
+      id: 'wire-support',
+      rawScore: 54,
+      title: 'AP: Senate FISA surveillance fight widens as inspector general subpoena lands',
+      excerpt: 'Fresh wire reinforcement of the same surveillance oversight story',
+    });
+    const unrelatedBackstop = mkIntel({
+      id: 'unrelated',
+      lane: 'osint',
+      rawScore: 57,
+      title: 'Separate diplomatic briefing',
+      summary: 'Not the same story',
+    });
+
+    const out = mergeAndRankBriefingCandidates([promoted, coherentNewswire, unrelatedBackstop]);
+    const support = out.find((item) => item.kind === 'newswire');
+    expect(support).toBeTruthy();
+    expect(support?.briefingExplain?.sameStoryCoherenceSupport?.applied).toBe(true);
+    expect(support?.briefingExplain?.sameStoryCoherenceSupport?.anchorItemId).toBe('promo-wire-anchor');
+
+    vi.useRealTimers();
+  });
+
+  it('5. does not let caps break obvious same-story coherence for a promoted anchor plus companion item', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+
+    const anchor = mkIntel({
+      id: 'story-anchor',
+      lane: 'watchdogs',
+      origin: 'promoted',
+      rawScore: 74,
+      title: 'Subpoena fight escalates over election surveillance records',
+      summary: 'Main promoted accountability story',
+      sourceFamily: 'general',
+      promotionReasons: ['accountability_signal', 'corroborated_multi_source'],
+      promotionEventType: 'hearing',
+    });
+    const familyA = mkIntel({
+      id: 'family-a',
+      lane: 'osint',
+      rawScore: 71,
+      title: 'Top legal filing one',
+      sourceFamily: 'general',
+      sourceSlug: 'gen-a',
+    });
+    const familyB = mkIntel({
+      id: 'family-b',
+      lane: 'defense_ops',
+      rawScore: 70,
+      title: 'Top legal filing two',
+      sourceFamily: 'general',
+      sourceSlug: 'gen-b',
+    });
+    const coherentCompanion = mkIntel({
+      id: 'family-c',
+      lane: 'osint',
+      rawScore: 60,
+      title: 'Election surveillance subpoena fight escalates again in court and Congress',
+      summary: 'Same accountability story, now with another concrete development',
+      sourceFamily: 'general',
+      sourceSlug: 'gen-c',
+      provenanceClass: 'WIRE',
+      promotionEventType: 'hearing',
+    });
+
+    const out = mergeAndRankBriefingCandidates([anchor, familyA, familyB, coherentCompanion]);
+    const support = out.find((item) => item.kind === 'intel' && item.intelItem.id === 'family-c');
+    expect(support).toBeTruthy();
+    expect(support?.briefingExplain?.sameStoryCoherenceSupport?.capOverrideUsed).toBe(true);
+
+    vi.useRealTimers();
+  });
+
+  it('6. keeps off-mission leakage suppressed by weak weights and merge priority', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+
+    const promoted = mkIntel({
+      id: 'mission-top',
+      lane: 'watchdogs',
+      origin: 'promoted',
+      rawScore: 66,
+      title: 'Court order deepens accountability fight over deportation records',
+      summary: 'Live mission story',
+      promotionReasons: ['court_or_legal_action'],
+      promotionEventType: 'court_order',
+    });
+    const offMissionishVoice = mkIntel({
+      id: 'voice-noise',
+      lane: 'voices',
+      rawScore: 65,
+      title: 'Creator reaction to celebrity tech platform drama',
+      summary: 'High engagement but not mission-relevant',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+    });
+
+    const out = mergeAndRankBriefingCandidates([promoted, offMissionishVoice]);
+    expect(out[0].intelItem.id).toBe('mission-top');
+    expect(out.some((item) => item.kind === 'intel' && item.intelItem.id === 'voice-noise')).toBe(true);
+    expect(out[1]?.briefingExplain?.homepageBriefingScore).toBeLessThan(out[0].briefingExplain?.homepageBriefingScore ?? 0);
+
+    vi.useRealTimers();
   });
 });
 

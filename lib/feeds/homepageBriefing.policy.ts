@@ -138,6 +138,18 @@ export const BRIEFING_VOICES_MAX_TOTAL = 2;
  */
 export const VOICES_STALE_COMMENTARY_MIN_HOMEPAGE_SCORE = 26;
 
+/** Primary-pass ordering bonus so promoted clusters beat merely decent filler. */
+export const PROMOTED_PRIMARY_PRIORITY_BOOST = 6;
+
+/** Same-story support is intentionally bounded to one companion per promoted anchor. */
+export const STORY_COHERENCE_MAX_COMPANIONS_PER_PROMOTED = 1;
+
+/** Minimum homepage score for cap-overflow coherence companions. */
+export const STORY_COHERENCE_MIN_HOMEPAGE_SCORE = 36;
+
+/** Explicit overlap threshold for deterministic same-story support. */
+export const STORY_COHERENCE_MIN_SHARED_TOKENS = 3;
+
 export function shouldSuppressVoicesStaleCommentary(
   entry: { kind: string; briefLane: BriefingLane; intelItem?: { publishedAt?: string | null; provenanceClass?: ProvenanceClass } },
   homepageBriefingScore: number,

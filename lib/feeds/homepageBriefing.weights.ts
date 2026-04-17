@@ -15,7 +15,7 @@ export const BRIEFING_LANE_WEIGHT: Record<BriefingLane, number> = {
   watchdogs: 1.02,
   defense_ops: 1,
   /** Commentary lane: surfaces only when raw score is unusually high after weighting. */
-  voices: 0.78,
+  voices: 0.88,
 };
 
 /** Top items taken per lane/desk for lane backstop (see `homepageBriefing.policy.ts`). */
