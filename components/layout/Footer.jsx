@@ -42,9 +42,8 @@ export default function Footer() {
             Support: <a href="mailto:support@iamresist.org" className="text-primary hover:text-primary-light transition-colors underline decoration-primary/50 hover:decoration-primary">support@iamresist.org</a>
           </p>
           <p className="legal-copy text-[10px] text-foreground/60 leading-relaxed max-w-2xl mx-auto mt-4">
-            External content is attributed to original creators. Book cover images are used for identification
-            purposes only. All rights reserved by their respective publishers. All rights to third-party content
-            remain with their respective owners.
+            Third-party headlines, excerpts, images, and embeds remain the property of their respective owners and,
+            where shown here, are displayed with attribution and links back to the original source.
           </p>
         </div>
       </div>
