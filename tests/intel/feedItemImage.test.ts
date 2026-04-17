@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractFeedImage,
+  inspectFeedItemImage,
   polishFeedCardImageUrl,
   shouldSkipFeedImageCandidate,
 } from '@/lib/feeds/feedItemImage.js';
@@ -36,5 +37,19 @@ describe('feedItemImage', () => {
   it('skips Rappler Tachyon favicon / tiny fit assets', () => {
     const icon = 'https://www.rappler.com/tachyon/2022/11/cropped-Piano-Small.png?fit=32%2C32';
     expect(shouldSkipFeedImageCandidate(icon)).toBe(true);
+  });
+
+  it('surfaces tiny Haaretz thumbs as accepted feed images before newswire-specific dropping', () => {
+    const result = inspectFeedItemImage({
+      link: 'https://www.haaretz.com/israel-news/2026-04-17/story',
+      enclosure: {
+        url: 'https://img.haarets.co.il/bs/00000196/sample.jpg?width=108&height=81',
+        type: 'image/jpeg',
+      },
+    } as Record<string, unknown>);
+
+    expect(result.image).toContain('img.haarets.co.il');
+    expect(result.skippedByPolicy).toBe(false);
+    expect(result.firstCandidate?.resolvedUrl).toContain('img.haarets.co.il');
   });
 });
