@@ -15,8 +15,11 @@ vi.mock('@/lib/notion/weeklyBriefs.repo', () => repoMocks);
 vi.mock('@/lib/feeds/weeklyBriefCandidates.service', () => candidateMocks);
 vi.mock('@/lib/env/openai', () => ({
   openaiEnv: {
-    OPENAI_API_KEY: 'sk-test',
-    WEEKLY_BRIEF_DRAFT_MODEL: 'gpt-5-mini',
+    OPENAI_API_KEY: '',
+    OPENROUTER_API_KEY: 'or-test',
+    OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
+    OPENROUTER_MODEL: 'google/gemma-3-27b-it:free',
+    WEEKLY_BRIEF_DRAFT_MODEL: '',
   },
 }));
 
@@ -64,30 +67,25 @@ describe('generateWeeklyBriefDraft', () => {
         ok: true,
         json: async () => ({
           id: 'resp_123',
-          model: 'gpt-5-mini',
-          output: [
+          model: 'google/gemma-3-27b-it:free',
+          choices: [
             {
-              type: 'message',
-              role: 'assistant',
-              content: [
-                {
-                  type: 'output_text',
-                  text: JSON.stringify({
-                    subjectLine: 'Weekly Brief: The paper trail',
-                    previewText: 'Courts, watchdogs, and the documents behind the week.',
-                    briefTitle: 'The paper trail this week',
-                    intro: 'This week came into focus through records and rulings.',
-                    sections: [
-                      {
-                        heading: 'Courts',
-                        body: 'A court ruling clarified the stakes.',
-                        candidateIds: ['briefing:intel:intel-1'],
-                      },
-                    ],
-                    closing: 'Follow the documents, not the spin.',
-                  }),
-                },
-              ],
+              message: {
+                content: JSON.stringify({
+                  subjectLine: 'Weekly Brief: The paper trail',
+                  previewText: 'Courts, watchdogs, and the documents behind the week.',
+                  briefTitle: 'The paper trail this week',
+                  intro: 'This week came into focus through records and rulings.',
+                  sections: [
+                    {
+                      heading: 'Courts',
+                      body: 'A court ruling clarified the stakes.',
+                      candidateIds: ['briefing:intel:intel-1'],
+                    },
+                  ],
+                  closing: 'Follow the documents, not the spin.',
+                }),
+              },
             },
           ],
         }),
@@ -105,6 +103,7 @@ describe('generateWeeklyBriefDraft', () => {
     expect(payload.selectedCandidates).toHaveLength(1);
     expect(payload.selectedCandidates[0]?.selectedBy).toBe('explicit_id');
     expect(payload.validation.selectionMode).toBe('explicit_id');
+    expect(payload.openai.provider).toBe('openrouter');
     expect(repoMocks.updateWeeklyBrief).toHaveBeenCalledWith(
       'brief-1',
       expect.objectContaining({
@@ -127,12 +126,15 @@ describe('generateWeeklyBriefDraft', () => {
   it('does not fall back to body URL matches when explicit candidate ids are provided', async () => {
     const { generateWeeklyBriefDraft } = await import('@/lib/weeklyBrief/aiDraft.service');
 
-    await expect(
-      generateWeeklyBriefDraft({
-        briefId: 'brief-1',
-        selectedCandidateIds: ['missing-id'],
-      })
-    ).rejects.toThrow('No selected weekly candidates matched the provided selectedCandidateIds.');
+    const payload = await generateWeeklyBriefDraft({
+      briefId: 'brief-1',
+      selectedCandidateIds: ['missing-id'],
+    });
+
+    expect(payload.selectedCandidates).toHaveLength(0);
+    expect(payload.validation.selectionMode).toBe('explicit_id');
+    expect(payload.validation.candidatesMatched).toBe(false);
+    expect(payload.validation.selectionWarning).toContain('provided selectedCandidateIds');
   });
 
   it('fails clearly when page body text is empty even if thoughtDump exists on the row', async () => {
@@ -154,5 +156,34 @@ describe('generateWeeklyBriefDraft', () => {
         briefId: 'brief-1',
       })
     ).rejects.toThrow('Weekly Brief page body is empty. Add notes to the Notion page body before drafting.');
+  });
+
+  it('still drafts from the page body when no weekly candidates match body URLs', async () => {
+    repoMocks.getWeeklyBriefWithBody.mockResolvedValueOnce({
+      id: 'brief-1',
+      title: 'Weekly Brief // 2026-04-16',
+      slug: 'weekly-brief-2026-04-16',
+      weekOf: '2026-04-16',
+      editorialThesis: '',
+      bodyText: 'Messy notes only.\n\nhttps://example.com/unmatched',
+      bodyUrls: ['https://example.com/unmatched'],
+      thoughtDump: 'This should not be used.',
+    });
+
+    const { generateWeeklyBriefDraft } = await import('@/lib/weeklyBrief/aiDraft.service');
+    const payload = await generateWeeklyBriefDraft({
+      briefId: 'brief-1',
+    });
+
+    expect(payload.selectedCandidates).toHaveLength(0);
+    expect(payload.validation.selectionMode).toBe('body_url_match');
+    expect(payload.validation.candidatesMatched).toBe(false);
+    expect(payload.validation.selectionWarning).toContain('Notion page body URLs');
+    expect(repoMocks.updateWeeklyBrief).toHaveBeenCalledWith(
+      'brief-1',
+      expect.objectContaining({
+        draft: expect.stringContaining('Subject: Weekly Brief: The paper trail'),
+      })
+    );
   });
 });

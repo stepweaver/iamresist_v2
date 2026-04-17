@@ -13,7 +13,7 @@ export default function ResistanceBriefSignup({ source = null, compact = false, 
             Get the [RESIST] Brief
           </h2>
           <p className="prose-copy text-xs sm:text-sm text-foreground/70">
-            A weekly email on what changed, what matters, and where the receipts are.
+            Join the list now. The Brief is still a work in progress, so issues may arrive irregularly while production comes together.
           </p>
         </div>
         <SubscribeFormClient source={source} compact={compact} />

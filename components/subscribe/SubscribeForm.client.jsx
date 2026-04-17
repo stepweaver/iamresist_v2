@@ -45,7 +45,7 @@ export default function SubscribeFormClient({ source = null, compact = false }) 
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        const msg = typeof data?.error === 'string' ? data.error : 'We couldn’t start your signup. Try again later.';
+        const msg = typeof data?.error === 'string' ? data.error : "We couldn't start your signup. Try again later.";
         setStatus('error');
         setError(msg);
         return;
@@ -53,7 +53,7 @@ export default function SubscribeFormClient({ source = null, compact = false }) 
       setStatus('success');
     } catch {
       setStatus('error');
-      setError('We couldn’t start your signup. Try again later.');
+      setError("We couldn't start your signup. Try again later.");
     }
   }
 
@@ -67,7 +67,6 @@ export default function SubscribeFormClient({ source = null, compact = false }) 
 
   return (
     <form onSubmit={onSubmit} className="w-full">
-      {/* Honeypot: hidden field for bots */}
       <div className="sr-only" aria-hidden="true">
         <label>
           Leave this empty
@@ -88,21 +87,20 @@ export default function SubscribeFormClient({ source = null, compact = false }) 
           aria-label="Email address"
         />
         <button type="submit" className={buttonClass} disabled={!canSubmit || status === 'success'}>
-          {status === 'loading' ? 'Sending…' : status === 'success' ? 'Check your email' : 'Get the Brief'}
+          {status === 'loading' ? 'Sending...' : status === 'success' ? 'Check your email' : 'Join the list'}
         </button>
       </div>
 
       <div className="mt-3 space-y-2">
         {status === 'success' ? (
           <p className="prose-copy text-xs sm:text-sm text-foreground/70">
-            Check your email to confirm. If you don’t see it, check spam. No noise—one brief a week.
+            Check your email to confirm. If you do not see it, check spam. This is a coming-soon list,
+            so issues may not arrive weekly yet.
           </p>
         ) : null}
 
         {status === 'error' && error ? (
-          <p className="prose-copy text-xs sm:text-sm text-primary">
-            {error}
-          </p>
+          <p className="prose-copy text-xs sm:text-sm text-primary">{error}</p>
         ) : null}
 
         <p className="legal-copy text-[10px] sm:text-xs text-foreground/60 leading-relaxed">
@@ -112,4 +110,3 @@ export default function SubscribeFormClient({ source = null, compact = false }) 
     </form>
   );
 }
-

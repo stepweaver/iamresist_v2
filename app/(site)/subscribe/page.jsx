@@ -4,7 +4,8 @@ import ResistanceBriefSignup from '@/components/subscribe/ResistanceBriefSignup'
 
 export const metadata = {
   title: 'Subscribe | I AM [RESIST]',
-  description: 'Get the [RESIST] Brief — a weekly email on what changed, what matters, and where the receipts are.',
+  description:
+    'Join the [RESIST] Brief list. It is a work in progress, and issues may arrive irregularly while the production is being built.',
 };
 
 export default function SubscribePage({ searchParams }) {
@@ -26,7 +27,8 @@ export default function SubscribePage({ searchParams }) {
                 SUBSCRIBE
               </h1>
               <p className="mission-copy text-sm sm:text-base lg:text-lg text-foreground/70 mt-4 max-w-3xl leading-relaxed">
-                Owned audience, minimal noise. Double opt-in. Serious only.
+                The [RESIST] Brief is still being built. You can join the list now, but delivery will be
+                irregular while the production is a work in progress.
               </p>
             </div>
           </div>
@@ -37,20 +39,17 @@ export default function SubscribePage({ searchParams }) {
         <div className="max-w-3xl mx-auto space-y-6">
           {showConfirmed ? (
             <div className="machine-panel border border-primary/30 p-5 sm:p-6">
-              <p className="kicker text-xs font-bold tracking-[0.3em] text-primary mb-2">
-                Confirmed
-              </p>
+              <p className="kicker text-xs font-bold tracking-[0.3em] text-primary mb-2">Confirmed</p>
               <p className="prose-copy text-sm sm:text-base text-foreground/80">
-                Confirmed. You’ll get the [RESIST] Brief.
+                Confirmed. You are on the list. The [RESIST] Brief is still a work in progress, so issues
+                may not arrive weekly yet.
               </p>
             </div>
           ) : null}
 
           {showFailed ? (
             <div className="machine-panel border border-border p-5 sm:p-6">
-              <p className="kicker text-xs font-bold tracking-[0.3em] text-primary mb-2">
-                Link issue
-              </p>
+              <p className="kicker text-xs font-bold tracking-[0.3em] text-primary mb-2">Link issue</p>
               <p className="prose-copy text-sm sm:text-base text-foreground/80">
                 This link expired or is invalid. Enter your email below to request a new confirmation.
               </p>
@@ -76,4 +75,3 @@ export default function SubscribePage({ searchParams }) {
     </main>
   );
 }
-
