@@ -753,4 +753,76 @@ describe('homepage briefing payload shape', () => {
     expect(payload.explain.pool.briefingDesk.desks.defense_ops).toBe(2);
     expect(payload.explain.pool.briefingDesk.desks.voices).toBe(0);
   });
+
+  it('uses voices as signal but does not directly rank voices items into the briefing rail', async () => {
+    vi.resetModules();
+
+    vi.doMock('next/cache', () => {
+      return {
+        unstable_cache: (cb: unknown) => cb,
+      };
+    });
+
+    vi.doMock('@/lib/feeds/liveIntel.service', () => {
+      return {
+        getLiveIntelDeskForHomepageBriefing: vi.fn(async (lane: string) => {
+          if (lane === 'voices') {
+            return {
+              configured: true,
+              items: [
+                {
+                  id: 'voice-1',
+                  canonicalUrl: 'https://voice.test/post',
+                  title: 'Creator post',
+                  sourceName: 'Creator',
+                  sourceSlug: 'creator',
+                  publishedAt: '2026-04-17T10:00:00.000Z',
+                  deskLane: 'voices',
+                  displayPriority: 88,
+                  provenanceClass: 'COMMENTARY',
+                },
+              ],
+            };
+          }
+          return { configured: true, items: [] };
+        }),
+      };
+    });
+
+    vi.doMock('@/lib/newswire', async () => {
+      const actual = await vi.importActual<typeof import('@/lib/newswire')>('@/lib/newswire');
+      return { ...actual, getNewswireStories: vi.fn(async () => []) };
+    });
+
+    vi.doMock('@/lib/intel/globalPromotion', () => ({
+      promoteGlobally: vi.fn(() => [
+        {
+          representative: {
+            id: 'voice-1',
+            canonicalUrl: 'https://voice.test/post',
+            title: 'Creator post',
+            sourceName: 'Creator',
+            sourceSlug: 'creator',
+            publishedAt: '2026-04-17T10:00:00.000Z',
+            deskLane: 'voices',
+            provenanceClass: 'COMMENTARY',
+            displayPriority: 88,
+          },
+          decision: {
+            totalScore: 88,
+            reasons: ['trusted_creator_convergence'],
+            eventType: 'generic_report',
+            corroboration: { itemCount: 1 },
+          },
+        },
+      ]),
+    }));
+
+    const { getHomeLiveBriefingWithExplain } = await import('@/lib/feeds/homepageBriefing.service');
+    const payload = await getHomeLiveBriefingWithExplain();
+
+    expect(payload.items).toEqual([]);
+    expect(payload.explain.pool.promotedIntel).toBe(0);
+    expect(payload.explain.pool.briefingDesk.desks.voices).toBe(1);
+  });
 });
