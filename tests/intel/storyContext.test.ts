@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { assembleStoryClusters } from '@/lib/intel/storyContext';
+import {
+  assembleStoryClusters,
+  classifyStoryEditorialRole,
+  isCreatorSignalLikeItem,
+  isExplicitAnalysisItem,
+  isOpinionLikeItem,
+} from '@/lib/intel/storyContext';
 
 function makeItem(partial: Record<string, any> = {}) {
   return {
@@ -130,8 +136,18 @@ describe('assembleStoryClusters', () => {
         commentary: 1,
         duplicates: 0,
       },
+      roleCounts: {
+        reporting: 0,
+        analysis: 0,
+        opinion: 1,
+        creator_signal: 0,
+      },
       primaryItem: { id: 'eo-reporting' },
-      commentaryItems: [{ id: 'eo-commentary' }],
+      commentaryItems: [{ id: 'eo-commentary', editorialRole: 'opinion', editorialLabel: 'opinion' }],
+      opinionItems: [{ id: 'eo-commentary' }],
+      analysisItems: [],
+      creatorSignalItems: [],
+      reportingItems: [],
       corroboratingItems: [],
     });
   });
@@ -173,12 +189,121 @@ describe('assembleStoryClusters', () => {
       itemCount: 1,
       appliedCount: 1,
       maxBoost: 3,
+      label: 'creator signal',
       reasons: ['trusted_creator_convergence'],
     });
     expect(storyClusters.items[1]).toMatchObject({
       groupingKind: 'singleton',
       representativeId: 'other-topic',
+      roleCounts: { reporting: 0, analysis: 0, opinion: 0, creator_signal: 0 },
       counts: { total: 1, corroborating: 0, commentary: 0, duplicates: 0 },
+    });
+  });
+
+  it('classifies explicit analysis cues as analysis instead of reporting', () => {
+    const item = makeItem({
+      id: 'analysis-item',
+      title: 'Surveillance order: What it means',
+      summary: 'Analysis of the implementation implications.',
+      provenanceClass: 'WIRE',
+      deskLane: 'osint',
+    });
+
+    expect(isExplicitAnalysisItem(item)).toBe(true);
+    expect(classifyStoryEditorialRole(item)).toBe('analysis');
+  });
+
+  it('classifies commentary without creator corroboration as opinion', () => {
+    const item = makeItem({
+      id: 'opinion-item',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      creatorCorroboration: null,
+    });
+
+    expect(isOpinionLikeItem(item)).toBe(true);
+    expect(isCreatorSignalLikeItem(item)).toBe(false);
+    expect(classifyStoryEditorialRole(item)).toBe('opinion');
+  });
+
+  it('classifies creator commentary with corroboration metadata as creator signal', () => {
+    const item = makeItem({
+      id: 'creator-signal-item',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      creatorCorroboration: {
+        applied: true,
+        boost: 2,
+        clusterId: 'creator-1',
+        representativeId: 'creator-signal-item',
+        reasons: ['trusted_creator_convergence'],
+      },
+    });
+
+    expect(isCreatorSignalLikeItem(item)).toBe(true);
+    expect(classifyStoryEditorialRole(item)).toBe('creator_signal');
+  });
+
+  it('keeps ordinary reporting as reporting without explicit analysis cues', () => {
+    const item = makeItem({
+      id: 'reporting-item',
+      title: 'Court issues injunction in surveillance case',
+      summary: 'The order was filed Monday.',
+      provenanceClass: 'SPECIALIST',
+      deskLane: 'watchdogs',
+    });
+
+    expect(isExplicitAnalysisItem(item)).toBe(false);
+    expect(classifyStoryEditorialRole(item)).toBe('reporting');
+  });
+
+  it('keeps duplicate losers out of role buckets and role counts', () => {
+    const main = makeItem({
+      id: 'main-report',
+      title: 'Oversight committee opens inquiry',
+      clusterKeys: { bill: '118-hr-200' },
+    });
+    const analysis = makeItem({
+      id: 'analysis-related',
+      title: 'Oversight inquiry analysis',
+      summary: 'Why it matters for federal agencies.',
+      clusterKeys: { bill: '118-hr-200' },
+      provenanceClass: 'SPECIALIST',
+    });
+    const duplicate = makeItem({
+      id: 'duplicate-related',
+      title: 'Duplicate line on the same oversight inquiry',
+      clusterKeys: { bill: '118-hr-200' },
+      isDuplicateLoser: true,
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      creatorCorroboration: {
+        applied: true,
+        boost: 1,
+        clusterId: 'creator-dup',
+        representativeId: 'main-report',
+        reasons: ['creator_support_noted'],
+      },
+    });
+
+    const storyClusters = assembleStoryClusters({
+      orderedItems: [main, analysis],
+      visibleItems: [main, analysis],
+      duplicateItems: [duplicate],
+    });
+
+    expect(storyClusters.items[0]).toMatchObject({
+      duplicateItems: [{ id: 'duplicate-related', editorialRole: 'creator_signal' }],
+      reportingItems: [],
+      analysisItems: [{ id: 'analysis-related', editorialRole: 'analysis' }],
+      opinionItems: [],
+      creatorSignalItems: [],
+      roleCounts: {
+        reporting: 0,
+        analysis: 1,
+        opinion: 0,
+        creator_signal: 0,
+      },
     });
   });
 });

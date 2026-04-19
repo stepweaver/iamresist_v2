@@ -40,6 +40,8 @@ export type StoryContextItem = {
   creatorCorroboration?: CreatorCorroborationLike | null;
 };
 
+export type StoryEditorialRole = 'reporting' | 'analysis' | 'opinion' | 'creator_signal';
+
 export type StoryClusterKeyMeta = {
   key: SupportedClusterKey;
   value: string;
@@ -59,6 +61,8 @@ export type StoryClusterDebugItem = {
   displayPriority: number | null;
   displayBucket: string | null;
   canonicalUrl: string | null;
+  editorialRole: StoryEditorialRole;
+  editorialLabel: string;
 };
 
 export type StoryCreatorSignalNote = {
@@ -69,6 +73,7 @@ export type StoryCreatorSignalNote = {
   clusterIds: string[];
   representativeIds: string[];
   itemIds: string[];
+  label?: 'creator signal';
 };
 
 export type StoryClusterDebug = {
@@ -85,12 +90,22 @@ export type StoryClusterDebug = {
     commentary: number;
     duplicates: number;
   };
+  roleCounts: {
+    reporting: number;
+    analysis: number;
+    opinion: number;
+    creator_signal: number;
+  };
   eventType: string | null;
   whyItMatters: string | null;
   creatorSignalNote: StoryCreatorSignalNote | null;
   primaryItem: StoryClusterDebugItem;
   corroboratingItems: StoryClusterDebugItem[];
   commentaryItems: StoryClusterDebugItem[];
+  reportingItems: StoryClusterDebugItem[];
+  analysisItems: StoryClusterDebugItem[];
+  opinionItems: StoryClusterDebugItem[];
+  creatorSignalItems: StoryClusterDebugItem[];
   duplicateItems: StoryClusterDebugItem[];
 };
 
@@ -109,7 +124,51 @@ type AssembleStoryClustersOptions = {
   duplicateItems?: StoryContextItem[];
 };
 
+const ANALYSIS_CUE_PATTERNS = [
+  /\banalysis\b/i,
+  /\bwhat it means\b/i,
+  /\bwhy it matters\b/i,
+  /\bexplainer\b/i,
+  /\bbreakdown\b/i,
+  /\bq(?:&|and)?a\b/i,
+] as const;
+
+function editorialLabelForRole(role: StoryEditorialRole): string {
+  if (role === 'creator_signal') return 'creator signal';
+  return role;
+}
+
+function itemTextForEditorialRole(item: StoryContextItem): string {
+  return `${item.title ?? ''} ${item.summary ?? ''}`.trim();
+}
+
+export function isCreatorSignalLikeItem(item: StoryContextItem): boolean {
+  const hasCreatorCorroboration =
+    item.creatorCorroboration != null && typeof item.creatorCorroboration === 'object';
+  if (!hasCreatorCorroboration) return false;
+  return item.deskLane === 'voices' || item.provenanceClass === 'COMMENTARY';
+}
+
+export function isOpinionLikeItem(item: StoryContextItem): boolean {
+  if (isCreatorSignalLikeItem(item)) return false;
+  return item.provenanceClass === 'COMMENTARY' || item.deskLane === 'voices';
+}
+
+export function isExplicitAnalysisItem(item: StoryContextItem): boolean {
+  const text = itemTextForEditorialRole(item);
+  if (!text) return false;
+  return ANALYSIS_CUE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function classifyStoryEditorialRole(item: StoryContextItem): StoryEditorialRole {
+  if (isCreatorSignalLikeItem(item)) return 'creator_signal';
+  if (isOpinionLikeItem(item)) return 'opinion';
+  if (isExplicitAnalysisItem(item)) return 'analysis';
+  return 'reporting';
+}
+
 function toCompactStoryItem(item: StoryContextItem): StoryClusterDebugItem {
+  const editorialRole = classifyStoryEditorialRole(item);
   return {
     id: item.id,
     title: item.title,
@@ -126,6 +185,8 @@ function toCompactStoryItem(item: StoryContextItem): StoryClusterDebugItem {
         : null,
     displayBucket: item.displayBucket ?? null,
     canonicalUrl: item.canonicalUrl ?? null,
+    editorialRole,
+    editorialLabel: editorialLabelForRole(editorialRole),
   };
 }
 
@@ -199,7 +260,7 @@ function buildCreatorSignalNote(items: StoryContextItem[]): StoryCreatorSignalNo
     }
   }
 
-  return {
+  const note: StoryCreatorSignalNote = {
     itemCount: withCreatorSignal.length,
     appliedCount,
     maxBoost,
@@ -210,6 +271,8 @@ function buildCreatorSignalNote(items: StoryContextItem[]): StoryCreatorSignalNo
       .slice(0, 4),
     itemIds: withCreatorSignal.map((item) => item.id).sort((a, b) => a.localeCompare(b)).slice(0, 8),
   };
+  if (note.itemCount > 0) note.label = 'creator signal';
+  return note;
 }
 
 function emptyStoryClusters(): StoryClustersDebugPayload {
@@ -282,6 +345,10 @@ export function assembleStoryClusters(
 
     const corroboratingItems: StoryClusterDebugItem[] = [];
     const commentaryItems: StoryClusterDebugItem[] = [];
+    const reportingItems: StoryClusterDebugItem[] = [];
+    const analysisItems: StoryClusterDebugItem[] = [];
+    const opinionItems: StoryClusterDebugItem[] = [];
+    const creatorSignalItems: StoryClusterDebugItem[] = [];
     const duplicateBucket: StoryClusterDebugItem[] = [];
 
     for (const candidate of storyItems) {
@@ -291,12 +358,22 @@ export function assembleStoryClusters(
         duplicateBucket.push(compact);
         continue;
       }
-      if (candidate.provenanceClass === 'COMMENTARY' || candidate.deskLane === 'voices') {
+      if (compact.editorialRole === 'creator_signal') {
+        creatorSignalItems.push(compact);
         commentaryItems.push(compact);
         continue;
       }
+      if (compact.editorialRole === 'opinion' || compact.editorialRole === 'analysis') {
+        if (compact.editorialRole === 'analysis') analysisItems.push(compact);
+        if (compact.editorialRole === 'opinion') opinionItems.push(compact);
+        commentaryItems.push(compact);
+        continue;
+      }
+      reportingItems.push(compact);
       corroboratingItems.push(compact);
     }
+
+    const primaryItem = toCompactStoryItem(representative);
 
     storyClusters.push({
       storyId,
@@ -316,12 +393,22 @@ export function assembleStoryClusters(
         commentary: commentaryItems.length,
         duplicates: duplicateBucket.length,
       },
+      roleCounts: {
+        reporting: reportingItems.length,
+        analysis: analysisItems.length,
+        opinion: opinionItems.length,
+        creator_signal: creatorSignalItems.length,
+      },
       eventType: classifyStoryEventType(representative),
       whyItMatters: representative.whyItMatters ?? null,
       creatorSignalNote: buildCreatorSignalNote(storyItems),
-      primaryItem: toCompactStoryItem(representative),
+      primaryItem,
       corroboratingItems,
       commentaryItems,
+      reportingItems,
+      analysisItems,
+      opinionItems,
+      creatorSignalItems,
       duplicateItems: duplicateBucket,
     });
   }

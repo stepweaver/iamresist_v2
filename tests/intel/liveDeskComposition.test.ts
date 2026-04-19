@@ -352,6 +352,21 @@ describe('live desk debug payload', () => {
             },
           }),
           makeRow({
+            id: 'bill-analysis',
+            title: 'Explainer: how committee staff could move the surveillance reform bill',
+            summary: 'What it means for markup timing and oversight leverage.',
+            desk_lane: 'osint',
+            cluster_keys: { bill: '118-hr-100' },
+            mission_tags: ['congress', 'civil_liberties'],
+            relevance_score: 67,
+            sources: {
+              slug: 'analysis-source',
+              name: 'Analysis Source',
+              provenance_class: 'SPECIALIST',
+              desk_lane: 'osint',
+            },
+          }),
+          makeRow({
             id: 'bill-dup',
             title: 'Duplicate surveillance reform bill line',
             desk_lane: 'osint',
@@ -389,6 +404,9 @@ describe('live desk debug payload', () => {
     const billStory = debugDesk.storyClusters.items.find(
       (story: any) => story.representativeId === 'bill-main',
     );
+    const commentaryStory = debugDesk.storyClusters.items.find(
+      (story: any) => story.representativeId === 'eo-commentary',
+    );
 
     expect(debugDesk.counts.visible).toBe(2);
     expect(debugDesk.items.visible).toHaveLength(2);
@@ -400,16 +418,49 @@ describe('live desk debug payload', () => {
     expect(billStory).toMatchObject({
       groupingKind: 'cluster_key',
       representativeId: 'bill-main',
-      itemIds: ['bill-main', 'bill-dup'],
-      duplicateItemIds: ['bill-dup'],
+      itemIds: ['bill-main', 'bill-analysis', 'bill-dup'],
+      duplicateItemIds: ['bill-analysis', 'bill-dup'],
       counts: {
-        total: 2,
+        total: 3,
         corroborating: 0,
         commentary: 0,
-        duplicates: 1,
+        duplicates: 2,
       },
-      primaryItem: { id: 'bill-main' },
-      duplicateItems: [{ id: 'bill-dup' }],
+      roleCounts: {
+        reporting: 0,
+        analysis: 0,
+        opinion: 0,
+        creator_signal: 0,
+      },
+      primaryItem: { id: 'bill-main', editorialRole: 'reporting', editorialLabel: 'reporting' },
+      commentaryItems: [],
+      analysisItems: [],
+      reportingItems: [],
+      opinionItems: [],
+      creatorSignalItems: [],
+      duplicateItems: [
+        { id: 'bill-analysis', editorialRole: 'analysis', editorialLabel: 'analysis' },
+        { id: 'bill-dup', editorialRole: 'reporting', editorialLabel: 'reporting' },
+      ],
+    });
+    expect(commentaryStory).toMatchObject({
+      groupingKind: 'singleton',
+      representativeId: 'eo-commentary',
+      roleCounts: {
+        reporting: 0,
+        analysis: 0,
+        opinion: 0,
+        creator_signal: 0,
+      },
+      primaryItem: {
+        id: 'eo-commentary',
+        editorialRole: 'opinion',
+        editorialLabel: 'opinion',
+      },
+      reportingItems: [],
+      analysisItems: [],
+      opinionItems: [],
+      creatorSignalItems: [],
     });
   });
 });
