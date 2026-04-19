@@ -29,20 +29,42 @@ const POSITIVE_PATTERNS = [
   /\bprotest\b/i,
   /\baccountability\b/i,
   /\bcorruption\b/i,
+  /\boversight\b/i,
+  /\bsurveillance\b/i,
+  /\bcensorship\b/i,
+  /\bcivil\s+rights?\b/i,
+  /\bhuman\s+rights?\b/i,
+  /\bdetention\b/i,
+  /\bdeport(?:ation|ed|ing)?\b/i,
+  /\brefugees?\b/i,
+  /\bcoup\b/i,
+  /\bparliament\b/i,
+  /\bprime\s+minister\b/i,
+  /\bforeign\s+minister\b/i,
+  /\bdiplomat(?:ic|s)?\b/i,
   /\bukraine\b/i,
   /\bkyiv\b/i,
   /\brussia\b/i,
   /\bputin\b/i,
+  /\bzelensky(?:y)?\b/i,
   /\biran\b/i,
   /\btehran\b/i,
   /\bgaza\b/i,
   /\bisrael\b/i,
+  /\bhamas\b/i,
+  /\bhezbollah\b/i,
+  /\bsyria\b/i,
+  /\btaiwan\b/i,
+  /\bchina\b/i,
   /\bceasefire\b/i,
   /\bsanctions\b/i,
   /\bmissile\b/i,
   /\bdrone\b/i,
   /\bairstrike\b/i,
   /\binvasion\b/i,
+  /\boccupation\b/i,
+  /\bsiege\b/i,
+  /\bcivilian(?:s)?\b/i,
   /\bwar\b/i,
   /\bmilitary\b/i,
   /\bdefen[cs]e\b/i,
@@ -102,6 +124,8 @@ function collectMatches(text: string, patterns: RegExp[]) {
   return [...new Set(hits)];
 }
 
+export type MissionScopeState = 'in_scope' | 'ambiguous' | 'off_topic';
+
 export function assessMissionScope({
   title = '',
   summary = '',
@@ -123,9 +147,14 @@ export function assessMissionScope({
   const hasPositive = positiveHits.length > 0;
   const hardOffTopic = sportsHits.length > 0 && !hasPositive;
   const softOffTopic = !hardOffTopic && softOffTopicHits.length > 0 && !hasPositive;
+  const scopeState: MissionScopeState = hardOffTopic || softOffTopic
+    ? 'off_topic'
+    : hasPositive
+      ? 'in_scope'
+      : 'ambiguous';
 
-  const allowedOnHomepageCommentary = hasPositive && !hardOffTopic && !softOffTopic;
-  const allowedOnIntelDesk = !hardOffTopic && !softOffTopic;
+  const allowedOnHomepageCommentary = scopeState === 'in_scope';
+  const allowedOnIntelDesk = scopeState !== 'off_topic';
 
   let scoreDelta = 0;
   scoreDelta += Math.min(positiveHits.length, 2) * 3;
@@ -139,9 +168,10 @@ export function assessMissionScope({
       ? `Off-topic: entertainment / lifestyle item (${softOffTopicHits.join(', ')})`
       : hasPositive
         ? `In-scope: ${positiveHits.join(', ')}`
-        : 'No strong mission anchor found';
+        : 'Ambiguous: no strong mission anchor found';
 
   return {
+    scopeState,
     allowedOnHomepageCommentary,
     allowedOnIntelDesk,
     hardOffTopic,
