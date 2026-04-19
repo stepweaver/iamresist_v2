@@ -274,6 +274,13 @@ describe('live desk debug payload', () => {
     expect(debugDesk.deskLane).toBe('osint');
     expect(debugDesk.counts.visible).toBe(2);
     expect(debugDesk.counts.preCapCandidates).toBe(3);
+    expect(debugDesk.storyClusters).toMatchObject({
+      counts: {
+        total: 3,
+        multiItem: 0,
+        singleton: 3,
+      },
+    });
     expect(debugDesk.items.visible).toHaveLength(2);
     expect(debugDesk.items.preCapCandidates).toHaveLength(3);
 
@@ -324,6 +331,86 @@ describe('live desk debug payload', () => {
         (entry: any) => typeof entry.ruleId === 'string' && typeof entry.message === 'string',
       ),
     ).toBe(true);
+  });
+
+  it('includes deterministic story clusters in debug output without changing visible counts', async () => {
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) => {
+      if (lane === 'osint') {
+        return [
+          makeRow({
+            id: 'bill-main',
+            title: 'House files surveillance reform bill',
+            desk_lane: 'osint',
+            cluster_keys: { bill: '118-hr-100' },
+            mission_tags: ['congress', 'civil_liberties'],
+            relevance_score: 70,
+            sources: {
+              slug: 'main-source',
+              name: 'Main Source',
+              provenance_class: 'PRIMARY',
+              desk_lane: 'osint',
+            },
+          }),
+          makeRow({
+            id: 'bill-dup',
+            title: 'Duplicate surveillance reform bill line',
+            desk_lane: 'osint',
+            cluster_keys: { bill: '118-hr-100' },
+            mission_tags: ['congress', 'civil_liberties'],
+            relevance_score: 60,
+            sources: {
+              slug: 'dup-source',
+              name: 'Dup Source',
+              provenance_class: 'WIRE',
+              desk_lane: 'osint',
+            },
+          }),
+          makeRow({
+            id: 'eo-commentary',
+            title: 'Commentary on a different executive order',
+            desk_lane: 'osint',
+            cluster_keys: { executive_order: '14123' },
+            mission_tags: ['executive_power'],
+            relevance_score: 58,
+            sources: {
+              slug: 'commentary-source',
+              name: 'Commentary Source',
+              provenance_class: 'COMMENTARY',
+              desk_lane: 'osint',
+            },
+          }),
+        ];
+      }
+      return defaultRowsForLane(lane);
+    });
+
+    const { getLiveIntelDeskDebug } = await import('@/lib/feeds/liveIntel.service');
+    const debugDesk = await getLiveIntelDeskDebug('osint');
+    const billStory = debugDesk.storyClusters.items.find(
+      (story: any) => story.representativeId === 'bill-main',
+    );
+
+    expect(debugDesk.counts.visible).toBe(2);
+    expect(debugDesk.items.visible).toHaveLength(2);
+    expect(debugDesk.storyClusters.counts).toEqual({
+      total: 2,
+      multiItem: 1,
+      singleton: 1,
+    });
+    expect(billStory).toMatchObject({
+      groupingKind: 'cluster_key',
+      representativeId: 'bill-main',
+      itemIds: ['bill-main', 'bill-dup'],
+      duplicateItemIds: ['bill-dup'],
+      counts: {
+        total: 2,
+        corroborating: 0,
+        commentary: 0,
+        duplicates: 1,
+      },
+      primaryItem: { id: 'bill-main' },
+      duplicateItems: [{ id: 'bill-dup' }],
+    });
   });
 });
 

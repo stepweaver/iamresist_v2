@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { getLiveIntelDeskDebug } = vi.hoisted(() => ({
   getLiveIntelDeskDebug: vi.fn(async (lane: string) => ({
     deskLane: lane,
+    storyClusters: { counts: { total: 0, multiItem: 0, singleton: 0 }, items: [] },
     items: { visible: [], suppressed: [], duplicates: [], metadataOnly: [] },
   })),
 }));
