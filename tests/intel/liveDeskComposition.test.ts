@@ -446,6 +446,9 @@ describe('live desk debug payload', () => {
     expect(commentaryStory).toMatchObject({
       groupingKind: 'singleton',
       representativeId: 'eo-commentary',
+      attachmentCounts: {
+        coherence: 0,
+      },
       roleCounts: {
         reporting: 0,
         analysis: 0,
@@ -462,6 +465,103 @@ describe('live desk debug payload', () => {
       opinionItems: [],
       creatorSignalItems: [],
     });
+  });
+
+  it('exposes Segment 3 coherence attachment metadata in debug output without changing visible counts', async () => {
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) => {
+      if (lane === 'osint') {
+        return [
+          makeRow({
+            id: 'anchor-main',
+            title: 'Senate advances detention raid records subpoena bill',
+            desk_lane: 'osint',
+            cluster_keys: { bill: '118-hr-900' },
+            mission_tags: ['congress', 'civil_liberties'],
+            published_at: '2026-04-19T10:00:00.000Z',
+            relevance_score: 72,
+            sources: {
+              slug: 'anchor-main-source',
+              name: 'Anchor Main Source',
+              provenance_class: 'PRIMARY',
+              desk_lane: 'osint',
+            },
+          }),
+          makeRow({
+            id: 'anchor-report',
+            title: 'House advances the same detention raid records subpoena bill',
+            desk_lane: 'osint',
+            cluster_keys: { bill: '118-hr-900' },
+            mission_tags: ['congress', 'civil_liberties'],
+            published_at: '2026-04-19T11:00:00.000Z',
+            relevance_score: 68,
+            sources: {
+              slug: 'anchor-report-source',
+              name: 'Anchor Report Source',
+              provenance_class: 'WIRE',
+              desk_lane: 'osint',
+            },
+          }),
+          makeRow({
+            id: 'attached-analysis',
+            title: 'What it means for detention raid records subpoena bill markup',
+            summary: 'Analysis of the same detention raid records subpoena bill markup fight.',
+            desk_lane: 'osint',
+            cluster_keys: { topic: 'unsupported-attachment-topic' },
+            mission_tags: ['congress', 'civil_liberties'],
+            published_at: '2026-04-19T12:30:00.000Z',
+            relevance_score: 66,
+            sources: {
+              slug: 'attached-analysis-source',
+              name: 'Attached Analysis Source',
+              provenance_class: 'SPECIALIST',
+              desk_lane: 'osint',
+            },
+          }),
+        ];
+      }
+      return defaultRowsForLane(lane);
+    });
+
+    const { getLiveIntelDeskDebug } = await import('@/lib/feeds/liveIntel.service');
+    const debugDesk = await getLiveIntelDeskDebug('osint');
+    const attachedStory = debugDesk.storyClusters.items.find(
+      (story: any) => story.representativeId === 'anchor-main',
+    );
+
+    expect(debugDesk.counts.visible).toBe(2);
+    expect(debugDesk.items.visible).toHaveLength(2);
+    expect(debugDesk.storyClusters.counts).toEqual({
+      total: 1,
+      multiItem: 1,
+      singleton: 0,
+    });
+    expect(attachedStory).toMatchObject({
+      representativeId: 'anchor-main',
+      attachmentCounts: {
+        coherence: 1,
+      },
+      primaryItem: {
+        id: 'anchor-main',
+        storyAttachment: null,
+      },
+      analysisItems: [
+        {
+          id: 'attached-analysis',
+          editorialRole: 'analysis',
+          storyAttachment: {
+            mode: 'coherence',
+            anchorStoryId: 'story:bill:118-hr-900',
+            anchorRepresentativeId: 'anchor-main',
+            sharedTokens: expect.any(Number),
+            overlapScore: expect.any(Number),
+            sharedEventType: expect.any(Boolean),
+          },
+        },
+      ],
+    });
+    expect(attachedStory?.itemIds).toEqual(
+      expect.arrayContaining(['anchor-main', 'anchor-report', 'attached-analysis']),
+    );
   });
 });
 

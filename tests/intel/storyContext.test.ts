@@ -306,4 +306,302 @@ describe('assembleStoryClusters', () => {
       },
     });
   });
+
+  it('attaches an unkeyed analysis singleton onto an existing keyed story when coherence is strong', () => {
+    const anchorMain = makeItem({
+      id: 'bill-main',
+      title: 'Senate advances oversight subpoena bill over detention raid records',
+      clusterKeys: { bill: '118-hr-400' },
+      publishedAt: '2026-04-19T12:00:00.000Z',
+    });
+    const anchorReporting = makeItem({
+      id: 'bill-report',
+      title: 'House tracks same oversight subpoena bill over detention raid records',
+      clusterKeys: { bill: '118-hr-400' },
+      publishedAt: '2026-04-19T13:00:00.000Z',
+      provenanceClass: 'WIRE',
+    });
+    const analysisSingleton = makeItem({
+      id: 'bill-analysis-singleton',
+      title: 'What it means for the oversight subpoena bill over detention raid records',
+      summary: 'Analysis of committee leverage and what happens next.',
+      clusterKeys: { topic: 'unsupported-analysis-topic' },
+      publishedAt: '2026-04-19T15:00:00.000Z',
+      displayPriority: 92,
+    });
+
+    const storyClusters = assembleStoryClusters({
+      orderedItems: [anchorMain, anchorReporting, analysisSingleton],
+      visibleItems: [anchorMain, analysisSingleton],
+      duplicateItems: [],
+    });
+
+    expect(storyClusters.counts).toEqual({ total: 1, multiItem: 1, singleton: 0 });
+    expect(storyClusters.items[0]).toMatchObject({
+      groupingKind: 'cluster_key',
+      representativeId: 'bill-main',
+      itemIds: ['bill-main', 'bill-report', 'bill-analysis-singleton'],
+      visibleItemIds: ['bill-main', 'bill-analysis-singleton'],
+      attachmentCounts: { coherence: 1 },
+      roleCounts: {
+        reporting: 1,
+        analysis: 1,
+        opinion: 0,
+        creator_signal: 0,
+      },
+      primaryItem: { id: 'bill-main', storyAttachment: null },
+      analysisItems: [
+        {
+          id: 'bill-analysis-singleton',
+          editorialRole: 'analysis',
+          storyAttachment: {
+            mode: 'coherence',
+            anchorStoryId: 'story:bill:118-hr-400',
+            anchorRepresentativeId: 'bill-main',
+            sharedEventType: expect.any(Boolean),
+            sharedTokens: expect.any(Number),
+            overlapScore: expect.any(Number),
+          },
+        },
+      ],
+    });
+  });
+
+  it('keeps an unrelated unkeyed singleton separate when coherence is weak', () => {
+    const anchorMain = makeItem({
+      id: 'eo-main',
+      title: 'White House order narrows detention raid records access',
+      clusterKeys: { executive_order: '14150' },
+    });
+    const anchorReporting = makeItem({
+      id: 'eo-report',
+      title: 'Agencies implement the same detention raid records order',
+      clusterKeys: { executive_order: '14150' },
+    });
+    const unrelatedSingleton = makeItem({
+      id: 'unrelated-singleton',
+      title: 'State budget committee opens transit funding hearing',
+      summary: 'No overlap with the executive order story.',
+      clusterKeys: {},
+    });
+
+    const storyClusters = assembleStoryClusters({
+      orderedItems: [anchorMain, anchorReporting, unrelatedSingleton],
+      visibleItems: [anchorMain, unrelatedSingleton],
+      duplicateItems: [],
+    });
+
+    expect(storyClusters.counts).toEqual({ total: 2, multiItem: 1, singleton: 1 });
+    expect(
+      storyClusters.items.find((story) => story.representativeId === 'unrelated-singleton'),
+    ).toMatchObject({
+      groupingKind: 'singleton',
+      attachmentCounts: { coherence: 0 },
+      primaryItem: { id: 'unrelated-singleton', storyAttachment: null },
+    });
+  });
+
+  it('does not merge two unkeyed singletons into a new story even with overlapping text', () => {
+    const first = makeItem({
+      id: 'singleton-a',
+      title: 'Detention raid records fight expands in Congress',
+      summary: 'Early reporting on the records fight.',
+      clusterKeys: {},
+    });
+    const second = makeItem({
+      id: 'singleton-b',
+      title: 'What it means for the detention raid records fight in Congress',
+      summary: 'Analysis of the same text pattern but no keyed anchor exists.',
+      clusterKeys: { topic: 'unsupported-related-topic' },
+    });
+
+    const storyClusters = assembleStoryClusters({
+      orderedItems: [first, second],
+      visibleItems: [first, second],
+      duplicateItems: [],
+    });
+
+    expect(storyClusters.counts).toEqual({ total: 2, multiItem: 0, singleton: 2 });
+    expect(storyClusters.items.map((story) => story.representativeId)).toEqual(['singleton-a', 'singleton-b']);
+  });
+
+  it('attaches creator commentary into the creator-signal bucket when coherence is earned', () => {
+    const anchorMain = makeItem({
+      id: 'fr-main',
+      title: 'Federal Register filing expands detention raid records review',
+      clusterKeys: { fr_document_number: '2026-1400' },
+    });
+    const anchorReporting = makeItem({
+      id: 'fr-report',
+      title: 'Agencies respond to the same detention raid records filing',
+      clusterKeys: { fr_document_number: '2026-1400' },
+    });
+    const creatorCommentary = makeItem({
+      id: 'creator-commentary',
+      title: 'Creators on the detention raid records filing',
+      summary: 'Commentary on what the filing means for the same live story.',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      clusterKeys: {},
+      creatorCorroboration: {
+        applied: true,
+        boost: 2,
+        clusterId: 'creator-bridge',
+        representativeId: 'fr-main',
+        reasons: ['trusted_creator_convergence'],
+      },
+    });
+
+    const storyClusters = assembleStoryClusters({
+      orderedItems: [anchorMain, anchorReporting, creatorCommentary],
+      visibleItems: [anchorMain, creatorCommentary],
+      duplicateItems: [],
+    });
+
+    expect(storyClusters.counts).toEqual({ total: 1, multiItem: 1, singleton: 0 });
+    expect(storyClusters.items[0]).toMatchObject({
+      attachmentCounts: { coherence: 1 },
+      roleCounts: {
+        reporting: 1,
+        analysis: 0,
+        opinion: 0,
+        creator_signal: 1,
+      },
+      commentaryItems: [
+        {
+          id: 'creator-commentary',
+          editorialRole: 'creator_signal',
+          storyAttachment: {
+            mode: 'coherence',
+            anchorStoryId: 'story:fr_document_number:2026-1400',
+            anchorRepresentativeId: 'fr-main',
+          },
+        },
+      ],
+      creatorSignalItems: [{ id: 'creator-commentary' }],
+    });
+  });
+
+  it('does not attach creator commentary on metadata alone when coherence is weak', () => {
+    const anchorMain = makeItem({
+      id: 'anchor-main',
+      title: 'Senate subpoenas detention raid records',
+      clusterKeys: { bill: '118-hr-500' },
+    });
+    const anchorReporting = makeItem({
+      id: 'anchor-report',
+      title: 'House tracks the same detention raid records subpoena',
+      clusterKeys: { bill: '118-hr-500' },
+    });
+    const creatorOnly = makeItem({
+      id: 'creator-only',
+      title: 'Creators react to a school board speech fight',
+      summary: 'Commentary with no same-story overlap.',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      creatorCorroboration: {
+        applied: true,
+        boost: 3,
+        clusterId: 'creator-alone',
+        representativeId: 'creator-only',
+        reasons: ['trusted_creator_convergence'],
+      },
+    });
+
+    const storyClusters = assembleStoryClusters({
+      orderedItems: [anchorMain, anchorReporting, creatorOnly],
+      visibleItems: [anchorMain, creatorOnly],
+      duplicateItems: [],
+    });
+
+    expect(storyClusters.counts).toEqual({ total: 2, multiItem: 1, singleton: 1 });
+    expect(storyClusters.items.find((story) => story.representativeId === 'creator-only')).toMatchObject({
+      groupingKind: 'singleton',
+      attachmentCounts: { coherence: 0 },
+      primaryItem: { id: 'creator-only', storyAttachment: null },
+    });
+  });
+
+  it('never replaces the keyed anchor representative with an attached singleton', () => {
+    const anchorMain = makeItem({
+      id: 'anchor-main',
+      title: 'Court hearing expands detention raid records subpoena fight',
+      clusterKeys: { bill: '118-hr-600' },
+      displayPriority: 40,
+    });
+    const anchorReporting = makeItem({
+      id: 'anchor-report',
+      title: 'Congress tracks the same detention raid records subpoena fight',
+      clusterKeys: { bill: '118-hr-600' },
+      displayPriority: 45,
+    });
+    const highPriorityAttachment = makeItem({
+      id: 'high-priority-attachment',
+      title: 'Explainer: detention raid records subpoena fight and what it means',
+      summary: 'High-scoring analysis on the same story.',
+      displayPriority: 99,
+      clusterKeys: {},
+    });
+
+    const storyClusters = assembleStoryClusters({
+      orderedItems: [anchorMain, anchorReporting, highPriorityAttachment],
+      visibleItems: [anchorMain, highPriorityAttachment],
+      duplicateItems: [],
+    });
+
+    expect(storyClusters.items[0]).toMatchObject({
+      representativeId: 'anchor-main',
+      primaryItem: { id: 'anchor-main', storyAttachment: null },
+      analysisItems: [{ id: 'high-priority-attachment' }],
+    });
+  });
+
+  it('enforces the per-anchor coherence attachment cap deterministically', () => {
+    const anchorMain = makeItem({
+      id: 'cap-main',
+      title: 'Senate advances detention raid records subpoena bill',
+      clusterKeys: { bill: '118-hr-700' },
+    });
+    const anchorReporting = makeItem({
+      id: 'cap-report',
+      title: 'House advances the same detention raid records subpoena bill',
+      clusterKeys: { bill: '118-hr-700' },
+    });
+    const bestAnalysis = makeItem({
+      id: 'cap-best-analysis',
+      title: 'What it means for detention raid records subpoena bill markup',
+      summary: 'Detention raid records subpoena bill markup analysis and next steps.',
+      clusterKeys: {},
+    });
+    const secondReporting = makeItem({
+      id: 'cap-second-reporting',
+      title: 'Fresh detention raid records subpoena bill filing lands overnight',
+      summary: 'Same detention raid records subpoena bill with more records.',
+      clusterKeys: {},
+    });
+    const overflow = makeItem({
+      id: 'cap-overflow',
+      title: 'Detention subpoena dispute enters a new chapter',
+      summary: 'Related but with fewer explicit shared tokens.',
+      clusterKeys: {},
+    });
+
+    const storyClusters = assembleStoryClusters({
+      orderedItems: [anchorMain, anchorReporting, bestAnalysis, secondReporting, overflow],
+      visibleItems: [anchorMain, bestAnalysis, secondReporting, overflow],
+      duplicateItems: [],
+    });
+
+    expect(storyClusters.counts).toEqual({ total: 2, multiItem: 1, singleton: 1 });
+    expect(storyClusters.items[0]).toMatchObject({
+      representativeId: 'cap-main',
+      itemIds: ['cap-main', 'cap-report', 'cap-best-analysis', 'cap-second-reporting'],
+      attachmentCounts: { coherence: 2 },
+    });
+    expect(storyClusters.items[0].itemIds).not.toContain('cap-overflow');
+    expect(storyClusters.items[1]).toMatchObject({
+      groupingKind: 'singleton',
+      representativeId: 'cap-overflow',
+    });
+  });
 });

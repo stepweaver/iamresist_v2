@@ -1,4 +1,5 @@
 import { classifyEvent } from '@/lib/intel/eventClassification';
+import { evaluateStoryCoherence } from '@/lib/intel/storyCoherence';
 
 const SUPPORTED_CLUSTER_KEY_PRIORITY = [
   'bill',
@@ -16,6 +17,8 @@ type CreatorCorroborationLike = {
   representativeId?: string | null;
   reasons?: string[];
 };
+
+export const STORY_CONTEXT_MAX_COHERENCE_ATTACHMENTS_PER_ANCHOR = 2;
 
 export type StoryContextItem = {
   id: string;
@@ -63,6 +66,14 @@ export type StoryClusterDebugItem = {
   canonicalUrl: string | null;
   editorialRole: StoryEditorialRole;
   editorialLabel: string;
+  storyAttachment: null | {
+    mode: 'coherence';
+    anchorStoryId: string;
+    anchorRepresentativeId: string;
+    sharedTokens: number;
+    overlapScore: number;
+    sharedEventType: boolean;
+  };
 };
 
 export type StoryCreatorSignalNote = {
@@ -89,6 +100,9 @@ export type StoryClusterDebug = {
     corroborating: number;
     commentary: number;
     duplicates: number;
+  };
+  attachmentCounts: {
+    coherence: number;
   };
   roleCounts: {
     reporting: number;
@@ -122,6 +136,18 @@ type AssembleStoryClustersOptions = {
   orderedItems?: StoryContextItem[];
   visibleItems?: StoryContextItem[];
   duplicateItems?: StoryContextItem[];
+};
+
+type StoryAttachment = NonNullable<StoryClusterDebugItem['storyAttachment']>;
+
+type MutableStoryCluster = {
+  storyId: string;
+  groupingKind: 'cluster_key' | 'singleton';
+  clusterKey: StoryClusterKeyMeta | null;
+  representative: StoryContextItem;
+  eventType: string | null;
+  storyItems: StoryContextItem[];
+  attachedByItemId: Map<string, StoryAttachment>;
 };
 
 const ANALYSIS_CUE_PATTERNS = [
@@ -167,7 +193,10 @@ export function classifyStoryEditorialRole(item: StoryContextItem): StoryEditori
   return 'reporting';
 }
 
-function toCompactStoryItem(item: StoryContextItem): StoryClusterDebugItem {
+function toCompactStoryItem(
+  item: StoryContextItem,
+  storyAttachment: StoryAttachment | null = null,
+): StoryClusterDebugItem {
   const editorialRole = classifyStoryEditorialRole(item);
   return {
     id: item.id,
@@ -187,6 +216,7 @@ function toCompactStoryItem(item: StoryContextItem): StoryClusterDebugItem {
     canonicalUrl: item.canonicalUrl ?? null,
     editorialRole,
     editorialLabel: editorialLabelForRole(editorialRole),
+    storyAttachment,
   };
 }
 
@@ -286,6 +316,251 @@ function emptyStoryClusters(): StoryClustersDebugPayload {
   };
 }
 
+function itemTextForCoherence(item: StoryContextItem): string {
+  return [item.title ?? '', item.summary ?? ''].filter(Boolean).join('\n');
+}
+
+function sortStoryItemsByDeskOrder(items: StoryContextItem[], orderIndexById: Map<string, number>): StoryContextItem[] {
+  return items
+    .slice()
+    .sort(
+      (a, b) =>
+        (orderIndexById.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+        (orderIndexById.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+}
+
+function buildInitialStoryClusters(
+  allItems: StoryContextItem[],
+  keyMetaByItemId: Map<string, StoryClusterKeyMeta>,
+  itemIdsByCompositeKey: Map<string, string[]>,
+  orderIndexById: Map<string, number>,
+): MutableStoryCluster[] {
+  const storyClusters: MutableStoryCluster[] = [];
+  const seenStoryIds = new Set<string>();
+
+  for (const item of allItems) {
+    const clusterKey = keyMetaByItemId.get(item.id) ?? null;
+    const keyedGroupIds =
+      clusterKey && (itemIdsByCompositeKey.get(clusterKey.compositeKey) ?? []).length > 1
+        ? itemIdsByCompositeKey.get(clusterKey.compositeKey) ?? []
+        : null;
+    const groupingKind = keyedGroupIds ? 'cluster_key' : 'singleton';
+    const storyId = keyedGroupIds ? `story:${clusterKey!.compositeKey}` : `story:item:${item.id}`;
+
+    if (seenStoryIds.has(storyId)) continue;
+    seenStoryIds.add(storyId);
+
+    const storyItems = sortStoryItemsByDeskOrder(
+      keyedGroupIds ? allItems.filter((candidate) => keyedGroupIds.includes(candidate.id)) : [item],
+      orderIndexById,
+    );
+    const representative = storyItems.find((candidate) => !candidate.isDuplicateLoser) ?? storyItems[0];
+    if (!representative) continue;
+
+    storyClusters.push({
+      storyId,
+      groupingKind,
+      clusterKey: groupingKind === 'cluster_key' ? clusterKey : null,
+      representative,
+      eventType: classifyStoryEventType(representative),
+      storyItems,
+      attachedByItemId: new Map<string, StoryAttachment>(),
+    });
+  }
+
+  return storyClusters;
+}
+
+function compareAttachmentCandidates(
+  a: { attachment: StoryAttachment; anchorOrder: number },
+  b: { attachment: StoryAttachment; anchorOrder: number },
+): number {
+  return (
+    b.attachment.sharedTokens - a.attachment.sharedTokens ||
+    b.attachment.overlapScore - a.attachment.overlapScore ||
+    Number(b.attachment.sharedEventType) - Number(a.attachment.sharedEventType) ||
+    a.anchorOrder - b.anchorOrder
+  );
+}
+
+function attachCoherenceSingletons(
+  storyClusters: MutableStoryCluster[],
+  orderedItemIds: Set<string>,
+  orderIndexById: Map<string, number>,
+  keyMetaByItemId: Map<string, StoryClusterKeyMeta>,
+): MutableStoryCluster[] {
+  const anchorStories = storyClusters.filter(
+    (story) =>
+      story.groupingKind === 'cluster_key' &&
+      story.clusterKey &&
+      story.storyItems.length > 0 &&
+      Boolean(story.representative),
+  );
+  if (anchorStories.length === 0) return storyClusters;
+
+  const candidateStories = storyClusters.filter((story) => {
+    if (story.groupingKind !== 'singleton') return false;
+    if (story.storyItems.length !== 1) return false;
+    const [item] = story.storyItems;
+    if (!item) return false;
+    if (item.isDuplicateLoser) return false;
+    if (keyMetaByItemId.has(item.id)) return false;
+    if (!orderedItemIds.has(item.id)) return false;
+    return true;
+  });
+  if (candidateStories.length === 0) return storyClusters;
+
+  const selectionsByAnchorStoryId = new Map<
+    string,
+    { candidateStoryId: string; candidateItem: StoryContextItem; attachment: StoryAttachment; anchorOrder: number }[]
+  >();
+
+  for (const candidateStory of candidateStories) {
+    const candidateItem = candidateStory.storyItems[0];
+    let best:
+      | { anchorStory: MutableStoryCluster; attachment: StoryAttachment; anchorOrder: number }
+      | null = null;
+
+    for (const anchorStory of anchorStories) {
+      const metrics = evaluateStoryCoherence({
+        anchorText: itemTextForCoherence(anchorStory.representative),
+        candidateText: itemTextForCoherence(candidateItem),
+        anchorPublishedAt: anchorStory.representative.publishedAt ?? null,
+        candidatePublishedAt: candidateItem.publishedAt ?? null,
+        anchorEventType: anchorStory.eventType,
+        candidateEventType: classifyStoryEventType(candidateItem),
+      });
+      if (!metrics) continue;
+
+      const attachment: StoryAttachment = {
+        mode: 'coherence',
+        anchorStoryId: anchorStory.storyId,
+        anchorRepresentativeId: anchorStory.representative.id,
+        sharedTokens: metrics.sharedTokens,
+        overlapScore: metrics.overlapScore,
+        sharedEventType: metrics.sharedEventType,
+      };
+      const anchorOrder = orderIndexById.get(anchorStory.representative.id) ?? Number.MAX_SAFE_INTEGER;
+      if (
+        best &&
+        compareAttachmentCandidates(
+          { attachment, anchorOrder },
+          { attachment: best.attachment, anchorOrder: best.anchorOrder },
+        ) < 0
+      ) {
+        continue;
+      }
+      best = { anchorStory, attachment, anchorOrder };
+    }
+
+    if (!best) continue;
+    const existing = selectionsByAnchorStoryId.get(best.anchorStory.storyId) ?? [];
+    existing.push({
+      candidateStoryId: candidateStory.storyId,
+      candidateItem,
+      attachment: best.attachment,
+      anchorOrder: best.anchorOrder,
+    });
+    selectionsByAnchorStoryId.set(best.anchorStory.storyId, existing);
+  }
+
+  const attachedCandidateStoryIds = new Set<string>();
+  for (const anchorStory of anchorStories) {
+    const selections = selectionsByAnchorStoryId.get(anchorStory.storyId) ?? [];
+    if (selections.length === 0) continue;
+    const winners = selections
+      .slice()
+      .sort(compareAttachmentCandidates)
+      .slice(0, STORY_CONTEXT_MAX_COHERENCE_ATTACHMENTS_PER_ANCHOR);
+
+    for (const winner of winners) {
+      anchorStory.storyItems.push(winner.candidateItem);
+      anchorStory.attachedByItemId.set(winner.candidateItem.id, winner.attachment);
+      attachedCandidateStoryIds.add(winner.candidateStoryId);
+    }
+
+    anchorStory.storyItems = sortStoryItemsByDeskOrder(anchorStory.storyItems, orderIndexById);
+  }
+
+  return storyClusters.filter((story) => !attachedCandidateStoryIds.has(story.storyId));
+}
+
+function projectStoryClusterDebug(
+  story: MutableStoryCluster,
+  visibleIds: Set<string>,
+): StoryClusterDebug {
+  const corroboratingItems: StoryClusterDebugItem[] = [];
+  const commentaryItems: StoryClusterDebugItem[] = [];
+  const reportingItems: StoryClusterDebugItem[] = [];
+  const analysisItems: StoryClusterDebugItem[] = [];
+  const opinionItems: StoryClusterDebugItem[] = [];
+  const creatorSignalItems: StoryClusterDebugItem[] = [];
+  const duplicateBucket: StoryClusterDebugItem[] = [];
+
+  for (const candidate of story.storyItems) {
+    if (candidate.id === story.representative.id) continue;
+    const compact = toCompactStoryItem(candidate, story.attachedByItemId.get(candidate.id) ?? null);
+    if (candidate.isDuplicateLoser) {
+      duplicateBucket.push(compact);
+      continue;
+    }
+    if (compact.editorialRole === 'creator_signal') {
+      creatorSignalItems.push(compact);
+      commentaryItems.push(compact);
+      continue;
+    }
+    if (compact.editorialRole === 'opinion' || compact.editorialRole === 'analysis') {
+      if (compact.editorialRole === 'analysis') analysisItems.push(compact);
+      if (compact.editorialRole === 'opinion') opinionItems.push(compact);
+      commentaryItems.push(compact);
+      continue;
+    }
+    reportingItems.push(compact);
+    corroboratingItems.push(compact);
+  }
+
+  return {
+    storyId: story.storyId,
+    groupingKind: story.groupingKind,
+    clusterKey: story.groupingKind === 'cluster_key' ? story.clusterKey : null,
+    representativeId: story.representative.id,
+    itemIds: story.storyItems.map((candidate) => candidate.id),
+    visibleItemIds: story.storyItems
+      .filter((candidate) => visibleIds.has(candidate.id))
+      .map((candidate) => candidate.id),
+    duplicateItemIds: story.storyItems
+      .filter((candidate) => candidate.isDuplicateLoser)
+      .map((candidate) => candidate.id),
+    counts: {
+      total: story.storyItems.length,
+      corroborating: corroboratingItems.length,
+      commentary: commentaryItems.length,
+      duplicates: duplicateBucket.length,
+    },
+    attachmentCounts: {
+      coherence: story.attachedByItemId.size,
+    },
+    roleCounts: {
+      reporting: reportingItems.length,
+      analysis: analysisItems.length,
+      opinion: opinionItems.length,
+      creator_signal: creatorSignalItems.length,
+    },
+    eventType: story.eventType,
+    whyItMatters: story.representative.whyItMatters ?? null,
+    creatorSignalNote: buildCreatorSignalNote(story.storyItems),
+    primaryItem: toCompactStoryItem(story.representative, null),
+    corroboratingItems,
+    commentaryItems,
+    reportingItems,
+    analysisItems,
+    opinionItems,
+    creatorSignalItems,
+    duplicateItems: duplicateBucket,
+  };
+}
+
 export function assembleStoryClusters(
   options: AssembleStoryClustersOptions = {},
 ): StoryClustersDebugPayload {
@@ -302,6 +577,7 @@ export function assembleStoryClusters(
   const allItems = [...dedupedOrderedItems, ...dedupedDuplicateItems];
   const visibleIds = new Set(visibleItems.map((item) => item.id));
   const orderIndexById = new Map(allItems.map((item, index) => [item.id, index]));
+  const orderedItemIds = new Set(dedupedOrderedItems.map((item) => item.id));
   const keyMetaByItemId = new Map<string, StoryClusterKeyMeta>();
   const itemIdsByCompositeKey = new Map<string, string[]>();
 
@@ -314,104 +590,12 @@ export function assembleStoryClusters(
     itemIdsByCompositeKey.set(clusterKey.compositeKey, ids);
   }
 
-  const storyClusters: StoryClusterDebug[] = [];
-  const seenStoryIds = new Set<string>();
-
-  for (const item of allItems) {
-    const clusterKey = keyMetaByItemId.get(item.id) ?? null;
-    const keyedGroupIds =
-      clusterKey && (itemIdsByCompositeKey.get(clusterKey.compositeKey) ?? []).length > 1
-        ? itemIdsByCompositeKey.get(clusterKey.compositeKey) ?? []
-        : null;
-    const groupingKind = keyedGroupIds ? 'cluster_key' : 'singleton';
-    const storyId = keyedGroupIds ? `story:${clusterKey!.compositeKey}` : `story:item:${item.id}`;
-
-    if (seenStoryIds.has(storyId)) continue;
-    seenStoryIds.add(storyId);
-
-    const storyItems = (keyedGroupIds
-      ? allItems.filter((candidate) => keyedGroupIds.includes(candidate.id))
-      : [item]
-    )
-      .slice()
-      .sort(
-        (a, b) =>
-          (orderIndexById.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-          (orderIndexById.get(b.id) ?? Number.MAX_SAFE_INTEGER),
-      );
-
-    const representative = storyItems.find((candidate) => !candidate.isDuplicateLoser) ?? storyItems[0];
-    if (!representative) continue;
-
-    const corroboratingItems: StoryClusterDebugItem[] = [];
-    const commentaryItems: StoryClusterDebugItem[] = [];
-    const reportingItems: StoryClusterDebugItem[] = [];
-    const analysisItems: StoryClusterDebugItem[] = [];
-    const opinionItems: StoryClusterDebugItem[] = [];
-    const creatorSignalItems: StoryClusterDebugItem[] = [];
-    const duplicateBucket: StoryClusterDebugItem[] = [];
-
-    for (const candidate of storyItems) {
-      if (candidate.id === representative.id) continue;
-      const compact = toCompactStoryItem(candidate);
-      if (candidate.isDuplicateLoser) {
-        duplicateBucket.push(compact);
-        continue;
-      }
-      if (compact.editorialRole === 'creator_signal') {
-        creatorSignalItems.push(compact);
-        commentaryItems.push(compact);
-        continue;
-      }
-      if (compact.editorialRole === 'opinion' || compact.editorialRole === 'analysis') {
-        if (compact.editorialRole === 'analysis') analysisItems.push(compact);
-        if (compact.editorialRole === 'opinion') opinionItems.push(compact);
-        commentaryItems.push(compact);
-        continue;
-      }
-      reportingItems.push(compact);
-      corroboratingItems.push(compact);
-    }
-
-    const primaryItem = toCompactStoryItem(representative);
-
-    storyClusters.push({
-      storyId,
-      groupingKind,
-      clusterKey: groupingKind === 'cluster_key' ? clusterKey : null,
-      representativeId: representative.id,
-      itemIds: storyItems.map((candidate) => candidate.id),
-      visibleItemIds: storyItems
-        .filter((candidate) => visibleIds.has(candidate.id))
-        .map((candidate) => candidate.id),
-      duplicateItemIds: storyItems
-        .filter((candidate) => candidate.isDuplicateLoser)
-        .map((candidate) => candidate.id),
-      counts: {
-        total: storyItems.length,
-        corroborating: corroboratingItems.length,
-        commentary: commentaryItems.length,
-        duplicates: duplicateBucket.length,
-      },
-      roleCounts: {
-        reporting: reportingItems.length,
-        analysis: analysisItems.length,
-        opinion: opinionItems.length,
-        creator_signal: creatorSignalItems.length,
-      },
-      eventType: classifyStoryEventType(representative),
-      whyItMatters: representative.whyItMatters ?? null,
-      creatorSignalNote: buildCreatorSignalNote(storyItems),
-      primaryItem,
-      corroboratingItems,
-      commentaryItems,
-      reportingItems,
-      analysisItems,
-      opinionItems,
-      creatorSignalItems,
-      duplicateItems: duplicateBucket,
-    });
-  }
+  const storyClusters = attachCoherenceSingletons(
+    buildInitialStoryClusters(allItems, keyMetaByItemId, itemIdsByCompositeKey, orderIndexById),
+    orderedItemIds,
+    orderIndexById,
+    keyMetaByItemId,
+  ).map((story) => projectStoryClusterDebug(story, visibleIds));
 
   return {
     counts: {
