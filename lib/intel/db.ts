@@ -494,6 +494,7 @@ export type IntelFreshnessMeta = {
 
 export type LiveDeskSnapshotPayload = {
   items: unknown[];
+  preCapCandidates?: unknown[];
   suppressedItems?: unknown[];
   duplicateItems?: unknown[];
   leadItems?: unknown[];
@@ -536,6 +537,7 @@ export async function loadLiveDeskSnapshot(
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const p = raw as Record<string, unknown>;
   const items = Array.isArray(p.items) ? p.items : [];
+  const preCapCandidates = Array.isArray(p.preCapCandidates) ? p.preCapCandidates : [];
   const suppressedItems = Array.isArray(p.suppressedItems) ? p.suppressedItems : [];
   const duplicateItems = Array.isArray(p.duplicateItems) ? p.duplicateItems : [];
   const leadItems = Array.isArray(p.leadItems) ? p.leadItems : [];
@@ -551,6 +553,7 @@ export async function loadLiveDeskSnapshot(
       : null;
   return {
     items,
+    preCapCandidates,
     suppressedItems,
     duplicateItems,
     leadItems,
