@@ -565,6 +565,44 @@ describe('live desk debug payload', () => {
   });
 });
 
+describe('public OSINT desk payload', () => {
+  beforeEach(() => {
+    fetchSurfacedSourceItemsForLive.mockClear();
+    fetchIntelFreshnessForDeskLane.mockClear();
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) =>
+      defaultRowsForLane(lane),
+    );
+  });
+
+  it('uses a lean cached public shape for the osint route while preserving story presentation data', async () => {
+    const { getPublicLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getPublicLiveIntelDesk('osint');
+
+    expect(desk).not.toHaveProperty('preCapCandidates');
+    expect(desk.leadItems[0]).not.toHaveProperty('promotionDecision');
+    expect(desk.items[0]).not.toHaveProperty('promotionDecision');
+    expect(desk.storyClusters).toMatchObject({
+      counts: {
+        total: expect.any(Number),
+        multiItem: expect.any(Number),
+        singleton: expect.any(Number),
+      },
+      items: expect.any(Array),
+    });
+  });
+
+  it('keeps the richer uncached/debug source shape available separately', async () => {
+    const { getLiveIntelDesk, getPublicLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const richDesk = await getLiveIntelDesk('osint');
+    const publicDesk = await getPublicLiveIntelDesk('osint');
+
+    expect(richDesk).toHaveProperty('preCapCandidates');
+    expect(publicDesk).not.toHaveProperty('preCapCandidates');
+    expect(richDesk.items[0]).toHaveProperty('promotionDecision');
+    expect(publicDesk.items[0]).not.toHaveProperty('promotionDecision');
+  });
+});
+
 describe('live desk creator corroboration bridge', () => {
   beforeEach(() => {
     vi.useFakeTimers();

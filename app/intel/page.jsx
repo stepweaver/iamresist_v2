@@ -1,6 +1,6 @@
 import { permanentRedirect } from 'next/navigation';
 
-/** Intel hub: default surface is the OSINT desk. */
+/** Intel hub: default surface is Telescreen. */
 export default function IntelRedirectPage() {
-  permanentRedirect('/intel/osint');
+  permanentRedirect('/telescreen');
 }

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 
-const { getLiveIntelDesk } = vi.hoisted(() => ({
-  getLiveIntelDesk: vi.fn(async () => ({
+const { getPublicLiveIntelDesk } = vi.hoisted(() => ({
+  getPublicLiveIntelDesk: vi.fn(async () => ({
     configured: true,
     liveReadOk: true,
     items: [{ id: 'visible-1', title: 'Visible item' }],
@@ -20,7 +20,7 @@ const { getLiveIntelDesk } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/feeds/liveIntel.service', () => ({
-  getLiveIntelDesk,
+  getPublicLiveIntelDesk,
 }));
 
 vi.mock('@/components/intel/LiveDeskSection', () => ({
@@ -51,8 +51,8 @@ describe('Intel OSINT page', () => {
   it('renders from the cached osint desk getter on the public route', async () => {
     const element = await renderOsintContentFromPageTree();
 
-    expect(getLiveIntelDesk).toHaveBeenCalledTimes(1);
-    expect(getLiveIntelDesk).toHaveBeenCalledWith('osint');
+    expect(getPublicLiveIntelDesk).toHaveBeenCalledTimes(1);
+    expect(getPublicLiveIntelDesk).toHaveBeenCalledWith('osint');
     expect(element.props.desk).toMatchObject({
       deskLane: 'osint',
       items: [{ id: 'visible-1', title: 'Visible item' }],
@@ -74,6 +74,8 @@ describe('Intel OSINT page', () => {
           suppressedItems: expect.any(Array),
           duplicateItems: expect.any(Array),
           metadataOnlyItems: expect.any(Array),
+          freshness: null,
+          freshnessMeta: null,
           storyClusters: expect.objectContaining({
             counts: expect.any(Object),
             items: expect.any(Array),

@@ -1,6 +1,6 @@
 import { permanentRedirect } from 'next/navigation';
 
-/** Canonical OSINT desk is `/intel/osint`. */
+/** Legacy Intel landing now forwards to the default Telescreen surface. */
 export default function IntelLiveRedirectPage() {
-  permanentRedirect('/intel/osint');
+  permanentRedirect('/telescreen');
 }
