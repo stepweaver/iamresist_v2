@@ -14,7 +14,7 @@ export const metadata = buildPageMetadata({
   urlPath: '/intel/osint',
 });
 
-export async function OsintContent() {
+async function OsintContent() {
   const desk = await getLiveIntelDeskUncached();
   return <LiveDeskSection desk={desk} laneWarningSlot={<IntelLaneWarning deskLane="osint" />} />;
 }
