@@ -192,6 +192,12 @@ export function assessMissionScope({
 
   const hasPositive = positiveHits.length > 0;
   const hasAmbiguousCurrentEventsSignal = ambiguousCurrentEventsHits.length > 0;
+  // Internal policy:
+  // - `in_scope`: clear civic / democracy / war / accountability anchors.
+  // - `off_topic`: sports-only or entertainment/lifestyle-only leakage with no stronger anchor.
+  // - `ambiguous`: broad current-events reporting that is not obviously off-mission, but also
+  //   does not yet carry a strong mission hook. Ambiguous items may stay eligible downstream,
+  //   but only with stricter relevance and display handling.
   const offTopicSubtype: OffTopicSubtype = hasPositive
     ? null
     : sportsHits.length > 0

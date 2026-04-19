@@ -123,6 +123,9 @@ export function evaluateRecentWindowTieBreak(
   const fresherRank = provenanceTieBreakRank(fresher.provenanceClass);
   const olderRank = provenanceTieBreakRank(older.provenanceClass);
   const provenanceGap = fresherRank - olderRank;
+  // Recent-window rule: provenance still wins by default. Freshness only breaks ties inside a
+  // bounded <=6h window, with a meaningful freshness gap, a one-step provenance gap, and a small
+  // score gap. Commentary/schedule never leapfrog harder reporting via this override.
   if (provenanceGap <= 0 || provenanceGap > RECENT_WINDOW_MAX_PROVENANCE_GAP) {
     return { winner: null, reason: null, freshnessGapMinutes, provenanceGap, scoreGap: null };
   }

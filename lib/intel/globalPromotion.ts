@@ -851,6 +851,10 @@ export function computeCreatorCorroborationBridge(
   supportItems: PromotableItem[],
   opts?: { maxBoost?: number },
 ): CreatorCorroborationBridgeDecision[] {
+  // Live-desk bridge rule:
+  // trusted creator convergence can only add a small boost to already-surfaced non-creator items.
+  // It is support-only, never imports voices directly, and never rescues suppressed/downranked
+  // items by itself.
   const targets = (Array.isArray(targetItems) ? targetItems : []).filter(
     (item) => item && item.surfaceState === 'surfaced' && !item.isDuplicateLoser,
   );

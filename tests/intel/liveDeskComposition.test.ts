@@ -314,6 +314,16 @@ describe('live desk debug payload', () => {
         display: expect.any(Array),
       },
     });
+    expect(
+      debugDesk.items.preCapCandidates[0].shortExplanations.relevance.every(
+        (entry: any) => typeof entry.ruleId === 'string' && typeof entry.message === 'string',
+      ),
+    ).toBe(true);
+    expect(
+      debugDesk.items.preCapCandidates[0].shortExplanations.display.every(
+        (entry: any) => typeof entry.ruleId === 'string' && typeof entry.message === 'string',
+      ),
+    ).toBe(true);
   });
 });
 

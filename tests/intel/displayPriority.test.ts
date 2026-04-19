@@ -73,6 +73,24 @@ describe('computeDisplayPriority', () => {
     expect(decision.winner).toBeNull();
   });
 
+  it('keeps provenance as the stronger default when the recent-window score gap is too large', () => {
+    const decision = evaluateRecentWindowTieBreak(
+      {
+        publishedAt: new Date(Date.now() - 100 * 60 * 1000).toISOString(),
+        provenanceClass: 'PRIMARY',
+        score: 67,
+      },
+      {
+        publishedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        provenanceClass: 'WIRE',
+        score: 61,
+      },
+    );
+
+    expect(decision.winner).toBeNull();
+    expect(decision.scoreGap).toBe(6);
+  });
+
   it('penalizes ceremonial proclamations so they are not lead by default', () => {
     const out = computeDisplayPriority(
       base({
@@ -235,6 +253,20 @@ describe('off-topic mission leakage', () => {
     const profile = computeRelevanceProfile(baseItem(), baseCfg());
     expect(profile.surface_state).toBe('suppressed');
     expect(profile.suppression_reason).toMatch(/off-topic: sports-only item/i);
+  });
+
+  it('suppresses obvious entertainment-only wire items too', () => {
+    const profile = computeRelevanceProfile(
+      baseItem({
+        id: 'ent-1',
+        canonicalUrl: 'https://example.test/ent-1',
+        title: 'Celebrity fashion dominates the red carpet',
+        summary: 'Streaming gossip and wellness chatter lead the day',
+      }),
+      baseCfg(),
+    );
+    expect(profile.surface_state).toBe('suppressed');
+    expect(profile.suppression_reason).toMatch(/off-topic: entertainment \/ lifestyle item/i);
   });
 });
 

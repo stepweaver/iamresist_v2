@@ -454,6 +454,10 @@ export function computeRelevanceProfile(
     cfg.slug === 'ap-wire';
 
   if (mission.scopeState === 'ambiguous') {
+    // Ambiguous-item policy:
+    // fresh, high-trust broad reporting can stay surfaced with only a light penalty so the desk
+    // does not bury unfolding events too early. Older or weaker ambiguous items get downranked
+    // until stronger mission signal or corroboration arrives.
     if (isBroadReportingSource && isHighTrustReporting && isFresh) {
       score -= 4;
       explanations.push({

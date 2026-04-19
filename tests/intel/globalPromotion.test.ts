@@ -548,5 +548,52 @@ describe('promoteGlobally', () => {
 
     vi.useRealTimers();
   });
+
+  it('does not let creator corroboration rescue non-surfaced targets', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-17T12:00:00.000Z'));
+
+    const creatorA = mkIntelItem({
+      id: 'bridge-downranked-creator-a',
+      title: 'Creator tracks ICE detention raid fallout in Los Angeles',
+      sourceSlug: 'bridge-downranked-creator-a',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      missionTags: ['executive_power', 'civil_liberties'],
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T10:30:00.000Z',
+    });
+    const creatorB = mkIntelItem({
+      id: 'bridge-downranked-creator-b',
+      title: 'Trusted voice maps Los Angeles detention raid fallout and ICE crackdown',
+      sourceSlug: 'bridge-downranked-creator-b',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      missionTags: ['executive_power', 'civil_liberties'],
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T09:50:00.000Z',
+    });
+    const downrankedTarget = mkIntelItem({
+      id: 'bridge-downranked-watchdog',
+      title: 'Watchdog documents Los Angeles detention raid fallout after ICE crackdown',
+      sourceSlug: 'bridge-downranked-watchdog',
+      sourceFamily: 'watchdog_global',
+      provenanceClass: 'SPECIALIST',
+      deskLane: 'watchdogs',
+      missionTags: ['executive_power', 'civil_liberties'],
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T10:45:00.000Z',
+      surfaceState: 'downranked',
+    });
+
+    const out = computeCreatorCorroborationBridge([downrankedTarget], [creatorA, creatorB], {
+      maxBoost: 4,
+    });
+    expect(out).toEqual([]);
+
+    vi.useRealTimers();
+  });
 });
 
