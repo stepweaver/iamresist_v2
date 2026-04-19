@@ -63,6 +63,8 @@ export type GlobalPromotionDecision = {
     supportingLaneCount: number;
     sharedTokens: string[];
     latestHours: number | null;
+    delta: number;
+    creatorLedWithCorroboration: boolean;
   };
 };
 
@@ -72,6 +74,18 @@ export type PromotedCluster = {
   representative: PromotableItem;
   items: PromotableItem[];
   decision: GlobalPromotionDecision;
+};
+
+export type CreatorCorroborationBridgeDecision = {
+  targetItemId: string;
+  clusterId: string;
+  representativeId: string;
+  boost: number;
+  eventType: string;
+  reasons: PromotionReasonCode[];
+  contributions: PromotionContribution[];
+  corroboration: GlobalPromotionDecision['corroboration'];
+  creatorConvergence: GlobalPromotionDecision['creatorConvergence'];
 };
 
 type ClassifiedClusterItem = {
@@ -803,6 +817,8 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
       supportingLaneCount: creatorConvergence.supportingLaneCount,
       sharedTokens: creatorConvergence.sharedTokens,
       latestHours: creatorConvergence.latestHours,
+      delta: creatorConvergence.delta,
+      creatorLedWithCorroboration: creatorConvergence.creatorLedWithCorroboration,
     },
   };
 }
@@ -828,4 +844,69 @@ export function promoteGlobally(items: PromotableItem[], opts?: { limit?: number
   });
   const limit = Math.max(1, Math.min(12, Number(opts?.limit) || 6));
   return sorted.slice(0, limit);
+}
+
+export function computeCreatorCorroborationBridge(
+  targetItems: PromotableItem[],
+  supportItems: PromotableItem[],
+  opts?: { maxBoost?: number },
+): CreatorCorroborationBridgeDecision[] {
+  const targets = (Array.isArray(targetItems) ? targetItems : []).filter(
+    (item) => item && item.surfaceState === 'surfaced' && !item.isDuplicateLoser,
+  );
+  const supports = (Array.isArray(supportItems) ? supportItems : []).filter(
+    (item) => item && item.surfaceState !== 'suppressed' && !item.isDuplicateLoser,
+  );
+  if (targets.length === 0 || supports.length === 0) return [];
+
+  const targetIds = new Set(targets.map((item) => item.id));
+  const maxBoost = Math.max(0, Math.min(6, Number(opts?.maxBoost) || 4));
+  const clusters = buildPromotionClusters([...targets, ...supports]);
+  const out: CreatorCorroborationBridgeDecision[] = [];
+
+  clusters.forEach((cluster, index) => {
+    const clusterTargets = cluster.filter(
+      (item) => targetIds.has(item.id) && !isTrustedCreatorItem(item),
+    );
+    if (clusterTargets.length === 0) return;
+
+    const decision = computeDecisionForCluster(cluster);
+    const boost = Math.min(
+      maxBoost,
+      Math.max(0, decision.creatorConvergence.delta ?? 0),
+    );
+    if (boost <= 0) return;
+
+    const representative = pickBestItem(classifyClusterItems(cluster));
+    const reasons = decision.reasons.filter((reason) =>
+      reason === 'creator_support_noted' ||
+      reason === 'trusted_creator_convergence' ||
+      reason === 'creator_led_story_with_corroboration',
+    );
+    const contributions = decision.contributions.filter(
+      (contribution) =>
+        contribution.code === 'creator_support_noted' ||
+        contribution.code === 'trusted_creator_convergence',
+    );
+    const clusterId = `creator_bridge_${index}_${representative.id}`;
+
+    for (const target of clusterTargets) {
+      out.push({
+        targetItemId: target.id,
+        clusterId,
+        representativeId: representative.id,
+        boost,
+        eventType: decision.eventType,
+        reasons,
+        contributions,
+        corroboration: decision.corroboration,
+        creatorConvergence: decision.creatorConvergence,
+      });
+    }
+  });
+
+  return out.sort((a, b) => {
+    if (b.boost !== a.boost) return b.boost - a.boost;
+    return a.targetItemId.localeCompare(b.targetItemId);
+  });
 }

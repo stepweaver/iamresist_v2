@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { promoteGlobally } from '@/lib/intel/globalPromotion';
+import { computeCreatorCorroborationBridge, promoteGlobally } from '@/lib/intel/globalPromotion';
 
 function mkIntelItem(partial: Partial<any>) {
   // Minimal shape required by promotion/clustering.
@@ -491,6 +491,60 @@ describe('promoteGlobally', () => {
     expect(out[0].decision.totalScore).toBeGreaterThan(out[1]!.decision.totalScore);
     expect(out[1]!.decision.reasons).toContain('creator_support_noted');
     expect(out[1]!.decision.reasons).not.toContain('trusted_creator_convergence');
+
+    vi.useRealTimers();
+  });
+
+  it('computes a bounded creator corroboration bridge for surfaced non-creator targets', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-17T12:00:00.000Z'));
+
+    const creatorA = mkIntelItem({
+      id: 'bridge-creator-a',
+      title: 'Creator tracks ICE detention raid fallout in Los Angeles',
+      summary: 'Multiple communities document the same detention crackdown',
+      sourceSlug: 'bridge-creator-a',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      missionTags: ['executive_power', 'civil_liberties'],
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T10:30:00.000Z',
+    });
+    const creatorB = mkIntelItem({
+      id: 'bridge-creator-b',
+      title: 'Trusted voice maps Los Angeles detention raid fallout and ICE crackdown',
+      summary: 'Another independent creator surfaces the same detention operation',
+      sourceSlug: 'bridge-creator-b',
+      sourceFamily: 'claims_public',
+      provenanceClass: 'COMMENTARY',
+      deskLane: 'voices',
+      missionTags: ['executive_power', 'civil_liberties'],
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T09:50:00.000Z',
+    });
+    const watchdog = mkIntelItem({
+      id: 'bridge-watchdog',
+      title: 'Watchdog documents Los Angeles detention raid fallout after ICE crackdown',
+      summary: 'Monitors corroborate detainee counts and operational timeline',
+      sourceSlug: 'bridge-watchdog',
+      sourceFamily: 'watchdog_global',
+      provenanceClass: 'SPECIALIST',
+      deskLane: 'watchdogs',
+      missionTags: ['executive_power', 'civil_liberties'],
+      clusterKeys: { topic: 'la-detention-crackdown' },
+      publishedAt: '2026-04-17T10:45:00.000Z',
+      surfaceState: 'surfaced',
+    });
+
+    const out = computeCreatorCorroborationBridge([watchdog], [creatorA, creatorB], {
+      maxBoost: 4,
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0]?.targetItemId).toBe('bridge-watchdog');
+    expect(out[0]?.boost).toBeGreaterThan(0);
+    expect(out[0]?.boost).toBeLessThanOrEqual(4);
+    expect(out[0]?.reasons).toContain('trusted_creator_convergence');
 
     vi.useRealTimers();
   });
