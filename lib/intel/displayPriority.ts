@@ -145,6 +145,34 @@ function scoreImpactText(h: string, explanations: DisplayExplanation[]): number 
   return 10;
 }
 
+function scoreProvenance(provenanceClass: ProvenanceClass, explanations: DisplayExplanation[]): number {
+  if (provenanceClass === 'PRIMARY') {
+    explanations.push({ ruleId: 'display:provenance', message: 'Boost: primary-source provenance' });
+    return 8;
+  }
+  if (provenanceClass === 'SPECIALIST') {
+    explanations.push({ ruleId: 'display:provenance', message: 'Boost: specialist/reporting provenance' });
+    return 6;
+  }
+  if (provenanceClass === 'WIRE') {
+    explanations.push({ ruleId: 'display:provenance', message: 'Small boost: wire/reporting provenance' });
+    return 3;
+  }
+  if (provenanceClass === 'INDIE') {
+    explanations.push({ ruleId: 'display:provenance', message: 'Small boost: independent reporting provenance' });
+    return 1;
+  }
+  if (provenanceClass === 'COMMENTARY') {
+    explanations.push({ ruleId: 'display:provenance', message: 'Penalty: commentary provenance requires stronger hard-signal support' });
+    return -5;
+  }
+  if (provenanceClass === 'SCHEDULE') {
+    explanations.push({ ruleId: 'display:provenance', message: 'Penalty: schedule/procedural provenance' });
+    return -8;
+  }
+  return 0;
+}
+
 function scoreNoisePenalties(input: ScoringInput, h: string, explanations: DisplayExplanation[]): number {
   let penalty = 0;
 
@@ -192,14 +220,46 @@ function scoreNoisePenalties(input: ScoringInput, h: string, explanations: Displ
   return penalty;
 }
 
-function scoreRecency(publishedAt: string | null, explanations: DisplayExplanation[]): number {
+function scoreRecency(input: ScoringInput, h: string, explanations: DisplayExplanation[]): number {
+  const publishedAt = input.publishedAt;
   const hrs = hoursSince(publishedAt);
   if (hrs == null) return 0;
+  const highImpact = Boolean(hasAny(h, HIGH_IMPACT_PATTERNS));
+  const highTrust =
+    input.provenanceClass === 'PRIMARY' ||
+    input.provenanceClass === 'SPECIALIST' ||
+    input.provenanceClass === 'WIRE';
+  const liveMissionRelevant =
+    highImpact ||
+    input.missionTags.includes('courts') ||
+    input.missionTags.includes('congress') ||
+    input.missionTags.includes('executive_power') ||
+    input.missionTags.includes('civil_liberties') ||
+    input.missionTags.includes('voting_rights') ||
+    input.missionTags.includes('elections');
+
   if (hrs <= 2) {
-    explanations.push({ ruleId: 'display:recency', message: 'Small boost: very fresh' });
-    return 3;
+    const delta = highTrust && liveMissionRelevant ? 8 : highTrust ? 6 : 3;
+    explanations.push({
+      ruleId: 'display:recency',
+      message: delta >= 6 ? 'Boost: breaking/fresh hard-signal item' : 'Small boost: very fresh',
+    });
+    return delta;
   }
-  if (hrs <= 6) return 1;
+  if (hrs <= 6) {
+    const delta = highTrust && liveMissionRelevant ? 5 : highTrust ? 3 : 1;
+    if (delta > 0) {
+      explanations.push({
+        ruleId: 'display:recency',
+        message: delta >= 3 ? 'Boost: fresh reporting still moving' : 'Small boost: fresh',
+      });
+    }
+    return delta;
+  }
+  if (hrs <= 18 && highTrust && liveMissionRelevant) {
+    explanations.push({ ruleId: 'display:recency', message: 'Small boost: still-fresh mission reporting' });
+    return 2;
+  }
   return 0;
 }
 
@@ -232,8 +292,9 @@ export function computeDisplayPriority(input: ScoringInput): DisplayPriorityResu
 
   score += scoreMissionBoost(input.missionTags, explanations);
   score += scoreImpactText(h, explanations);
+  score += scoreProvenance(input.provenanceClass, explanations);
   score += scoreBoundedRelevance(input.relevanceScore, explanations);
-  score += scoreRecency(input.publishedAt, explanations);
+  score += scoreRecency(input, h, explanations);
   score += scoreNoisePenalties(input, h, explanations);
 
   const prof = applyEditorialRankingProfile({

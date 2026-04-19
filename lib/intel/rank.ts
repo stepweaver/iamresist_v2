@@ -43,6 +43,7 @@ export type LiveDeskItem = LiveRow & {
   institutionalArea: string;
   relevanceExplanations: RelevanceExplanationDTO[];
   isDuplicateLoser: boolean;
+  displayPriority?: number;
   /** From ingest RSS/media or OG backfill in live desk helpers. */
   imageUrl?: string | null;
   /** Desk lane context (injected at runtime by live desk services). */
@@ -70,6 +71,10 @@ export function compareDeskItems(a: LiveDeskItem, b: LiveDeskItem): number {
   const sa = a.surfaceState === 'surfaced' ? 0 : 1;
   const sb = b.surfaceState === 'surfaced' ? 0 : 1;
   if (sa !== sb) return sa - sb;
+
+  const da = typeof a.displayPriority === 'number' ? a.displayPriority : null;
+  const db = typeof b.displayPriority === 'number' ? b.displayPriority : null;
+  if (da != null && db != null && db !== da) return db - da;
 
   const pa = provenanceRank(a.provenanceClass);
   const pb = provenanceRank(b.provenanceClass);

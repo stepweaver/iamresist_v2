@@ -656,6 +656,53 @@ describe('ranking tightening (deterministic clock)', () => {
     vi.useRealTimers();
   });
 
+  it('D: fresh wire reporting can beat slightly higher older primary filler when the homepage score is stronger', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-15T12:00:00.000Z'));
+
+    const breakingWire = {
+      kind: 'intel' as const,
+      briefLane: 'osint' as const,
+      briefingOrigin: 'lane_backstop' as const,
+      rawScore: 74,
+      weightedScore: 74 * BRIEFING_LANE_WEIGHT.osint,
+      intelItem: {
+        id: 'wire-break',
+        canonicalUrl: 'https://wire.test/break',
+        title: 'Wire reports injunction hits surveillance program',
+        sourceSlug: 'wire-1',
+        publishedAt: '2026-04-15T11:00:00.000Z',
+        deskLane: 'osint',
+        provenanceClass: 'WIRE',
+        displayPriority: 74,
+      },
+    };
+
+    const olderPrimary = {
+      kind: 'intel' as const,
+      briefLane: 'watchdogs' as const,
+      briefingOrigin: 'lane_backstop' as const,
+      rawScore: 72,
+      weightedScore: 72 * BRIEFING_LANE_WEIGHT.watchdogs,
+      intelItem: {
+        id: 'primary-old',
+        canonicalUrl: 'https://primary.test/old',
+        title: 'Older filing remains in the mix',
+        sourceSlug: 'primary-1',
+        publishedAt: '2026-04-14T02:00:00.000Z',
+        deskLane: 'watchdogs',
+        provenanceClass: 'PRIMARY',
+        displayPriority: 72,
+      },
+    };
+
+    expect(computeHomepageBriefingScore(breakingWire)).toBeGreaterThan(computeHomepageBriefingScore(olderPrimary));
+    const out = mergeAndRankBriefingCandidates([olderPrimary, breakingWire]);
+    expect(out[0].intelItem.id).toBe('wire-break');
+
+    vi.useRealTimers();
+  });
+
   it('F: small pool returns fewer slots rather than padding with stale garbage', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-15T12:00:00.000Z'));

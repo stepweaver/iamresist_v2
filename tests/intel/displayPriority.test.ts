@@ -81,6 +81,43 @@ describe('computeDisplayPriority', () => {
     expect(congress.displayPriority).toBeGreaterThanOrEqual(court.displayPriority - 3);
     expect(congress.displayExplanations.map((e) => e.ruleId)).toContain('display:tag');
   });
+
+  it('gives fresh specialist reporting more lift than older commentary on the same development', () => {
+    const freshSpecialist = computeDisplayPriority(
+      base({
+        provenanceClass: 'SPECIALIST',
+        sourceSlug: 'scotusblog',
+        missionTags: ['courts'],
+        branchOfGovernment: 'judicial',
+        institutionalArea: 'courts',
+        title: 'Court grants injunction in major case',
+        summary: 'Fresh filing points to a new ruling in the case',
+        clusterKeys: {},
+        publishedAt: new Date().toISOString(),
+        relevanceScore: 58,
+      }),
+    );
+
+    const olderCommentary = computeDisplayPriority(
+      base({
+        provenanceClass: 'COMMENTARY',
+        sourceSlug: 'creator-analysis',
+        missionTags: ['courts'],
+        branchOfGovernment: 'judicial',
+        institutionalArea: 'courts',
+        title: 'Commentary: court fight intensifies',
+        summary: 'Strong analysis, but not the fresh reported development itself',
+        stateChangeType: 'commentary_item',
+        clusterKeys: {},
+        publishedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+        relevanceScore: 64,
+      }),
+    );
+
+    expect(freshSpecialist.displayPriority).toBeGreaterThan(olderCommentary.displayPriority);
+    expect(freshSpecialist.displayExplanations.map((e) => e.ruleId)).toContain('display:provenance');
+    expect(freshSpecialist.displayExplanations.map((e) => e.ruleId)).toContain('display:recency');
+  });
 });
 
 describe('off-topic mission leakage', () => {
