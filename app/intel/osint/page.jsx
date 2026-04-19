@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import IntelTabs from '@/components/IntelTabs';
+import IntelLaneWarning from '@/components/intel/IntelLaneWarning';
 import LiveDeskSection from '@/components/intel/LiveDeskSection';
 import { getLiveIntelDeskUncached } from '@/lib/feeds/liveIntel.service';
 import { buildPageMetadata } from '@/lib/metadata';
@@ -15,7 +16,7 @@ export const metadata = buildPageMetadata({
 
 export async function OsintContent() {
   const desk = await getLiveIntelDeskUncached();
-  return <LiveDeskSection desk={desk} />;
+  return <LiveDeskSection desk={desk} laneWarningSlot={<IntelLaneWarning deskLane="osint" />} />;
 }
 
 export default function IntelOsintPage() {

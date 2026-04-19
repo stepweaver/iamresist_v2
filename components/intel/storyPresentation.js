@@ -1,16 +1,26 @@
+const HIDDEN_REASON_RULE_IDS = new Set([
+  'source:baseline',
+  'score:default_priority',
+  'fr:fr_type',
+  'desk:duplicate_cluster',
+]);
+
+const EMPTY_RELATED_COUNTS = Object.freeze({
+  total: 0,
+  reporting: 0,
+  analysis: 0,
+  opinion: 0,
+  creatorSignal: 0,
+});
+
 function firstHumanReason(row) {
-  const hiddenRuleIds = new Set([
-    'source:baseline',
-    'score:default_priority',
-    'fr:fr_type',
-    'desk:duplicate_cluster',
-  ]);
+  if (!row || typeof row !== 'object') return null;
 
   const display = Array.isArray(row?.displayExplanations) ? row.displayExplanations : [];
   const relevance = Array.isArray(row?.relevanceExplanations) ? row.relevanceExplanations : [];
 
   const messages = [...display, ...relevance]
-    .filter((entry) => entry?.message && !hiddenRuleIds.has(entry.ruleId))
+    .filter((entry) => entry?.message && !HIDDEN_REASON_RULE_IDS.has(entry.ruleId))
     .map((entry) => entry.message.trim())
     .filter(Boolean);
 
@@ -79,7 +89,7 @@ export function buildStoryPresentationModel(input = {}) {
     ...leadItems.map((row) => ({ slice: 'leadItems', row })),
     ...secondaryLeadItems.map((row) => ({ slice: 'secondaryLeadItems', row })),
     ...items.map((row) => ({ slice: 'items', row })),
-  ];
+  ].filter(({ row }) => row?.id);
 
   const visibleIds = new Set(orderedVisibleRows.map(({ row }) => row?.id).filter(Boolean));
   const duplicateIds = new Set(duplicateItems.map((row) => row?.id).filter(Boolean));
@@ -109,6 +119,8 @@ export function buildStoryPresentationModel(input = {}) {
     const representativeVisible =
       Boolean(cluster?.representativeId) && visibleIds.has(cluster.representativeId);
 
+    // If source filtering removes the representative, keep the remaining visible companion
+    // as a normal standalone row instead of collapsing it away.
     if (cluster && row.id !== cluster.representativeId && representativeVisible) {
       continue;
     }
@@ -121,13 +133,7 @@ export function buildStoryPresentationModel(input = {}) {
         row,
         story: null,
         relatedSections: emptySections(),
-        relatedVisibleCounts: {
-          total: 0,
-          reporting: 0,
-          analysis: 0,
-          opinion: 0,
-          creatorSignal: 0,
-        },
+        relatedVisibleCounts: EMPTY_RELATED_COUNTS,
         groupedDuplicateCount: 0,
         hasWhyThisSurfaced: whyThisSurfaced.hasAny,
         whyThisSurfaced,
@@ -171,15 +177,7 @@ export function buildStoryPresentationModel(input = {}) {
       row,
       story: hasStoryContext ? cluster : null,
       relatedSections: hasStoryContext ? relatedSections : emptySections(),
-      relatedVisibleCounts: hasStoryContext
-        ? relatedVisibleCounts
-        : {
-            total: 0,
-            reporting: 0,
-            analysis: 0,
-            opinion: 0,
-            creatorSignal: 0,
-          },
+      relatedVisibleCounts: hasStoryContext ? relatedVisibleCounts : EMPTY_RELATED_COUNTS,
       groupedDuplicateCount: hasStoryContext ? groupedDuplicateCount : 0,
       hasWhyThisSurfaced: whyThisSurfaced.hasAny,
       whyThisSurfaced,

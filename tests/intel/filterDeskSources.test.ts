@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSourceOptionsFromDesk, filterDeskBySourceSlug } from '@/components/intel/useFilteredDeskItems';
+import { buildStoryPresentationModel } from '@/components/intel/storyPresentation';
 
 describe('filterDeskBySourceSlug', () => {
   const desk = {
@@ -25,5 +26,72 @@ describe('filterDeskBySourceSlug', () => {
     expect(opts.map((o) => o.value)).toContain('a');
     expect(opts.map((o) => o.value)).toContain('b');
     expect(opts.map((o) => o.value)).toContain('c');
+  });
+
+  it('keeps a visible story companion as a standalone row when filtering hides the representative', () => {
+    const rep = {
+      id: 'rep',
+      title: 'Representative',
+      sourceSlug: 'rep-source',
+      sourceName: 'Rep Source',
+      provenanceClass: 'PRIMARY',
+      canonicalUrl: 'https://example.com/rep',
+      publishedAt: '2026-04-19T12:00:00.000Z',
+      summary: 'Representative summary',
+      displayBucket: 'lead',
+      missionTags: ['democracy'],
+      displayExplanations: [],
+      relevanceExplanations: [],
+    };
+    const companion = {
+      ...rep,
+      id: 'companion',
+      title: 'Companion',
+      sourceSlug: 'companion-source',
+      sourceName: 'Companion Source',
+      canonicalUrl: 'https://example.com/companion',
+    };
+
+    const filteredDesk: any = filterDeskBySourceSlug(
+      {
+        leadItems: [rep],
+        secondaryLeadItems: [],
+        items: [companion],
+        duplicateItems: [],
+        suppressedItems: [],
+        metadataOnlyItems: [],
+        storyClusters: {
+          items: [
+            {
+              storyId: 'story:1',
+              representativeId: 'rep',
+              itemIds: ['rep', 'companion'],
+              analysisItems: [{ id: 'companion' }],
+              reportingItems: [],
+              opinionItems: [],
+              creatorSignalItems: [],
+              duplicateItems: [],
+              creatorSignalNote: null,
+            },
+          ],
+        },
+      },
+      'companion-source',
+    );
+
+    const model = buildStoryPresentationModel({
+      leadItems: filteredDesk.leadItems,
+      secondaryLeadItems: filteredDesk.secondaryLeadItems,
+      items: filteredDesk.items,
+      duplicateItems: filteredDesk.duplicateItems,
+      storyClusters: filteredDesk.storyClusters,
+    });
+
+    expect(model.items).toHaveLength(1);
+    expect(model.items[0]).toMatchObject({
+      kind: 'item',
+      row: { id: 'companion', title: 'Companion' },
+      story: null,
+    });
   });
 });

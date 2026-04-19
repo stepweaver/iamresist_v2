@@ -2,6 +2,7 @@ import Link from 'next/link';
 import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import ShareButton from '@/components/ShareButton';
 import { buildStoryPresentationModel } from '@/components/intel/storyPresentation';
+import { shouldShowInlineTrustExplain } from '@/lib/intel/trustWarnings';
 import { formatDate } from '@/lib/utils/date';
 
 export function deskLabelForLane(deskLane) {
@@ -129,11 +130,6 @@ function feedTransparencyHint(row) {
     return 'Metadata only — full text at source';
   }
   return null;
-}
-
-function hasActionableTrustWarning(row) {
-  const badges = Array.isArray(row.trustBadges) ? row.trustBadges : [];
-  return badges.some((b) => b?.tone === 'caution' || b?.tone === 'high');
 }
 
 function duplicateGroupingUserNote(row) {
@@ -271,19 +267,29 @@ function StorySection({ title, items }) {
 function StoryContextSections({ entry }) {
   if (entry?.kind !== 'story' || !entry.story) return null;
 
+  const hasRelatedSections = Object.values(entry.relatedSections || {}).some(
+    (items) => Array.isArray(items) && items.length > 0,
+  );
+  const hasCreatorSignalNote = Boolean(entry.story?.creatorSignalNote?.itemCount);
+  const hasGroupedDuplicates = entry.groupedDuplicateCount > 0;
+
+  if (!hasRelatedSections && !hasCreatorSignalNote && !hasGroupedDuplicates) {
+    return null;
+  }
+
   return (
     <div className="mt-4 border-t border-border pt-4">
       <StorySection title="Reporting" items={entry.relatedSections.reporting} />
       <StorySection title="Analysis" items={entry.relatedSections.analysis} />
       <StorySection title="Opinion" items={entry.relatedSections.opinion} />
       <StorySection title="Creator signal" items={entry.relatedSections.creatorSignal} />
-      {entry.story?.creatorSignalNote?.itemCount ? (
+      {hasCreatorSignalNote ? (
         <p className="mt-3 text-xs text-foreground/65 leading-relaxed">
-          Creator signal note: trusted creator corroboration exists around this story as support metadata, not as the
-          primary reporting basis.
+          Trusted creator corroboration exists around this story as support metadata, not as the primary reporting
+          basis.
         </p>
       ) : null}
-      {entry.groupedDuplicateCount > 0 ? (
+      {hasGroupedDuplicates ? (
         <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
           {entry.groupedDuplicateCount} similar report{entry.groupedDuplicateCount === 1 ? '' : 's'} grouped under
           this story
@@ -396,6 +402,21 @@ function AccountabilityHighlights({ highlights }) {
   );
 }
 
+function InlineTrustExplain({ row, laneHasBaselineDisclosure = false, className = '' }) {
+  if (!shouldShowInlineTrustExplain(row, { laneHasBaselineDisclosure })) {
+    return null;
+  }
+
+  return (
+    <p
+      className={className}
+      title={row.trustWarningText || undefined}
+    >
+      {row.trustExplain}
+    </p>
+  );
+}
+
 /**
  * @param {{
  *   desk: Record<string, unknown>,
@@ -433,6 +454,7 @@ export default function LiveDeskView({
   const deskLabel = deskLabelForLane(deskLane);
   const usesLeadBlockLayout = deskLane !== 'voices';
   const showInternalDiagnostics = Boolean(desk?.showInternalDiagnostics);
+  const laneHasBaselineDisclosure = Boolean(laneWarningSlot);
 
   const hasFreshnessData =
     Boolean(freshness?.latestFetchedAt) || Boolean(freshness?.latestSuccessfulIngestAt);
@@ -609,14 +631,11 @@ export default function LiveDeskView({
                   <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed border-l-2 border-primary/60 pl-3">
                     {row.whyItMatters}
                   </p>
-                  {hasActionableTrustWarning(row) && row.trustExplain ? (
-                    <p
-                      className="mt-2 font-mono text-[10px] text-foreground/70 leading-relaxed max-w-3xl"
-                      title={row.trustWarningText || undefined}
-                    >
-                      {row.trustExplain}
-                    </p>
-                  ) : null}
+                  <InlineTrustExplain
+                    row={row}
+                    laneHasBaselineDisclosure={laneHasBaselineDisclosure}
+                    className="mt-2 font-mono text-[10px] text-foreground/70 leading-relaxed max-w-3xl"
+                  />
                   {row.summary && row.contentUseMode !== 'metadata_only' ? (
                     <div className="mt-3 max-w-3xl">
                       <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
@@ -753,14 +772,11 @@ export default function LiveDeskView({
                       <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
                         {row.whyItMatters}
                       </p>
-                      {hasActionableTrustWarning(row) && row.trustExplain ? (
-                        <p
-                          className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed max-w-3xl"
-                          title={row.trustWarningText || undefined}
-                        >
-                          {row.trustExplain}
-                        </p>
-                      ) : null}
+                      <InlineTrustExplain
+                        row={row}
+                        laneHasBaselineDisclosure={laneHasBaselineDisclosure}
+                        className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed max-w-3xl"
+                      />
                       {row.summary && row.contentUseMode !== 'metadata_only' ? (
                         <div className="mt-2 max-w-3xl">
                           <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-foreground/60">

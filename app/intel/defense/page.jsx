@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import IntelTabs from '@/components/IntelTabs';
+import IntelLaneWarning from '@/components/intel/IntelLaneWarning';
 import LiveDeskSection from '@/components/intel/LiveDeskSection';
 import { getLiveIntelDesk } from '@/lib/feeds/liveIntel.service';
 import { buildPageMetadata } from '@/lib/metadata';
@@ -15,7 +16,7 @@ export const metadata = buildPageMetadata({
 
 async function DefenseContent() {
   const desk = await getLiveIntelDesk('defense_ops');
-  return <LiveDeskSection desk={desk} />;
+  return <LiveDeskSection desk={desk} laneWarningSlot={<IntelLaneWarning deskLane="defense_ops" />} />;
 }
 
 export default function IntelDefensePage() {

@@ -41,6 +41,16 @@ export type TrustWarningsResult = {
   trustRuleExplanations: TrustRuleExplanation[];
 };
 
+export const BASELINE_INLINE_TRUST_EXPLAIN =
+  'Primary source channel is real, but the claims or framing may be strategic or self-protective. Preserve provenance; verify key assertions independently.';
+
+const BASELINE_LANE_TRUST_DISCLOSURE_LANES = new Set(['osint', 'defense_ops']);
+const BASELINE_INLINE_TRUST_BADGE_LABELS = new Set([
+  'SOURCE-CONTROLLED',
+  'OFFICIAL CLAIM',
+  'VERIFY INDEPENDENTLY',
+]);
+
 function clampTooltip(s: string, max = 220): string {
   const t = String(s ?? '').trim();
   if (!t) return '';
@@ -181,8 +191,7 @@ export function computeTrustWarnings(input: {
 
   let trustExplain: string | null = null;
   if (politically_interested_source || requires_independent_verification) {
-    trustExplain =
-      'Primary source channel is real, but the claims or framing may be strategic or self-protective. Preserve provenance; verify key assertions independently.';
+    trustExplain = BASELINE_INLINE_TRUST_EXPLAIN;
   }
 
   // If the source sets strict hero behavior, explainability should exist somewhere even when the UI is not showing it.
@@ -208,5 +217,50 @@ export function computeTrustWarnings(input: {
     trustExplain,
     trustRuleExplanations: explanations,
   };
+}
+
+export function laneHasBaselineTrustDisclosure(deskLane: string | null | undefined): boolean {
+  return Boolean(deskLane && BASELINE_LANE_TRUST_DISCLOSURE_LANES.has(deskLane));
+}
+
+export function isBaselineLaneTrustExplain(row: {
+  trustExplain?: string | null;
+  trustBadges?: TrustBadge[] | null;
+}): boolean {
+  if (!row?.trustExplain || row.trustExplain !== BASELINE_INLINE_TRUST_EXPLAIN) {
+    return false;
+  }
+
+  const badges = Array.isArray(row.trustBadges) ? row.trustBadges : [];
+  if (badges.length === 0) return false;
+
+  return badges.every(
+    (badge) =>
+      badge &&
+      badge.tone !== 'high' &&
+      BASELINE_INLINE_TRUST_BADGE_LABELS.has(badge.label),
+  );
+}
+
+export function shouldShowInlineTrustExplain(
+  row: {
+    trustExplain?: string | null;
+    trustBadges?: TrustBadge[] | null;
+  },
+  options: {
+    laneHasBaselineDisclosure?: boolean;
+  } = {},
+): boolean {
+  if (!row?.trustExplain) return false;
+
+  const badges = Array.isArray(row.trustBadges) ? row.trustBadges : [];
+  const hasActionableBadge = badges.some((badge) => badge?.tone === 'caution' || badge?.tone === 'high');
+  if (!hasActionableBadge) return false;
+
+  if (options.laneHasBaselineDisclosure && isBaselineLaneTrustExplain(row)) {
+    return false;
+  }
+
+  return true;
 }
 

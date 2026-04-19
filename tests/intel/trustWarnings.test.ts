@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { computeTrustWarnings } from '@/lib/intel/trustWarnings';
+import {
+  BASELINE_INLINE_TRUST_EXPLAIN,
+  computeTrustWarnings,
+  shouldShowInlineTrustExplain,
+} from '@/lib/intel/trustWarnings';
 
 function base(over: Partial<Parameters<typeof computeTrustWarnings>[0]> = {}) {
   return {
@@ -127,6 +131,44 @@ describe('computeTrustWarnings', () => {
 
     expect(out.contested_claim).toBe(false);
     expect(out.trustBadges.map((b) => b.label)).not.toContain('CONTESTED CLAIM');
+  });
+});
+
+describe('shouldShowInlineTrustExplain', () => {
+  const baselineRow = {
+    trustExplain: BASELINE_INLINE_TRUST_EXPLAIN,
+    trustBadges: [
+      { label: 'SOURCE-CONTROLLED' as const, tone: 'caution' as const, tooltip: 'Baseline' },
+      { label: 'OFFICIAL CLAIM' as const, tone: 'neutral' as const, tooltip: 'Baseline' },
+      { label: 'VERIFY INDEPENDENTLY' as const, tone: 'caution' as const, tooltip: 'Baseline' },
+    ],
+  };
+
+  it('suppresses baseline inline trust text when a lane-level disclosure is active', () => {
+    expect(
+      shouldShowInlineTrustExplain(baselineRow, { laneHasBaselineDisclosure: true }),
+    ).toBe(false);
+  });
+
+  it('keeps elevated inline trust text on a lane-level disclosure view', () => {
+    expect(
+      shouldShowInlineTrustExplain(
+        {
+          trustExplain: BASELINE_INLINE_TRUST_EXPLAIN,
+          trustBadges: [
+            { label: 'SOURCE-CONTROLLED' as const, tone: 'caution' as const, tooltip: 'Baseline' },
+            { label: 'CONTESTED CLAIM' as const, tone: 'high' as const, tooltip: 'Elevated' },
+          ],
+        },
+        { laneHasBaselineDisclosure: true },
+      ),
+    ).toBe(true);
+  });
+
+  it('still allows the same baseline trust text without page-level disclosure context', () => {
+    expect(
+      shouldShowInlineTrustExplain(baselineRow, { laneHasBaselineDisclosure: false }),
+    ).toBe(true);
   });
 });
 
