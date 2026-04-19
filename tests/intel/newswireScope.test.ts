@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { assessHomepageNewswireScope } from '@/lib/feeds/homepageNewswireScope';
 import {
   dedupeStoriesByCanonicalUrl,
   filterMissionSafeNewswireStories,
@@ -105,6 +106,34 @@ describe('filterMissionSafeNewswireStories', () => {
     expect(out).toHaveLength(1);
     expect(out[0].isCurated).toBe(true);
     expect(out[0].missionScope.scopeState).toBe('in_scope');
+  });
+});
+
+describe('assessHomepageNewswireScope', () => {
+  it('lets curated homepage briefing items keep ambiguous current-events items', () => {
+    const out = assessHomepageNewswireScope({
+      id: 'cur-amb-1',
+      title: 'Breaking: explosion triggers emergency response downtown',
+      note: 'Editors want this available for briefing review.',
+      isCurated: true,
+    });
+
+    expect(out.missionScope.scopeState).toBe('ambiguous');
+    expect(out.allowOnNewswire).toBe(true);
+    expect(out.allowOnHomepageBriefing).toBe(true);
+  });
+
+  it('still blocks curated homepage briefing items that are clearly off-topic', () => {
+    const out = assessHomepageNewswireScope({
+      id: 'cur-off-1',
+      title: 'Celebrity fashion tour dominates red carpet chatter',
+      note: 'Streaming gossip and wellness trends lead the day',
+      isCurated: true,
+    });
+
+    expect(out.missionScope.scopeState).toBe('off_topic');
+    expect(out.allowOnNewswire).toBe(false);
+    expect(out.allowOnHomepageBriefing).toBe(false);
   });
 });
 
