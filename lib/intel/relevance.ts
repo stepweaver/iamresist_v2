@@ -39,6 +39,13 @@ function normalizeHaystack(item: NormalizedItem): string {
   return `${item.title}\n${item.summary ?? ''}`.toLowerCase();
 }
 
+function hoursSince(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  return (Date.now() - t) / (60 * 60 * 1000);
+}
+
 export function compilePatternList(patterns: string[] | undefined): RegExp[] {
   if (!patterns?.length) return [];
   const out: RegExp[] = [];
@@ -120,14 +127,6 @@ function sourceBaseline(
       defaultPriority: slug === 'wh-presidential' ? 62 : 52,
     };
   }
-  if (slug === 'fr-public-inspection' || slug === 'fr-published') {
-    return {
-      tags: ['regulation', 'federal_agencies'],
-      branch: 'administrative',
-      area: 'federal_register',
-      defaultPriority: 38,
-    };
-  }
   if (slug === 'govinfo-bills') {
     return {
       tags: ['congress'],
@@ -190,14 +189,6 @@ function sourceBaseline(
       branch: 'administrative',
       area: 'specialist',
       defaultPriority: 55,
-    };
-  }
-  if (slug === 'courier-the-cover-up') {
-    return {
-      tags: ['courts', 'civil_liberties'],
-      branch: 'unknown',
-      area: 'specialist',
-      defaultPriority: 50,
     };
   }
   if (slug === 'robert-reich' || slug === 'on-offense-kris-goldsmith' || slug === 'total-hypocrisy') {
@@ -436,20 +427,51 @@ export function computeRelevanceProfile(
   let score = priority + editorial.score;
   let surface: SurfaceState =
     editorial.surface === 'downranked' ? 'downranked' : 'surfaced';
-
-  const broadFeedNeedsAnchor =
+  const itemHours = hoursSince(item.publishedAt);
+  const isFresh = itemHours != null && itemHours <= 6;
+  const isAging = itemHours == null || itemHours > 18;
+  const isHighTrustReporting =
+    cfg.provenanceClass === 'PRIMARY' ||
+    cfg.provenanceClass === 'SPECIALIST' ||
+    cfg.provenanceClass === 'WIRE';
+  const isBroadReportingSource =
     cfg.sourceFamily === 'watchdog_global' ||
     cfg.provenanceClass === 'WIRE' ||
     cfg.slug === 'reuters-wire' ||
     cfg.slug === 'ap-wire';
 
-  if (broadFeedNeedsAnchor && mission.positiveHits.length === 0) {
-    surface = 'downranked';
-    score -= 10;
-    explanations.push({
-      ruleId: 'mission:no_anchor',
-      message: 'Downranked: broad reporting item lacked a strong civic mission anchor.',
-    });
+  if (mission.scopeState === 'ambiguous') {
+    if (isBroadReportingSource && isHighTrustReporting && isFresh) {
+      score -= 4;
+      explanations.push({
+        ruleId: 'mission:ambiguous_fresh_reporting',
+        message:
+          'Light downrank: mission-ambiguous broad reporting item stayed surfaced because it is fresh and high-trust.',
+        meta: {
+          scopeState: mission.scopeState,
+          freshnessHours: itemHours,
+          provenanceClass: cfg.provenanceClass,
+          sourceSlug: cfg.slug,
+        },
+      });
+    } else {
+      surface = 'downranked';
+      const penalty = isBroadReportingSource && isHighTrustReporting && !isAging ? 8 : 12;
+      score -= penalty;
+      explanations.push({
+        ruleId: 'mission:ambiguous_downrank',
+        message:
+          isBroadReportingSource && isHighTrustReporting
+            ? 'Downranked: mission-ambiguous broad reporting item is no longer fresh enough to surface normally without a stronger civic anchor.'
+            : 'Downranked: mission-ambiguous item lacked enough mission signal to surface normally.',
+        meta: {
+          scopeState: mission.scopeState,
+          freshnessHours: itemHours,
+          provenanceClass: cfg.provenanceClass,
+          sourceSlug: cfg.slug,
+        },
+      });
+    }
   }
 
   const pos = sourcePositionBoost({ item, cfg });

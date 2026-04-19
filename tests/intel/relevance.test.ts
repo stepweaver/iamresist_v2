@@ -8,7 +8,7 @@ function baseItem(over: Partial<NormalizedItem> = {}): NormalizedItem {
     canonicalUrl: 'https://example.com/a',
     title: 'Test title',
     summary: null,
-    publishedAt: null,
+    publishedAt: new Date('2026-04-19T12:00:00.000Z').toISOString(),
     imageUrl: null,
     contentHash: 'h',
     structured: {},
@@ -245,5 +245,178 @@ describe('computeRelevanceProfile', () => {
     const e1 = p1.relevance_explanations.find((e) => e.ruleId === 'upstream:source_position_boost');
     expect(e1).toBeTruthy();
     expect(e1?.meta?.['sourcePosition']).toBe(1);
+  });
+
+  it('suppresses an off-topic sports item', () => {
+    const item = baseItem({
+      title: 'NFL playoffs preview centers on a quarterback battle',
+      summary: 'Analysts break down the point spread and fantasy fallout.',
+      publishedAt: new Date('2026-04-19T11:00:00.000Z').toISOString(),
+    });
+    const cfg = baseCfg({
+      slug: 'reuters-wire',
+      name: 'Reuters',
+      provenanceClass: 'WIRE',
+      sourceFamily: 'watchdog_global',
+      fetchKind: 'rss',
+    });
+
+    const p = computeRelevanceProfile(item, cfg);
+
+    expect(p.surface_state).toBe('suppressed');
+    expect(p.suppression_reason).toMatch(/sports-only/i);
+    expect(p.relevance_explanations.some((e) => e.ruleId === 'mission:off_topic')).toBe(true);
+  });
+
+  it('suppresses an off-topic entertainment or lifestyle item', () => {
+    const item = baseItem({
+      title: 'Celebrity fashion dominates the red carpet before the music festival',
+      summary: 'Streaming stars arrive as album rumors and gossip spread.',
+      publishedAt: new Date('2026-04-19T11:00:00.000Z').toISOString(),
+    });
+    const cfg = baseCfg({
+      slug: 'ap-wire',
+      name: 'AP',
+      provenanceClass: 'WIRE',
+      sourceFamily: 'watchdog_global',
+      fetchKind: 'rss',
+    });
+
+    const p = computeRelevanceProfile(item, cfg);
+
+    expect(p.surface_state).toBe('suppressed');
+    expect(p.suppression_reason).toMatch(/entertainment \/ lifestyle/i);
+    expect(p.relevance_explanations.some((e) => e.ruleId === 'mission:off_topic')).toBe(true);
+  });
+
+  it('keeps a fresh ambiguous wire-style item surfaced with only a light penalty', () => {
+    const item = baseItem({
+      title: 'Breaking: crews respond after major blast shuts down port operations',
+      summary: 'Officials say emergency teams are still assessing damage and disruptions.',
+      publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      stateChangeType: 'wire_item',
+    });
+    const cfg = baseCfg({
+      slug: 'reuters-wire',
+      name: 'Reuters',
+      provenanceClass: 'WIRE',
+      sourceFamily: 'watchdog_global',
+      fetchKind: 'rss',
+    });
+
+    const p = computeRelevanceProfile(item, cfg);
+
+    expect(p.surface_state).toBe('surfaced');
+    expect(p.suppression_reason).toBeNull();
+    expect(p.relevance_explanations.some((e) => e.ruleId === 'mission:ambiguous_fresh_reporting')).toBe(
+      true,
+    );
+  });
+
+  it('downranks an older ambiguous broad item', () => {
+    const item = baseItem({
+      title: 'Breaking: blast disrupts major port operations',
+      summary: 'Authorities continue investigating the damage and response timeline.',
+      publishedAt: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString(),
+      stateChangeType: 'wire_item',
+    });
+    const cfg = baseCfg({
+      slug: 'ap-wire',
+      name: 'AP',
+      provenanceClass: 'WIRE',
+      sourceFamily: 'watchdog_global',
+      fetchKind: 'rss',
+    });
+
+    const p = computeRelevanceProfile(item, cfg);
+
+    expect(p.surface_state).toBe('downranked');
+    expect(p.relevance_explanations.some((e) => e.ruleId === 'mission:ambiguous_downrank')).toBe(true);
+  });
+
+  it('keeps a clear in-scope political item surfaced and stronger than an ambiguous wire item', () => {
+    const inScope = computeRelevanceProfile(
+      baseItem({
+        title: 'Congress opens oversight hearing into White House surveillance policy',
+        summary: 'Lawmakers and a federal judge are examining civil rights concerns.',
+        publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        stateChangeType: 'wire_item',
+      }),
+      baseCfg({
+        slug: 'reuters-wire',
+        name: 'Reuters',
+        provenanceClass: 'WIRE',
+        sourceFamily: 'watchdog_global',
+        fetchKind: 'rss',
+      }),
+    );
+
+    const ambiguous = computeRelevanceProfile(
+      baseItem({
+        title: 'Breaking: crews respond after major blast shuts down port operations',
+        summary: 'Officials say emergency teams are still assessing damage and disruptions.',
+        publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        stateChangeType: 'wire_item',
+      }),
+      baseCfg({
+        slug: 'ap-wire',
+        name: 'AP',
+        provenanceClass: 'WIRE',
+        sourceFamily: 'watchdog_global',
+        fetchKind: 'rss',
+      }),
+    );
+
+    expect(inScope.surface_state).toBe('surfaced');
+    expect(ambiguous.surface_state).toBe('surfaced');
+    expect(inScope.relevance_score).toBeGreaterThan(ambiguous.relevance_score);
+    expect(inScope.relevance_explanations.find((e) => e.ruleId === 'mission:scope')?.message).toMatch(
+      /^In-scope:/,
+    );
+  });
+
+  it('keeps relevance explanations explicit for ambiguous and off-topic mission outcomes', () => {
+    const ambiguous = computeRelevanceProfile(
+      baseItem({
+        title: 'Breaking: crews respond after major blast shuts down port operations',
+        summary: 'Officials say emergency teams are still assessing damage and disruptions.',
+        publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        stateChangeType: 'wire_item',
+      }),
+      baseCfg({
+        slug: 'reuters-wire',
+        name: 'Reuters',
+        provenanceClass: 'WIRE',
+        sourceFamily: 'watchdog_global',
+        fetchKind: 'rss',
+      }),
+    );
+    const offTopic = computeRelevanceProfile(
+      baseItem({
+        title: 'NFL playoffs preview centers on a quarterback battle',
+        summary: 'Analysts break down the point spread and fantasy fallout.',
+        publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        stateChangeType: 'wire_item',
+      }),
+      baseCfg({
+        slug: 'ap-wire',
+        name: 'AP',
+        provenanceClass: 'WIRE',
+        sourceFamily: 'watchdog_global',
+        fetchKind: 'rss',
+      }),
+    );
+
+    expect(ambiguous.relevance_explanations.find((e) => e.ruleId === 'mission:scope')?.message).toBe(
+      'Ambiguous: broad current-events item with no strong mission anchor',
+    );
+    expect(
+      ambiguous.relevance_explanations.find((e) =>
+        ['mission:ambiguous_fresh_reporting', 'mission:ambiguous_downrank'].includes(e.ruleId),
+      )?.message,
+    ).toMatch(/mission-ambiguous/i);
+    expect(offTopic.relevance_explanations.find((e) => e.ruleId === 'mission:off_topic')?.message).toMatch(
+      /Off-topic:/,
+    );
   });
 });
