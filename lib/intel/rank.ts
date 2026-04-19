@@ -1,3 +1,4 @@
+import { evaluateRecentWindowTieBreak } from '@/lib/intel/displayPriority';
 import type { DeskLane, ProvenanceClass, SurfaceState } from '@/lib/intel/types';
 
 const ORDER: Record<ProvenanceClass, number> = {
@@ -50,14 +51,41 @@ export type LiveDeskItem = LiveRow & {
   deskLane?: DeskLane;
 };
 
+function scoreForRecentWindowTieBreak(item: Pick<LiveDeskItem, 'displayPriority' | 'relevanceScore'>): number {
+  return typeof item.displayPriority === 'number' ? item.displayPriority : item.relevanceScore;
+}
+
+function comparePublishedDesc(a: Pick<LiveRow, 'publishedAt'>, b: Pick<LiveRow, 'publishedAt'>): number {
+  const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+  const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+  return tb - ta;
+}
+
+function recentWindowTieBreakWinner(
+  a: Pick<LiveDeskItem, 'publishedAt' | 'provenanceClass' | 'displayPriority' | 'relevanceScore'>,
+  b: Pick<LiveDeskItem, 'publishedAt' | 'provenanceClass' | 'displayPriority' | 'relevanceScore'>,
+) {
+  return evaluateRecentWindowTieBreak(
+    {
+      publishedAt: a.publishedAt,
+      provenanceClass: a.provenanceClass,
+      score: scoreForRecentWindowTieBreak(a),
+    },
+    {
+      publishedAt: b.publishedAt,
+      provenanceClass: b.provenanceClass,
+      score: scoreForRecentWindowTieBreak(b),
+    },
+  );
+}
+
 export function compareLiveRows(a: LiveRow, b: LiveRow): number {
   const pa = provenanceRank(a.provenanceClass);
   const pb = provenanceRank(b.provenanceClass);
   if (pa !== pb) return pa - pb;
 
-  const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-  const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-  if (ta !== tb) return tb - ta;
+  const published = comparePublishedDesc(a, b);
+  if (published !== 0) return published;
 
   return a.sourceSlug.localeCompare(b.sourceSlug);
 }
@@ -72,6 +100,10 @@ export function compareDeskItems(a: LiveDeskItem, b: LiveDeskItem): number {
   const sb = b.surfaceState === 'surfaced' ? 0 : 1;
   if (sa !== sb) return sa - sb;
 
+  const recentTieBreak = recentWindowTieBreakWinner(a, b);
+  if (recentTieBreak.winner === 'a') return -1;
+  if (recentTieBreak.winner === 'b') return 1;
+
   const da = typeof a.displayPriority === 'number' ? a.displayPriority : null;
   const db = typeof b.displayPriority === 'number' ? b.displayPriority : null;
   if (da != null && db != null && db !== da) return db - da;
@@ -82,15 +114,14 @@ export function compareDeskItems(a: LiveDeskItem, b: LiveDeskItem): number {
 
   if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
 
-  const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-  const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-  if (ta !== tb) return tb - ta;
+  const published = comparePublishedDesc(a, b);
+  if (published !== 0) return published;
 
   return a.sourceSlug.localeCompare(b.sourceSlug);
 }
 
 /**
- * Deterministic duplicate handling using Milestone-1 cluster_keys only (same key + value → one winner).
+ * Deterministic duplicate handling using Milestone-1 cluster_keys only (same key + value -> one winner).
  */
 export function applyDuplicateClusterOverlay(items: LiveDeskItem[]): LiveDeskItem[] {
   const byKey = new Map<string, LiveDeskItem[]>();
@@ -108,26 +139,40 @@ export function applyDuplicateClusterOverlay(items: LiveDeskItem[]): LiveDeskIte
 
   const loserIds = new Set<string>();
   const extraExplain = new Map<string, RelevanceExplanationDTO>();
+  const duplicateWinnerReason = new Map<string, string>();
 
   for (const [comp, group] of byKey) {
     if (group.length < 2) continue;
     const ranked = [...group].sort((a, b) => {
+      const recentTieBreak = recentWindowTieBreakWinner(a, b);
+      if (recentTieBreak.winner === 'a') return -1;
+      if (recentTieBreak.winner === 'b') return 1;
+
       const pda = provenanceRank(a.provenanceClass);
       const pdb = provenanceRank(b.provenanceClass);
       if (pda !== pdb) return pda - pdb;
       if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
-      const ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-      const tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-      return tb - ta;
+      return comparePublishedDesc(a, b);
     });
+
     const winner = ranked[0]!;
+    if (ranked.length > 1) {
+      const recentTieBreak = recentWindowTieBreakWinner(winner, ranked[1]!);
+      if (recentTieBreak.winner === 'a' && recentTieBreak.reason) {
+        duplicateWinnerReason.set(winner.id, recentTieBreak.reason);
+      }
+    }
+
     for (const loser of ranked.slice(1)) {
       loserIds.add(loser.id);
       if (!extraExplain.has(loser.id)) {
-        const t = winner.title.length > 72 ? `${winner.title.slice(0, 72)}…` : winner.title;
+        const t = winner.title.length > 72 ? `${winner.title.slice(0, 72)}...` : winner.title;
+        const recentWindowNote = duplicateWinnerReason.get(winner.id);
         extraExplain.set(loser.id, {
           ruleId: 'desk:duplicate_cluster',
-          message: `Display order deprioritized: duplicate cluster “${comp}”; stronger line is “${t}” (${winner.sourceSlug}).`,
+          message: recentWindowNote
+            ? `Display order deprioritized: duplicate cluster "${comp}"; fresher recent-window line is "${t}" (${winner.sourceSlug}). ${recentWindowNote}`
+            : `Display order deprioritized: duplicate cluster "${comp}"; stronger line is "${t}" (${winner.sourceSlug}).`,
         });
       }
     }

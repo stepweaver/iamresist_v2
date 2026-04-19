@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeDisplayPriority } from '@/lib/intel/displayPriority';
+import { computeDisplayPriority, evaluateRecentWindowTieBreak } from '@/lib/intel/displayPriority';
 import { computeRelevanceProfile } from '@/lib/intel/relevance';
 import type { NormalizedItem, SignalSourceConfig } from '@/lib/intel/types';
 
@@ -21,6 +21,58 @@ function base(over: Partial<Parameters<typeof computeDisplayPriority>[0]> = {}) 
 }
 
 describe('computeDisplayPriority', () => {
+  it('keeps provenance-first tie-breaks outside the recent window', () => {
+    const decision = evaluateRecentWindowTieBreak(
+      {
+        publishedAt: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
+        provenanceClass: 'WIRE',
+        score: 61,
+      },
+      {
+        publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+        provenanceClass: 'PRIMARY',
+        score: 63,
+      },
+    );
+
+    expect(decision.winner).toBeNull();
+  });
+
+  it('lets freshness win inside the bounded recent window when the provenance gap is small', () => {
+    const decision = evaluateRecentWindowTieBreak(
+      {
+        publishedAt: new Date(Date.now() - 110 * 60 * 1000).toISOString(),
+        provenanceClass: 'PRIMARY',
+        score: 64,
+      },
+      {
+        publishedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+        provenanceClass: 'WIRE',
+        score: 62,
+      },
+    );
+
+    expect(decision.winner).toBe('b');
+    expect(decision.reason).toMatch(/both <=6h old/i);
+  });
+
+  it('does not let commentary leapfrog stronger reporting in the recent-window tie-break', () => {
+    const decision = evaluateRecentWindowTieBreak(
+      {
+        publishedAt: new Date(Date.now() - 100 * 60 * 1000).toISOString(),
+        provenanceClass: 'SPECIALIST',
+        score: 63,
+      },
+      {
+        publishedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        provenanceClass: 'COMMENTARY',
+        score: 62,
+      },
+    );
+
+    expect(decision.winner).toBeNull();
+  });
+
   it('penalizes ceremonial proclamations so they are not lead by default', () => {
     const out = computeDisplayPriority(
       base({
@@ -117,6 +169,24 @@ describe('computeDisplayPriority', () => {
     expect(freshSpecialist.displayPriority).toBeGreaterThan(olderCommentary.displayPriority);
     expect(freshSpecialist.displayExplanations.map((e) => e.ruleId)).toContain('display:provenance');
     expect(freshSpecialist.displayExplanations.map((e) => e.ruleId)).toContain('display:recency');
+  });
+
+  it('keeps recent-window recency explanations explicit for debug inspection', () => {
+    const out = computeDisplayPriority(
+      base({
+        provenanceClass: 'WIRE',
+        sourceSlug: 'ap-wire',
+        missionTags: ['courts'],
+        branchOfGovernment: 'judicial',
+        institutionalArea: 'courts',
+        title: 'Appeals court issues stay in voting rights case',
+        clusterKeys: {},
+        publishedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      }),
+    );
+
+    expect(out.displayExplanations.some((e) => e.ruleId === 'display:recency')).toBe(true);
+    expect(out.displayExplanations.some((e) => /recent-window|breaking-window/i.test(e.message))).toBe(true);
   });
 });
 

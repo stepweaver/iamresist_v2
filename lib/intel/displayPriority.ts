@@ -14,6 +14,20 @@ export type DisplayPriorityResult = {
   displayExplanations: DisplayExplanation[];
 };
 
+export type RecentWindowTieBreakCandidate = {
+  publishedAt: string | null;
+  provenanceClass: ProvenanceClass;
+  score: number;
+};
+
+export type RecentWindowTieBreakDecision = {
+  winner: 'a' | 'b' | null;
+  reason: string | null;
+  freshnessGapMinutes: number | null;
+  provenanceGap: number | null;
+  scoreGap: number | null;
+};
+
 type ScoringInput = {
   title: string;
   summary: string | null;
@@ -34,9 +48,28 @@ type ScoringInput = {
   sourceFamily?: string | null;
 };
 
+const PROVENANCE_TIEBREAK_ORDER: Record<ProvenanceClass, number> = {
+  PRIMARY: 0,
+  WIRE: 1,
+  SPECIALIST: 2,
+  INDIE: 3,
+  COMMENTARY: 4,
+  SCHEDULE: 5,
+};
+
+const BREAKING_WINDOW_HOURS = 2;
+const RECENT_WINDOW_HOURS = 6;
+const RECENT_WINDOW_MIN_FRESHNESS_GAP_MINUTES = 45;
+const RECENT_WINDOW_MAX_PROVENANCE_GAP = 1;
+const RECENT_WINDOW_MAX_SCORE_GAP = 4;
+
 function clamp(n: number): number {
   if (!Number.isFinite(n)) return 50;
   return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function provenanceTieBreakRank(provenanceClass: ProvenanceClass): number {
+  return PROVENANCE_TIEBREAK_ORDER[provenanceClass] ?? 99;
 }
 
 function hoursSince(iso: string | null): number | null {
@@ -44,6 +77,12 @@ function hoursSince(iso: string | null): number | null {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return null;
   return (Date.now() - t) / (60 * 60 * 1000);
+}
+
+function minutesSince(iso: string | null): number | null {
+  const hrs = hoursSince(iso);
+  if (hrs == null) return null;
+  return hrs * 60;
 }
 
 function haystack(title: string, summary: string | null): string {
@@ -55,6 +94,55 @@ function hasAny(text: string, patterns: RegExp[]): RegExp | null {
     if (re.test(text)) return re;
   }
   return null;
+}
+
+export function evaluateRecentWindowTieBreak(
+  a: RecentWindowTieBreakCandidate,
+  b: RecentWindowTieBreakCandidate,
+): RecentWindowTieBreakDecision {
+  const aMinutes = minutesSince(a.publishedAt);
+  const bMinutes = minutesSince(b.publishedAt);
+  if (aMinutes == null || bMinutes == null) {
+    return { winner: null, reason: null, freshnessGapMinutes: null, provenanceGap: null, scoreGap: null };
+  }
+
+  const aIsFresher = aMinutes < bMinutes;
+  const fresher = aIsFresher ? a : b;
+  const older = aIsFresher ? b : a;
+  const fresherLabel = aIsFresher ? 'a' : 'b';
+
+  const freshnessGapMinutes = Math.round(Math.abs(aMinutes - bMinutes));
+  if (freshnessGapMinutes < RECENT_WINDOW_MIN_FRESHNESS_GAP_MINUTES) {
+    return { winner: null, reason: null, freshnessGapMinutes, provenanceGap: null, scoreGap: null };
+  }
+
+  if (aMinutes > RECENT_WINDOW_HOURS * 60 || bMinutes > RECENT_WINDOW_HOURS * 60) {
+    return { winner: null, reason: null, freshnessGapMinutes, provenanceGap: null, scoreGap: null };
+  }
+
+  const fresherRank = provenanceTieBreakRank(fresher.provenanceClass);
+  const olderRank = provenanceTieBreakRank(older.provenanceClass);
+  const provenanceGap = fresherRank - olderRank;
+  if (provenanceGap <= 0 || provenanceGap > RECENT_WINDOW_MAX_PROVENANCE_GAP) {
+    return { winner: null, reason: null, freshnessGapMinutes, provenanceGap, scoreGap: null };
+  }
+
+  if (fresher.provenanceClass === 'COMMENTARY' || fresher.provenanceClass === 'SCHEDULE') {
+    return { winner: null, reason: null, freshnessGapMinutes, provenanceGap, scoreGap: null };
+  }
+
+  const scoreGap = Math.abs(a.score - b.score);
+  if (scoreGap > RECENT_WINDOW_MAX_SCORE_GAP) {
+    return { winner: null, reason: null, freshnessGapMinutes, provenanceGap, scoreGap };
+  }
+
+  return {
+    winner: fresherLabel,
+    reason: `Recent-window freshness wins: both <=${RECENT_WINDOW_HOURS}h old, freshness gap >=${RECENT_WINDOW_MIN_FRESHNESS_GAP_MINUTES}m, provenance gap <=${RECENT_WINDOW_MAX_PROVENANCE_GAP}, score gap <=${RECENT_WINDOW_MAX_SCORE_GAP}.`,
+    freshnessGapMinutes,
+    provenanceGap,
+    scoreGap,
+  };
 }
 
 const CEREMONIAL_EXECUTIVE_PATTERNS: RegExp[] = [
@@ -238,20 +326,20 @@ function scoreRecency(input: ScoringInput, h: string, explanations: DisplayExpla
     input.missionTags.includes('voting_rights') ||
     input.missionTags.includes('elections');
 
-  if (hrs <= 2) {
+  if (hrs <= BREAKING_WINDOW_HOURS) {
     const delta = highTrust && liveMissionRelevant ? 8 : highTrust ? 6 : 3;
     explanations.push({
       ruleId: 'display:recency',
-      message: delta >= 6 ? 'Boost: breaking/fresh hard-signal item' : 'Small boost: very fresh',
+      message: delta >= 6 ? 'Boost: breaking-window hard-signal item' : 'Small boost: breaking-window freshness',
     });
     return delta;
   }
-  if (hrs <= 6) {
-    const delta = highTrust && liveMissionRelevant ? 5 : highTrust ? 3 : 1;
+  if (hrs <= RECENT_WINDOW_HOURS) {
+    const delta = highTrust && liveMissionRelevant ? 4 : highTrust ? 2 : 0;
     if (delta > 0) {
       explanations.push({
         ruleId: 'display:recency',
-        message: delta >= 3 ? 'Boost: fresh reporting still moving' : 'Small boost: fresh',
+        message: delta >= 3 ? 'Boost: recent-window reporting still moving' : 'Small boost: recent-window freshness',
       });
     }
     return delta;

@@ -120,6 +120,36 @@ describe('computeDisplayPriority + ranking profile', () => {
     expect(st.displayPriority).toBeLessThan(osint.displayPriority);
   });
 
+  it('keeps breaking-window reporting above commentary even when both are fresh', () => {
+    const reporting = computeDisplayPriority({
+      ...base,
+      title: 'Court issues emergency stay in surveillance challenge',
+      summary: 'Fresh wire update confirms the ruling',
+      provenanceClass: 'WIRE',
+      stateChangeType: 'wire_item',
+      deskLane: 'osint',
+      contentUseMode: 'feed_summary',
+      sourceFamily: 'general',
+      publishedAt: new Date(Date.now() - 50 * 60 * 1000).toISOString(),
+    });
+
+    const commentary = computeDisplayPriority({
+      ...base,
+      title: 'Commentary: reaction to the surveillance ruling',
+      summary: 'Immediate analysis of the ruling',
+      provenanceClass: 'COMMENTARY',
+      stateChangeType: 'commentary_item',
+      missionTags: ['courts'],
+      deskLane: 'voices',
+      contentUseMode: 'feed_summary',
+      sourceFamily: 'claims_public',
+      publishedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    });
+
+    expect(reporting.displayPriority).toBeGreaterThan(commentary.displayPriority);
+    expect(reporting.displayExplanations.some((e) => /breaking-window/i.test(e.message))).toBe(true);
+  });
+
   it('does not automatically crush commentary with strong mission-relevant institutional hooks', () => {
     const commentary = computeDisplayPriority({
       ...base,
