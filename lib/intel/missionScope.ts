@@ -29,11 +29,16 @@ const POSITIVE_PATTERNS = [
   /\bprotest\b/i,
   /\baccountability\b/i,
   /\bcorruption\b/i,
+  /\bcorrupt(?:ion|ed)?\b/i,
   /\boversight\b/i,
+  /\bwatchdog\b/i,
+  /\binspector\s+general\b/i,
   /\bsurveillance\b/i,
   /\bcensorship\b/i,
   /\bcivil\s+rights?\b/i,
   /\bhuman\s+rights?\b/i,
+  /\bpress\s+freedom\b/i,
+  /\bstate\s+of\s+emergency\b/i,
   /\bdetention\b/i,
   /\bdeport(?:ation|ed|ing)?\b/i,
   /\brefugees?\b/i,
@@ -61,6 +66,10 @@ const POSITIVE_PATTERNS = [
   /\bmissile\b/i,
   /\bdrone\b/i,
   /\bairstrike\b/i,
+  /\bstrike(s|ing)?\b/i,
+  /\bshelling\b/i,
+  /\boffensive\b/i,
+  /\btroops?\b/i,
   /\binvasion\b/i,
   /\boccupation\b/i,
   /\bsiege\b/i,
@@ -113,6 +122,28 @@ const SOFT_OFFTOPIC_PATTERNS = [
   /\bspotify\b/i,
   /\bgrammys?\b/i,
   /\btiny\s+desk\b/i,
+  /\breality\s+tv\b/i,
+  /\bwellness\b/i,
+  /\bskin\s*care\b/i,
+  /\bmakeup\b/i,
+  /\bdating\b/i,
+];
+
+const AMBIGUOUS_CURRENT_EVENTS_PATTERNS = [
+  /\bbreaking\b/i,
+  /\bblast\b/i,
+  /\bexplosion\b/i,
+  /\bfire\b/i,
+  /\bcrash\b/i,
+  /\bshutdown\b/i,
+  /\bdisruption\b/i,
+  /\bdelays?\b/i,
+  /\bemergency\b/i,
+  /\bresponse\b/i,
+  /\binvestigat(?:e|ion|ors?)\b/i,
+  /\bauthorities\b/i,
+  /\bofficials?\b/i,
+  /\bdamage\b/i,
 ];
 
 function collectMatches(text: string, patterns: RegExp[]) {
@@ -125,6 +156,20 @@ function collectMatches(text: string, patterns: RegExp[]) {
 }
 
 export type MissionScopeState = 'in_scope' | 'ambiguous' | 'off_topic';
+export type MissionScopeAssessment = {
+  scopeState: MissionScopeState;
+  allowedOnHomepageCommentary: boolean;
+  allowedOnIntelDesk: boolean;
+  hardOffTopic: boolean;
+  softOffTopic: boolean;
+  positiveHits: string[];
+  sportsHits: string[];
+  softOffTopicHits: string[];
+  scoreDelta: number;
+  reason: string;
+};
+
+type OffTopicSubtype = 'sports' | 'entertainment_lifestyle' | null;
 
 export function assessMissionScope({
   title = '',
@@ -134,7 +179,7 @@ export function assessMissionScope({
   title?: string;
   summary?: string | null;
   categories?: string[];
-}) {
+}): MissionScopeAssessment {
   const text = [title, summary ?? '', ...(Array.isArray(categories) ? categories : [])]
     .filter(Boolean)
     .join('\n')
@@ -143,16 +188,25 @@ export function assessMissionScope({
   const positiveHits = collectMatches(text, POSITIVE_PATTERNS);
   const sportsHits = collectMatches(text, SPORTS_PATTERNS);
   const softOffTopicHits = collectMatches(text, SOFT_OFFTOPIC_PATTERNS);
+  const ambiguousCurrentEventsHits = collectMatches(text, AMBIGUOUS_CURRENT_EVENTS_PATTERNS);
 
   const hasPositive = positiveHits.length > 0;
-  const hardOffTopic = sportsHits.length > 0 && !hasPositive;
-  const softOffTopic = !hardOffTopic && softOffTopicHits.length > 0 && !hasPositive;
-  const scopeState: MissionScopeState = hardOffTopic || softOffTopic
-    ? 'off_topic'
-    : hasPositive
-      ? 'in_scope'
+  const hasAmbiguousCurrentEventsSignal = ambiguousCurrentEventsHits.length > 0;
+  const offTopicSubtype: OffTopicSubtype = hasPositive
+    ? null
+    : sportsHits.length > 0
+      ? 'sports'
+      : softOffTopicHits.length > 0 && !hasAmbiguousCurrentEventsSignal
+        ? 'entertainment_lifestyle'
+        : null;
+  const scopeState: MissionScopeState = hasPositive
+    ? 'in_scope'
+    : offTopicSubtype
+      ? 'off_topic'
       : 'ambiguous';
 
+  const hardOffTopic = scopeState === 'off_topic' && offTopicSubtype === 'sports';
+  const softOffTopic = scopeState === 'off_topic' && offTopicSubtype === 'entertainment_lifestyle';
   const allowedOnHomepageCommentary = scopeState === 'in_scope';
   const allowedOnIntelDesk = scopeState !== 'off_topic';
 
@@ -162,13 +216,13 @@ export function assessMissionScope({
   else if (softOffTopic) scoreDelta -= 8;
   scoreDelta = Math.max(-16, Math.min(6, scoreDelta));
 
-  const reason = hardOffTopic
-    ? `Off-topic: sports-only item (${sportsHits.join(', ')})`
-    : softOffTopic
-      ? `Off-topic: entertainment / lifestyle item (${softOffTopicHits.join(', ')})`
-      : hasPositive
-        ? `In-scope: ${positiveHits.join(', ')}`
-        : 'Ambiguous: no strong mission anchor found';
+  const reason = scopeState === 'off_topic'
+    ? hardOffTopic
+      ? `Off-topic: sports-only item (${sportsHits.join(', ')})`
+      : `Off-topic: entertainment / lifestyle item (${softOffTopicHits.join(', ')})`
+    : scopeState === 'in_scope'
+      ? `In-scope: ${positiveHits.join(', ')}`
+      : 'Ambiguous: broad current-events item with no strong mission anchor';
 
   return {
     scopeState,

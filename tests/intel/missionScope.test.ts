@@ -63,6 +63,56 @@ describe('assessMissionScope', () => {
     expect(mission.softOffTopic).toBe(false);
     expect(mission.allowedOnHomepageCommentary).toBe(false);
     expect(mission.allowedOnIntelDesk).toBe(true);
-    expect(mission.reason).toBe('Ambiguous: no strong mission anchor found');
+    expect(mission.reason).toBe('Ambiguous: broad current-events item with no strong mission anchor');
+  });
+
+  it('preserves legacy compatibility fields derived from scope state', () => {
+    const sportsMission = assessMissionScope({
+      title: 'NBA playoffs scoreboard update as coach weighs quarterback rumors',
+      summary: 'Fantasy chatter builds around the latest point spread.',
+    });
+    const politicalMission = assessMissionScope({
+      title: 'President faces congressional oversight after executive order challenge',
+      summary: 'A federal court hearing focuses on democracy and civil rights concerns.',
+    });
+    const ambiguousMission = assessMissionScope({
+      title: 'Breaking: airport disruption triggers emergency response and travel delays',
+      summary: 'Authorities say investigators are still piecing together what happened.',
+    });
+
+    expect(sportsMission).toEqual(
+      expect.objectContaining({
+        scopeState: 'off_topic',
+        allowedOnHomepageCommentary: false,
+        allowedOnIntelDesk: false,
+        hardOffTopic: true,
+        softOffTopic: false,
+        positiveHits: expect.any(Array),
+        sportsHits: expect.any(Array),
+        softOffTopicHits: expect.any(Array),
+        scoreDelta: expect.any(Number),
+        reason: expect.stringMatching(/Off-topic: sports-only item/i),
+      }),
+    );
+
+    expect(politicalMission).toEqual(
+      expect.objectContaining({
+        scopeState: 'in_scope',
+        allowedOnHomepageCommentary: true,
+        allowedOnIntelDesk: true,
+        hardOffTopic: false,
+        softOffTopic: false,
+      }),
+    );
+
+    expect(ambiguousMission).toEqual(
+      expect.objectContaining({
+        scopeState: 'ambiguous',
+        allowedOnHomepageCommentary: false,
+        allowedOnIntelDesk: true,
+        hardOffTopic: false,
+        softOffTopic: false,
+      }),
+    );
   });
 });
