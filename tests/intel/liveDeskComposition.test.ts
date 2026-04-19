@@ -130,8 +130,17 @@ function defaultRowsForLane(lane: string) {
   ];
 }
 
-const { fetchSurfacedSourceItemsForLive, fetchIntelFreshnessForDeskLane } = vi.hoisted(() => ({
+const {
+  fetchSourceIdsForDeskLane,
+  fetchSurfacedSourceItemsForLive,
+  fetchDownrankedSourceItemsForLive,
+  fetchSuppressedSourceItemsForLive,
+  fetchIntelFreshnessForDeskLane,
+} = vi.hoisted(() => ({
+  fetchSourceIdsForDeskLane: vi.fn(async (lane: string) => [`${lane}-source-id`]),
   fetchSurfacedSourceItemsForLive: vi.fn(async (limit: number, lane: string) => defaultRowsForLane(lane)),
+  fetchDownrankedSourceItemsForLive: vi.fn(async () => []),
+  fetchSuppressedSourceItemsForLive: vi.fn(async () => []),
   fetchIntelFreshnessForDeskLane: vi.fn(async () => ({
     latestFetchedAt: null,
     latestSuccessfulIngestAt: null,
@@ -140,19 +149,34 @@ const { fetchSurfacedSourceItemsForLive, fetchIntelFreshnessForDeskLane } = vi.h
 
 vi.mock('@/lib/intel/db', () => ({
   intelDbConfigured: () => true,
+  fetchSourceIdsForDeskLane,
   fetchIntelFreshnessForDeskLane,
   saveLiveDeskSnapshot: async () => {},
   loadLiveDeskSnapshot: async () => null,
-  fetchDownrankedSourceItemsForLive: async () => [],
-  fetchSuppressedSourceItemsForLive: async () => [],
+  fetchDownrankedSourceItemsForLive,
+  fetchSuppressedSourceItemsForLive,
   fetchSurfacedSourceItemsForLive,
 }));
 
+beforeEach(() => {
+  fetchSourceIdsForDeskLane.mockClear();
+  fetchSurfacedSourceItemsForLive.mockClear();
+  fetchDownrankedSourceItemsForLive.mockClear();
+  fetchSuppressedSourceItemsForLive.mockClear();
+  fetchIntelFreshnessForDeskLane.mockClear();
+  fetchSourceIdsForDeskLane.mockImplementation(async (lane: string) => [`${lane}-source-id`]);
+  fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) =>
+    defaultRowsForLane(lane),
+  );
+  fetchDownrankedSourceItemsForLive.mockImplementation(async () => []);
+  fetchSuppressedSourceItemsForLive.mockImplementation(async () => []);
+});
+
 describe('live desk composition (Milestone 2)', () => {
   beforeEach(() => {
-    fetchSurfacedSourceItemsForLive.mockClear();
-    fetchIntelFreshnessForDeskLane.mockClear();
-    fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) => defaultRowsForLane(lane));
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) =>
+      defaultRowsForLane(lane),
+    );
   });
 
   it('does not let ceremonial proclamations dominate the lead block', async () => {
@@ -172,6 +196,30 @@ describe('live desk composition (Milestone 2)', () => {
     const whCeremonialCount = top.filter((x) => x.sourceSlug === 'wh-presidential').length;
     expect(whCeremonialCount).toBeLessThan(top.length);
   });
+
+  it('reuses one lane source-id lookup across the main osint desk queries', async () => {
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    await getLiveIntelDesk('osint');
+
+    expect(fetchSourceIdsForDeskLane).toHaveBeenCalledTimes(2);
+    expect(fetchSourceIdsForDeskLane).toHaveBeenNthCalledWith(1, 'osint');
+    expect(fetchSourceIdsForDeskLane).toHaveBeenNthCalledWith(2, 'voices');
+    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('osint', {
+      laneSourceIds: ['osint-source-id'],
+    });
+    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'osint', {
+      laneSourceIds: ['osint-source-id'],
+    });
+    expect(fetchDownrankedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'osint', {
+      laneSourceIds: ['osint-source-id'],
+    });
+    expect(fetchSuppressedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'osint', {
+      laneSourceIds: ['osint-source-id'],
+    });
+    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'voices', {
+      laneSourceIds: ['voices-source-id'],
+    });
+  });
 });
 
 describe('live desk lane routing', () => {
@@ -184,29 +232,45 @@ describe('live desk lane routing', () => {
   it('preserves watchdogs lane', async () => {
     const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
     await getLiveIntelDesk('watchdogs');
-    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'watchdogs');
-    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('watchdogs');
+    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'watchdogs', {
+      laneSourceIds: ['watchdogs-source-id'],
+    });
+    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('watchdogs', {
+      laneSourceIds: ['watchdogs-source-id'],
+    });
   });
 
   it('preserves defense_ops lane', async () => {
     const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
     await getLiveIntelDesk('defense_ops');
-    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'defense_ops');
-    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('defense_ops');
+    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'defense_ops', {
+      laneSourceIds: ['defense_ops-source-id'],
+    });
+    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('defense_ops', {
+      laneSourceIds: ['defense_ops-source-id'],
+    });
   });
 
   it('preserves indicators lane', async () => {
     const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
     await getLiveIntelDesk('indicators');
-    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'indicators');
-    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('indicators');
+    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'indicators', {
+      laneSourceIds: ['indicators-source-id'],
+    });
+    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('indicators', {
+      laneSourceIds: ['indicators-source-id'],
+    });
   });
 
   it('preserves statements lane', async () => {
     const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
     await getLiveIntelDesk('statements');
-    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'statements');
-    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('statements');
+    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'statements', {
+      laneSourceIds: ['statements-source-id'],
+    });
+    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('statements', {
+      laneSourceIds: ['statements-source-id'],
+    });
   });
 });
 
@@ -245,6 +309,7 @@ describe('metadata_only on default desk surfaces', () => {
           provenance_class: 'SCHEDULE',
           desk_lane: 'osint',
           source_family: 'general',
+          trust_warning_mode: 'none',
         },
       },
     ]);
@@ -600,6 +665,130 @@ describe('public OSINT desk payload', () => {
     expect(publicDesk).not.toHaveProperty('preCapCandidates');
     expect(richDesk.items[0]).toHaveProperty('promotionDecision');
     expect(publicDesk.items[0]).not.toHaveProperty('promotionDecision');
+  });
+
+  it('keeps the serialized public OSINT payload comfortably under the cache budget', async () => {
+    const {
+      buildPublicDeskPayload,
+      describePublicDeskPayloadBudget,
+      PUBLIC_OSINT_PAYLOAD_BUDGET_BYTES,
+    } = await import('@/lib/feeds/liveIntel.service');
+
+    const longText = 'accountability '.repeat(180);
+    const longExplain = Array.from({ length: 12 }, (_, index) => ({
+      ruleId: `rule-${index}`,
+      message: `${longText}${index}`,
+      meta: {
+        excerpt: longText,
+        supportingNotes: Array.from({ length: 4 }, () => longText),
+      },
+    }));
+    const makeRichItem = (id: string) => ({
+      id,
+      title: `Desk item ${id}`,
+      summary: longText,
+      canonicalUrl: `https://example.com/${id}`,
+      imageUrl: `https://images.example.com/${id}.jpg`,
+      publishedAt: '2026-04-19T12:00:00.000Z',
+      provenanceClass: 'SPECIALIST',
+      sourceName: `Source ${id}`,
+      sourceSlug: `source-${id}`,
+      trustBadges: ['verified', 'context', 'primary'],
+      trustExplain: longText,
+      trustWarningText: longText,
+      contentUseMode: 'feed_summary',
+      deskLane: 'osint',
+      displayBucket: 'secondary',
+      displayPriority: 72,
+      surfaceState: 'surfaced',
+      suppressionReason: null,
+      missionTags: ['courts', 'civil_liberties', 'congress', 'surveillance', 'democracy'],
+      whyItMatters: longText,
+      relevanceExplanations: longExplain,
+      displayExplanations: longExplain,
+      clusterKeys: { topic: `topic-${id}`, case_number: `case-${id}` },
+      stateChangeType: 'specialist_item',
+      trustWarningMode: 'none',
+      institutionalArea: 'courts',
+      creatorCorroboration: {
+        applied: true,
+        boost: 4,
+        clusterId: `cluster-${id}`,
+        representativeId: id,
+        eventType: 'court_action',
+        reasons: Array.from({ length: 8 }, () => longText),
+      },
+      isDuplicateLoser: false,
+      promotionDecision: {
+        lane: 'osint',
+        explain: {
+          display: longExplain,
+          ingest: longExplain,
+        },
+        trust: {
+          trustWarningText: longText,
+          supportingNotes: Array.from({ length: 4 }, () => longText),
+        },
+      },
+      missionScope: {
+        reason: longText,
+        positiveHits: Array.from({ length: 10 }, () => longText),
+        sportsHits: [],
+        softOffTopicHits: [],
+      },
+      debugTrail: Array.from({ length: 12 }, () => ({
+        note: longText,
+        evidence: longText,
+      })),
+    });
+
+    const richItems = Array.from({ length: 32 }, (_, index) => makeRichItem(`visible-${index + 1}`));
+    const duplicateItems = Array.from({ length: 12 }, (_, index) => makeRichItem(`duplicate-${index + 1}`));
+    const suppressedItems = Array.from({ length: 8 }, (_, index) => ({
+      ...makeRichItem(`suppressed-${index + 1}`),
+      surfaceState: 'suppressed',
+      suppressionReason: 'off_topic',
+    }));
+    const richDesk = {
+      configured: true,
+      stale: false,
+      dataStale: false,
+      snapshotFallback: false,
+      liveReadOk: true,
+      intelSchemaMisconfigured: false,
+      items: richItems,
+      leadItems: richItems.slice(0, 1),
+      secondaryLeadItems: richItems.slice(1, 5),
+      suppressedItems,
+      duplicateItems,
+      metadataOnlyItems: [],
+      accountabilityHighlights: richItems.slice(0, 6).map((item) => ({
+        id: item.id,
+        title: item.title,
+        canonicalUrl: item.canonicalUrl,
+        imageUrl: item.imageUrl,
+        provenanceClass: item.provenanceClass,
+        sourceName: item.sourceName,
+        eventClass: 'accountability',
+        explanations: longExplain,
+      })),
+      freshness: null,
+      freshnessMeta: null,
+      message: null,
+      deskLane: 'osint',
+    };
+
+    const richSerializedBytes = Buffer.byteLength(JSON.stringify(richDesk), 'utf8');
+    const publicDesk = buildPublicDeskPayload(richDesk);
+    const budget = describePublicDeskPayloadBudget(publicDesk);
+
+    expect(richSerializedBytes).toBeGreaterThan(2_000_000);
+    expect(budget).toMatchObject({
+      budgetBytes: PUBLIC_OSINT_PAYLOAD_BUDGET_BYTES,
+      withinBudget: true,
+    });
+    expect(budget.payloadBytes).toBeLessThan(PUBLIC_OSINT_PAYLOAD_BUDGET_BYTES);
+    expect(budget.remainingBytes).toBeGreaterThan(250_000);
   });
 });
 

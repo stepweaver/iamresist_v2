@@ -21,11 +21,11 @@ export default async function VoicesFeedSection({
     <section className="mb-6 sm:mb-8 border-t border-border/60 pt-6 sm:pt-8">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
         <div className="min-w-0">
-          <span className="kicker text-primary text-[10px] sm:text-xs tracking-[0.35em] font-bold block">
+          <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block">
             {title}
           </span>
           {description ? (
-            <p className="text-[10px] sm:text-xs text-foreground/50 font-mono mt-1 max-w-2xl leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-foreground/60 font-mono mt-1 max-w-2xl leading-relaxed">
               {description}
             </p>
           ) : null}

@@ -42,6 +42,19 @@ export async function fetchSourceIdsForDeskLane(deskLane: DeskLane): Promise<str
   return ids;
 }
 
+export type LiveDeskLaneSourceIdsOptions = {
+  laneSourceIds?: string[];
+};
+
+async function resolveLaneSourceIds(
+  deskLane: DeskLane,
+  opts: LiveDeskLaneSourceIdsOptions = {},
+): Promise<string[]> {
+  return Array.isArray(opts.laneSourceIds)
+    ? opts.laneSourceIds
+    : fetchSourceIdsForDeskLane(deskLane);
+}
+
 function mergeEditorialNotes(c: SignalSourceConfig): string | null {
   const parts = [c.editorialNotes, c.notes].filter((x): x is string => Boolean(x && String(x).trim()));
   const unique = [...new Set(parts.map((p) => p.trim()))];
@@ -304,9 +317,13 @@ const SOURCE_ITEMS_LIVE_SELECT = `
     `;
 
 /** Surfaced rows only, newest first — avoids suppressed rows consuming the desk fetch budget. */
-async function fetchSurfacedNewestForLive(limit: number, deskLane: DeskLane): Promise<SourceItemRow[]> {
+async function fetchSurfacedNewestForLive(
+  limit: number,
+  deskLane: DeskLane,
+  opts: LiveDeskLaneSourceIdsOptions = {},
+): Promise<SourceItemRow[]> {
   const supabase = client();
-  const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
+  const laneSourceIds = await resolveLaneSourceIds(deskLane, opts);
   if (laneSourceIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -322,9 +339,13 @@ async function fetchSurfacedNewestForLive(limit: number, deskLane: DeskLane): Pr
 }
 
 /** Surfaced rows ordered by ingest relevance score (widens ranking candidate pool vs recency-only). */
-async function fetchSurfacedTopRelevanceForLive(limit: number, deskLane: DeskLane): Promise<SourceItemRow[]> {
+async function fetchSurfacedTopRelevanceForLive(
+  limit: number,
+  deskLane: DeskLane,
+  opts: LiveDeskLaneSourceIdsOptions = {},
+): Promise<SourceItemRow[]> {
   const supabase = client();
-  const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
+  const laneSourceIds = await resolveLaneSourceIds(deskLane, opts);
   if (laneSourceIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -346,10 +367,12 @@ async function fetchSurfacedTopRelevanceForLive(limit: number, deskLane: DeskLan
 export async function fetchSurfacedSourceItemsForLive(
   limit: number,
   deskLane: DeskLane,
+  opts: LiveDeskLaneSourceIdsOptions = {},
 ): Promise<SourceItemRow[]> {
+  const laneSourceIds = await resolveLaneSourceIds(deskLane, opts);
   const [newest, byRel] = await Promise.all([
-    fetchSurfacedNewestForLive(limit, deskLane),
-    fetchSurfacedTopRelevanceForLive(limit, deskLane),
+    fetchSurfacedNewestForLive(limit, deskLane, { laneSourceIds }),
+    fetchSurfacedTopRelevanceForLive(limit, deskLane, { laneSourceIds }),
   ]);
   const byId = new Map<string, SourceItemRow>();
   for (const r of newest) {
@@ -365,10 +388,11 @@ export async function fetchSurfacedSourceItemsForLive(
 export async function fetchDownrankedSourceItemsForLive(
   limit: number,
   deskLane: DeskLane,
+  opts: LiveDeskLaneSourceIdsOptions = {},
 ): Promise<SourceItemRow[]> {
   if (limit <= 0) return [];
   const supabase = client();
-  const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
+  const laneSourceIds = await resolveLaneSourceIds(deskLane, opts);
   if (laneSourceIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -387,9 +411,10 @@ export async function fetchDownrankedSourceItemsForLive(
 export async function fetchSuppressedSourceItemsForLive(
   limit: number,
   deskLane: DeskLane,
+  opts: LiveDeskLaneSourceIdsOptions = {},
 ): Promise<SourceItemRow[]> {
   const supabase = client();
-  const laneSourceIds = await fetchSourceIdsForDeskLane(deskLane);
+  const laneSourceIds = await resolveLaneSourceIds(deskLane, opts);
   if (laneSourceIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -436,19 +461,12 @@ export async function fetchIntelFreshnessSnapshot(): Promise<IntelFreshness> {
 }
 
 /** Freshness scoped to one desk lane (items + ingest runs for sources in that lane). */
-export async function fetchIntelFreshnessForDeskLane(deskLane: DeskLane): Promise<IntelFreshness> {
+export async function fetchIntelFreshnessForDeskLane(
+  deskLane: DeskLane,
+  opts: LiveDeskLaneSourceIdsOptions = {},
+): Promise<IntelFreshness> {
   const supabase = client();
-
-  const { data: laneSources, error: srcErr } = await supabase
-    .from('sources')
-    .select('id')
-    .eq('desk_lane', deskLane);
-  if (srcErr) throw new Error(`sources lane select: ${srcErr.message}`);
-  const ids: string[] = [];
-  for (const row of laneSources ?? []) {
-    const rec = row as { id?: string | null };
-    if (typeof rec.id === 'string' && rec.id) ids.push(rec.id);
-  }
+  const ids = await resolveLaneSourceIds(deskLane, opts);
 
   let itemRows: { fetched_at?: string }[] | null = null;
   let itemErr: { message: string } | null = null;

@@ -23,18 +23,22 @@ export default async function HomeFeed() {
         <CurrentlyReadingCard />
       </Suspense>
 
-      <HomeLiveBriefingSection briefing={briefing} />
-
-      {feedItems?.length > 0 && (
-        <div className="mb-6 sm:mb-8">
-          <VoicesFeedSection
-            items={feedItems}
-            title="Telescreen"
-            showViewAll={true}
-            description="Commentary and media — how people are framing events, not the same pool as the live briefing desk."
-          />
+      <div className="flex flex-col">
+        <div className="order-2 lg:order-1">
+          <HomeLiveBriefingSection briefing={briefing} />
         </div>
-      )}
+
+        {feedItems?.length > 0 && (
+          <div className="order-1 mb-6 sm:mb-8 lg:order-2">
+            <VoicesFeedSection
+              items={feedItems}
+              title="Telescreen"
+              showViewAll={true}
+              description="Commentary and media — how people are framing events, not the same pool as the live briefing desk."
+            />
+          </div>
+        )}
+      </div>
 
       <ProtestMusicSection item={latestProtestMusicItem} />
     </div>
