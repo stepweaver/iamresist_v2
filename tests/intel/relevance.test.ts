@@ -151,6 +151,40 @@ describe('computeRelevanceProfile', () => {
     expect(p.institutional_area).toBe('white_house');
   });
 
+  it('restores the Federal Register baseline behavior', () => {
+    const item = baseItem({
+      title: 'Routine publication notice',
+      stateChangeType: 'published_document',
+    });
+    const cfg = baseCfg({
+      slug: 'fr-published',
+      editorialControls: { preferredStateChangeTypes: ['published_document'] },
+    });
+    const p = computeRelevanceProfile(item, cfg);
+
+    expect(p.mission_tags).toEqual(expect.arrayContaining(['regulation', 'federal_agencies']));
+    expect(p.branch_of_government).toBe('administrative');
+    expect(p.institutional_area).toBe('federal_register');
+  });
+
+  it('restores the courier-the-cover-up baseline behavior', () => {
+    const item = baseItem({
+      title: 'Civil liberties case update',
+      stateChangeType: 'specialist_item',
+    });
+    const cfg = baseCfg({
+      slug: 'courier-the-cover-up',
+      provenanceClass: 'SPECIALIST',
+      sourceFamily: 'general',
+      editorialControls: { defaultPriority: 50 },
+    });
+    const p = computeRelevanceProfile(item, cfg);
+
+    expect(p.mission_tags).toEqual(expect.arrayContaining(['courts', 'civil_liberties']));
+    expect(p.branch_of_government).toBe('unknown');
+    expect(p.institutional_area).toBe('specialist');
+  });
+
   it('gives a modest sourcePosition boost that does not overpower stronger deterministic evidence', () => {
     const cfg = baseCfg({
       slug: 'fr-published',

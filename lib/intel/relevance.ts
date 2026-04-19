@@ -127,6 +127,14 @@ function sourceBaseline(
       defaultPriority: slug === 'wh-presidential' ? 62 : 52,
     };
   }
+  if (slug === 'fr-public-inspection' || slug === 'fr-published') {
+    return {
+      tags: ['regulation', 'federal_agencies'],
+      branch: 'administrative',
+      area: 'federal_register',
+      defaultPriority: 38,
+    };
+  }
   if (slug === 'govinfo-bills') {
     return {
       tags: ['congress'],
@@ -189,6 +197,14 @@ function sourceBaseline(
       branch: 'administrative',
       area: 'specialist',
       defaultPriority: 55,
+    };
+  }
+  if (slug === 'courier-the-cover-up') {
+    return {
+      tags: ['courts', 'civil_liberties'],
+      branch: 'unknown',
+      area: 'specialist',
+      defaultPriority: 50,
     };
   }
   if (slug === 'robert-reich' || slug === 'on-offense-kris-goldsmith' || slug === 'total-hypocrisy') {
@@ -399,10 +415,7 @@ export function computeRelevanceProfile(
       : [],
   });
 
-  const clearlyOffTopic =
-    mission.positiveHits.length === 0 && (mission.hardOffTopic || mission.softOffTopic);
-
-  if (clearlyOffTopic) {
+  if (mission.scopeState === 'off_topic') {
     explanations.push({
       ruleId: 'mission:off_topic',
       message: mission.reason,
