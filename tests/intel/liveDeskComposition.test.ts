@@ -4,6 +4,13 @@ vi.mock('next/cache', () => ({
   unstable_cache: (fn: (...args: any[]) => any) => fn,
 }));
 
+vi.mock('@/lib/intel/deskLimits', () => ({
+  parseDeskSurfacedFetchLimit: () => 20,
+  parseDeskDownrankedFetchLimit: () => 10,
+  parseDeskSuppressedFetchLimit: () => 5,
+  parseDeskMaxVisibleItems: () => 2,
+}));
+
 vi.mock('@/lib/feeds/ogImage.js', () => ({
   fetchOgImageUncached: async () => null,
   fetchOgImageFetchCached: async () => null,
@@ -234,5 +241,58 @@ describe('metadata_only on default desk surfaces', () => {
       ...(desk.secondaryLeadItems ?? []),
     ].map((x: { id: string }) => x.id);
     expect(ids).not.toContain('meta-osint-1');
+  });
+});
+
+describe('live desk debug payload', () => {
+  beforeEach(() => {
+    fetchSurfacedSourceItemsForLive.mockClear();
+    fetchIntelFreshnessForDeskLane.mockClear();
+  });
+
+  it('exposes a bounded pre-cap candidate list with real helper output', async () => {
+    const { getLiveIntelDeskDebug } = await import('@/lib/feeds/liveIntel.service');
+    const debugDesk = await getLiveIntelDeskDebug('osint');
+
+    expect(debugDesk.deskLane).toBe('osint');
+    expect(debugDesk.counts.visible).toBe(2);
+    expect(debugDesk.counts.preCapCandidates).toBe(3);
+    expect(debugDesk.items.visible).toHaveLength(2);
+    expect(debugDesk.items.preCapCandidates).toHaveLength(3);
+
+    expect(debugDesk.items.preCapCandidates.map((item: any) => item.preCapRank)).toEqual([1, 2, 3]);
+    expect(debugDesk.items.preCapCandidates.map((item: any) => item.madeVisible)).toEqual([
+      true,
+      true,
+      false,
+    ]);
+
+    expect(debugDesk.items.preCapCandidates[0]).toMatchObject({
+      listName: 'pre_cap_candidate',
+      title: expect.any(String),
+      url: expect.stringContaining('https://example.com/'),
+      sourceSlug: expect.any(String),
+      deskLane: 'osint',
+      provenanceClass: expect.any(String),
+      publishedAt: expect.any(String),
+      relevance_score: expect.any(Number),
+      surface_state: expect.any(String),
+      suppression_reason: null,
+      displayPriority: expect.any(Number),
+      displayBucket: expect.any(String),
+      missionScope: {
+        reason: expect.any(String),
+        positiveHits: expect.any(Array),
+        sportsHits: expect.any(Array),
+        softOffTopicHits: expect.any(Array),
+      },
+      duplicateClusterKey: null,
+      duplicateSelection: 'unique',
+      duplicateWinnerId: null,
+      shortExplanations: {
+        relevance: expect.any(Array),
+        display: expect.any(Array),
+      },
+    });
   });
 });
