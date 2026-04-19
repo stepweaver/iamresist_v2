@@ -1,11 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import React from 'react';
 
-const { getLiveIntelDeskUncached } = vi.hoisted(() => ({
-  getLiveIntelDeskUncached: vi.fn(async () => ({
+const { getLiveIntelDesk } = vi.hoisted(() => ({
+  getLiveIntelDesk: vi.fn(async () => ({
     configured: true,
     liveReadOk: true,
-    items: [],
-    leadItems: [],
+    items: [{ id: 'visible-1', title: 'Visible item' }],
+    leadItems: [{ id: 'lead-1', title: 'Lead item' }],
     secondaryLeadItems: [],
     suppressedItems: [],
     duplicateItems: [],
@@ -19,16 +20,68 @@ const { getLiveIntelDeskUncached } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/feeds/liveIntel.service', () => ({
-  getLiveIntelDeskUncached,
+  getLiveIntelDesk,
 }));
 
+vi.mock('@/components/intel/LiveDeskSection', () => ({
+  default: ({ desk, laneWarningSlot }: any) =>
+    React.createElement(
+      'section',
+      { 'data-testid': 'live-desk-section', desk, laneWarningSlot },
+      `desk:${desk?.deskLane ?? 'unknown'} items:${Array.isArray(desk?.items) ? desk.items.length : 0}`,
+    ),
+}));
+
+async function renderOsintContentFromPageTree() {
+  const { default: IntelOsintPage } = await import('@/app/intel/osint/page');
+  const page = IntelOsintPage() as any;
+  const mainChildren = React.Children.toArray(page.props.children);
+  const contentWrapper = mainChildren[0] as any;
+  const wrapperChildren = React.Children.toArray(contentWrapper.props.children);
+  const suspenseElement = wrapperChildren[1] as any;
+  const osintContentElement = suspenseElement.props.children as any;
+  return osintContentElement.type();
+}
+
 describe('Intel OSINT page', () => {
-  it('renders from the uncached desk getter to avoid oversized unstable_cache payloads', async () => {
-    const { OsintContent } = await import('@/app/intel/osint/page');
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    await OsintContent();
+  it('renders from the cached osint desk getter on the public route', async () => {
+    const element = await renderOsintContentFromPageTree();
 
-    expect(getLiveIntelDeskUncached).toHaveBeenCalledTimes(1);
-    expect(getLiveIntelDeskUncached).toHaveBeenCalledWith();
+    expect(getLiveIntelDesk).toHaveBeenCalledTimes(1);
+    expect(getLiveIntelDesk).toHaveBeenCalledWith('osint');
+    expect(element.props.desk).toMatchObject({
+      deskLane: 'osint',
+      items: [{ id: 'visible-1', title: 'Visible item' }],
+    });
+  });
+
+  it('preserves the live desk payload shape expected by the page component tree', async () => {
+    const element = await renderOsintContentFromPageTree();
+
+    expect(element.props).toEqual(
+      expect.objectContaining({
+        desk: expect.objectContaining({
+          configured: true,
+          liveReadOk: true,
+          deskLane: 'osint',
+          items: expect.any(Array),
+          leadItems: expect.any(Array),
+          secondaryLeadItems: expect.any(Array),
+          suppressedItems: expect.any(Array),
+          duplicateItems: expect.any(Array),
+          metadataOnlyItems: expect.any(Array),
+          storyClusters: expect.objectContaining({
+            counts: expect.any(Object),
+            items: expect.any(Array),
+          }),
+          accountabilityHighlights: expect.any(Array),
+        }),
+        laneWarningSlot: expect.any(Object),
+      }),
+    );
   });
 });
