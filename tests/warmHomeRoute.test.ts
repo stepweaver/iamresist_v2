@@ -36,7 +36,10 @@ describe('GET /api/cron/warm-home', () => {
     }));
 
     const { GET } = await import('@/app/api/cron/warm-home/route');
-    const response = /** @type {Response} */ (await GET(new Request('https://example.test/api/cron/warm-home')));
+    const response = await GET(new Request('https://example.test/api/cron/warm-home'));
+    if (!response) {
+      throw new Error('Expected warm-home route to return a response');
+    }
     const body = await response.json();
 
     expect(response.status).toBe(200);

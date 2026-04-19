@@ -17,19 +17,19 @@ This milestone is the **smallest, safest product jump** that materially reduces 
 
 ## Exact ops wiring
 
-### Vercel cron schedules
+### Production scheduler
 
-Configured in `vercel.json` (Vercel injects `Authorization: Bearer <CRON_SECRET>` automatically when `CRON_SECRET` is set in project env):
+Production recurring jobs are now run by **external cron**, not by repo-managed GitHub or Vercel schedules.
 
-- **Ingest**: `/api/cron/ingest-signal` every **10 minutes**
-- **Warm caches**: `/api/cron/warm-home` every **20 minutes**
-- **Rescore**: `/api/cron/intel-rescore` every **6 hours** at minute 15
-- **Keep alive**: `/api/cron/keep-alive` daily at 02:00
+- **Main recurring job**: `/api/cron/ingest-signal`
+- **Lightweight cache warm**: `/api/cron/warm-home`
+- **Manual / maintenance**: `/api/cron/intel-rescore`, `/api/revalidate`
+- **Operational ping**: `/api/cron/keep-alive`
 
 ### Expected impact
 
 - Desks stop drifting into “Stale” due to missing invocations.
-- Homepage “Live briefing” and lane pages are consistently warm, reducing perceived lag.
+- Homepage payload caches are kept warm without rebuilding unrelated archive or feed surfaces.
 
 ## Coverage expansion (exact sources in this milestone)
 

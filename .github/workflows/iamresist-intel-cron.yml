@@ -1,9 +1,6 @@
-name: iamresist intel cron
+name: iamresist intel maintenance
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
-    - cron: "7 * * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -15,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Explain manual-only maintenance mode
+        run: echo "External cron is the production scheduler. This workflow is manual maintenance only."
       - name: Call cron endpoints
         env:
           BASE_URL: ${{ secrets.IAMRESIST_BASE_URL != '' && secrets.IAMRESIST_BASE_URL || 'https://www.iamresist.org' }}

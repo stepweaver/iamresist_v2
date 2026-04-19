@@ -58,8 +58,10 @@ Repository-specific Codex/editorial guidance lives in [AGENTS.md](./AGENTS.md).
 | `GET /api/voices-archive` | Paginated archive + filters |
 | `GET /api/voices-more` | Per-voice or curated bucket extras for inline player |
 | `POST /api/revalidate` | On-demand tag revalidation (`Authorization: Bearer CRON_SECRET`) |
-| `GET /api/cron/ingest-signal` | Ingest intel sources into `intel.source_items`; revalidates `intel-live` |
-| `GET /api/cron/keep-alive` / `warm-home` | Scheduled warmers (protect with `CRON_SECRET` where configured) |
+| `GET /api/cron/ingest-signal` | Main recurring ingest job for external cron; updates intel source items and revalidates `intel-live` |
+| `GET /api/cron/warm-home` | Lightweight homepage warmer; primes the cached homepage payload only |
+| `GET /api/cron/keep-alive` | Lightweight connectivity check for external cron or manual maintenance |
+| `GET /api/cron/intel-rescore` | Manual or maintenance rescore endpoint; not part of the lightweight homepage warmer |
 | `GET /api/orders/[id]` | Order status (token-gated) |
 | `GET /api/printify/list-*` | Operational helpers for Printify (token/server use) |
 
@@ -166,8 +168,9 @@ Open [http://localhost:3000](http://localhost:3000). Turbopack is enabled in the
 
 1. Set all production env vars in the host dashboard.
 2. Configure **Stripe** and **Printify** webhook URLs to this deployment’s `/api/webhooks/*` endpoints.
-3. Point **cron** or external schedulers at `keep-alive` / `warm-home` if you use them, with the same `CRON_SECRET` pattern as in code.
-4. **`next.config.mjs`** ships CSP, HSTS, frame/options headers, image `remotePatterns`, and cron-friendly rewrites—review before changing third-party embeds or image hosts.
+3. Use an **external cron** scheduler for production recurring jobs. The primary recurring job is `GET /api/cron/ingest-signal`; `GET /api/cron/warm-home` is a lightweight homepage cache warmer, while `GET /api/cron/intel-rescore` and `POST /api/revalidate` are maintenance/manual operations unless you explicitly choose to automate them.
+4. The GitHub workflow at `.github/workflows/iamresist-intel-cron.yml` is manual-only maintenance and is not the production scheduler.
+5. **`next.config.mjs`** ships CSP, HSTS, frame/options headers, image `remotePatterns`, and cron-friendly rewrites—review before changing third-party embeds or image hosts.
 
 ---
 
@@ -176,6 +179,16 @@ Open [http://localhost:3000](http://localhost:3000). Turbopack is enabled in the
 - Webhooks verify signatures in production (`Stripe`, `Printify`).
 - `POST /api/revalidate` requires `Authorization: Bearer <CRON_SECRET>`.
 - Order status and similar flows use server-side secrets; do not expose service keys to the client.
+
+---
+
+## Ops model
+
+- Production scheduling is handled by **external cron**, not by a GitHub Actions schedule in this repo.
+- `GET /api/cron/ingest-signal` is the main recurring job.
+- `GET /api/cron/warm-home` is intentionally narrow and warms only the cached homepage payload path.
+- `GET /api/cron/intel-rescore` and `POST /api/revalidate` are maintenance/manual tools unless you deliberately automate them outside the repo.
+- `GET /api/cron/keep-alive` remains a lightweight operational ping.
 
 ---
 
