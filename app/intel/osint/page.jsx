@@ -1,7 +1,7 @@
-import { Suspense } from 'react';
+import React, { Suspense } from 'react';
 import IntelTabs from '@/components/IntelTabs';
 import LiveDeskSection from '@/components/intel/LiveDeskSection';
-import { getLiveIntelDesk } from '@/lib/feeds/liveIntel.service';
+import { getLiveIntelDeskUncached } from '@/lib/feeds/liveIntel.service';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const revalidate = 45;
@@ -13,8 +13,8 @@ export const metadata = buildPageMetadata({
   urlPath: '/intel/osint',
 });
 
-async function OsintContent() {
-  const desk = await getLiveIntelDesk();
+export async function OsintContent() {
+  const desk = await getLiveIntelDeskUncached();
   return <LiveDeskSection desk={desk} />;
 }
 

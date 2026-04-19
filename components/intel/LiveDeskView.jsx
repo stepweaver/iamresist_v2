@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import ShareButton from '@/components/ShareButton';
+import { buildStoryPresentationModel } from '@/components/intel/storyPresentation';
 import { formatDate } from '@/lib/utils/date';
 
 export function deskLabelForLane(deskLane) {
@@ -194,6 +195,104 @@ function CompactSignalMeta({ row, showBucket = false }) {
   );
 }
 
+function WhyThisSurfacedDetails({ entry }) {
+  if (!entry?.hasWhyThisSurfaced) return null;
+
+  const bits = [];
+  if (entry.whyThisSurfaced?.topReason) bits.push(entry.whyThisSurfaced.topReason);
+  if (entry.whyThisSurfaced?.displayBucket) bits.push(`bucket: ${entry.whyThisSurfaced.displayBucket}`);
+  if (Array.isArray(entry.whyThisSurfaced?.missionTags) && entry.whyThisSurfaced.missionTags.length) {
+    bits.push(`mission: ${entry.whyThisSurfaced.missionTags.join(', ')}`);
+  }
+  if (!bits.length) return null;
+
+  return (
+    <details className="mt-3 border border-border/60 bg-foreground/[0.02] p-3">
+      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-foreground/75">
+        Why this surfaced
+      </summary>
+      <p className="mt-2 text-xs text-foreground/70 leading-relaxed">{bits.join(' · ')}</p>
+    </details>
+  );
+}
+
+function StoryRelatedRow({ row }) {
+  const when = row.publishedAt ? formatDate(row.publishedAt) : null;
+
+  return (
+    <li className="border border-border/60 bg-foreground/[0.02] px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 gap-y-1">
+        <ProvenanceChip provenanceClass={row.provenanceClass} />
+        <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+          {row.sourceName}
+        </span>
+        {when ? (
+          <>
+            <span className="text-hud-dim">|</span>
+            <time
+              className="font-mono text-[10px] text-hud-dim tracking-wider"
+              dateTime={row.publishedAt || undefined}
+            >
+              {when}
+            </time>
+          </>
+        ) : null}
+      </div>
+      <Link
+        href={row.canonicalUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 block text-sm font-bold text-foreground hover:text-primary hover:underline"
+      >
+        {row.title}
+      </Link>
+      {row.summary && row.contentUseMode !== 'metadata_only' ? (
+        <p className="mt-1 text-xs text-foreground/65 leading-relaxed">{truncatePreview(row.summary, 140)}</p>
+      ) : null}
+    </li>
+  );
+}
+
+function StorySection({ title, items }) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  return (
+    <section className="mt-4">
+      <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-foreground/60">{title}</p>
+      <ul className="space-y-2">
+        {items.map((item) => (
+          <StoryRelatedRow key={item.id} row={item} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function StoryContextSections({ entry }) {
+  if (entry?.kind !== 'story' || !entry.story) return null;
+
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <StorySection title="Reporting" items={entry.relatedSections.reporting} />
+      <StorySection title="Analysis" items={entry.relatedSections.analysis} />
+      <StorySection title="Opinion" items={entry.relatedSections.opinion} />
+      <StorySection title="Creator signal" items={entry.relatedSections.creatorSignal} />
+      {entry.story?.creatorSignalNote?.itemCount ? (
+        <p className="mt-3 text-xs text-foreground/65 leading-relaxed">
+          Creator signal note: trusted creator corroboration exists around this story as support metadata, not as the
+          primary reporting basis.
+        </p>
+      ) : null}
+      {entry.groupedDuplicateCount > 0 ? (
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
+          {entry.groupedDuplicateCount} similar report{entry.groupedDuplicateCount === 1 ? '' : 's'} grouped under
+          this story
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function CompactFreshnessLine({
   snapshotFallback,
   dataStale,
@@ -358,7 +457,17 @@ export default function LiveDeskView({
   const secondary = Array.isArray(secondaryLeadItems) ? secondaryLeadItems : [];
   const leadIds = new Set([...leads, ...secondary].map((x) => x?.id).filter(Boolean));
   const rest = Array.isArray(items) ? items.filter((x) => !leadIds.has(x.id)) : [];
-  const listForEmptyCheck = [...leads, ...secondary, ...rest];
+  const storyPresentation = buildStoryPresentationModel({
+    leadItems: leads,
+    secondaryLeadItems: secondary,
+    items: usesLeadBlockLayout ? rest : Array.isArray(items) ? items : [],
+    duplicateItems: duplicates,
+    storyClusters: desk.storyClusters,
+  });
+  const leadEntries = storyPresentation.leadItems;
+  const secondaryEntries = storyPresentation.secondaryLeadItems;
+  const stackEntries = storyPresentation.items;
+  const listForEmptyCheck = [...leadEntries, ...secondaryEntries, ...stackEntries];
   const hasMainStack = listForEmptyCheck.length > 0;
   const hasAnyDeskContent =
     hasMainStack || duplicates.length > 0 || suppressed.length > 0 || metaOnly.length > 0;
@@ -434,8 +543,11 @@ export default function LiveDeskView({
       ) : null}
 
       <div id="intel-desk-primary-stack" className="space-y-6 scroll-mt-20">
-      {!emptyAfterSourceFilter && hasAnyDeskContent && usesLeadBlockLayout && (leads.length > 0 || secondary.length > 0) ? (
-        <section className="border border-border machine-panel p-5 sm:p-6">
+        {!emptyAfterSourceFilter &&
+        hasAnyDeskContent &&
+        usesLeadBlockLayout &&
+        (leadEntries.length > 0 || secondaryEntries.length > 0) ? (
+          <section className="border border-border machine-panel p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
               Lead developments
@@ -446,7 +558,8 @@ export default function LiveDeskView({
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            {leads.map((row) => {
+            {leadEntries.map((entry) => {
+              const { row } = entry;
               const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
               return (
                 <article
@@ -514,6 +627,8 @@ export default function LiveDeskView({
                       </p>
                     </div>
                   ) : null}
+                  <WhyThisSurfacedDetails entry={entry} />
+                  <StoryContextSections entry={entry} />
                   <CompactSignalMeta row={row} showBucket />
                   <div className="mt-4 border-t border-border pt-3">
                     <ShareRowButton row={row} heading="Share Intel item" />
@@ -522,158 +637,166 @@ export default function LiveDeskView({
               );
             })}
 
-            {secondary.length > 0 ? (
+            {secondaryEntries.length > 0 ? (
               <div className="space-y-3">
                 <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
                   Secondary
                 </p>
-                <ul className="space-y-3">
-                  {secondary.map((row) => (
-                    <li key={row.id} className="border border-border/80 bg-foreground/[0.01] p-4">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <ul className="space-y-3">
+                    {secondaryEntries.map((entry) => {
+                      const { row } = entry;
+                      return (
+                        <li key={row.id} className="border border-border/80 bg-foreground/[0.01] p-4">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <ProvenanceChip provenanceClass={row.provenanceClass} />
+                            {showInternalDiagnostics ? (
+                              <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                            ) : null}
+                            {Array.isArray(row.trustBadges)
+                              ? row.trustBadges.slice(0, 1).map((b) => (
+                                  <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
+                                ))
+                              : null}
+                            <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+                              {row.sourceName}
+                            </span>
+                          </div>
+                          <Link
+                            href={row.canonicalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bold text-foreground hover:text-primary hover:underline"
+                          >
+                            {row.title}
+                          </Link>
+                          <WhyThisSurfacedDetails entry={entry} />
+                          <StoryContextSections entry={entry} />
+                          <CompactSignalMeta row={row} showBucket />
+                          <div className="mt-3 border-t border-border pt-3">
+                            <ShareRowButton row={row} heading="Share Intel item" />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+              </div>
+            ) : null}
+          </div>
+          </section>
+        ) : null}
+
+        {!emptyAfterSourceFilter && hasAnyDeskContent ? (
+          <section className="space-y-3">
+            {usesLeadBlockLayout ? (
+              <div className="flex flex-wrap items-baseline gap-3">
+                <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
+                  Live signal desk
+                </h2>
+                <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+                  Live desk from primary records, specialist reporting, and vetted feeds
+                </p>
+              </div>
+            ) : null}
+
+            <ul className="space-y-4">
+              {stackEntries.map((entry) => {
+                const { row } = entry;
+                const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
+                return (
+                  <li
+                    key={row.id}
+                    className={`machine-panel border border-border p-5 sm:p-6 ${
+                      row.imageUrl ? 'flex flex-col gap-4 sm:flex-row sm:gap-5' : ''
+                    }`}
+                  >
+                    {row.imageUrl ? (
+                      <RemoteCoverImage
+                        src={row.imageUrl}
+                        className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-36 sm:w-36 sm:max-w-none"
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
                         <ProvenanceChip provenanceClass={row.provenanceClass} />
                         {showInternalDiagnostics ? (
                           <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
                         ) : null}
                         {Array.isArray(row.trustBadges)
-                          ? row.trustBadges.slice(0, 1).map((b) => (
+                          ? row.trustBadges.slice(0, 2).map((b) => (
                               <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
                             ))
                           : null}
                         <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
                           {row.sourceName}
                         </span>
+                        <span className="text-hud-dim">|</span>
+                        <time
+                          className="font-mono text-[10px] text-hud-dim tracking-wider"
+                          dateTime={row.publishedAt || undefined}
+                        >
+                          {when}
+                        </time>
                       </div>
-                      <Link
-                        href={row.canonicalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-bold text-foreground hover:text-primary hover:underline"
-                      >
-                        {row.title}
-                      </Link>
-                      <CompactSignalMeta row={row} showBucket />
-                      <div className="mt-3 border-t border-border pt-3">
+                      <h2 className="section-title text-lg sm:text-xl font-bold text-foreground mb-2">
+                        <Link
+                          href={row.canonicalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary hover:underline"
+                        >
+                          {row.title}
+                        </Link>
+                      </h2>
+                      <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-primary">
+                        Why it matters
+                      </p>
+                      <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
+                        {row.whyItMatters}
+                      </p>
+                      {hasActionableTrustWarning(row) && row.trustExplain ? (
+                        <p
+                          className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed max-w-3xl"
+                          title={row.trustWarningText || undefined}
+                        >
+                          {row.trustExplain}
+                        </p>
+                      ) : null}
+                      {row.summary && row.contentUseMode !== 'metadata_only' ? (
+                        <div className="mt-2 max-w-3xl">
+                          <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
+                            {previewLabel(row)}
+                          </p>
+                          <p className="text-xs text-foreground/65 leading-relaxed">
+                            {truncatePreview(row.summary)}
+                          </p>
+                        </div>
+                      ) : null}
+                      <WhyThisSurfacedDetails entry={entry} />
+                      <StoryContextSections entry={entry} />
+                      {feedTransparencyHint(row) ? (
+                        <p className="mt-1 font-mono text-[10px] text-primary/80 uppercase tracking-wider">
+                          {feedTransparencyHint(row)}
+                        </p>
+                      ) : null}
+                      <CompactSignalMeta row={row} showBucket={row.displayBucket !== 'routine'} />
+                      <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-3">
+                        <Link
+                          href={row.canonicalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
+                        >
+                          {linkCtaLabel(row)}
+                        </Link>
                         <ShareRowButton row={row} heading="Share Intel item" />
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-
-      {!emptyAfterSourceFilter && hasAnyDeskContent ? (
-      <section className="space-y-3">
-        {usesLeadBlockLayout ? (
-          <div className="flex flex-wrap items-baseline gap-3">
-            <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
-              Live signal desk
-            </h2>
-            <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-              Live desk from primary records, specialist reporting, and vetted feeds
-            </p>
-          </div>
-        ) : null}
-
-        <ul className="space-y-4">
-          {(usesLeadBlockLayout ? rest : items).map((row) => {
-            const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
-            return (
-              <li
-                key={row.id}
-                className={`machine-panel border border-border p-5 sm:p-6 ${
-                  row.imageUrl ? 'flex flex-col gap-4 sm:flex-row sm:gap-5' : ''
-                }`}
-              >
-                {row.imageUrl ? (
-                  <RemoteCoverImage
-                    src={row.imageUrl}
-                    className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-36 sm:w-36 sm:max-w-none"
-                  />
-                ) : null}
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
-                    <ProvenanceChip provenanceClass={row.provenanceClass} />
-                    {showInternalDiagnostics ? (
-                      <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
-                    ) : null}
-                    {Array.isArray(row.trustBadges)
-                      ? row.trustBadges.slice(0, 2).map((b) => (
-                          <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
-                        ))
-                      : null}
-                    <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-                      {row.sourceName}
-                    </span>
-                    <span className="text-hud-dim">|</span>
-                    <time
-                      className="font-mono text-[10px] text-hud-dim tracking-wider"
-                      dateTime={row.publishedAt || undefined}
-                    >
-                      {when}
-                    </time>
-                  </div>
-                  <h2 className="section-title text-lg sm:text-xl font-bold text-foreground mb-2">
-                    <Link
-                      href={row.canonicalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-primary hover:underline"
-                    >
-                      {row.title}
-                    </Link>
-                  </h2>
-                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-primary">
-                    Why it matters
-                  </p>
-                  <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
-                    {row.whyItMatters}
-                  </p>
-                  {hasActionableTrustWarning(row) && row.trustExplain ? (
-                    <p
-                      className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed max-w-3xl"
-                      title={row.trustWarningText || undefined}
-                    >
-                      {row.trustExplain}
-                    </p>
-                  ) : null}
-                  {row.summary && row.contentUseMode !== 'metadata_only' ? (
-                    <div className="mt-2 max-w-3xl">
-                      <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
-                        {previewLabel(row)}
-                      </p>
-                      <p className="text-xs text-foreground/65 leading-relaxed">
-                        {truncatePreview(row.summary)}
-                      </p>
                     </div>
-                  ) : null}
-                  {feedTransparencyHint(row) ? (
-                    <p className="mt-1 font-mono text-[10px] text-primary/80 uppercase tracking-wider">
-                      {feedTransparencyHint(row)}
-                    </p>
-                  ) : null}
-                  <CompactSignalMeta row={row} showBucket={row.displayBucket !== 'routine'} />
-                  <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-3">
-                    <Link
-                      href={row.canonicalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
-                    >
-                      {linkCtaLabel(row)}
-                    </Link>
-                    <ShareRowButton row={row} heading="Share Intel item" />
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-      ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : null}
       </div>
 
       {!emptyAfterSourceFilter ? (
