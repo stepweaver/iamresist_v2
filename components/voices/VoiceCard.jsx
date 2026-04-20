@@ -84,6 +84,11 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
 
   const showThumb = Boolean(thumbSrc);
   const canPlayInline = Boolean(isYouTube && typeof onPlay === 'function');
+  const playLabel = item.isProtestMusic ? 'Play song ->' : 'Play video ->';
+  const sourceLabel = item.isProtestMusic
+    ? 'Open song source ->'
+    : 'Watch at source ->';
+  const thumbnailActionLabel = item.isProtestMusic ? 'Play song' : 'Play video';
 
   const onOpenPlayer = useCallback(() => {
     if (!canPlayInline) return;
@@ -108,7 +113,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
             type="button"
             onClick={onOpenPlayer}
             className="relative z-10 block w-full aspect-video bg-military-grey border-b border-border overflow-hidden text-left"
-            aria-label={`Open: ${title || 'item'}`}
+            aria-label={`${thumbnailActionLabel}: ${title || 'item'}`}
           >
             {loadState === 'loading' && (
               <div className="absolute inset-0 animate-pulse bg-muted z-[1]" aria-hidden />
@@ -253,7 +258,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
               onClick={onOpenPlayer}
               className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
             >
-              PLAY →
+              {playLabel}
             </button>
           ) : (
             <Link
@@ -262,7 +267,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
               rel="noopener noreferrer"
               className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
             >
-              OPEN →
+              {sourceLabel}
             </Link>
           )}
         </div>

@@ -61,7 +61,7 @@ export default async function BooksSection() {
                 {book.status ? book.status : 'Book'}
               </span>
               <span className="nav-label text-xs px-3 py-1 border border-primary text-primary group-hover:bg-primary group-hover:text-background transition-colors">
-                OPEN →
+                Read notes -&gt;
               </span>
             </div>
           </div>

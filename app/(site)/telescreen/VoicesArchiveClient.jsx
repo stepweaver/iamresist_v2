@@ -13,17 +13,17 @@ import { buildTelescreenHref, TELESCREEN_MODES, TELESCREEN_MODE_OPTIONS } from "
 const MODE_COPY = {
   [TELESCREEN_MODES.curated]: {
     title: "Curated Videos",
-    detail: "Editorial picks from the wall-mounted feed.",
+    detail: "Editorially selected political videos collected in the archive.",
     empty: "No curated videos are available right now.",
   },
   [TELESCREEN_MODES.voices]: {
     title: "Voices of Dissent",
-    detail: "Creator video feeds with a direct voice selector.",
+    detail: "Video feeds from dissenting creators and commentators, filterable by voice.",
     empty: "No voice videos match the current filters.",
   },
   [TELESCREEN_MODES.music]: {
     title: "Protest Music",
-    detail: "Songs and performances, with artist filtering up front.",
+    detail: "Protest songs, performances, and resistance music collected by artist.",
     empty: "No protest music matches the current filters.",
   },
 };

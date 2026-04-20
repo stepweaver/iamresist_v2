@@ -111,7 +111,7 @@ export default function JournalCard({ entry }) {
             href={`/journal/${slug}`}
             className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
           >
-            READ →
+            Read entry -&gt;
           </Link>
         </div>
       </div>

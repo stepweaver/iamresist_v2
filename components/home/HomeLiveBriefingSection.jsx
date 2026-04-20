@@ -19,9 +19,13 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
   const url = row.canonicalUrl || '#';
   const when = row.publishedAt ? formatDate(row.publishedAt) : null;
   const linkLabel =
-    row.deskLane === 'voices' || row.contentUseMode === 'preview_and_link'
-      ? 'Read / listen at source'
-      : 'Open canonical';
+    row.deskLane === 'voices'
+      ? 'Open source video'
+      : row.contentUseMode === 'preview_and_link'
+        ? 'Read at source'
+        : row.contentUseMode === 'metadata_only'
+          ? 'Open source record'
+          : 'Read source report';
 
   const reasonLabels = Array.isArray(row.promotionReasons) ? row.promotionReasons : [];
   const why =

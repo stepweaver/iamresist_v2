@@ -3,9 +3,9 @@ import ResourcesSection from '@/app/(site)/telescreen/ResourcesSection';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
-  title: 'Resistance Resources and Reference Shelf',
+  title: 'Resistance Resources, Organizations, and Civic Reference Shelf',
   description:
-    'Reference material, organizations, and practical resources for democratic defense, resistance study, and public accountability.',
+    'Curated resistance resources, organizations, rights guides, investigations, and practical reference links for democratic defense.',
   urlPath: '/resources',
 });
 
@@ -21,7 +21,23 @@ export default function ResourcesPage() {
       }}
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs description="Resources live beside Telescreen now - a separate surface for references, organizations, and practical material." />
+        <IntelTabs description="Resources sit beside Telescreen as their own shelf for organizations, rights guides, and field material." />
+        <section className="machine-panel border border-border relative overflow-hidden mb-6 sm:mb-8">
+          <div className="absolute inset-0 hud-grid opacity-10" />
+          <div className="relative z-10 p-5 sm:p-6 lg:p-8 max-w-4xl">
+            <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block mb-2">
+              Reference Shelf
+            </span>
+            <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
+              Resistance Resources and Civic Reference Material
+            </h1>
+            <p className="prose-copy mt-4 max-w-3xl text-base sm:text-lg text-foreground/75 leading-relaxed">
+              A working shelf of organizations, investigations, rights guides,
+              and practical reference links for democratic defense, public
+              accountability, and day-to-day civic use.
+            </p>
+          </div>
+        </section>
         <ResourcesSection />
       </div>
     </main>

@@ -106,12 +106,18 @@ function truncatePreview(text, max = 280) {
 }
 
 function linkCtaLabel(row) {
-  const mode = row.contentUseMode;
-  const lane = row.deskLane;
-  if (lane === 'voices' || mode === 'preview_and_link') {
-    return 'Read / listen at source →';
+  const mode = row?.contentUseMode;
+  const lane = row?.deskLane;
+  if (lane === 'voices') {
+    return 'Open source video ->';
   }
-  return 'Open canonical →';
+  if (mode === 'preview_and_link') {
+    return 'Read at source ->';
+  }
+  if (mode === 'metadata_only') {
+    return 'Open source record ->';
+  }
+  return 'Read source report ->';
 }
 
 function previewLabel(row) {

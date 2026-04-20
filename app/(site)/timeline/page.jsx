@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
-  title: 'Timeline',
+  title: 'Trump Election Undermining Timeline',
   description:
-    "A chronological archive documenting the Trump administration's efforts to undermine elections. Adapted from the Brennan Center for Justice.",
+    "A documentary timeline of the Trump administration's efforts to undermine elections, adapted from the Brennan Center for Justice and organized for quick review.",
   urlPath: '/timeline',
 });
 
@@ -22,7 +22,7 @@ export default function TimelinePage() {
                 DOC ID: IAMR-TIMELINE-01
               </span>
               <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                RESISTANCE TIMELINE
+                TRUMP ELECTION UNDERMINING TIMELINE
               </h1>
             </div>
           </div>
@@ -32,31 +32,29 @@ export default function TimelinePage() {
       <PageContainer>
         <div className="mb-8 space-y-4 max-w-3xl">
           <p className="mission-copy text-lg text-foreground/80">
-            This timeline is adapted from the{' '}
+            A documentary timeline of the Trump administration&apos;s efforts
+            to undermine elections, adapted from the{' '}
             <Link
               href="https://www.brennancenter.org/our-work/research-reports/timeline-trump-administrations-efforts-undermine-elections"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline font-semibold"
             >
-              Timeline of the Trump Administration&apos;s Efforts to Undermine
-              Elections
+              Brennan Center&apos;s election undermining timeline
             </Link>{' '}
-            by the Brennan Center for Justice. It tracks documented actions
-            across categories such as rewriting election rules, targeting
-            officials, supporting underminers, and retreating from the federal
-            role in election security.
+            . It tracks documented actions across election rules, pressure on
+            officials, support for underminers, and the retreat from the
+            federal role in election security.
           </p>
           <p className="prose-copy text-foreground/70 text-sm leading-relaxed">
-            For detailed analysis and the complete interactive timeline, visit
-            the{' '}
+            For the full interactive source material, visit the{' '}
             <Link
               href="https://www.brennancenter.org/our-work/research-reports/timeline-trump-administrations-efforts-undermine-elections"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
-              Brennan Center for Justice website
+              full Brennan Center timeline
             </Link>
             . Content is used for educational and documentary purposes with
             full attribution. This page is a static summary manually synced from

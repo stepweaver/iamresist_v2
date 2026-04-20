@@ -47,7 +47,7 @@ export default async function CurrentlyReadingCard() {
                 href="/book-club"
                 className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold whitespace-nowrap"
               >
-                View All →
+                Browse book notes -&gt;
               </Link>
             </div>
           </div>

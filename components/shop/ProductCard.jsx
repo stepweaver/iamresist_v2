@@ -138,7 +138,7 @@ export default function ProductCard({ product }) {
           href={href}
           className="nav-label block text-center text-xs text-foreground/60 hover:text-primary transition-colors"
         >
-          View details
+          View sticker details -&gt;
         </Link>
       </div>
     </Card>

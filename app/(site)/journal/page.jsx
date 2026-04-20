@@ -4,9 +4,9 @@ import { getJournalIndexPayload } from '@/lib/journal';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
-  title: 'Journal',
+  title: 'Resistance Journal and Editorial Notes',
   description:
-    'Personal journal - thoughts, reflections, and observations sourced from the editorial Notion workspace.',
+    'Resistance journal with editorial notes, reflections, and field observations from I AM [RESIST].',
   urlPath: '/journal',
 });
 
@@ -36,7 +36,9 @@ export default async function JournalPage() {
       <PageContainer>
         <div className="mb-8">
           <p className="mission-copy text-lg text-foreground/80 max-w-3xl">
-            A space for thoughts, observations, and reflections.
+            Editorial notes, reflections, and field observations collected in
+            the resistance journal archive. Open any entry for the full
+            published note.
           </p>
         </div>
 

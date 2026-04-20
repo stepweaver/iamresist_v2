@@ -21,7 +21,7 @@ export default async function JournalSection({ limit = 1 }) {
           href="/journal"
           className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold whitespace-nowrap"
         >
-          View all →
+          Browse journal entries -&gt;
         </Link>
       </div>
       <div

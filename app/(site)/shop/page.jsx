@@ -6,9 +6,9 @@ import ProductCard from '@/components/shop/ProductCard';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
-  title: 'Shop | I AM [RESIST]',
+  title: 'Resistance Sticker Shop | I AM [RESIST]',
   description:
-    'Premium vinyl stickers featuring the I AM [RESIST] flag. Display resistance everywhere. Car-durable, weatherproof, UV-resistant. Starting at $6.',
+    'Resistance sticker shop with weatherproof political stickers and signal-marker designs from I AM [RESIST]. Premium vinyl stickers starting at $6.',
   urlPath: '/shop',
   images: [
     { url: '/resist_sticker.png', width: 1200, height: 1200, alt: 'I AM [RESIST] Vinyl Sticker' },
@@ -32,14 +32,16 @@ export default function ShopPage() {
             SUPPLY DROP
           </span>
           <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold mb-2">
-            FIELD KIT
+            RESISTANCE STICKER SHOP
           </h1>
           <p className="system-label text-sm text-foreground/50 mb-6">
-            Patch / Sticker / Signal Marker
+            Sticker / Signal Marker / Field Kit
           </p>
           <SectionDivider className="mb-6 max-w-2xl" />
           <p className="prose-copy text-base sm:text-lg lg:text-xl text-foreground/70 max-w-2xl leading-relaxed">
-            Resistance logistics. Display the flag. Every order supports independent resistance journalism.
+            Weatherproof resistance stickers and political sticker designs built
+            as durable signal markers. Open any design for full details, specs,
+            and bundle options.
           </p>
         </div>
       </div>
