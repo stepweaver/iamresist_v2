@@ -1,4 +1,12 @@
 import { permanentRedirect } from 'next/navigation';
+import { buildPageMetadata } from '@/lib/metadata';
+
+export const metadata = buildPageMetadata({
+  title: 'Independent Voices and Creator Commentary',
+  description:
+    'Archive of independent voices, commentary, curated video, and protest music from the resistance media ecosystem.',
+  urlPath: '/voices',
+});
 
 /** @deprecated Use `/telescreen`. Preserves query string for bookmarks. */
 export default async function VoicesLegacyRedirect({ searchParams }) {

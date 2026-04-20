@@ -1,12 +1,14 @@
 import PageContainer from '@/components/content/PageContainer';
 import JournalCard from '@/components/journal/JournalCard';
 import { getJournalIndexPayload } from '@/lib/journal';
+import { buildPageMetadata } from '@/lib/metadata';
 
-export const metadata = {
-  title: 'Journal | I AM [RESIST]',
+export const metadata = buildPageMetadata({
+  title: 'Journal',
   description:
-    'Personal journal – thoughts, reflections, and observations sourced from the editorial Notion workspace.',
-};
+    'Personal journal - thoughts, reflections, and observations sourced from the editorial Notion workspace.',
+  urlPath: '/journal',
+});
 
 export const revalidate = 300;
 

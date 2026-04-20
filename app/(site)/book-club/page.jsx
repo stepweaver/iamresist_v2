@@ -1,5 +1,13 @@
 import IntelTabs from '@/components/IntelTabs';
 import BooksSection from '@/app/(site)/telescreen/BooksSection';
+import { buildPageMetadata } from '@/lib/metadata';
+
+export const metadata = buildPageMetadata({
+  title: 'Political Reading Notes and Resistance Book Club',
+  description:
+    'Political reading archive with book notes, reading journal entries, and resistance study context.',
+  urlPath: '/book-club',
+});
 
 export default function BookClubPage() {
   return (

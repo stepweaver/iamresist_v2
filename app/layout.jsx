@@ -13,13 +13,9 @@ export const metadata = {
     title: 'I AM [RESIST]',
     description:
       "A call to awareness. A chronicle of resistance. Here we observe America's authoritarian drift and use our constitutionally protected rights to express dissent.",
-    urlPath: '/',
   }),
   manifest: '/manifest.json',
   metadataBase: new URL(BASE_URL),
-  alternates: {
-    canonical: '/',
-  },
 };
 
 export default async function RootLayout({ children }) {

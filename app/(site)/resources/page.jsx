@@ -1,5 +1,13 @@
 import IntelTabs from '@/components/IntelTabs';
 import ResourcesSection from '@/app/(site)/telescreen/ResourcesSection';
+import { buildPageMetadata } from '@/lib/metadata';
+
+export const metadata = buildPageMetadata({
+  title: 'Resistance Resources and Reference Shelf',
+  description:
+    'Reference material, organizations, and practical resources for democratic defense, resistance study, and public accountability.',
+  urlPath: '/resources',
+});
 
 export default function ResourcesPage() {
   return (

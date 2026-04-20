@@ -1,11 +1,13 @@
 import PageContainer from '@/components/content/PageContainer';
 import Divider from '@/components/ui/Divider';
+import { buildPageMetadata } from '@/lib/metadata';
 
-export const metadata = {
-  title: "About | I AM [RESIST]",
+export const metadata = buildPageMetadata({
+  title: 'About',
   description:
     "A call to awareness. A chronicle of resistance. Independent, fact-based, and unapologetically antifascist.",
-};
+  urlPath: '/about',
+});
 
 export default function AboutPage() {
   return (

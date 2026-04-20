@@ -1,10 +1,12 @@
-export const metadata = {
-  title: "Legal | I AM [RESIST]",
-  description:
-    "Legal disclosures, third-party content practices, attribution, terms of use, and privacy information for I AM [RESIST]",
-};
-
+import { buildPageMetadata } from '@/lib/metadata';
 import PageContainer from '@/components/content/PageContainer';
+
+export const metadata = buildPageMetadata({
+  title: 'Legal',
+  description:
+    'Legal disclosures, third-party content practices, attribution, terms of use, and privacy information for I AM [RESIST].',
+  urlPath: '/legal',
+});
 
 export default function LegalPage() {
   return (

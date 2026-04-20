@@ -8,11 +8,21 @@ import SectionDivider from '@/components/SectionDivider';
 import { buildPageMetadata } from '@/lib/metadata';
 import { verifyOrderStatusToken } from '@/lib/orderStatusToken';
 
-export const metadata = buildPageMetadata({
-  title: 'Order Status | I AM [RESIST]',
-  description: 'Track your order status and shipping information',
-  urlPath: '/orders',
-});
+export async function generateMetadata({ params }) {
+  const { id } = await params;
+
+  return {
+    ...buildPageMetadata({
+      title: 'Order Status',
+      description: 'Secure order lookup and shipping status for an existing purchase.',
+      urlPath: `/orders/${encodeURIComponent(id)}`,
+    }),
+    robots: {
+      index: false,
+      follow: false,
+    },
+  };
+}
 
 function getStatusDisplay(status) {
   const statusMap = {

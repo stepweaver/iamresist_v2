@@ -1,12 +1,14 @@
 import PageContainer from '@/components/content/PageContainer';
 import Divider from '@/components/ui/Divider';
 import ResistanceBriefSignup from '@/components/subscribe/ResistanceBriefSignup';
+import { buildPageMetadata } from '@/lib/metadata';
 
-export const metadata = {
-  title: 'Subscribe | I AM [RESIST]',
+export const metadata = buildPageMetadata({
+  title: 'Subscribe',
   description:
     'Join the [RESIST] Brief list. It is a work in progress, and issues may arrive irregularly while the production is being built.',
-};
+  urlPath: '/subscribe',
+});
 
 export default function SubscribePage({ searchParams }) {
   const confirmed = searchParams?.confirmed;

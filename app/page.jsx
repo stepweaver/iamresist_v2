@@ -6,8 +6,16 @@ import HudOverlay from '@/components/home/HudOverlay';
 import JournalSection from '@/components/home/JournalSection';
 import HomeFeed from '@/components/home/HomeFeed.server';
 import HomeFeedSkeleton from '@/components/home/HomeFeedSkeleton';
+import { buildPageMetadata } from '@/lib/metadata';
 
 export const revalidate = 120;
+
+export const metadata = buildPageMetadata({
+  title: 'Antifascist Journal, Democracy Timeline, and Resistance Briefing',
+  description:
+    'Antifascist journal, democracy timeline, independent voices, and resistance briefing tracking authoritarian drift, democratic backsliding, and the people documenting it.',
+  urlPath: '/',
+});
 
 export default function Home() {
   return (

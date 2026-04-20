@@ -1,12 +1,14 @@
 import PageContainer from '@/components/content/PageContainer';
 import TimelineSection from '@/components/sections/TimelineSection';
 import Link from 'next/link';
+import { buildPageMetadata } from '@/lib/metadata';
 
-export const metadata = {
-  title: 'Timeline | I AM [RESIST]',
+export const metadata = buildPageMetadata({
+  title: 'Timeline',
   description:
     "A chronological archive documenting the Trump administration's efforts to undermine elections. Adapted from the Brennan Center for Justice.",
-};
+  urlPath: '/timeline',
+});
 
 export default function TimelinePage() {
   return (
