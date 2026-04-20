@@ -26,4 +26,11 @@ describe('Intel landing routes', () => {
 
     expect(permanentRedirect).toHaveBeenCalledWith('/telescreen');
   });
+
+  it('sends legacy /intel/statements directly to Telescreen', async () => {
+    const { default: IntelStatementsPage } = await import('@/app/intel/statements/page');
+    IntelStatementsPage();
+
+    expect(permanentRedirect).toHaveBeenCalledWith('/telescreen');
+  });
 });

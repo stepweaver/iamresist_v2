@@ -13,22 +13,16 @@ const STATIC_PATHS = [
   '/timeline',
   '/telescreen',
   '/journal',
-  '/voices',
   '/book-club',
   '/resources',
   '/subscribe',
   '/shop',
-  '/posts',
-  '/intel',
-  '/intel/live',
   '/intel/newswire',
   '/intel/voices',
   '/intel/sources',
   '/intel/watchdogs',
   '/intel/osint',
   '/intel/defense',
-  '/intel/indicators',
-  '/intel/statements',
 ];
 
 const BOOK_STATUSES = ['Reading', 'Pending', 'Completed', 'Shelf'];
@@ -101,7 +95,6 @@ export default async function sitemap() {
 
       return [
         buildEntry(`/journal/${encodedSlug}`, lastModified),
-        buildEntry(`/posts/${encodedSlug}`, lastModified),
       ];
     }),
     ...books.flatMap((book) => {

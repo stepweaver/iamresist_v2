@@ -1,12 +1,5 @@
-import { redirect } from 'next/navigation';
-import { buildPageMetadata } from '@/lib/metadata';
-
-export const metadata = buildPageMetadata({
-  title: 'Posts',
-  description: 'Resistance journal entries and reflections.',
-  urlPath: '/posts',
-});
+import { permanentRedirect } from 'next/navigation';
 
 export default function PostsPage() {
-  redirect('/journal');
+  permanentRedirect('/journal');
 }
