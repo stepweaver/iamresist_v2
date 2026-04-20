@@ -1,13 +1,32 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import NotionBlocksBody from '@/components/content/NotionBlocksBody';
+import StructuredData from '@/components/seo/StructuredData';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { buildPageMetadata } from '@/lib/metadata';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 import { getBookBySlug, getNoteBySlug } from '@/lib/bookclub/service';
+import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
+import {
+  buildSeoExcerptFromBlocks,
+  joinSeoDescriptionParts,
+  pickSeoDescription,
+} from '@/lib/seo/text';
 
 export const revalidate = 300;
 export const dynamicParams = true;
+
+function buildReadingNoteDescription(book, note, blocks) {
+  return pickSeoDescription(
+    [note?.content, buildSeoExcerptFromBlocks(blocks, { maxBlocks: 4, maxLength: 180 })],
+    joinSeoDescriptionParts([
+      `Reading journal entry for ${book?.title || 'this book'}.`,
+      book?.author ? `Book by ${book.author}.` : null,
+      note?.chapterPage || null,
+    ]),
+    180,
+  );
+}
 
 export async function generateMetadata({ params }) {
   const resolvedParams = await params;
@@ -26,9 +45,8 @@ export async function generateMetadata({ params }) {
   }
 
   const title = note.title || 'Reading Journal Entry';
-  const description =
-    note.content?.slice(0, 160).replace(/\s+/g, ' ').trim() ||
-    `Reading reflections on ${book.title}${book.author ? ` by ${book.author}` : ''}.`;
+  const blocks = await getCachedPageBlocks(note.id);
+  const description = buildReadingNoteDescription(book, note, blocks);
 
   return buildPageMetadata({
     title: `${title} | ${book.title} | Book Club | I AM [RESIST]`,
@@ -51,14 +69,33 @@ export default async function BookJournalEntryPage({ params }) {
   if (!book || !note) notFound();
 
   const blocks = await getCachedPageBlocks(note.id);
+  const canonicalPath = `/book-club/${book.slug}/entries/${note.slug}`;
+  const description = buildReadingNoteDescription(book, note, blocks);
   const dateLabel = note.createdTime
     ? formatJournalMetaDate(note.createdTime)
     : note.lastEditedTime
       ? formatJournalMetaDate(note.lastEditedTime)
       : '';
+  const schema = [
+    buildBreadcrumbListSchema([
+      { name: 'Home', url: '/' },
+      { name: 'Book Club', url: '/book-club' },
+      { name: book.title || 'Book', url: `/book-club/${book.slug}` },
+      { name: note.title || 'Reading Journal Entry', url: canonicalPath },
+    ]),
+    buildArticleSchema({
+      headline: note.title || `Reading journal entry for ${book.title}`,
+      description,
+      url: canonicalPath,
+      image: book.coverImage || undefined,
+      datePublished: note.createdTime || undefined,
+      dateModified: note.lastEditedTime || undefined,
+    }),
+  ];
 
   return (
     <main className="min-h-screen">
+      <StructuredData data={schema} />
       <div className="machine-panel py-8 mb-8">
         <div className="hud-grid opacity-30"></div>
         <div className="relative z-10">

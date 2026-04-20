@@ -1,28 +1,44 @@
 import Link from 'next/link';
 import Card from '@/components/Card';
 import ShareButton from '@/components/ShareButton';
+import StructuredData from '@/components/seo/StructuredData';
 import { getProtestSongBySlug } from '@/lib/protestMusic';
 import { buildTelescreenHref, TELESCREEN_MODES } from '@/lib/telescreen';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 import { getYoutubeVideoId, detectVideoPlatform } from '@/lib/utils/youtube';
-import { buildSongMetadata } from '@/lib/metadata';
+import { buildSongMetadata, defaultOgImage, youtubeOgImage } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { getCanonicalBaseUrl } from '@/lib/siteConfig';
+import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
+import { joinSeoDescriptionParts, pickSeoDescription } from '@/lib/seo/text';
 
 export const revalidate = 600;
 export const dynamicParams = true;
+
+function buildMusicDescription(song) {
+  return pickSeoDescription(
+    [song?.description],
+    joinSeoDescriptionParts([
+      song?.title ? `${song.title}.` : null,
+      song?.artist ? `Artist: ${song.artist}.` : null,
+      'Protest music with editorial context from I AM [RESIST].',
+    ]),
+    180,
+  );
+}
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   const song = await getProtestSongBySlug(slug);
   if (!song) return { title: 'Protest Song | I AM [RESIST]' };
   const videoId = getYoutubeVideoId(song.url);
+  const canonicalSlug = song.songSlug || slug;
   return buildSongMetadata({
     title: song.title,
     artist: song.artist,
-    description: song.description,
+    description: buildMusicDescription(song),
     videoId,
-    urlPath: `/music/${slug}`,
+    urlPath: `/music/${canonicalSlug}`,
   });
 }
 
@@ -35,8 +51,26 @@ export default async function ProtestSongPage({ params }) {
   const youtubeId = getYoutubeVideoId(song.url);
   const platform = detectVideoPlatform(song.url);
   const displayDate = song.createdTime ? formatJournalMetaDate(song.createdTime) : '';
-  const shareUrl = `${getCanonicalBaseUrl()}/music/${slug}`;
+  const canonicalSlug = song.songSlug || slug;
+  const canonicalPath = `/music/${canonicalSlug}`;
+  const shareUrl = `${getCanonicalBaseUrl()}${canonicalPath}`;
   const musicArchiveHref = buildTelescreenHref({ mode: TELESCREEN_MODES.music });
+  const description = buildMusicDescription(song);
+  const schema = [
+    buildBreadcrumbListSchema([
+      { name: 'Home', url: '/' },
+      { name: 'Protest Music', url: musicArchiveHref },
+      { name: song.title || 'Protest Song', url: canonicalPath },
+    ]),
+    buildArticleSchema({
+      headline: song.artist ? `${song.title} - ${song.artist}` : song.title || 'Protest Song',
+      description,
+      url: canonicalPath,
+      image: youtubeOgImage(youtubeId) || defaultOgImage,
+      datePublished: song.createdTime || undefined,
+      dateModified: song.lastEditedTime || undefined,
+    }),
+  ];
 
   return (
     <main
@@ -47,6 +81,7 @@ export default async function ProtestSongPage({ params }) {
         backgroundSize: '40px 40px',
       }}
     >
+      <StructuredData data={schema} />
       <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-12 py-12 sm:py-16">
         <nav className="nav-label mb-8 text-sm" aria-label="Breadcrumb">
           <Link

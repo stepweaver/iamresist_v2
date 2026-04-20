@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import NotionBlocksBody from '@/components/content/NotionBlocksBody';
+import StructuredData from '@/components/seo/StructuredData';
 import {
   getJournalEntryBySlug,
   getJournalEntryById,
@@ -8,8 +9,33 @@ import {
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 import { buildPageMetadata, defaultOgImage } from '@/lib/metadata';
+import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
+import { buildSeoExcerptFromBlocks, pickSeoDescription } from '@/lib/seo/text';
 
 export const revalidate = 300;
+
+async function resolveJournalEntry(slug) {
+  let entry = await getJournalEntryBySlug(slug);
+  if (!entry) entry = await getJournalEntryById(slug);
+  return entry;
+}
+
+function getJournalCanonicalPath(entry) {
+  return `/journal/${entry?.slug || entry?.id}`;
+}
+
+function buildJournalDescription(entry, blocks) {
+  const tagLine =
+    Array.isArray(entry?.tags) && entry.tags.length > 0
+      ? `Journal entry on ${entry.tags.slice(0, 3).join(', ')}.`
+      : 'Journal entry on authoritarian drift, democratic accountability, and resistance.';
+
+  return pickSeoDescription(
+    [buildSeoExcerptFromBlocks(blocks, { maxBlocks: 4, maxLength: 180 })],
+    tagLine,
+    180,
+  );
+}
 
 function primaryYmd(entry) {
   if (entry.date) {
@@ -61,31 +87,49 @@ export const dynamicParams = true;
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  let entry = await getJournalEntryBySlug(slug);
-  if (!entry) entry = await getJournalEntryById(slug);
+  const entry = await resolveJournalEntry(slug);
   if (!entry) return { title: 'Journal Entry Not Found | I AM [RESIST]' };
+  const blocks = await getCachedPageBlocks(entry.id);
   const title = entry.title || 'Journal Entry';
+  const description = buildJournalDescription(entry, blocks);
   return buildPageMetadata({
-    title: `${title} | I AM [RESIST]`,
-    description: title,
-    urlPath: `/journal/${slug}`,
+    title: `${title} | Journal`,
+    description,
+    urlPath: getJournalCanonicalPath(entry),
     images: [defaultOgImage],
   });
 }
 
 export default async function JournalEntryPage({ params }) {
   const { slug } = await params;
-  let entry = await getJournalEntryBySlug(slug);
-  if (!entry) entry = await getJournalEntryById(slug);
+  const entry = await resolveJournalEntry(slug);
 
   if (!entry) notFound();
 
   const blocks = await getCachedPageBlocks(entry.id);
+  const canonicalPath = getJournalCanonicalPath(entry);
+  const description = buildJournalDescription(entry, blocks);
   const { primaryLabel, showUpdated, updatedLabel, fallbackSingle } =
     journalDetailDates(entry);
+  const schema = [
+    buildBreadcrumbListSchema([
+      { name: 'Home', url: '/' },
+      { name: 'Journal', url: '/journal' },
+      { name: entry.title || 'Journal Entry', url: canonicalPath },
+    ]),
+    buildArticleSchema({
+      headline: entry.title || 'Journal Entry',
+      description,
+      url: canonicalPath,
+      image: defaultOgImage,
+      datePublished: entry.date || entry.createdTime || undefined,
+      dateModified: entry.lastEditedTime || undefined,
+    }),
+  ];
 
   return (
     <main className="min-h-screen">
+      <StructuredData data={schema} />
       <div className="machine-panel py-8 mb-8">
         <div className="hud-grid opacity-30"></div>
         <div className="relative z-10">

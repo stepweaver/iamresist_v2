@@ -1,27 +1,42 @@
 import Link from 'next/link';
 import Card from '@/components/Card';
 import ShareButton from '@/components/ShareButton';
+import StructuredData from '@/components/seo/StructuredData';
 import { getCuratedVideoBySlug } from '@/lib/curated';
 import { buildTelescreenHref, TELESCREEN_MODES } from '@/lib/telescreen';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 import { getYoutubeVideoId, detectVideoPlatform } from '@/lib/utils/youtube';
-import { buildVideoMetadata } from '@/lib/metadata';
+import { buildVideoMetadata, defaultOgImage, youtubeOgImage } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { getCanonicalBaseUrl } from '@/lib/siteConfig';
+import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
+import { joinSeoDescriptionParts, pickSeoDescription } from '@/lib/seo/text';
 
 export const revalidate = 600;
 export const dynamicParams = true;
+
+function buildCuratedDescription(video) {
+  return pickSeoDescription(
+    [video?.description],
+    joinSeoDescriptionParts([
+      video?.title ? `${video.title}.` : null,
+      'Curated video with editorial context from I AM [RESIST].',
+    ]),
+    180,
+  );
+}
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   const video = await getCuratedVideoBySlug(slug);
   if (!video) return { title: 'Curated Video | I AM [RESIST]' };
   const videoId = getYoutubeVideoId(video.url);
+  const canonicalSlug = video.slug || slug;
   return buildVideoMetadata({
     title: video.title || 'Curated Video',
-    description: video.description,
+    description: buildCuratedDescription(video),
     videoId,
-    urlPath: `/curated/${slug}`,
+    urlPath: `/curated/${canonicalSlug}`,
   });
 }
 
@@ -38,8 +53,26 @@ export default async function CuratedVideoPage({ params }) {
     : video.dateAdded
       ? formatJournalMetaDate(video.dateAdded)
       : '';
-  const shareUrl = `${getCanonicalBaseUrl()}/curated/${slug}`;
+  const canonicalSlug = video.slug || slug;
+  const canonicalPath = `/curated/${canonicalSlug}`;
+  const shareUrl = `${getCanonicalBaseUrl()}${canonicalPath}`;
   const curatedArchiveHref = buildTelescreenHref({ mode: TELESCREEN_MODES.curated });
+  const description = buildCuratedDescription(video);
+  const schema = [
+    buildBreadcrumbListSchema([
+      { name: 'Home', url: '/' },
+      { name: 'Curated Videos', url: curatedArchiveHref },
+      { name: video.title || 'Curated Video', url: canonicalPath },
+    ]),
+    buildArticleSchema({
+      headline: video.title || 'Curated Video',
+      description,
+      url: canonicalPath,
+      image: youtubeOgImage(youtubeId) || defaultOgImage,
+      datePublished: video.dateAdded || video.createdTime || undefined,
+      dateModified: video.lastEditedTime || undefined,
+    }),
+  ];
 
   return (
     <main
@@ -50,6 +83,7 @@ export default async function CuratedVideoPage({ params }) {
         backgroundSize: '40px 40px',
       }}
     >
+      <StructuredData data={schema} />
       <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-12 py-12 sm:py-16">
         <nav className="nav-label mb-8 text-sm" aria-label="Breadcrumb">
           <Link

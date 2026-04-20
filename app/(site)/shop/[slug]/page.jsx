@@ -4,9 +4,12 @@
  */
 
 import { notFound } from 'next/navigation';
+import StructuredData from '@/components/seo/StructuredData';
 import { getProductBySlug, PRODUCT_SLUGS } from '@/lib/shopProducts';
 import { buildProductMetadata, buildPageMetadata } from '@/lib/metadata';
 import StickerProductPage from '@/components/shop/StickerProductPage';
+import { buildBreadcrumbListSchema, buildProductSchema } from '@/lib/seo/schema';
+import { joinSeoDescriptionParts } from '@/lib/seo/text';
 
 export async function generateStaticParams() {
   return PRODUCT_SLUGS.map((slug) => ({ slug }));
@@ -51,5 +54,26 @@ export default async function ProductPage({ params }) {
     notFound();
   }
 
-  return <StickerProductPage product={product} />;
+  const canonicalPath = `/shop/${product.slug}`;
+  const description = joinSeoDescriptionParts([product.tagline, product.description], 220);
+  const schema = [
+    buildBreadcrumbListSchema([
+      { name: 'Home', url: '/' },
+      { name: 'Shop', url: '/shop' },
+      { name: product.name, url: canonicalPath },
+    ]),
+    buildProductSchema({
+      name: product.name,
+      description,
+      url: canonicalPath,
+      image: product.image,
+    }),
+  ];
+
+  return (
+    <>
+      <StructuredData data={schema} />
+      <StickerProductPage product={product} />
+    </>
+  );
 }

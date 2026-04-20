@@ -13,10 +13,12 @@ export default function ShopPromoSection() {
           <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] block font-bold mb-1">
             Display Your Dissent
           </span>
+
           <p className="prose-copy text-xs sm:text-sm text-foreground/70">
             Premium vinyl stickers featuring the I AM [RESIST] flag.
           </p>
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             {featuredProduct && (
               <Link
                 href={`/shop/${featuredProduct.slug}`}
@@ -37,12 +39,15 @@ export default function ShopPromoSection() {
                   <p className="timestamp text-[10px] text-foreground/50 mb-0.5">
                     Featured
                   </p>
+
                   <h3 className="font-ui text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors truncate">
                     {featuredProduct.name}
                   </h3>
+
                   <p className="prose-copy text-xs text-foreground/60 italic truncate">
                     {featuredProduct.tagline}
                   </p>
+
                   <p className="text-xs text-primary font-medium mt-1">
                     View product →
                   </p>
@@ -50,10 +55,10 @@ export default function ShopPromoSection() {
               </Link>
             )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 lg:max-w-md lg:w-full">
+            <div className="w-full lg:w-auto lg:flex-none">
               <Link
                 href="/shop"
-                className="button-label px-4 sm:px-6 py-2 sm:py-3 bg-primary hover:bg-primary-dark border border-primary font-bold text-xs sm:text-sm tracking-wider transition-all duration-200 text-center whitespace-nowrap text-white"
+                className="button-label block w-full lg:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-primary hover:bg-primary-dark border border-primary font-bold text-xs sm:text-sm tracking-wider transition-all duration-200 text-center whitespace-nowrap text-white"
               >
                 Shop Now →
               </Link>

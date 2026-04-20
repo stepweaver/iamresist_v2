@@ -6,7 +6,9 @@ import HudOverlay from '@/components/home/HudOverlay';
 import JournalSection from '@/components/home/JournalSection';
 import HomeFeed from '@/components/home/HomeFeed.server';
 import HomeFeedSkeleton from '@/components/home/HomeFeedSkeleton';
+import StructuredData from '@/components/seo/StructuredData';
 import { buildPageMetadata } from '@/lib/metadata';
+import { buildOrganizationSchema, buildWebSiteSchema } from '@/lib/seo/schema';
 
 export const revalidate = 120;
 
@@ -17,12 +19,24 @@ export const metadata = buildPageMetadata({
   urlPath: '/',
 });
 
+const homeSchema = [
+  buildOrganizationSchema({
+    description:
+      'Independent editorial project documenting authoritarian drift, democratic backsliding, and public resistance.',
+  }),
+  buildWebSiteSchema({
+    description:
+      'Antifascist journal, democracy timeline, independent voices, and resistance briefing from I AM [RESIST].',
+  }),
+];
+
 export default function Home() {
   return (
     <main
       id="main-content"
       className="min-h-screen overflow-x-hidden hero-page-bg"
     >
+      <StructuredData data={homeSchema} />
       {/* Compact Header Section - Hero + Mission Combined */}
       <div className="border-b border-border pt-0 pb-3">
         <div className="w-full">

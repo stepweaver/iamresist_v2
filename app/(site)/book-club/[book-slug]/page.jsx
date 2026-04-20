@@ -1,10 +1,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import StructuredData from '@/components/seo/StructuredData';
 import { buildPageMetadata } from '@/lib/metadata';
 import { getBookBySlug, getNotesForBook } from '@/lib/bookclub/service';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import JournalView from '@/components/bookclub/JournalView';
+import { buildBookSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
+import { joinSeoDescriptionParts, pickSeoDescription } from '@/lib/seo/text';
 
 /** Matches production OG: cover when available + site logo for rich previews. */
 const BOOK_CLUB_FALLBACK_OG = {
@@ -15,6 +18,17 @@ const BOOK_CLUB_FALLBACK_OG = {
 };
 
 export const revalidate = 300;
+
+function buildBookDescription(book) {
+  return pickSeoDescription(
+    [book?.synopsis],
+    joinSeoDescriptionParts([
+      `Reading notes and journal entries for ${book?.title || 'this book'}.`,
+      book?.author ? `Book by ${book.author}.` : null,
+    ]),
+    180,
+  );
+}
 
 export async function generateMetadata({ params }) {
   const resolvedParams = await params;
@@ -29,11 +43,7 @@ export async function generateMetadata({ params }) {
     });
   }
 
-  const description =
-    book.synopsis ||
-    (book.author
-      ? `Notes and context for ${book.title} by ${book.author}.`
-      : `Notes and context for ${book.title}.`);
+  const description = buildBookDescription(book);
 
   const ogImages = book.coverImage
     ? [
@@ -58,6 +68,9 @@ export default async function BookDetailPage({ params }) {
 
   if (!book) notFound();
 
+  const canonicalPath = `/book-club/${book.slug}`;
+  const description = buildBookDescription(book);
+
   const blocksByNoteId = {};
   if (notes.length > 0) {
     const pairs = await Promise.all(
@@ -71,6 +84,21 @@ export default async function BookDetailPage({ params }) {
     }
   }
 
+  const schema = [
+    buildBreadcrumbListSchema([
+      { name: 'Home', url: '/' },
+      { name: 'Book Club', url: '/book-club' },
+      { name: book.title || 'Book', url: canonicalPath },
+    ]),
+    buildBookSchema({
+      name: book.title || 'Book',
+      author: book.author || undefined,
+      description,
+      url: canonicalPath,
+      image: book.coverImage || undefined,
+    }),
+  ];
+
   return (
     <main
       id="main-content"
@@ -81,6 +109,7 @@ export default async function BookDetailPage({ params }) {
         backgroundSize: '40px 40px',
       }}
     >
+      <StructuredData data={schema} />
       <div className="max-w-[1100px] mx-auto px-2 sm:px-3 lg:px-4 pt-6 pb-10">
         <nav className="mb-5">
           <Link
