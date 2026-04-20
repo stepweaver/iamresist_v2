@@ -33,28 +33,38 @@ describe('homepage voices pool', () => {
     }));
 
     vi.doMock('@/lib/feeds/rss', () => ({
-      fetchFeedItems: vi.fn(async (feedUrl: string) => {
+      fetchFeedItemsWithMeta: vi.fn(async (feedUrl: string) => {
         if (feedUrl.includes('a.test')) {
-          return [
-            {
-              id: 'voice-a-old',
-              sourceId: 'voice-a-old',
-              title: 'Older post',
-              url: 'https://voice-a.test/older',
-              publishedAt: '2026-04-17T09:00:00.000Z',
-            },
-          ];
+          return {
+            ok: true,
+            reason: null,
+            items: [
+              {
+                id: 'voice-a-old',
+                sourceId: 'voice-a-old',
+                title: 'Older post',
+                url: 'https://voice-a.test/older',
+                publishedAt: '2026-04-17T09:00:00.000Z',
+              },
+            ],
+          };
         }
-        return [
-          {
-            id: 'voice-b-new',
-            sourceId: 'voice-b-new',
-            title: 'Newer post',
-            url: 'https://voice-b.test/newer',
-            publishedAt: '2026-04-18T09:00:00.000Z',
-          },
-        ];
+
+        return {
+          ok: true,
+          reason: null,
+          items: [
+            {
+              id: 'voice-b-new',
+              sourceId: 'voice-b-new',
+              title: 'Newer post',
+              url: 'https://voice-b.test/newer',
+              publishedAt: '2026-04-18T09:00:00.000Z',
+            },
+          ],
+        };
       }),
+      fetchFeedItems: vi.fn(),
     }));
 
     const { getHomepageVoicesPool } = await import('@/lib/voices');

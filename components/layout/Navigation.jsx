@@ -8,13 +8,13 @@ import { useCart } from '@/context/CartContext';
 import { ShoppingCart } from 'lucide-react';
 
 const NAV_LINKS = [
-  { href: "/", label: "HOME" },
-  { href: "/about", label: "ABOUT" },
-  { href: "/intel/osint", label: "INTEL" },
-  { href: "/telescreen", label: "TELESCREEN" },
-  { href: "/journal", label: "JOURNAL" },
-  { href: "/book-club", label: "BOOK CLUB" },
-  { href: "/shop", label: "SHOP" },
+  { href: '/', label: 'HOME' },
+  { href: '/about', label: 'ABOUT' },
+  { href: '/intel', label: 'INTEL' },
+  { href: '/telescreen', label: 'TELESCREEN' },
+  { href: '/journal', label: 'JOURNAL' },
+  { href: '/book-club', label: 'BOOK CLUB' },
+  { href: '/shop', label: 'SHOP' },
 ];
 
 function CartNavLink({ totalQuantity, cartBounce }) {
@@ -38,24 +38,32 @@ function CartNavLink({ totalQuantity, cartBounce }) {
 
 function isNavLinkActive(link, pathname) {
   const intelHub =
+    link.href === '/intel' &&
+    (pathname === '/intel' || pathname?.startsWith('/intel/'));
+
+  const telescreenHub =
     link.href === '/telescreen' &&
     (pathname === '/telescreen' ||
       pathname?.startsWith('/telescreen/') ||
       pathname === '/voices' ||
       pathname?.startsWith('/voices/') ||
-      pathname === '/intel' ||
-      pathname?.startsWith('/intel/') ||
       pathname?.startsWith('/music/') ||
       pathname?.startsWith('/curated/'));
+
   const supplyHub =
     link.href === '/shop' && pathname?.startsWith('/shop');
+
   const journalHub =
     link.href === '/journal' &&
-    (pathname === '/journal' || pathname?.startsWith('/journal/') || pathname?.startsWith('/posts'));
+    (pathname === '/journal' ||
+      pathname?.startsWith('/journal/') ||
+      pathname?.startsWith('/posts'));
+
   return (
     pathname === link.href ||
     (link.href !== '/' && pathname?.startsWith(link.href + '/')) ||
     intelHub ||
+    telescreenHub ||
     supplyHub ||
     journalHub
   );
@@ -91,11 +99,16 @@ export default function Navigation() {
   useEffect(() => {
     if (mobileMenuOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [mobileMenuOpen]);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border" aria-label="Main navigation">
+    <nav
+      className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border"
+      aria-label="Main navigation"
+    >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3">
         <div className="flex items-center justify-between h-16 sm:h-20">
           <Link href="/" className="flex items-center gap-2 sm:gap-4 group flex-shrink-0">
@@ -112,7 +125,9 @@ export default function Navigation() {
                   key={link.href}
                   href={link.href}
                   className={`nav-label relative px-5 py-2 text-sm font-bold tracking-[0.15em] transition-all duration-200 border-b-2 ${
-                    isActive ? 'text-primary border-primary' : 'text-foreground/60 hover:text-foreground border-transparent hover:border-foreground/30'
+                    isActive
+                      ? 'text-primary border-primary'
+                      : 'text-foreground/60 hover:text-foreground border-transparent hover:border-foreground/30'
                   }`}
                 >
                   {link.label}
@@ -135,9 +150,24 @@ export default function Navigation() {
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-menu"
             >
-              <span className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`} aria-hidden />
-              <span className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${mobileMenuOpen ? 'opacity-0' : ''}`} aria-hidden />
-              <span className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`} aria-hidden />
+              <span
+                className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${
+                  mobileMenuOpen ? 'rotate-45 translate-y-2' : ''
+                }`}
+                aria-hidden
+              />
+              <span
+                className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${
+                  mobileMenuOpen ? 'opacity-0' : ''
+                }`}
+                aria-hidden
+              />
+              <span
+                className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${
+                  mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''
+                }`}
+                aria-hidden
+              />
             </button>
           </div>
         </div>
@@ -152,7 +182,9 @@ export default function Navigation() {
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`nav-label block px-4 py-3 text-sm font-bold tracking-[0.15em] transition-all duration-200 border-l-2 ${
-                    isActive ? 'text-primary border-primary bg-primary/5' : 'text-foreground/60 hover:text-foreground border-transparent hover:border-foreground/30'
+                    isActive
+                      ? 'text-primary border-primary bg-primary/5'
+                      : 'text-foreground/60 hover:text-foreground border-transparent hover:border-foreground/30'
                   }`}
                 >
                   {link.label}
