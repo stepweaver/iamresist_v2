@@ -1,5 +1,3 @@
-import { laneHasBaselineTrustDisclosure } from '@/lib/intel/trustWarnings';
-
 const LANE_WARNING_COPY = {
   osint: {
     title: 'Primary-source disclosure',
@@ -11,10 +9,14 @@ const LANE_WARNING_COPY = {
     body:
       'This lane includes authentic public military and official channels. Provenance is real, but framing can be operationally interested or source-controlled. Verify key assertions independently.',
   },
+  voices: {
+    title: 'Voices lane disclosure',
+    body:
+      'This lane includes creator commentary and public-feed previews. Items may be insightful or timely but are not neutral reporting or primary records. Verify factual claims independently at the source.',
+  },
 };
 
 export function getLaneWarningCopy(deskLane) {
-  if (!laneHasBaselineTrustDisclosure(deskLane)) return null;
   return LANE_WARNING_COPY[deskLane] ?? null;
 }
 

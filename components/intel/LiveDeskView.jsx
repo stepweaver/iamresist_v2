@@ -162,11 +162,15 @@ function topHumanReason(row) {
   return [...new Set(messages)][0] || null;
 }
 
-function CompactSignalMeta({ row, showBucket = false }) {
+function CompactSignalMeta({ row, showBucket = false, transparencyHint = null }) {
   const tags = Array.isArray(row.missionTags) ? row.missionTags.slice(0, 2) : [];
   const reason = topHumanReason(row);
 
   const bits = [];
+
+  if (transparencyHint && typeof transparencyHint === 'string' && transparencyHint.trim()) {
+    bits.push(transparencyHint.trim());
+  }
 
   if (showBucket && row.displayBucket && row.displayBucket !== 'routine') {
     bits.push(row.displayBucket);
@@ -184,27 +188,6 @@ function CompactSignalMeta({ row, showBucket = false }) {
     <p className="mt-3 font-mono text-[10px] text-foreground/60 leading-relaxed">
       {bits.join(' · ')}
     </p>
-  );
-}
-
-function WhyThisSurfacedDetails({ entry }) {
-  if (!entry?.hasWhyThisSurfaced) return null;
-
-  const bits = [];
-  if (entry.whyThisSurfaced?.topReason) bits.push(entry.whyThisSurfaced.topReason);
-  if (entry.whyThisSurfaced?.displayBucket) bits.push(`bucket: ${entry.whyThisSurfaced.displayBucket}`);
-  if (Array.isArray(entry.whyThisSurfaced?.missionTags) && entry.whyThisSurfaced.missionTags.length) {
-    bits.push(`mission: ${entry.whyThisSurfaced.missionTags.join(', ')}`);
-  }
-  if (!bits.length) return null;
-
-  return (
-    <details className="mt-3 border border-border/60 bg-foreground/[0.02] p-3">
-      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-foreground/75">
-        Why this surfaced
-      </summary>
-      <p className="mt-2 text-xs text-foreground/70 leading-relaxed">{bits.join(' · ')}</p>
-    </details>
   );
 }
 
@@ -642,7 +625,6 @@ export default function LiveDeskView({
                       </p>
                     </div>
                   ) : null}
-                  <WhyThisSurfacedDetails entry={entry} />
                   <StoryContextSections entry={entry} />
                   <CompactSignalMeta row={row} showBucket />
                   <div className="mt-4 border-t border-border pt-3">
@@ -684,7 +666,6 @@ export default function LiveDeskView({
                           >
                             {row.title}
                           </Link>
-                          <WhyThisSurfacedDetails entry={entry} />
                           <StoryContextSections entry={entry} />
                           <CompactSignalMeta row={row} showBucket />
                           <div className="mt-3 border-t border-border pt-3">
@@ -783,14 +764,12 @@ export default function LiveDeskView({
                           </p>
                         </div>
                       ) : null}
-                      <WhyThisSurfacedDetails entry={entry} />
                       <StoryContextSections entry={entry} />
-                      {feedTransparencyHint(row) ? (
-                        <p className="mt-1 font-mono text-[10px] text-primary/80 uppercase tracking-wider">
-                          {feedTransparencyHint(row)}
-                        </p>
-                      ) : null}
-                      <CompactSignalMeta row={row} showBucket={row.displayBucket !== 'routine'} />
+                      <CompactSignalMeta
+                        row={row}
+                        showBucket={row.displayBucket !== 'routine'}
+                        transparencyHint={feedTransparencyHint(row)}
+                      />
                       <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-3">
                         <Link
                           href={row.canonicalUrl}

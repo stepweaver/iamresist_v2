@@ -4,6 +4,7 @@ import {
   computeTrustWarnings,
   shouldShowInlineTrustExplain,
 } from '@/lib/intel/trustWarnings';
+import { getLaneWarningCopy } from '@/components/intel/IntelLaneWarning';
 
 function base(over: Partial<Parameters<typeof computeTrustWarnings>[0]> = {}) {
   return {
@@ -169,6 +170,24 @@ describe('shouldShowInlineTrustExplain', () => {
     expect(
       shouldShowInlineTrustExplain(baselineRow, { laneHasBaselineDisclosure: false }),
     ).toBe(true);
+  });
+});
+
+describe('IntelLaneWarning copy', () => {
+  it('defines a Voices lane disclaimer for creator commentary + feed previews', () => {
+    const copy = getLaneWarningCopy('voices');
+    expect(copy).toBeTruthy();
+    expect(copy?.title).toMatch(/voices/i);
+    expect(copy?.body).toMatch(/creator commentary/i);
+    expect(copy?.body).toMatch(/public-feed previews/i);
+    expect(copy?.body).toMatch(/not neutral reporting/i);
+    expect(copy?.body).toMatch(/not.*primary records/i);
+    expect(copy?.body).toMatch(/verify factual claims/i);
+  });
+
+  it('keeps OSINT and defense_ops warning copy available', () => {
+    expect(getLaneWarningCopy('osint')?.body).toMatch(/verify key assertions/i);
+    expect(getLaneWarningCopy('defense_ops')?.body).toMatch(/verify key assertions/i);
   });
 });
 

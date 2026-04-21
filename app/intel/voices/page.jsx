@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import IntelTabs from '@/components/IntelTabs';
+import IntelLaneWarning from '@/components/intel/IntelLaneWarning';
 import LiveDeskSection from '@/components/intel/LiveDeskSection';
 import { getLiveIntelDesk } from '@/lib/feeds/liveIntel.service';
 import { buildPageMetadata } from '@/lib/metadata';
@@ -16,7 +17,7 @@ export const metadata = buildPageMetadata({
 
 async function VoicesDeskContent() {
   const desk = await getLiveIntelDesk('voices');
-  return <LiveDeskSection desk={desk} />;
+  return <LiveDeskSection desk={desk} laneWarningSlot={<IntelLaneWarning deskLane="voices" />} />;
 }
 
 export default function IntelVoicesDeskPage() {
