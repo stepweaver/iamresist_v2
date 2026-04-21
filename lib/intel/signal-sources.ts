@@ -19,6 +19,7 @@ const PROPUBLICA = 'https://feeds.propublica.org/propublica/main';
 const AMERICAN_OVERSIGHT = 'https://americanoversight.org/feed';
 const COURIER_COVER_UP = 'https://thecoverupnewsletter.substack.com/feed';
 const ROBERT_REICH = 'https://robertreich.substack.com/feed';
+const G_ELLIOTT_MORRIS = 'https://gelliottmorris.substack.com/feed';
 const ON_OFFENSE = 'https://onoffense.substack.com/feed';
 const TOTAL_HYPOCRISY = 'https://totalhypocrisy.substack.com/feed';
 
@@ -509,6 +510,37 @@ export function getSignalSources(): SignalSourceConfig[] {
         defaultPriority: 46,
         preferredStateChangeTypes: ['commentary_item'],
         allowKeywords: ['Trump', 'democracy', 'economy', 'oligarch', 'worker'],
+      },
+    },
+    {
+      slug: 'g-elliott-morris',
+      name: 'G. Elliott Morris (Substack)',
+      provenanceClass: 'COMMENTARY',
+      fetchKind: 'rss',
+      deskLane: 'voices',
+      sourceFamily: 'general',
+      contentUseMode: 'preview_and_link',
+      endpointUrl: G_ELLIOTT_MORRIS,
+      isEnabled: true,
+      isCoreSource: false,
+      trustWarningMode: 'none',
+      trustWarningLevel: 'info',
+      requiresIndependentVerification: false,
+      heroEligibilityMode: 'normal',
+      purpose:
+        'Data-driven political and elections analysis and interpretation via the author’s public feed.',
+      trustedFor:
+        'Polling- and data-informed framing, election analysis, and links to the author’s published posts.',
+      notTrustedFor:
+        'Primary records, official confirmation, or real-time breaking claims without corroboration.',
+      editorialNotes:
+        'Voices lane: trusted for analytic interpretation, not as a primary reporting surface.',
+      editorialControls: {
+        defaultPriority: 52,
+        preferredStateChangeTypes: ['commentary_item'],
+        allowKeywords: ['election', 'poll', 'polling', 'forecast', 'model', 'turnout'],
+        relevanceNotes:
+          'Allow-list lightly boosts data/polling election analysis; does not confer primary-reporting trust.',
       },
     },
     {

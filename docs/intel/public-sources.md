@@ -106,6 +106,7 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 | Slug | Feed-native? | Default on | Content posture |
 |------|----------------|------------|-----------------|
 | `robert-reich` | Substack RSS | yes | `preview_and_link` |
+| `g-elliott-morris` | Substack RSS | yes | `preview_and_link` — data-driven political/elections analysis and interpretation; not primary records or official confirmation. |
 | `on-offense-kris-goldsmith` | Substack RSS | yes | `preview_and_link` |
 | `total-hypocrisy` | Substack RSS | **no** | Enable after verifying `/feed`; Patreon audio without public RSS is not ingested. |
 
