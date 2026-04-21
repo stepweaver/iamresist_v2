@@ -10,6 +10,7 @@ import {
 import { Play } from 'lucide-react';
 import ShareButton from '@/components/ShareButton';
 import { getCanonicalBaseUrl } from '@/lib/siteConfig';
+import { getVoiceSourceLinkLabel } from '@/lib/sourceLinkLabels';
 
 /** i.ytimg.com often fails or returns empty with strict referrers (e.g. localhost dev). */
 function thumbReferrerPolicy(src) {
@@ -85,9 +86,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
   const showThumb = Boolean(thumbSrc);
   const canPlayInline = Boolean(isYouTube && typeof onPlay === 'function');
   const playLabel = item.isProtestMusic ? 'Play song ->' : 'Play video ->';
-  const sourceLabel = item.isProtestMusic
-    ? 'Open song page ->'
-    : 'Watch source video ->';
+  const sourceLabel = getVoiceSourceLinkLabel(item, { withTrailingArrow: true });
   const thumbnailActionLabel = item.isProtestMusic ? 'Play song' : 'Play video';
 
   const onOpenPlayer = useCallback(() => {

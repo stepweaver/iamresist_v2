@@ -5,6 +5,7 @@ import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import ShareButton from '@/components/ShareButton';
 import { formatDate } from '@/lib/utils/date';
 import { briefingLaneLabel } from '@/lib/feeds/homepageBriefing.weights';
+import { getIntelSourceLinkLabel } from '@/lib/sourceLinkLabels';
 
 function BriefingLaneBadge({ lane }) {
   const label = briefingLaneLabel(lane);
@@ -18,14 +19,7 @@ function BriefingLaneBadge({ lane }) {
 function IntelBriefingCard({ row, hero = false, compact = false }) {
   const url = row.canonicalUrl || '#';
   const when = row.publishedAt ? formatDate(row.publishedAt) : null;
-  const linkLabel =
-    row.deskLane === 'voices'
-      ? 'Watch source video'
-      : row.contentUseMode === 'preview_and_link'
-        ? 'Read source page'
-        : row.contentUseMode === 'metadata_only'
-          ? 'Open source page'
-          : 'Read source page';
+  const linkLabel = getIntelSourceLinkLabel(row);
 
   const reasonLabels = Array.isArray(row.promotionReasons) ? row.promotionReasons : [];
   const why =

@@ -3,6 +3,7 @@ import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import ShareButton from '@/components/ShareButton';
 import { buildStoryPresentationModel } from '@/components/intel/storyPresentation';
 import { shouldShowInlineTrustExplain } from '@/lib/intel/trustWarnings';
+import { getIntelSourceLinkLabel } from '@/lib/sourceLinkLabels';
 import { formatDate } from '@/lib/utils/date';
 
 export function deskLabelForLane(deskLane) {
@@ -106,18 +107,7 @@ function truncatePreview(text, max = 280) {
 }
 
 function linkCtaLabel(row) {
-  const mode = row?.contentUseMode;
-  const lane = row?.deskLane;
-  if (lane === 'voices') {
-    return 'Watch source video ->';
-  }
-  if (mode === 'preview_and_link') {
-    return 'Read source page ->';
-  }
-  if (mode === 'metadata_only') {
-    return 'Open source page ->';
-  }
-  return 'Read source page ->';
+  return getIntelSourceLinkLabel(row, { withTrailingArrow: true });
 }
 
 function previewLabel(row) {

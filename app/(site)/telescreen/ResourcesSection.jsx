@@ -103,7 +103,7 @@ export default function ResourcesSection() {
                           rel="noopener noreferrer"
                           className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
                         >
-                          Open resource -&gt;
+                          Visit resource -&gt;
                         </Link>
                       </div>
                     </div>

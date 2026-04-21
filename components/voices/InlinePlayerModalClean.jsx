@@ -11,6 +11,7 @@ import useModalFocusTrap from "@/components/useModalFocusTrap";
 import { getYoutubeVideoId, youtubeThumbnailCandidates } from "@/lib/utils/youtube";
 import { formatDate } from "@/lib/utils/date";
 import { buildTelescreenHref, TELESCREEN_MODES } from "@/lib/telescreen";
+import { getVoiceSourceLinkLabel } from "@/lib/sourceLinkLabels";
 
 const MOBILE_RELATED_CAP = 4;
 const DESKTOP_RELATED_CAP = 6;
@@ -81,8 +82,7 @@ function descriptionLabel(item) {
 }
 
 function sourceButtonLabel(item) {
-  if (item?.isProtestMusic) return "Open song page";
-  return "Watch source video";
+  return getVoiceSourceLinkLabel(item);
 }
 
 export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem }) {
