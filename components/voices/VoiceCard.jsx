@@ -86,8 +86,8 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
   const canPlayInline = Boolean(isYouTube && typeof onPlay === 'function');
   const playLabel = item.isProtestMusic ? 'Play song ->' : 'Play video ->';
   const sourceLabel = item.isProtestMusic
-    ? 'Open song source ->'
-    : 'Watch at source ->';
+    ? 'Open song page ->'
+    : 'Watch source video ->';
   const thumbnailActionLabel = item.isProtestMusic ? 'Play song' : 'Play video';
 
   const onOpenPlayer = useCallback(() => {

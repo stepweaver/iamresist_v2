@@ -80,6 +80,11 @@ function descriptionLabel(item) {
   };
 }
 
+function sourceButtonLabel(item) {
+  if (item?.isProtestMusic) return "Open song page";
+  return "Watch source video";
+}
+
 export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem }) {
   const [lazyExtraItems, setLazyExtraItems] = useState([]);
   const [lazyExtraLoading, setLazyExtraLoading] = useState(false);
@@ -454,7 +459,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
                     className="button-label inline-flex items-center gap-2 border border-border/60 bg-military-grey px-3 py-2 text-xs font-bold text-foreground hover:border-primary hover:text-primary"
                   >
                     <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-                    Open source
+                    {sourceButtonLabel(item)}
                   </a>
                 ) : null}
                 {currentIndex >= 0 && allItems.length ? (

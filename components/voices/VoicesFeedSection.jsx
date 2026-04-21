@@ -35,7 +35,7 @@ export default async function VoicesFeedSection({
             href="/telescreen"
             className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold whitespace-nowrap shrink-0"
           >
-            Browse voices archive -&gt;
+            Browse video archive -&gt;
           </Link>
         )}
       </div>

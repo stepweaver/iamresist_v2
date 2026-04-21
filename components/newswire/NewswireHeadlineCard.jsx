@@ -86,7 +86,7 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
               className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline"
             >
               <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              Read at source
+              Read article
             </Link>
             {supportUrl ? (
               <Link
@@ -199,7 +199,7 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
             rel="noopener noreferrer"
             className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
           >
-            Read at source →
+            Read article →
           </Link>
           {supportUrl ? (
             <Link

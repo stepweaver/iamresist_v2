@@ -52,7 +52,7 @@ export default function TimelineSection() {
                       rel="noopener noreferrer"
                       className="text-primary hover:underline uppercase"
                     >
-                      Read source event at Brennan Center -&gt;
+                      View source timeline -&gt;
                     </Link>
                   </div>
                 )}

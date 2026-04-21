@@ -40,7 +40,7 @@ export default function ShopPage() {
           <SectionDivider className="mb-6 max-w-2xl" />
           <p className="prose-copy text-base sm:text-lg lg:text-xl text-foreground/70 max-w-2xl leading-relaxed">
             Weatherproof resistance stickers and political sticker designs built
-            as durable signal markers. Open any design for full details, specs,
+            as durable signal markers. Open any sticker for details, specs,
             and bundle options.
           </p>
         </div>

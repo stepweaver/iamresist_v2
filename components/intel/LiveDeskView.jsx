@@ -109,15 +109,15 @@ function linkCtaLabel(row) {
   const mode = row?.contentUseMode;
   const lane = row?.deskLane;
   if (lane === 'voices') {
-    return 'Open source video ->';
+    return 'Watch source video ->';
   }
   if (mode === 'preview_and_link') {
-    return 'Read at source ->';
+    return 'Read source page ->';
   }
   if (mode === 'metadata_only') {
-    return 'Open source record ->';
+    return 'Open source page ->';
   }
-  return 'Read source report ->';
+  return 'Read source page ->';
 }
 
 function previewLabel(row) {

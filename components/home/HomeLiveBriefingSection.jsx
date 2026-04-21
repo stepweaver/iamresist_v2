@@ -20,12 +20,12 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
   const when = row.publishedAt ? formatDate(row.publishedAt) : null;
   const linkLabel =
     row.deskLane === 'voices'
-      ? 'Open source video'
+      ? 'Watch source video'
       : row.contentUseMode === 'preview_and_link'
-        ? 'Read at source'
+        ? 'Read source page'
         : row.contentUseMode === 'metadata_only'
-          ? 'Open source record'
-          : 'Read source report';
+          ? 'Open source page'
+          : 'Read source page';
 
   const reasonLabels = Array.isArray(row.promotionReasons) ? row.promotionReasons : [];
   const why =
