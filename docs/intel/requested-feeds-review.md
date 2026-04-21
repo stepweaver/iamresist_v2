@@ -115,3 +115,30 @@ This document is generated from the current repo state and live product behavior
 - **Adapter**: keep_disabled (or html_index later if canonical on-domain URLs are required)
 - **Enablement**: leave_off
 
+### DOJ Office of Inspector General
+- **Repo slug**: `doj-oig`
+- **Repo status**: enabled (`endpointUrl` set; `isEnabled: true`)
+- **Live status**: expected working (public RSS: `https://oig.justice.gov/rss.xml`)
+- **Status**: working
+- **Adapter**: rss
+- **Enablement**: enable
+- **Notes**: Primary oversight artifacts (audits/reports/misconduct findings). Not a narrative completeness source; pair with corroborating reporting where needed.
+
+### Just Security
+- **Repo slug**: `just-security`
+- **Repo status**: enabled (`endpointUrl` set; `isEnabled: true`)
+- **Live status**: expected working (public RSS: `https://www.justsecurity.org/feed/`)
+- **Status**: working
+- **Adapter**: rss
+- **Enablement**: enable
+- **Notes**: Specialist analysis; requires independent verification via linked filings/orders/statutes. Good for context and procedural framing, not as primary evidence.
+
+### Campaign Legal Center
+- **Repo slug**: `campaign-legal-center`
+- **Repo status**: enabled (`endpointUrl` set; `isEnabled: true`)
+- **Live status**: expected working (public RSS: `https://campaignlegal.org/rss.xml`)
+- **Status**: working
+- **Adapter**: rss
+- **Enablement**: enable
+- **Notes**: Election integrity/democracy litigation + enforcement context; posture is advocacy. Use filings/agencies/independent reporting to confirm claims.
+

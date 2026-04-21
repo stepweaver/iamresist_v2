@@ -98,6 +98,9 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 | `lawfare` | RSS | yes | `feed_summary` |
 | `propublica` | RSS | yes | `feed_summary` |
 | `american-oversight` | RSS | yes | `feed_summary` |
+| `doj-oig` | RSS | yes | `feed_summary` — primary DOJ IG oversight artifacts (audits/reports). |
+| `just-security` | RSS | yes | `feed_summary` — specialist analysis w/ primary-document links. |
+| `campaign-legal-center` | RSS | yes | `feed_summary` — election integrity litigation/analysis; verify via filings + independent reporting. |
 | `courier-the-cover-up` | RSS | yes | `preview_and_link` — working Substack feed for the COURIER Cover-Up / Epstein accountability project. |
 | `uncovering-epstein-network` | RSS (`/feed/`) | **no** (disabled) | `preview_and_link` — registry only; site feed parses to 0 items here; do not run parallel to Substack without dedupe. |
 

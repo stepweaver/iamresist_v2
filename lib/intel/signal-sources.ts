@@ -17,6 +17,9 @@ const DEMOCRACY_DOCKET = 'https://www.democracydocket.com/news-alerts/';
 const LAWFARE = 'https://www.lawfaremedia.org/feeds/articles';
 const PROPUBLICA = 'https://feeds.propublica.org/propublica/main';
 const AMERICAN_OVERSIGHT = 'https://americanoversight.org/feed';
+const DOJ_OIG = 'https://oig.justice.gov/rss.xml';
+const JUST_SECURITY = 'https://www.justsecurity.org/feed/';
+const CAMPAIGN_LEGAL_CENTER = 'https://campaignlegal.org/rss.xml';
 const COURIER_COVER_UP = 'https://thecoverupnewsletter.substack.com/feed';
 const ROBERT_REICH = 'https://robertreich.substack.com/feed';
 const G_ELLIOTT_MORRIS = 'https://gelliottmorris.substack.com/feed';
@@ -459,6 +462,85 @@ export function getSignalSources(): SignalSourceConfig[] {
         defaultPriority: 55,
         preferredStateChangeTypes: ['specialist_item'],
         allowKeywords: ['lawsuit', 'records', 'FOIA', 'transparency', 'court', 'ICE', 'DOJ'],
+      },
+    },
+    {
+      slug: 'doj-oig',
+      name: 'DOJ Office of Inspector General (RSS)',
+      provenanceClass: 'PRIMARY',
+      fetchKind: 'rss',
+      deskLane: 'osint',
+      sourceFamily: 'general',
+      contentUseMode: 'feed_summary',
+      endpointUrl: DOJ_OIG,
+      isEnabled: true,
+      isCoreSource: false,
+      trustWarningMode: 'none',
+      trustWarningLevel: 'info',
+      requiresIndependentVerification: false,
+      heroEligibilityMode: 'normal',
+      purpose: 'Inspector General reports, audits, evaluations, and misconduct findings from DOJ OIG.',
+      trustedFor: 'Canonical DOJ OIG releases and published report links with official provenance.',
+      notTrustedFor: 'Broader context without additional reporting; treat as an official record surface, not narrative completeness.',
+      editorialControls: {
+        defaultPriority: 60,
+        preferredStateChangeTypes: ['press_statement'],
+        allowKeywords: ['report', 'audit', 'inspection', 'evaluation', 'misconduct', 'whistleblower', 'FBI', 'BOP'],
+        blockKeywords: ['testimonial', 'statement on', 'award', 'ceremony'],
+        noiseNotes:
+          'Keep focus on formal oversight artifacts (audits/reports/misconduct) rather than routine comms.',
+      },
+    },
+    {
+      slug: 'just-security',
+      name: 'Just Security',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'rss',
+      deskLane: 'osint',
+      sourceFamily: 'general',
+      contentUseMode: 'feed_summary',
+      endpointUrl: JUST_SECURITY,
+      isEnabled: true,
+      isCoreSource: false,
+      trustWarningMode: 'none',
+      trustWarningLevel: 'info',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'normal',
+      purpose: 'High-signal legal and national security analysis with tight sourcing and links to primary materials.',
+      trustedFor: 'Specialist analysis and explainers that cite primary documents and procedural posture.',
+      notTrustedFor: 'Treating analysis summaries as primary evidence; always follow cited filings, orders, and statutes.',
+      editorialControls: {
+        defaultPriority: 56,
+        preferredStateChangeTypes: ['specialist_item'],
+        allowKeywords: ['court', 'injunction', 'order', 'surveillance', 'DOJ', 'FBI', 'election', 'voting', 'sanctions'],
+        noiseNotes:
+          'Analysis-heavy; rely on mission tags and corroboration rather than treating any single post as conclusive evidence.',
+      },
+    },
+    {
+      slug: 'campaign-legal-center',
+      name: 'Campaign Legal Center (RSS)',
+      provenanceClass: 'SPECIALIST',
+      fetchKind: 'rss',
+      deskLane: 'osint',
+      sourceFamily: 'general',
+      contentUseMode: 'feed_summary',
+      endpointUrl: CAMPAIGN_LEGAL_CENTER,
+      isEnabled: true,
+      isCoreSource: false,
+      trustWarningMode: 'none',
+      trustWarningLevel: 'info',
+      requiresIndependentVerification: true,
+      heroEligibilityMode: 'normal',
+      purpose: 'Election integrity and democracy accountability litigation/analysis from a specialist legal nonprofit.',
+      trustedFor: 'Tracking election-law litigation and enforcement narratives when paired with linked filings and official actions.',
+      notTrustedFor: 'Treating advocacy framing as neutral fact baseline; confirm key claims through filings, agencies, and independent reporting.',
+      editorialControls: {
+        defaultPriority: 55,
+        preferredStateChangeTypes: ['specialist_item'],
+        allowKeywords: ['election', 'voting', 'ballot', 'redistrict', 'gerrymander', 'FEC', 'campaign finance', 'ethics'],
+        noiseNotes:
+          'Mission fit is high, but posture is advocacy; keep verification expectations explicit and prefer corroboration.',
       },
     },
     {
