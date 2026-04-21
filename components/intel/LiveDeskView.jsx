@@ -3,6 +3,7 @@ import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import ShareButton from '@/components/ShareButton';
 import { buildStoryPresentationModel } from '@/components/intel/storyPresentation';
 import { shouldShowInlineTrustExplain } from '@/lib/intel/trustWarnings';
+import { preferredIntelShareUrl } from '@/lib/intel/permalinks';
 import { getIntelSourceLinkLabel } from '@/lib/sourceLinkLabels';
 import { formatDate } from '@/lib/utils/date';
 
@@ -65,8 +66,7 @@ function SurfaceChip({ surfaceState, isDuplicateLoser }) {
 }
 
 function ShareRowButton({ row, heading = 'Share report', className = '' }) {
-  const shareUrl =
-    typeof row?.canonicalUrl === 'string' && row.canonicalUrl.trim() ? row.canonicalUrl.trim() : '';
+  const shareUrl = preferredIntelShareUrl(row);
 
   if (!shareUrl) return null;
 
@@ -342,7 +342,7 @@ function AccountabilityHighlights({ highlights }) {
                   </Link>
                   <div className="mt-3 border-t border-border pt-3">
                     <ShareButton
-                      url={h.canonicalUrl}
+                      url={preferredIntelShareUrl(h)}
                       title={h.title}
                       description={h.sourceName}
                       heading="Share Intel item"

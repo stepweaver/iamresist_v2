@@ -316,6 +316,21 @@ const SOURCE_ITEMS_LIVE_SELECT = `
       )
     `;
 
+export async function fetchSourceItemById(id: string): Promise<SourceItemRow | null> {
+  const supabase = client();
+  const raw = typeof id === 'string' ? id.trim() : '';
+  if (!raw) return null;
+
+  const { data, error } = await supabase
+    .from('source_items')
+    .select(SOURCE_ITEMS_LIVE_SELECT)
+    .eq('id', raw)
+    .maybeSingle();
+
+  if (error) throw new Error(`source_items by id select: ${error.message}`);
+  return (data as SourceItemRow | null) ?? null;
+}
+
 /** Surfaced rows only, newest first — avoids suppressed rows consuming the desk fetch budget. */
 async function fetchSurfacedNewestForLive(
   limit: number,
