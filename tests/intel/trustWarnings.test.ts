@@ -5,6 +5,7 @@ import {
   shouldShowInlineTrustExplain,
 } from '@/lib/intel/trustWarnings';
 import { getLaneWarningCopy } from '@/components/intel/IntelLaneWarning';
+import { buildCompactSignalMetaBits } from '@/components/intel/LiveDeskView';
 
 function base(over: Partial<Parameters<typeof computeTrustWarnings>[0]> = {}) {
   return {
@@ -188,6 +189,26 @@ describe('IntelLaneWarning copy', () => {
   it('keeps OSINT and defense_ops warning copy available', () => {
     expect(getLaneWarningCopy('osint')?.body).toMatch(/verify key assertions/i);
     expect(getLaneWarningCopy('defense_ops')?.body).toMatch(/verify key assertions/i);
+  });
+});
+
+describe('LiveDeskView compact metadata (public cards)', () => {
+  it('keeps card metadata compact and omits why-this-surfaced explanations', () => {
+    const bits = buildCompactSignalMetaBits(
+      {
+        displayBucket: 'lead',
+        missionTags: ['courts', 'civil_liberties'],
+        displayExplanations: [{ ruleId: 'desk:impact', message: 'High mission fit' }],
+        relevanceExplanations: [{ ruleId: 'desk:topic', message: 'High mission fit' }],
+      },
+      { showBucket: true, transparencyHint: 'Preview via public feed · Read at source' },
+    );
+
+    expect(bits).toContain('Preview via public feed · Read at source');
+    expect(bits).toContain('lead');
+    expect(bits).toContain('courts');
+    expect(bits).toContain('civil_liberties');
+    expect(bits.join(' · ')).not.toMatch(/High mission fit/);
   });
 });
 

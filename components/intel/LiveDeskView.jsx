@@ -144,44 +144,26 @@ function duplicateGroupingUserNote(row) {
   return 'Similar report consolidated under a stronger line above';
 }
 
-function topHumanReason(row) {
-  const hiddenRuleIds = new Set([
-    'source:baseline',
-    'score:default_priority',
-    'fr:fr_type',
-    'desk:duplicate_cluster',
-  ]);
-
-  const display = Array.isArray(row.displayExplanations) ? row.displayExplanations : [];
-  const relevance = Array.isArray(row.relevanceExplanations) ? row.relevanceExplanations : [];
-
-  const messages = [...display, ...relevance]
-    .filter((e) => e?.message && !hiddenRuleIds.has(e.ruleId))
-    .map((e) => e.message.trim());
-
-  return [...new Set(messages)][0] || null;
-}
-
-function CompactSignalMeta({ row, showBucket = false, transparencyHint = null }) {
-  const tags = Array.isArray(row.missionTags) ? row.missionTags.slice(0, 2) : [];
-  const reason = topHumanReason(row);
-
+export function buildCompactSignalMetaBits(row, { showBucket = false, transparencyHint = null } = {}) {
   const bits = [];
 
-  if (transparencyHint && typeof transparencyHint === 'string' && transparencyHint.trim()) {
-    bits.push(transparencyHint.trim());
+  if (transparencyHint && typeof transparencyHint === 'string') {
+    const t = transparencyHint.trim();
+    if (t) bits.push(t);
   }
 
-  if (showBucket && row.displayBucket && row.displayBucket !== 'routine') {
+  if (showBucket && row?.displayBucket && row.displayBucket !== 'routine') {
     bits.push(row.displayBucket);
   }
 
-  bits.push(...tags);
+  const tags = Array.isArray(row?.missionTags) ? row.missionTags.slice(0, 2) : [];
+  bits.push(...tags.filter((tag) => typeof tag === 'string' && tag.trim()));
 
-  if (reason) {
-    bits.push(reason);
-  }
+  return bits;
+}
 
+function CompactSignalMeta({ row, showBucket = false, transparencyHint = null }) {
+  const bits = buildCompactSignalMetaBits(row, { showBucket, transparencyHint });
   if (!bits.length) return null;
 
   return (
