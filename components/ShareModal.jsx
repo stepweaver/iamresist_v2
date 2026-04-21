@@ -13,6 +13,7 @@ import {
   Twitter,
   MessageCircle,
 } from 'lucide-react';
+import { buildShareTargets } from '@/lib/shareTargets';
 
 export default function ShareModal({
   isOpen,
@@ -54,8 +55,14 @@ export default function ShareModal({
 
   if (!isOpen || !mounted) return null;
 
-  const fullUrl = url?.startsWith('http') ? url : `${window.location.origin}${url ?? ''}`;
-  const shareText = description || title || '';
+  const shareTargets = buildShareTargets({
+    url,
+    title,
+    description,
+    origin: typeof window !== 'undefined' ? window.location.origin : '',
+  });
+  const fullUrl = shareTargets.url;
+  const shareText = shareTargets.text || '';
 
   const handleCopy = async () => {
     try {
@@ -82,7 +89,7 @@ export default function ShareModal({
   const handleNativeShare = async () => {
     if (!shareSupported) return;
     try {
-      await navigator.share({ title, text: shareText, url: fullUrl });
+      await navigator.share(shareTargets.native);
       onClose();
     } catch (err) {
       if (err?.name !== 'AbortError' && process.env.NODE_ENV === 'development') {
@@ -95,10 +102,6 @@ export default function ShareModal({
     if (shareTargetUrl) window.open(shareTargetUrl, '_blank', 'noopener,noreferrer');
     onClose();
   };
-
-  const encodedUrl = encodeURIComponent(fullUrl);
-  const encodedTitle = encodeURIComponent(title || '');
-  const encodedText = encodeURIComponent(shareText);
 
   const modalContent = (
     <>
@@ -191,7 +194,7 @@ export default function ShareModal({
                 <button
                   type="button"
                   onClick={() =>
-                    openShareUrl(`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`)
+                    openShareUrl(shareTargets.providers.twitter)
                   }
                   className="flex items-center justify-center gap-2 rounded border border-border/20 bg-military-grey/20 p-2.5 text-xs font-bold uppercase tracking-wider text-foreground/70 transition-all hover:border-primary/50 hover:bg-military-grey/40 hover:text-foreground"
                 >
@@ -201,7 +204,7 @@ export default function ShareModal({
                 <button
                   type="button"
                   onClick={() =>
-                    openShareUrl(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`)
+                    openShareUrl(shareTargets.providers.facebook)
                   }
                   className="flex items-center justify-center gap-2 rounded border border-border/20 bg-military-grey/20 p-2.5 text-xs font-bold uppercase tracking-wider text-foreground/70 transition-all hover:border-primary/50 hover:bg-military-grey/40 hover:text-foreground"
                 >
@@ -211,7 +214,7 @@ export default function ShareModal({
                 <button
                   type="button"
                   onClick={() =>
-                    openShareUrl(`https://reddit.com/submit?url=${encodedUrl}&title=${encodedTitle}`)
+                    openShareUrl(shareTargets.providers.reddit)
                   }
                   className="flex items-center justify-center gap-2 rounded border border-border/20 bg-military-grey/20 p-2.5 text-xs font-bold uppercase tracking-wider text-foreground/70 transition-all hover:border-primary/50 hover:bg-military-grey/40 hover:text-foreground"
                 >
@@ -221,7 +224,7 @@ export default function ShareModal({
                 <button
                   type="button"
                   onClick={() =>
-                    openShareUrl(`mailto:?subject=${encodedTitle}&body=${encodedText}%20${encodedUrl}`)
+                    openShareUrl(shareTargets.providers.email)
                   }
                   className="flex items-center justify-center gap-2 rounded border border-border/20 bg-military-grey/20 p-2.5 text-xs font-bold uppercase tracking-wider text-foreground/70 transition-all hover:border-primary/50 hover:bg-military-grey/40 hover:text-foreground"
                 >
