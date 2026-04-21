@@ -54,6 +54,15 @@ export type GlobalPromotionDecision = {
     sourceCount: number;
     laneCount: number;
     familyCount: number;
+    /**
+     * Corroboration is computed from non-creator items only. Creator/voices items can be noted as
+     * support, but do not count as independent corroborating sources for promotion.
+     */
+    nonCreatorItemCount: number;
+    nonCreatorSourceCount: number;
+    nonCreatorLaneCount: number;
+    nonCreatorFamilyCount: number;
+    creatorItemCount: number;
   };
   creatorConvergence: {
     active: boolean;
@@ -254,6 +263,10 @@ function clusterProvenanceContribution(p: ProvenanceClass): number {
 
 function isTrustedCreatorItem(item: PromotableItem): boolean {
   return item.deskLane === 'voices' || item.provenanceClass === 'COMMENTARY';
+}
+
+function isReportingLikeItem(item: PromotableItem): boolean {
+  return !isTrustedCreatorItem(item) && item.provenanceClass !== 'SCHEDULE';
 }
 
 function classifyClusterItems(items: PromotableItem[]): ClassifiedClusterItem[] {
@@ -664,45 +677,62 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
     }
   }
 
+  const creatorItems = cluster.filter((item) => isTrustedCreatorItem(item));
+  const nonCreatorItems = cluster.filter((item) => !isTrustedCreatorItem(item));
+  const reportingLikeItems = cluster.filter((item) => isReportingLikeItem(item));
+
   const sources = new Set(cluster.map((item) => item.sourceSlug).filter(Boolean));
   const lanes = new Set(cluster.map((item) => item.deskLane ?? 'unknown').filter(Boolean));
   const families = new Set(cluster.map((item) => item.sourceFamily ?? 'general').filter(Boolean));
 
-  const sourceDelta = Math.min(18, Math.max(0, (sources.size - 1) * 6));
+  const nonCreatorSources = new Set(nonCreatorItems.map((item) => item.sourceSlug).filter(Boolean));
+  const nonCreatorLanes = new Set(nonCreatorItems.map((item) => item.deskLane ?? 'unknown').filter(Boolean));
+  const nonCreatorFamilies = new Set(nonCreatorItems.map((item) => item.sourceFamily ?? 'general').filter(Boolean));
+
+  // Corroboration deltas only count non-creator items. This prevents “creator-only convergence”
+  // from being misread as independent corroboration.
+  const sourceDelta = Math.min(18, Math.max(0, (nonCreatorSources.size - 1) * 6));
   score += sourceDelta;
   if (sourceDelta) {
     contributions.push({
       code: 'corroborated_multi_source',
       delta: sourceDelta,
-      message: 'Corroboration from multiple sources',
+      message: 'Corroboration from multiple non-creator sources',
     });
   }
 
-  const laneDelta = Math.min(10, Math.max(0, (lanes.size - 1) * 5));
+  const laneDelta = Math.min(10, Math.max(0, (nonCreatorLanes.size - 1) * 5));
   score += laneDelta;
   if (laneDelta) {
     contributions.push({
       code: 'corroborated_multi_lane',
       delta: laneDelta,
-      message: 'Corroboration across desks/lanes',
+      message: 'Corroboration across non-creator desks/lanes',
     });
   }
 
-  const familyDelta = Math.min(8, Math.max(0, (families.size - 1) * 4));
+  const familyDelta = Math.min(8, Math.max(0, (nonCreatorFamilies.size - 1) * 4));
   score += familyDelta;
   if (familyDelta) {
     contributions.push({
       code: 'corroborated_multi_family',
       delta: familyDelta,
-      message: 'Corroboration across source families',
+      message: 'Corroboration across non-creator source families',
     });
   }
 
-  if (creatorConvergence.creatorSupportNoted) {
+  // Creator support is a bounded signal that can slightly improve cluster explainability/salience,
+  // but is not treated as corroboration.
+  const creatorSupportEligible = creatorItems.length > 0 && reportingLikeItems.length > 0;
+  if (creatorConvergence.creatorSupportNoted || creatorSupportEligible) {
+    const creatorSupportDelta = creatorSupportEligible ? 1 : 0;
+    score += creatorSupportDelta;
     contributions.push({
       code: 'creator_support_noted',
-      delta: 0,
-      message: `Trusted creator support noted (${creatorConvergence.itemCount} items, ${creatorConvergence.sourceCount} creators)`,
+      delta: creatorSupportDelta,
+      message: creatorSupportEligible
+        ? `Trusted creator support noted (+${creatorSupportDelta}) alongside reporting (${creatorItems.length} creator items, ${reportingLikeItems.length} reporting items).`
+        : `Trusted creator support noted (${creatorConvergence.itemCount} items, ${creatorConvergence.sourceCount} creators)`,
     });
   }
 
@@ -749,7 +779,7 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
   const statementLike =
     representative.deskLane === 'statements' ||
     representative.trustWarningMode === 'source_controlled_official_claims';
-  if (statementLike && (sources.size < 2 || families.size < 2)) {
+  if (statementLike && (nonCreatorSources.size < 2 || nonCreatorFamilies.size < 2)) {
     score -= 12;
     contributions.push({
       code: 'claims_lane_penalty',
@@ -808,6 +838,11 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
       sourceCount: sources.size,
       laneCount: lanes.size,
       familyCount: families.size,
+      nonCreatorItemCount: nonCreatorItems.length,
+      nonCreatorSourceCount: nonCreatorSources.size,
+      nonCreatorLaneCount: nonCreatorLanes.size,
+      nonCreatorFamilyCount: nonCreatorFamilies.size,
+      creatorItemCount: creatorItems.length,
     },
     creatorConvergence: {
       active: creatorConvergence.active,

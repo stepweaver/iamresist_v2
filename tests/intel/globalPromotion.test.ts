@@ -83,6 +83,8 @@ describe('promoteGlobally', () => {
     });
     const out = promoteGlobally([a, b], { limit: 3 });
     expect(out[0].decision.corroboration.itemCount).toBe(2);
+    expect(out[0].decision.corroboration.nonCreatorItemCount).toBe(2);
+    expect(out[0].decision.corroboration.creatorItemCount).toBe(0);
     expect(out[0].decision.reasons).toContain('corroborated_multi_source');
   });
 
@@ -313,8 +315,14 @@ describe('promoteGlobally', () => {
 
     expect(withCommentary.representativeId).toBe('rep-1');
     expect(withCommentary.decision.corroboration.itemCount).toBe(2);
+    expect(withCommentary.decision.corroboration.nonCreatorItemCount).toBe(1);
+    expect(withCommentary.decision.corroboration.creatorItemCount).toBe(1);
     expect(withCommentary.decision.totalScore).toBeGreaterThan(withoutCommentary.decision.totalScore);
-    expect(withCommentary.decision.reasons).toContain('corroborated_multi_source');
+    // Creator support is noted, but creator items do not count as corroboration.
+    expect(withCommentary.decision.reasons).not.toContain('corroborated_multi_source');
+    expect(withCommentary.decision.contributions.some((c) => c.code === 'creator_support_noted' && c.delta > 0)).toBe(
+      true,
+    );
   });
 
   it('uses trusted creator convergence to lift corroborating watchdog and OSINT support', () => {
@@ -491,6 +499,9 @@ describe('promoteGlobally', () => {
     expect(out[0].decision.totalScore).toBeGreaterThan(out[1]!.decision.totalScore);
     expect(out[1]!.decision.reasons).toContain('creator_support_noted');
     expect(out[1]!.decision.reasons).not.toContain('trusted_creator_convergence');
+    expect(out[1]!.decision.reasons).not.toContain('corroborated_multi_source');
+    expect(out[1]!.decision.corroboration.nonCreatorItemCount).toBe(0);
+    expect(out[1]!.decision.corroboration.creatorItemCount).toBeGreaterThan(0);
 
     vi.useRealTimers();
   });
