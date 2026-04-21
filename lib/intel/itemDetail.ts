@@ -1,6 +1,13 @@
-import { computeTrustWarnings } from '@/lib/intel/trustWarnings';
+import { computeTrustWarnings, type TrustBadge } from '@/lib/intel/trustWarnings';
 import { whyItMattersStub } from '@/lib/intel/whyItMatters';
 import type { SourceItemRow } from '@/lib/intel/db';
+import type {
+  DeskLane,
+  HeroEligibilityMode,
+  ProvenanceClass,
+  TrustWarningLevel,
+  TrustWarningMode,
+} from '@/lib/intel/types';
 
 export type IntelItemDetailModel = {
   id: string;
@@ -10,21 +17,69 @@ export type IntelItemDetailModel = {
   publishedAt: string | null;
   fetchedAt: string | null;
   contentUseMode: string | null;
-  provenanceClass: string | null;
+  provenanceClass: ProvenanceClass | null;
   sourceName: string | null;
   sourceSlug: string | null;
-  deskLane: string | null;
+  deskLane: DeskLane | null;
   clusterKeys: Record<string, string>;
   missionTags: string[];
   stateChangeType: string | null;
   whyItMatters: string | null;
-  trustBadges: any[];
+  trustBadges: TrustBadge[];
   trustExplain: string | null;
   trustWarningText: string | null;
-  trustWarningMode: string;
-  trustWarningLevel: string;
+  trustWarningMode: TrustWarningMode;
+  trustWarningLevel: TrustWarningLevel;
   requiresIndependentVerification: boolean;
 };
+
+function parseTrustWarningMode(value: unknown): TrustWarningMode {
+  return value === 'source_controlled_official_claims' ? value : 'none';
+}
+
+function parseTrustWarningLevel(value: unknown): TrustWarningLevel {
+  if (value === 'high' || value === 'caution' || value === 'info') return value;
+  return 'info';
+}
+
+function parseHeroEligibilityMode(value: unknown): HeroEligibilityMode {
+  if (
+    value === 'normal' ||
+    value === 'demote_low_substance' ||
+    value === 'never_hero_without_corroboration'
+  ) {
+    return value;
+  }
+  return 'normal';
+}
+
+function parseDeskLane(value: unknown): DeskLane | null {
+  if (
+    value === 'osint' ||
+    value === 'voices' ||
+    value === 'watchdogs' ||
+    value === 'defense_ops' ||
+    value === 'indicators' ||
+    value === 'statements'
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function parseProvenanceClass(value: unknown): ProvenanceClass {
+  if (
+    value === 'PRIMARY' ||
+    value === 'WIRE' ||
+    value === 'SPECIALIST' ||
+    value === 'INDIE' ||
+    value === 'COMMENTARY' ||
+    value === 'SCHEDULE'
+  ) {
+    return value;
+  }
+  return 'WIRE';
+}
 
 export function buildIntelItemDetailModel(row: SourceItemRow): IntelItemDetailModel | null {
   if (!row?.id || !row?.title || !row?.canonical_url) return null;
@@ -37,19 +92,26 @@ export function buildIntelItemDetailModel(row: SourceItemRow): IntelItemDetailMo
       ? row.cluster_keys
       : {};
 
+  const trustWarningMode = parseTrustWarningMode(s?.trust_warning_mode);
+  const trustWarningLevel = parseTrustWarningLevel(s?.trust_warning_level);
+  const requiresIndependentVerification = Boolean(s?.requires_independent_verification);
+  const heroEligibilityMode = parseHeroEligibilityMode(s?.hero_eligibility_mode);
+  const trustWarningText = typeof s?.trust_warning_text === 'string' ? s.trust_warning_text : null;
+
   const trust = computeTrustWarnings({
     source: {
-      trustWarningMode: s?.trust_warning_mode || 'none',
-      trustWarningLevel: s?.trust_warning_level || 'info',
-      requiresIndependentVerification: Boolean(s?.requires_independent_verification),
-      heroEligibilityMode: s?.hero_eligibility_mode || 'normal',
-      trustWarningText: typeof s?.trust_warning_text === 'string' ? s.trust_warning_text : null,
+      trustWarningMode,
+      trustWarningLevel,
+      requiresIndependentVerification,
+      heroEligibilityMode,
+      trustWarningText,
     },
     item: {
       title: row.title,
       summary: row.summary,
-      sourceSlug: s?.slug ?? null,
-      institutionalArea: typeof row.institutional_area === 'string' ? row.institutional_area : 'unknown',
+      sourceSlug: s?.slug ?? '',
+      institutionalArea:
+        typeof row.institutional_area === 'string' ? row.institutional_area : 'unknown',
       missionTags,
       clusterKeys,
     },
@@ -66,17 +128,21 @@ export function buildIntelItemDetailModel(row: SourceItemRow): IntelItemDetailMo
     provenanceClass,
     sourceName: s?.name ?? null,
     sourceSlug: s?.slug ?? null,
-    deskLane: (typeof s?.desk_lane === 'string' ? s.desk_lane : null) ?? (row.desk_lane as any) ?? null,
+    deskLane: parseDeskLane(s?.desk_lane) ?? parseDeskLane(row.desk_lane) ?? null,
     clusterKeys,
     missionTags,
-    stateChangeType: (row.state_change_type as any) ?? null,
-    whyItMatters: whyItMattersStub(provenanceClass, row.state_change_type, clusterKeys),
+    stateChangeType: (row.state_change_type as string | null) ?? null,
+    whyItMatters: whyItMattersStub(
+      parseProvenanceClass(provenanceClass),
+      (row.state_change_type as string | null) ?? 'unknown',
+      clusterKeys,
+    ),
     trustBadges: Array.isArray(trust?.trustBadges) ? trust.trustBadges : [],
     trustExplain: trust?.trustExplain ?? null,
-    trustWarningText: trust?.trustWarningText ?? null,
-    trustWarningMode: trust?.trustWarningMode ?? 'none',
-    trustWarningLevel: trust?.trustWarningLevel ?? 'info',
-    requiresIndependentVerification: Boolean(trust?.requiresIndependentVerification),
+    trustWarningText,
+    trustWarningMode,
+    trustWarningLevel,
+    requiresIndependentVerification: Boolean(trust?.requires_independent_verification),
   };
 }
 
