@@ -5,6 +5,8 @@ vi.mock('server-only', () => ({}));
 import {
   bridgeNewswireStoryScore,
   computeHomepageBriefingScore,
+  dedupeHomepageBriefingItemsForDisplay,
+  homepageBriefingDisplayDedupeKey,
   mergeAndRankBriefingCandidates,
   passesFallbackGate,
   weightedBriefingScore,
@@ -871,5 +873,84 @@ describe('homepage briefing payload shape', () => {
     expect(payload.items).toEqual([]);
     expect(payload.explain.pool.promotedIntel).toBe(0);
     expect(payload.explain.pool.briefingDesk.desks.voices).toBe(1);
+  });
+});
+
+describe('final homepage briefing display dedupe', () => {
+  it('drops later items that resolve to the same normalized external URL (cross-kind)', () => {
+    const url = 'https://example.com/a';
+    const items = [
+      {
+        kind: 'intel' as const,
+        briefLane: 'osint' as const,
+        intelItem: { id: 'i1', canonicalUrl: url },
+      },
+      {
+        kind: 'newswire' as const,
+        briefLane: 'newswire' as const,
+        story: { id: 'n1', url },
+      },
+      {
+        kind: 'intel' as const,
+        briefLane: 'watchdogs' as const,
+        intelItem: { id: 'i2', canonicalUrl: 'https://example.com/b' },
+      },
+    ];
+
+    const out = dedupeHomepageBriefingItemsForDisplay(items);
+    expect(out).toHaveLength(2);
+    expect(out[0].kind).toBe('intel');
+    expect(out[0].intelItem.id).toBe('i1');
+    expect(out[1].kind).toBe('intel');
+    expect(out[1].intelItem.id).toBe('i2');
+  });
+
+  it('ensures the hero/first item never reappears later in the returned array', () => {
+    const url = 'https://example.com/hero';
+    const items = [
+      {
+        kind: 'newswire' as const,
+        briefLane: 'newswire' as const,
+        story: { id: 'hero', url },
+      },
+      {
+        kind: 'newswire' as const,
+        briefLane: 'newswire' as const,
+        story: { id: 'dupe-later', url },
+      },
+      {
+        kind: 'newswire' as const,
+        briefLane: 'newswire' as const,
+        story: { id: 'ok', url: 'https://example.com/other' },
+      },
+    ];
+
+    const out = dedupeHomepageBriefingItemsForDisplay(items);
+    const heroKey = homepageBriefingDisplayDedupeKey(out[0]);
+    expect(heroKey).toBeTruthy();
+    expect(out.slice(1).some((it) => homepageBriefingDisplayDedupeKey(it) === heroKey)).toBe(false);
+  });
+
+  it('preserves ordering for non-duplicate items', () => {
+    const items = [
+      {
+        kind: 'intel' as const,
+        briefLane: 'osint' as const,
+        intelItem: { id: 'i1', canonicalUrl: 'https://example.com/1' },
+      },
+      {
+        kind: 'intel' as const,
+        briefLane: 'watchdogs' as const,
+        intelItem: { id: 'i2', canonicalUrl: 'https://example.com/2' },
+      },
+      {
+        kind: 'intel' as const,
+        briefLane: 'defense_ops' as const,
+        intelItem: { id: 'i3', canonicalUrl: 'https://example.com/3' },
+      },
+    ];
+
+    const out = dedupeHomepageBriefingItemsForDisplay(items);
+    expect(out.map((it) => it.intelItem.id)).toEqual(['i1', 'i2', 'i3']);
   });
 });
