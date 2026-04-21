@@ -23,6 +23,7 @@ const STATIC_PATHS = [
   '/intel/watchdogs',
   '/intel/osint',
   '/intel/defense',
+  '/intel/claims',
 ];
 
 const BOOK_STATUSES = ['Reading', 'Pending', 'Completed', 'Shelf'];

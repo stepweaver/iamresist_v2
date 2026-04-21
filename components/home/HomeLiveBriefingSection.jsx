@@ -3,9 +3,17 @@ import { ExternalLink } from 'lucide-react';
 import NewswireHeadlineCard from '@/components/newswire/NewswireHeadlineCard';
 import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import ShareButton from '@/components/ShareButton';
+import { intelItemPermalinkPath, preferredIntelShareUrl } from '@/lib/intel/permalinks';
 import { formatDate } from '@/lib/utils/date';
 import { briefingLaneLabel } from '@/lib/feeds/homepageBriefing.weights';
 import { getIntelSourceLinkLabel } from '@/lib/sourceLinkLabels';
+
+export function buildIntelBriefingLinks(row) {
+  const sourceUrl = typeof row?.canonicalUrl === 'string' ? row.canonicalUrl.trim() : '';
+  const internalUrl = row?.id ? intelItemPermalinkPath(row.id) : '';
+  const shareUrl = preferredIntelShareUrl(row);
+  return { sourceUrl, internalUrl, shareUrl };
+}
 
 function BriefingLaneBadge({ lane }) {
   const label = briefingLaneLabel(lane);
@@ -17,7 +25,7 @@ function BriefingLaneBadge({ lane }) {
 }
 
 function IntelBriefingCard({ row, hero = false, compact = false }) {
-  const url = row.canonicalUrl || '#';
+  const { sourceUrl, internalUrl, shareUrl } = buildIntelBriefingLinks(row);
   const when = row.publishedAt ? formatDate(row.publishedAt) : null;
   const linkLabel = getIntelSourceLinkLabel(row);
 
@@ -72,22 +80,35 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
             </p>
           ) : null}
           <h2 className="font-ui text-base sm:text-xl lg:text-2xl font-bold leading-snug text-foreground">
-            <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline">
-              {row.title || 'Untitled'}
-            </a>
+            {internalUrl ? (
+              <Link href={internalUrl} className="hover:text-primary hover:underline">
+                {row.title || 'Untitled'}
+              </Link>
+            ) : (
+              <a
+                href={sourceUrl || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary hover:underline"
+              >
+                {row.title || 'Untitled'}
+              </a>
+            )}
           </h2>
           <div className="flex flex-wrap items-center gap-3">
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline"
-            >
-              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              {linkLabel}
-            </a>
+            {sourceUrl ? (
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {linkLabel}
+              </a>
+            ) : null}
             <ShareButton
-              url={url}
+              url={shareUrl}
               title={row.title}
               description={shareDescription}
               heading="Share Intel item"
@@ -120,25 +141,38 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
             </p>
           ) : null}
           <h3 className="font-ui text-sm sm:text-base font-bold leading-snug text-foreground mt-1 line-clamp-3">
-            <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline">
-              {row.title || 'Untitled'}
-            </a>
+            {internalUrl ? (
+              <Link href={internalUrl} className="hover:text-primary hover:underline">
+                {row.title || 'Untitled'}
+              </Link>
+            ) : (
+              <a
+                href={sourceUrl || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary hover:underline"
+              >
+                {row.title || 'Untitled'}
+              </a>
+            )}
           </h3>
           {when ? (
             <span className="timestamp text-[10px] sm:text-xs text-foreground/50 tabular-nums mt-1">{when}</span>
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3">
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline"
-            >
-              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              {linkLabel}
-            </a>
+            {sourceUrl ? (
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button-label inline-flex items-center gap-1.5 text-[11px] sm:text-sm text-primary font-bold hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {linkLabel}
+              </a>
+            ) : null}
             <ShareButton
-              url={url}
+              url={shareUrl}
               title={row.title}
               description={shareDescription}
               heading="Share Intel item"
