@@ -186,6 +186,16 @@ describe('IntelLaneWarning copy', () => {
     expect(copy?.body).toMatch(/verify factual claims/i);
   });
 
+  it('defines a statements/claims lane disclaimer that stresses verification', () => {
+    const copy = getLaneWarningCopy('statements');
+    expect(copy).toBeTruthy();
+    expect(copy?.title).toMatch(/claims|statements/i);
+    expect(copy?.body).toMatch(/not confirmed evidence/i);
+    expect(copy?.body).toMatch(/verify/i);
+    expect(copy?.body).toMatch(/primary records/i);
+    expect(copy?.body).toMatch(/independent reporting/i);
+  });
+
   it('keeps OSINT and defense_ops warning copy available', () => {
     expect(getLaneWarningCopy('osint')?.body).toMatch(/verify key assertions/i);
     expect(getLaneWarningCopy('defense_ops')?.body).toMatch(/verify key assertions/i);
@@ -201,7 +211,7 @@ describe('LiveDeskView compact metadata (public cards)', () => {
         displayExplanations: [{ ruleId: 'desk:impact', message: 'High mission fit' }],
         relevanceExplanations: [{ ruleId: 'desk:topic', message: 'High mission fit' }],
       },
-      { showBucket: true, transparencyHint: 'Preview via public feed · Read at source' },
+      { showBucket: true, transparencyHint: 'Preview via public feed · Read at source' as any },
     );
 
     expect(bits).toContain('Preview via public feed · Read at source');

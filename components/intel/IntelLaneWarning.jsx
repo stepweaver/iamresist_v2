@@ -9,6 +9,11 @@ const LANE_WARNING_COPY = {
     body:
       'This lane includes authentic public military and official channels. Provenance is real, but framing can be operationally interested or source-controlled. Verify key assertions independently.',
   },
+  statements: {
+    title: 'Claims & statements disclosure',
+    body:
+      'This lane captures public political claims, statements, and circulating assertions. These items are not confirmed evidence by themselves. Verify against primary records (filings, transcripts, official documents) and independent reporting before treating anything here as true.',
+  },
   voices: {
     title: 'Voices lane disclosure',
     body:

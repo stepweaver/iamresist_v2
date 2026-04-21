@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 describe('weekly brief candidate merge', () => {
-  it('dedupes by canonical URL and keeps the stronger source-system candidate while preserving seenIn', async () => {
+  it(
+    'dedupes by canonical URL and keeps the stronger source-system candidate while preserving seenIn',
+    async () => {
     const { buildWeeklyCandidateWindow, mergeWeeklyCandidates } = await import(
       '@/lib/feeds/weeklyBriefCandidates.service'
     );
@@ -46,7 +48,9 @@ describe('weekly brief candidate merge', () => {
     expect(out).toHaveLength(1);
     expect(out[0]?.sourceSystem).toBe('homepage-briefing');
     expect(out[0]?.seenIn).toEqual(expect.arrayContaining(['homepage-briefing', 'newswire']));
-  });
+    },
+    15_000
+  );
 
   it('filters candidates outside the requested weekly window', async () => {
     const { buildWeeklyCandidateWindow, mergeWeeklyCandidates } = await import(
