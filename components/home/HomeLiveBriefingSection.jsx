@@ -3,17 +3,10 @@ import { ExternalLink } from 'lucide-react';
 import NewswireHeadlineCard from '@/components/newswire/NewswireHeadlineCard';
 import RemoteCoverImage from '@/components/newswire/RemoteCoverImage';
 import ShareButton from '@/components/ShareButton';
-import { intelItemPermalinkPath, preferredIntelShareUrl } from '@/lib/intel/permalinks';
+import { buildIntelBriefingLinks } from '@/lib/intel/briefingLinks';
 import { formatDate } from '@/lib/utils/date';
 import { briefingLaneLabel } from '@/lib/feeds/homepageBriefing.weights';
 import { getIntelSourceLinkLabel } from '@/lib/sourceLinkLabels';
-
-export function buildIntelBriefingLinks(row) {
-  const sourceUrl = typeof row?.canonicalUrl === 'string' ? row.canonicalUrl.trim() : '';
-  const internalUrl = row?.id ? intelItemPermalinkPath(row.id) : '';
-  const shareUrl = preferredIntelShareUrl(row);
-  return { sourceUrl, internalUrl, shareUrl };
-}
 
 function BriefingLaneBadge({ lane }) {
   const label = briefingLaneLabel(lane);
