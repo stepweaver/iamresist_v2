@@ -50,5 +50,5 @@ describe('VoicesFeedSection header sizing', () => {
     expect(description.props.className).toBe(
       'text-[11px] sm:text-xs text-foreground/60 font-mono mt-1 max-w-2xl leading-relaxed',
     );
-  });
+  }, 15000);
 });

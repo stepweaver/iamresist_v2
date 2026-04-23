@@ -9,6 +9,7 @@ import { getCanonicalBaseUrl } from "@/lib/siteConfig";
 import useHorizontalSwipe from "@/components/useHorizontalSwipe";
 import useModalFocusTrap from "@/components/useModalFocusTrap";
 import { getYoutubeVideoId, youtubeThumbnailCandidates } from "@/lib/utils/youtube";
+import { buildTikTokEmbedUrl, buildYouTubeEmbedUrl, getCanonicalVideoKey, getTikTokVideoId } from "@/lib/utils/videoPlatform";
 import { formatDate } from "@/lib/utils/date";
 import { buildTelescreenHref, TELESCREEN_MODES } from "@/lib/telescreen";
 import { getVoiceSourceLinkLabel } from "@/lib/sourceLinkLabels";
@@ -18,9 +19,9 @@ const DESKTOP_RELATED_CAP = 6;
 const YOUTUBE_PLAYER_ORIGINS = ["https://www.youtube.com", "https://www.youtube-nocookie.com"];
 
 function isSameItem(a, b) {
-  const aYt = getYoutubeVideoId(a?.url, a?.sourceId);
-  const bYt = getYoutubeVideoId(b?.url, b?.sourceId);
-  if (aYt && bYt) return aYt === bYt;
+  const aKey = getCanonicalVideoKey(a?.url, a?.sourceId);
+  const bKey = getCanonicalVideoKey(b?.url, b?.sourceId);
+  if (aKey && bKey) return aKey === bKey;
   return a?.url === b?.url || a?.id === b?.id;
 }
 
@@ -46,8 +47,7 @@ function dedupeByVideoKey(items) {
   const seen = new Set();
   const out = [];
   for (const it of items) {
-    const yt = getYoutubeVideoId(it?.url, it?.sourceId);
-    const key = yt ? `yt:${yt}` : it?.url ? `url:${it.url}` : it?.id || null;
+    const key = getCanonicalVideoKey(it?.url, it?.sourceId) ?? (it?.url ? `url:${it.url}` : it?.id || null);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(it);
@@ -98,26 +98,16 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
   useModalFocusTrap(dialogRef, closeButtonRef);
 
   const videoId = getYoutubeVideoId(item?.url, item?.sourceId);
+  const tiktokId = getTikTokVideoId(item?.url, item?.sourceId);
   const isYouTube = Boolean(videoId);
+  const isTikTok = Boolean(tiktokId);
   /** Same embed query string as source `InlinePlayerModal.jsx` (autoplay, no forced mute). */
   const embedUrl = useMemo(() => {
-    if (!videoId) return "";
-
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const params = new URLSearchParams({
-      autoplay: "1",
-      playsinline: "1",
-      rel: "0",
-      modestbranding: "1",
-      enablejsapi: "1",
-    });
-
-    if (origin) {
-      params.set("origin", origin);
-    }
-
-    return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
-  }, [videoId]);
+    if (videoId) return buildYouTubeEmbedUrl(videoId, origin);
+    if (tiktokId) return buildTikTokEmbedUrl(tiktokId);
+    return "";
+  }, [videoId, tiktokId]);
 
   /** Match production: no "more from" RSS fetch for protest-music (sidebar uses page list only). */
   const creatorBucketKey = useMemo(() => {
@@ -408,6 +398,15 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
                   title={item.title || "YouTube video"}
                   className="absolute inset-0 h-full w-full"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              ) : isTikTok ? (
+                <iframe
+                  key={tiktokId}
+                  src={embedUrl}
+                  title={item.title || "TikTok video"}
+                  className="absolute inset-0 h-full w-full"
+                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                   allowFullScreen
                 />
               ) : (

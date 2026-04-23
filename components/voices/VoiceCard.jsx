@@ -4,9 +4,12 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatDate } from '@/lib/utils/date';
 import {
-  getYoutubeVideoId,
   youtubeThumbnailCandidates,
 } from '@/lib/utils/youtube';
+import {
+  getTikTokVideoId,
+  getYoutubeVideoId,
+} from '@/lib/utils/videoPlatform';
 import { Play } from 'lucide-react';
 import ShareButton from '@/components/ShareButton';
 import { getCanonicalBaseUrl } from '@/lib/siteConfig';
@@ -64,7 +67,10 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
   const voiceHomeUrl =
     typeof voice?.homeUrl === 'string' && voice.homeUrl.trim() ? voice.homeUrl.trim() : null;
   const platform = voice?.platform || 'Feed';
-  const isYouTube = Boolean(getYoutubeVideoId(url, sourceId));
+  const ytId = getYoutubeVideoId(url, sourceId);
+  const ttId = getTikTokVideoId(url, sourceId);
+  const isYouTube = Boolean(ytId);
+  const canPlayInline = Boolean((ytId || ttId) && typeof onPlay === 'function');
 
   const displayDate = publishedAt ? formatDate(publishedAt) : null;
 
@@ -84,7 +90,6 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
   const hasSourcePreview = hasDescription && !hasEditorialNote;
 
   const showThumb = Boolean(thumbSrc);
-  const canPlayInline = Boolean(isYouTube && typeof onPlay === 'function');
   const playLabel = item.isProtestMusic ? 'Play song ->' : 'Play video ->';
   const sourceLabel = getVoiceSourceLinkLabel(item, { withTrailingArrow: true });
   const thumbnailActionLabel = item.isProtestMusic ? 'Play song' : 'Play video';
@@ -133,7 +138,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
               className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/35 to-transparent"
               aria-hidden
             />
-            {isYouTube ? (
+            {canPlayInline ? (
               <span
                 className="pointer-events-none absolute inset-0 z-[4] flex items-center justify-center"
                 aria-hidden
@@ -166,7 +171,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
               onLoad={onThumbLoad}
               onError={onThumbError}
             />
-            {isYouTube && (
+            {canPlayInline && (
               <span className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/25 to-transparent" aria-hidden />
             )}
           </Link>

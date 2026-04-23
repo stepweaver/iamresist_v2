@@ -32,7 +32,7 @@ This document mirrors the **version-controlled manifest** in [`lib/intel/signal-
 | `watchdogs` | `/intel/watchdogs` | Foreign independent and investigative outlets; lead slots require corroboration rules. |
 | `indicators` | `/intel/indicators` | Scheduled macro/statistical releases (BLS/BEA HTML index), placeholders (SAM/OFAC), anecdotal registry rows. |
 | `statements` | `/intel/statements` | Direct political claims / public-import scaffold; isolated ranking; not evidence by itself. |
-| `voices` | `/intel/voices` | Ingested creator/commentary from **public** RSS/podcast feeds. |
+| `voices` | `/intel/voices` | Ingested creator/commentary from **public** RSS/podcast feeds, plus **editorially entered TikTok post URLs** tied to authorized voices (no scraping / no creator-wide public ingest). |
 
 The curated **Telescreen** lives at **`/telescreen`** (`/voices` redirects); it is not replaced by `/intel/voices`.
 

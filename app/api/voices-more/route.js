@@ -4,6 +4,8 @@ import { rateLimitedResponse } from '@/lib/server/rateLimit';
 import { fetchFeedItems } from '@/lib/feeds/rss';
 import { getVideos } from '@/lib/notion/videos.repo';
 import { slugify } from '@/lib/utils/slugify';
+import { manualTikTokItems } from '@/lib/voicesManualTikTokItems';
+import { getTikTokVideoId } from '@/lib/utils/videoPlatform';
 
 export const revalidate = 300;
 
@@ -46,6 +48,39 @@ function toFeedItem(raw, voice) {
   };
 }
 
+function manualTikTokItemsForVoice(voice) {
+  const slug = String(voice?.slug || '').trim().toLowerCase();
+  if (!slug) return [];
+  if (!Array.isArray(manualTikTokItems) || manualTikTokItems.length === 0) return [];
+
+  const out = [];
+  for (const raw of manualTikTokItems) {
+    const voiceSlug = String(raw?.voiceSlug || '').trim().toLowerCase();
+    if (voiceSlug !== slug) continue;
+    const url = typeof raw?.url === 'string' ? raw.url.trim() : '';
+    if (!url) continue;
+    const postId = getTikTokVideoId(url, null);
+    if (!postId) continue;
+
+    out.push(
+      toFeedItem(
+        {
+          id: `voices-tt:${slug}:${postId}`,
+          sourceId: `tt:video:${postId}`,
+          title: typeof raw?.title === 'string' ? raw.title.trim() : '',
+          url,
+          publishedAt: typeof raw?.publishedAt === 'string' ? raw.publishedAt : null,
+          createdTime: null,
+          description: '',
+        },
+        voice
+      )
+    );
+  }
+
+  return out;
+}
+
 export async function GET(request) {
   const limited = rateLimitedResponse('voices-more', request);
   if (limited) return limited;
@@ -76,8 +111,11 @@ export async function GET(request) {
     // Full Notion pagination (same as production) — do not use getAllVoices({ limit: N });
     // a capped query only returns the first page and misses voices like later alphabetically.
     const voice = await getVoiceBySlug(slug);
+    if (!voice) return NextResponse.json({ items: [] }, { status: 200 });
+
+    const manualItems = manualTikTokItemsForVoice(voice);
     if (!voice?.feedUrl) {
-      return NextResponse.json({ items: [] }, { status: 200 });
+      return NextResponse.json({ items: manualItems }, { status: 200 });
     }
 
     const items = await fetchFeedItems(voice.feedUrl, {
@@ -87,7 +125,7 @@ export async function GET(request) {
 
     return NextResponse.json(
       {
-        items: (items || []).map((it) => toFeedItem(it, voice)),
+        items: [...manualItems, ...(items || []).map((it) => toFeedItem(it, voice))],
       },
       { status: 200, headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } }
     );
