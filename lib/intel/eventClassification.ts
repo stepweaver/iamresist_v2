@@ -139,6 +139,60 @@ export function classifyEvent(
   const h = haystack(item.title, item.summary);
   const legislativeContext = hasLegislativeContext(item, h);
 
+  if (item.stateChangeType === 'house_roll_call_vote') {
+    signals.push({ ruleId: 'event:house_roll_call_vote', message: 'House roll-call vote primary record' });
+    return { eventType: 'roll_call_vote_recorded', signals };
+  }
+  if (item.stateChangeType === 'committee_markup') {
+    signals.push({ ruleId: 'event:committee_markup', message: 'Committee markup primary record' });
+    return { eventType: 'committee_markup_scheduled', signals };
+  }
+  if (item.stateChangeType === 'committee_meeting') {
+    signals.push({ ruleId: 'event:committee_meeting', message: 'Committee hearing/meeting primary record' });
+    return { eventType: 'committee_hearing_scheduled', signals };
+  }
+  if (item.stateChangeType === 'witness_statement_posted') {
+    signals.push({ ruleId: 'event:witness_statement', message: 'Witness statement posted' });
+    return { eventType: 'witness_statement_posted', signals };
+  }
+  if (item.stateChangeType === 'witness_list_posted') {
+    signals.push({ ruleId: 'event:witness_list', message: 'Witness list posted' });
+    return { eventType: 'witness_list_posted', signals };
+  }
+  if (item.stateChangeType === 'bill_text_updated') {
+    signals.push({ ruleId: 'event:bill_text_updated', message: 'Bill text update primary record' });
+    return { eventType: 'bill_text_updated', signals };
+  }
+  if (item.stateChangeType === 'bill_summary') {
+    signals.push({ ruleId: 'event:bill_summary', message: 'CRS bill summary published' });
+    return { eventType: 'bill_summary_published', signals };
+  }
+  if (item.stateChangeType === 'crs_report') {
+    signals.push({ ruleId: 'event:crs_report', message: 'CRS report published' });
+    return { eventType: 'crs_report_published', signals };
+  }
+
+  if (/\bwar\s+powers?\b|\bauthorization\s+for\s+use\s+of\s+military\s+force\b|\baumf\b/i.test(h)) {
+    signals.push({ ruleId: 'event:war_powers_signal', message: 'War powers / military authorization language' });
+    return { eventType: 'war_powers_signal', signals };
+  }
+  if (/\b(civil|involuntary)\s+confinement\b|\bmental\s+health\s+detention\b/i.test(h)) {
+    signals.push({ ruleId: 'event:civil_confinement_signal', message: 'Civil confinement / detention language' });
+    return { eventType: 'civil_confinement_signal', signals };
+  }
+  if (/\bdetention\s+(?:center|facility|infrastructure|bed|beds)\b|\bcarceral\s+infrastructure\b/i.test(h)) {
+    signals.push({ ruleId: 'event:detention_infrastructure_signal', message: 'Detention infrastructure language' });
+    return { eventType: 'detention_infrastructure_signal', signals };
+  }
+  if (/\bfisa\b|\bsection\s*702\b|\bsurveillance\s+(?:authority|authorization|power)\b|\bdata\s+broker\b/i.test(h)) {
+    signals.push({ ruleId: 'event:surveillance_authority_signal', message: 'Surveillance authority language' });
+    return { eventType: 'surveillance_authority_signal', signals };
+  }
+  if (/\bdata\s+centers?\b.*\b(grid|water|electric|power|environment)\b|\b(grid|water)\b.*\bdata\s+centers?\b/i.test(h)) {
+    signals.push({ ruleId: 'event:data_center_environment_signal', message: 'Data center grid/water impact language' });
+    return { eventType: 'data_center_environment_signal', signals };
+  }
+
   if (legislativeContext && hasAny(h, RE_CONGRESS_URGENCY)) {
     signals.push({
       ruleId: 'event:congress_urgency',
@@ -149,6 +203,14 @@ export function classifyEvent(
 
   // Hard keys first (clusterKeys already deterministic).
   if (item.clusterKeys?.bill) {
+    if (/\breferred\s+to\s+(?:the\s+)?(?:house|senate)?\s*committee\b|\breferred\s+to\s+committee\b/i.test(h)) {
+      signals.push({ ruleId: 'event:bill_referred_to_committee', message: 'Bill key present + committee referral language' });
+      return { eventType: 'bill_referred_to_committee', signals };
+    }
+    if (/\breported\s+(?:by|from)\s+(?:the\s+)?committee\b|\bcommittee\s+reported\b/i.test(h)) {
+      signals.push({ ruleId: 'event:bill_reported_from_committee', message: 'Bill key present + committee report language' });
+      return { eventType: 'bill_reported_from_committee', signals };
+    }
     // Prefer filings vs other bill events when title suggests introduction/filing.
     if (/\bintroduced\b|\bfiled\b|\bintroduced\s+in\b/i.test(h)) {
       signals.push({ ruleId: 'event:bill_filed', message: 'Bill key present + filing language' });

@@ -9,6 +9,7 @@ export type ProvenanceClass =
 export type FetchKind =
   | 'rss'
   | 'json_api'
+  | 'congress_api'
   | 'podcast_rss'
   | 'unsupported'
   | 'manual'
@@ -27,6 +28,7 @@ export type DeskLane =
 /** Editorial grouping (mirrored to intel.sources.source_family). */
 export type SourceFamily =
   | 'general'
+  | 'congress_primary'
   | 'defense_primary'
   | 'combatant_command'
   | 'defense_specialist'
@@ -64,6 +66,15 @@ export type StateChangeType =
   | 'press_statement'
   | 'legislative_feed_item'
   | 'congressional_record_feed_item'
+  | 'committee_meeting'
+  | 'committee_markup'
+  | 'witness_list_posted'
+  | 'witness_statement_posted'
+  | 'bill_action'
+  | 'bill_summary'
+  | 'bill_text_updated'
+  | 'house_roll_call_vote'
+  | 'crs_report'
   | 'wire_item'
   | 'specialist_item'
   | 'commentary_item'
@@ -72,17 +83,30 @@ export type StateChangeType =
 /** Deterministic mission vocabulary for OSINT relevance (expand only with explicit rules). */
 export type MissionTag =
   | 'executive_power'
+  | 'executive_oversight'
   | 'regulation'
   | 'congress'
   | 'courts'
   | 'elections'
   | 'voting_rights'
   | 'federal_agencies'
+  | 'federal_agency_power'
   | 'civil_liberties'
   | 'media_disinfo'
   | 'economy_major'
   | 'protest'
-  | 'international_relevant';
+  | 'international_relevant'
+  | 'war_powers'
+  | 'military_authorization'
+  | 'civil_confinement'
+  | 'mental_health_detention'
+  | 'immigration_detention'
+  | 'carceral_infrastructure'
+  | 'surveillance_privacy'
+  | 'data_centers_grid_water'
+  | 'environmental_health'
+  | 'sexual_violence_accountability'
+  | 'election_power';
 
 export type BranchOfGovernment =
   | 'executive'
