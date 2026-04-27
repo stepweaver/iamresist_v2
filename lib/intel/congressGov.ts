@@ -67,6 +67,10 @@ function parseDate(raw: unknown): string | null {
 }
 
 function arrayField(obj: Record<string, unknown>, ...keys: string[]): Record<string, unknown>[] {
+  const directNested = obj.item ?? obj.items;
+  if (Array.isArray(directNested)) {
+    return directNested.map(asRecord).filter((v): v is Record<string, unknown> => Boolean(v));
+  }
   for (const key of keys) {
     const value = obj[key];
     if (Array.isArray(value)) return value.map(asRecord).filter((v): v is Record<string, unknown> => Boolean(v));

@@ -1,4 +1,5 @@
 import type { ProvenanceClass } from '@/lib/intel/types';
+import { computeAgendaPulseScore } from '@/lib/intel/agendaPulse';
 import { applyEditorialRankingProfile } from '@/lib/intel/rankingProfile';
 
 export type DisplayBucket = 'lead' | 'secondary' | 'routine';
@@ -40,6 +41,7 @@ type ScoringInput = {
   relevanceScore: number;
   clusterKeys: Record<string, string>;
   publishedAt: string | null;
+  structured?: Record<string, unknown>;
   trustWarningMode?: string | null;
   /** Precomputed for consistency with trustWarnings.ts; may be derived from text patterns. */
   ceremonialOrLowSubstance?: boolean;
@@ -311,6 +313,37 @@ function scoreNoisePenalties(input: ScoringInput, h: string, explanations: Displ
   return penalty;
 }
 
+function scoreAgendaPulse(input: ScoringInput, explanations: DisplayExplanation[]): number {
+  const agenda = computeAgendaPulseScore({
+    id: 'display',
+    title: input.title,
+    summary: input.summary,
+    canonicalUrl: '',
+    publishedAt: input.publishedAt,
+    provenanceClass: input.provenanceClass,
+    sourceSlug: input.sourceSlug,
+    sourceFamily: input.sourceFamily,
+    deskLane: input.deskLane,
+    missionTags: input.missionTags,
+    clusterKeys: input.clusterKeys,
+    displayPriority: input.relevanceScore,
+    stateChangeType: input.stateChangeType,
+    structured: input.structured,
+  });
+  if (agenda.score < 58) return 0;
+  const delta = Math.min(14, Math.max(0, Math.round((agenda.score - 58) / 3)));
+  if (delta > 0) {
+    explanations.push({
+      ruleId: 'display:agenda_pulse',
+      message: `Boost: Agenda Pulse congressional signal (${agenda.score})`,
+    });
+    for (const explanation of agenda.explanations.slice(0, 3)) {
+      explanations.push({ ruleId: explanation.ruleId, message: explanation.message });
+    }
+  }
+  return delta;
+}
+
 function scoreRecency(input: ScoringInput, h: string, explanations: DisplayExplanation[]): number {
   const publishedAt = input.publishedAt;
   const hrs = hoursSince(publishedAt);
@@ -386,6 +419,7 @@ export function computeDisplayPriority(input: ScoringInput): DisplayPriorityResu
   score += scoreProvenance(input.provenanceClass, explanations);
   score += scoreBoundedRelevance(input.relevanceScore, explanations);
   score += scoreRecency(input, h, explanations);
+  score += scoreAgendaPulse(input, explanations);
   score += scoreNoisePenalties(input, h, explanations);
 
   const prof = applyEditorialRankingProfile({

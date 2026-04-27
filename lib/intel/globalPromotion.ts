@@ -1,4 +1,5 @@
 import type { ProvenanceClass } from '@/lib/intel/types';
+import { computeAgendaPulseScore } from '@/lib/intel/agendaPulse';
 import { classifyEvent } from '@/lib/intel/eventClassification';
 import { EVENT_SEVERITY } from '@/lib/intel/eventTaxonomy';
 
@@ -20,6 +21,7 @@ export type PromotionReasonCode =
   | 'trusted_creator_convergence'
   | 'creator_led_story_with_corroboration'
   | 'creator_support_noted'
+  | 'agenda_pulse'
   | 'repeat_coverage_penalty'
   | 'claims_lane_penalty';
 
@@ -42,6 +44,8 @@ export type PromotableItem = {
   displayPriority?: number;
   trustWarningMode?: string | null;
   institutionalArea?: string;
+  stateChangeType?: string;
+  structured?: Record<string, unknown>;
 };
 
 export type GlobalPromotionDecision = {
@@ -657,6 +661,24 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
     });
   }
 
+  const agendaPulse = computeAgendaPulseScore({ items: cluster });
+  const agendaDelta = clamp(Math.round((agendaPulse.score - 58) / 3), 0, 14);
+  score += agendaDelta;
+  if (agendaDelta) {
+    contributions.push({
+      code: 'agenda_pulse',
+      delta: agendaDelta,
+      message: `Agenda Pulse congressional-primary signal (${agendaPulse.score})`,
+    });
+  }
+  for (const explanation of agendaPulse.explanations.slice(0, 4)) {
+    contributions.push({
+      code: explanation.ruleId,
+      delta: explanation.delta,
+      message: explanation.message,
+    });
+  }
+
   const provenanceDelta = clusterProvenanceContribution(representative.provenanceClass);
   score += provenanceDelta;
   contributions.push({
@@ -812,6 +834,7 @@ function computeDecisionForCluster(cluster: PromotableItem[]): GlobalPromotionDe
     reasons.push('creator_led_story_with_corroboration');
   }
   if (congressUrgencyDelta > 0) reasons.push('congress_urgency');
+  if (agendaDelta > 0) reasons.push('agenda_pulse');
   if (strongest.eventType === 'contradiction') reasons.push('contradiction_or_evasion');
   if (strongest.eventType === 'resignation' || strongest.eventType === 'ethics_probe') {
     reasons.push('resignation_or_ethics_signal');

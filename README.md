@@ -106,9 +106,10 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 
 **OSINT intel desk**
 
-- Apply intel SQL migrations in timestamp order (through `20260418201000_intel_source_items_desk_lane_extend.sql` so `source_items.desk_lane` allows new lanes; earlier `20260418120000_*` adds `source_family` and extends `sources.desk_lane` only). Earlier files include `20260412120000_intel_milestone1.sql`, `20260412140000_intel_live_desk_snapshot.sql`, `20260412150000_intel_milestone1_5_governance.sql`, `20260412160000_intel_milestone1_75_relevance.sql`, and `20260412170000_intel_source_lanes_content_use.sql`. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
+- Apply intel SQL migrations in timestamp order (through `20260427143000_congress_gov_agenda_pulse.sql` so `fetch_kind`, `source_family`, and `state_change_type` constraints allow Congress.gov/Agenda Pulse rows). Earlier files include `20260412120000_intel_milestone1.sql`, `20260412140000_intel_live_desk_snapshot.sql`, `20260412150000_intel_milestone1_5_governance.sql`, `20260412160000_intel_milestone1_75_relevance.sql`, `20260412170000_intel_source_lanes_content_use.sql`, `20260418120000_intel_source_family_desk_lanes.sql`, and `20260418201000_intel_source_items_desk_lane_extend.sql`. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
 - **Required:** Supabase **Project Settings → API → Exposed schemas** must include **`intel`** (not only `public`). Without this, the API returns `Invalid schema: intel` and `/intel/osint` cannot load.
 - Optional wire feeds (omit both if blocked — ingest skips them; no silent downgrade): `INTEL_REUTERS_RSS_URL`, `INTEL_AP_RSS_URL`
+- Optional Congress.gov structured primary-source ingestion: `CONGRESS_GOV_API_KEY`. When unset, Congress.gov source rows are present but disabled/skipped fail-closed; the key is appended only inside the fetch helper and is redacted from ingest metadata.
 - Optional: `INTEL_DESK_STALE_AFTER_MINUTES` (default `90`) — OSINT desk and `/intel/sources` health use this staleness window.
 - Cron: `GET /api/cron/ingest-signal` with `Authorization: Bearer CRON_SECRET` (same secret as `/api/revalidate`).
   - **Endpoint**: `GET /api/cron/ingest-signal`
@@ -117,6 +118,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
   - **Unauthorized failure mode**: if the header does not exactly match, the endpoint returns **401** (`Unauthorized`).
   - **Job failure mode**: if `runIntelIngest()` throws or overall ingest is `failed`, the endpoint returns **500** with `overallStatus: failed`.
   - **Cadence assumption**: schedule it more frequently than `INTEL_DESK_STALE_AFTER_MINUTES` (default 90m), otherwise the desk and `/intel/sources` will show **stale**.
+- Agenda Pulse: Congress.gov rows feed deterministic ranking boosts for upcoming hearings/markups, witness documents, bill text/summaries/actions, House roll-call votes, CRS context, and high public-consequence congressional activity. Creator/video signals remain leads only; they do not count as proof unless corroborated by primary records or trusted reporting.
 
 **Stripe / Printify / email** (`lib/env/shop.js`, `lib/env/site.js`)
 

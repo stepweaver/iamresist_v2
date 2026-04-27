@@ -259,6 +259,7 @@ export type SourceItemRow = {
   desk_lane: DeskLane;
   content_use_mode: string;
   cluster_keys: Record<string, string>;
+  structured?: Record<string, unknown>;
   state_change_type: string;
   mission_tags: string[];
   branch_of_government: string;
@@ -292,6 +293,7 @@ const SOURCE_ITEMS_LIVE_SELECT = `
       fetched_at,
       desk_lane,
       content_use_mode,
+      structured,
       cluster_keys,
       state_change_type,
       mission_tags,

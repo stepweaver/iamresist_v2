@@ -36,6 +36,24 @@ Implemented by migration `supabase/migrations/20260415123000_intel_events_v1.sql
 - Events do **not** change ingest; they only add a layer that references existing items.
 - Evidence links keep provenance and trust warnings intact.
 
+### Agenda Pulse taxonomy additions
+
+Congress.gov ingestion adds structured congressional state-change hints on `intel.source_items.state_change_type`:
+
+- `committee_meeting`, `committee_markup`
+- `witness_list_posted`, `witness_statement_posted`
+- `bill_action`, `bill_summary`, `bill_text_updated`
+- `house_roll_call_vote`
+- `crs_report`
+
+The event classifier maps those hints to explicit event types such as `committee_hearing_scheduled`, `committee_markup_scheduled`, `roll_call_vote_recorded`, `bill_summary_published`, and `crs_report_published`. Public-consequence signal events include `war_powers_signal`, `civil_confinement_signal`, `detention_infrastructure_signal`, `surveillance_authority_signal`, and `data_center_environment_signal`.
+
+Agenda Pulse scoring remains a deterministic derived signal, not a new truth model. It rewards primary congressional records, upcoming institutional proximity, witness/bill/vote activity, public-consequence tags, undercovered high-impact items, and creator signals only when corroborated by primary records or trusted reporting. It penalizes routine churn, duplicate saturation, and social/commentary-only claims without primary support.
+
+Homepage behavior: a saturated mainstream story can still win the hero slot, but the briefing merge strongly prefers one non-duplicate `agenda_pulse` item when its score is at or above the homepage threshold. This is a diversity/attention rule, not a claim that the agenda item is more important than every saturated breaking story.
+
+Public-consequence tags are descriptive only: `war_powers`, `military_authorization`, `civil_confinement`, `mental_health_detention`, `immigration_detention`, `carceral_infrastructure`, `surveillance_privacy`, `data_centers_grid_water`, `environmental_health`, `sexual_violence_accountability`, `executive_oversight`, `civil_liberties`, `election_power`, and `federal_agency_power`. They identify civic stakes; they do not imply agreement or opposition.
+
 ## 2) Entities (V1 proposal)
 
 ### Purpose

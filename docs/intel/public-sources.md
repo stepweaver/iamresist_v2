@@ -43,6 +43,7 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 | Value | Typical use |
 |------|----------------|
 | `general` | Legacy default / undifferentiated OSINT or voices. |
+| `congress_primary` | Structured Congress.gov v3 primary records: bills, committee meetings, summaries, House votes, CRS reports. |
 | `defense_primary` | Official U.S. military press (e.g. war.gov RSS). |
 | `combatant_command` | Combatant-command surfaces (reserved for future feeds). |
 | `defense_specialist` | Specialist maritime/posture context (e.g. USNI listing). |
@@ -59,6 +60,7 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 | `rss` | Yes — XML/RSS or Atom via `rss-parser`. |
 | `podcast_rss` | Yes — same parser; episode link/enclosure handled conservatively. |
 | `json_api` | Yes — Federal Register JSON today. |
+| `congress_api` | Yes — Congress.gov v3 JSON with `CONGRESS_GOV_API_KEY` appended only at request time; the key is never stored in `intel.sources.endpoint_url` or ingest metadata. |
 | `unsupported` | No — honest registry placeholder. |
 | `html_index` | Yes — fetches a public listing page and extracts canonical article URLs (e.g. Democracy Docket `/news-alerts/`). |
 | `manual` / `newsletter_only` / `scrape` | No — reserved (or not wired for automated ingest yet). |
@@ -67,6 +69,7 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 
 | Variable | Used by |
 |----------|---------|
+| `CONGRESS_GOV_API_KEY` | Enables Congress.gov v3 structured ingestion. If unset, Congress.gov manifest rows remain present but disabled/skipped fail-closed. |
 | `INTEL_KYIV_INDEPENDENT_RSS_URL` | `kyiv-independent` — fail-closed when unset (no default RSS on the public site in all environments). |
 
 ## Source list (slug → summary)
@@ -81,6 +84,19 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 | `fr-published` | JSON API | yes | Published FR documents. |
 | `govinfo-bills` | RSS | yes | GovInfo bills RSS. |
 | `govinfo-crec` | RSS | yes | Full Congressional Record RSS (high volume). |
+| `congress-bills-recent` | `congress_api` | env | Congress.gov v3 recent bill/action/text metadata; source of structured bill keys. |
+| `congress-committee-meetings-house` | `congress_api` | env | House hearings/meetings/markups, witness lists, witness statements, related bills when present. |
+| `congress-committee-meetings-senate` | `congress_api` | env | Senate hearings/meetings and related metadata. |
+| `congress-summaries` | `congress_api` | env | CRS-written bill summaries; context/enrichment, not a breaking-action substitute. |
+| `congress-house-votes` | `congress_api` | env | House roll-call vote primary records. |
+| `congress-crs-reports` | `congress_api` | env | CRS reports; contextual primary research products with related bill links when available. |
+
+### Congress.gov trust boundaries
+
+- Congress.gov API rows are **primary records for congressional metadata**: bill identifiers, committee meeting status, witness/document links, bill summaries, House roll-call votes, and CRS report metadata.
+- Congress.gov rows do **not** prove claims made by members, witnesses, agencies, creators, or press releases. Those claims still need primary documents or trusted reporting.
+- Trusted creators can help discover a congressional lead, but creator/social/video signals are **not proof** and do not count as independent corroboration. A creator signal may receive a bounded boost only when the same story cluster includes a primary Congress.gov record or trusted reporting.
+- `congress_api` requests append `CONGRESS_GOV_API_KEY` inside the fetch helper. Ingest metadata redacts request URLs so secrets do not leak through logs, `intel.sources`, or `intel.ingest_runs.meta`.
 
 ### Optional wires (OSINT)
 
@@ -150,6 +166,7 @@ Apply in order (see [`supabase/migrations/`](../../supabase/migrations/)), inclu
 - `20260412170000_intel_source_lanes_content_use.sql` — lanes, content modes, expanded `fetch_kind`, `commentary_item`, denormalized `source_items` columns, snapshot id `2` for Voices.
 - `20260418120000_intel_source_family_desk_lanes.sql` — `source_family`, lanes `defense_ops` / `watchdogs` / `indicators`, `source_items.indicator_class`, `scheduled_release`, snapshot ids `3`–`5`.
 - `20260418201000_intel_source_items_desk_lane_extend.sql` — extends **`intel.source_items`** `desk_lane` CHECK to match `sources` (required for ingest into new lanes; without it upserts fail with `source_items_desk_lane_check`).
+- `20260427143000_congress_gov_agenda_pulse.sql` — adds `congress_api`, `congress_primary`, and Congress.gov / Agenda Pulse state-change values to database constraints.
 
 ## Live desk snapshots
 

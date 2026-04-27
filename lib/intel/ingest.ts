@@ -9,6 +9,11 @@ import {
   parseFederalRegisterPublishedJson,
 } from '@/lib/intel/frApi';
 import {
+  buildCongressGovApiUrl,
+  congressGovApiConfigured,
+  parseCongressGovJson,
+} from '@/lib/intel/congressGov';
+import {
   parseDemocracyDocketNewsAlertsHtml,
   parseCentcomPressReleasesHtml,
   parseKyivIndependentNewsArchiveHtml,
@@ -56,6 +61,18 @@ function capItems(items: NormalizedItem[], max: number): { items: NormalizedItem
   if (max <= 0) return { items: [], capped: items.length > 0 };
   if (items.length <= max) return { items, capped: false };
   return { items: items.slice(0, max), capped: true };
+}
+
+function safeFinalUrlForMeta(fetchKind: FetchKind, finalUrl: string | null | undefined): string | null {
+  if (!finalUrl) return null;
+  if (fetchKind !== 'congress_api') return finalUrl;
+  try {
+    const u = new URL(finalUrl);
+    if (u.searchParams.has('api_key')) u.searchParams.set('api_key', 'redacted');
+    return u.toString();
+  } catch {
+    return '[congress.gov request url redacted]';
+  }
 }
 
 function clampIngestIntervalMinutes(raw: number | undefined): number {
@@ -217,7 +234,24 @@ export async function ingestOneSource(
 ): Promise<{ items: NormalizedItem[]; status: IngestRunStatus; error?: string; meta?: Record<string, unknown> }> {
   let res;
   try {
-    res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: fetchTimeoutMsForSourceSlug(cfg.slug) });
+    if (cfg.fetchKind === 'congress_api') {
+      if (!congressGovApiConfigured()) {
+        return {
+          items: [],
+          status: 'partial',
+          error: 'Congress.gov API disabled: CONGRESS_GOV_API_KEY is not configured',
+          meta: {
+            failureCategory: 'missing_api_key',
+            source: 'congress.gov',
+          },
+        };
+      }
+      res = await fetchTextNoStore(buildCongressGovApiUrl(cfg.endpointUrl), {
+        timeoutMs: fetchTimeoutMsForSourceSlug(cfg.slug),
+      });
+    } else {
+      res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: fetchTimeoutMsForSourceSlug(cfg.slug) });
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const redirects =
@@ -249,7 +283,7 @@ export async function ingestOneSource(
       error: `HTTP ${res.status} ${cfg.endpointUrl}`,
       meta: {
         httpStatus: res.status,
-        finalUrl: res.finalUrl ?? null,
+        finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
         contentType: res.contentType ?? null,
         failureCategory:
           res.status === 403
@@ -285,7 +319,7 @@ export async function ingestOneSource(
           error: 'JSON API parse returned 0 items',
           meta: {
             httpStatus: res.status,
-            finalUrl: res.finalUrl ?? null,
+            finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
             contentType: res.contentType ?? null,
             itemsParsed: 0,
           },
@@ -297,7 +331,46 @@ export async function ingestOneSource(
         status: 'success',
         meta: {
           httpStatus: res.status,
-          finalUrl: res.finalUrl ?? null,
+          finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
+          contentType: res.contentType ?? null,
+          itemsParsed: items.length,
+          ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
+        },
+      };
+    }
+
+    if (cfg.fetchKind === 'congress_api') {
+      const parsedItems = parseCongressGovJson(res.text, {
+        sourceSlug: cfg.slug,
+        provenanceClass: cfg.provenanceClass,
+        contentUseMode,
+        fetchKind: cfg.fetchKind,
+      });
+      const { items: cappedRaw, capped } = capItems(parsedItems, maxItems);
+      const items = applyContentUseModeToItems(cappedRaw, contentUseMode);
+
+      if (items.length === 0) {
+        return {
+          items: [],
+          status: 'partial',
+          error: 'Congress.gov API parse returned 0 items',
+          meta: {
+            httpStatus: res.status,
+            finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
+            contentType: res.contentType ?? null,
+            itemsParsed: 0,
+            failureCategory: 'parser_no_entries',
+            bodySample: res.text.slice(0, 180),
+          },
+        };
+      }
+
+      return {
+        items,
+        status: 'success',
+        meta: {
+          httpStatus: res.status,
+          finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
           contentType: res.contentType ?? null,
           itemsParsed: items.length,
           ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
@@ -442,7 +515,7 @@ export async function ingestOneSource(
           error: `html_index not implemented for slug: ${cfg.slug}`,
           meta: {
             httpStatus: res.status,
-            finalUrl: res.finalUrl ?? null,
+            finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
             contentType: res.contentType ?? null,
           },
         };
@@ -459,7 +532,7 @@ export async function ingestOneSource(
             'HTML index parse returned 0 article links (blocked page, empty listing, or markup change)',
           meta: {
             httpStatus: res.status,
-            finalUrl: res.finalUrl ?? null,
+            finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
             contentType: res.contentType ?? null,
             itemsParsed: 0,
             failureCategory: 'parser_no_entries',
@@ -481,7 +554,7 @@ export async function ingestOneSource(
         status: 'success',
         meta: {
           httpStatus: res.status,
-          finalUrl: res.finalUrl ?? null,
+          finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
           contentType: res.contentType ?? null,
           itemsParsed: itemsWithImages.length,
           imagesResolved: itemsWithImages.filter((it) => Boolean(it.imageUrl)).length,
@@ -500,7 +573,7 @@ export async function ingestOneSource(
         error: `Unsupported fetchKind: ${cfg.fetchKind}`,
         meta: {
           httpStatus: res.status,
-          finalUrl: res.finalUrl ?? null,
+          finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
           contentType: res.contentType ?? null,
         },
       };
@@ -536,7 +609,7 @@ export async function ingestOneSource(
           'RSS parse returned 0 items (empty feed, non-feed body, HTML error page, or no valid entries)',
         meta: {
           httpStatus: res.status,
-          finalUrl: res.finalUrl ?? null,
+          finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
           contentType: res.contentType ?? null,
           itemsParsed: 0,
           failureCategory: looksHtml || ct.includes('text/html')
@@ -555,7 +628,7 @@ export async function ingestOneSource(
       status: 'success',
       meta: {
         httpStatus: res.status,
-        finalUrl: res.finalUrl ?? null,
+        finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
         contentType: res.contentType ?? null,
         itemsParsed: items.length,
         imagesResolved: items.filter((it) => Boolean(it.imageUrl)).length,
@@ -571,7 +644,7 @@ export async function ingestOneSource(
       error: msg,
       meta: {
         httpStatus: res.status,
-        finalUrl: res.finalUrl ?? null,
+        finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
         contentType: res.contentType ?? null,
         failureCategory: 'parse_error',
         ...(res.redirects?.length ? { redirects: res.redirects } : {}),

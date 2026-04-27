@@ -127,6 +127,14 @@ function sourceBaseline(
       defaultPriority: slug === 'wh-presidential' ? 62 : 52,
     };
   }
+  if (sourceFamily === 'congress_primary') {
+    return {
+      tags: ['congress'],
+      branch: 'legislative',
+      area: 'congress',
+      defaultPriority: 54,
+    };
+  }
   if (slug === 'fr-public-inspection' || slug === 'fr-published') {
     return {
       tags: ['regulation', 'federal_agencies'],
@@ -252,6 +260,39 @@ function keywordMissionTags(haystack: string): MissionTag[] {
     tags.push('civil_liberties');
   }
   if (/\bimmigration\b|\basylum\b|\bdeport/i.test(haystack)) tags.push('civil_liberties');
+  if (/\bwar\s+powers?\b|\bauthorization\s+for\s+use\s+of\s+military\s+force\b|\baumf\b/i.test(haystack)) {
+    tags.push('war_powers', 'military_authorization', 'congress');
+  }
+  if (/\b(civil|involuntary)\s+confinement\b|\bmental\s+health\s+detention\b/i.test(haystack)) {
+    tags.push('civil_confinement', 'civil_liberties');
+  }
+  if (/\bmental\s+health\b.*\b(detain|detention|commitment|confinement)\b/i.test(haystack)) {
+    tags.push('mental_health_detention', 'civil_liberties');
+  }
+  if (/\bimmigration\b.*\b(detain|detention|custody|facility)\b|\bice\b.*\b(detain|detention|facility)\b/i.test(haystack)) {
+    tags.push('immigration_detention', 'civil_liberties');
+  }
+  if (/\bdetention\s+(?:center|facility|bed|beds|infrastructure)\b|\bcarceral\s+infrastructure\b|\bprison\s+construction\b/i.test(haystack)) {
+    tags.push('carceral_infrastructure', 'civil_liberties');
+  }
+  if (/\bfisa\b|\bsection\s*702\b|\bsurveillance\b|\bprivacy\b|\bdata\s+broker\b|\bwiretap\b/i.test(haystack)) {
+    tags.push('surveillance_privacy', 'civil_liberties');
+  }
+  if (/\bdata\s+centers?\b.*\b(grid|water|electric|power|environment)\b|\b(grid|water)\b.*\bdata\s+centers?\b/i.test(haystack)) {
+    tags.push('data_centers_grid_water', 'environmental_health', 'federal_agencies');
+  }
+  if (/\bsexual\s+violence\b|\bsexual\s+assault\b|\bharassment\b.*\baccountability\b/i.test(haystack)) {
+    tags.push('sexual_violence_accountability', 'civil_liberties');
+  }
+  if (/\boversight\b|\binspector\s+general\b|\bsubpoena\b|\baccountability\b/i.test(haystack)) {
+    tags.push('executive_oversight');
+  }
+  if (/\belection\b|\bvoting\b|\ballot\b|\belectoral\b/i.test(haystack)) {
+    tags.push('election_power');
+  }
+  if (/\bfederal\s+agency\b|\bagency\s+authority\b|\badministrative\s+power\b/i.test(haystack)) {
+    tags.push('federal_agency_power');
+  }
   if (/\bsec\b|\bfederal\s+reserve\b|\btariff\b/i.test(haystack)) tags.push('economy_major');
   if (/\bnato\b|\bukraine\b|\bun\b|\btreaty\b/i.test(haystack)) tags.push('international_relevant');
   return uniqTags(tags);
@@ -376,6 +417,12 @@ export function computeRelevanceProfile(
 
   for (const t of keywordMissionTags(haystack)) {
     tags.add(t);
+  }
+  const consequenceTags = Array.isArray(item.structured?.public_consequence_tags)
+    ? item.structured.public_consequence_tags
+    : [];
+  for (const value of consequenceTags) {
+    if (typeof value === 'string') tags.add(value as MissionTag);
   }
 
   explanations.push({

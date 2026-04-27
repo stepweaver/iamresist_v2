@@ -150,6 +150,9 @@ export const STORY_COHERENCE_MIN_HOMEPAGE_SCORE = 36;
 /** Explicit overlap threshold for deterministic same-story support. */
 export const STORY_COHERENCE_MIN_SHARED_TOKENS = 3;
 
+/** Strong preference threshold for one non-hero Agenda Pulse item in the homepage briefing. */
+export const AGENDA_PULSE_HOMEPAGE_THRESHOLD = 68;
+
 export function shouldSuppressVoicesStaleCommentary(
   entry: { kind: string; briefLane: BriefingLane; intelItem?: { publishedAt?: string | null; provenanceClass?: ProvenanceClass } },
   homepageBriefingScore: number,
