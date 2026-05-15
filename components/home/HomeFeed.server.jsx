@@ -9,7 +9,7 @@ import ResistanceBriefSignup from '@/components/subscribe/ResistanceBriefSignup'
 import { getHomepagePayload } from '@/lib/feeds/homepagePayload.service';
 
 export default async function HomeFeed() {
-  const { feedItems, latestProtestMusicItem, briefing } = await getHomepagePayload();
+  const { feedItems, protestMusicItems, briefing } = await getHomepagePayload();
 
   return (
     <div className="w-full max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-4 sm:py-6">
@@ -40,7 +40,7 @@ export default async function HomeFeed() {
         )}
       </div>
 
-      <ProtestMusicSection item={latestProtestMusicItem} />
+      <ProtestMusicSection items={protestMusicItems} />
     </div>
   );
 }

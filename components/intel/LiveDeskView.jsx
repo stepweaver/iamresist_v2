@@ -287,9 +287,15 @@ function CompactFreshnessLine({
     );
   }
 
+  const newestLeadRel = formatRelativeAgeMinutes(freshnessMeta?.newestLeadPublishedAt);
+
   return (
     <p className="text-xs text-foreground/75 font-mono tracking-wide">
-      Fresh{fetchRel ? ` · updated ${fetchRel}` : ''}
+      {newestLeadRel
+        ? `Lead ${newestLeadRel}`
+        : fetchRel
+          ? `Updated ${fetchRel}`
+          : 'Live'}
     </p>
   );
 }
