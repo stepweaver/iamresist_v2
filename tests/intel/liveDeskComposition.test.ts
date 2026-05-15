@@ -1339,4 +1339,116 @@ describe('freshness gate', () => {
     expect(visibleIds).not.toContain('old-invisible');
     expect(visibleIds).toContain('fresh-visible');
   });
+
+  it('item with missing publishedAt is excluded from both lead and secondary', async () => {
+    const noDateRow = {
+      id: 'no-date',
+      title: 'High-mission item with no publishedAt',
+      summary: null,
+      canonical_url: 'https://example.com/no-date',
+      image_url: null,
+      published_at: null,
+      fetched_at: new Date().toISOString(),
+      desk_lane: 'osint',
+      content_use_mode: 'feed_summary',
+      cluster_keys: {},
+      state_change_type: 'specialist_item',
+      mission_tags: ['courts', 'civil_liberties'],
+      branch_of_government: 'judicial',
+      institutional_area: 'courts',
+      relevance_score: 90,
+      surface_state: 'surfaced',
+      suppression_reason: null,
+      relevance_explanations: [],
+      sources: {
+        slug: 'no-date-source',
+        name: 'No Date Source',
+        provenance_class: 'SPECIALIST',
+        desk_lane: 'osint',
+        source_family: 'general',
+        trust_warning_mode: 'none',
+      },
+    };
+    const freshCompanion = staleHighMissionRow('fresh-companion', AGO_HOURS(2));
+
+    fetchSurfacedSourceItemsForLive.mockImplementation(
+      async (_limit: number, lane: string) => {
+        if (lane === 'osint') return [noDateRow, freshCompanion];
+        return defaultRowsForLane(lane);
+      },
+    );
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    const leadIds = (desk.leadItems ?? []).map((it: any) => it.id);
+    const secondaryIds = (desk.secondaryLeadItems ?? []).map((it: any) => it.id);
+    expect(leadIds).not.toContain('no-date');
+    expect(secondaryIds).not.toContain('no-date');
+    // The companion with a valid timestamp should still win the lead
+    expect(leadIds).toContain('fresh-companion');
+  });
+
+  it('item beyond leadMaxAgeHours but within secondaryMaxAgeHours lands in secondary, not lead', async () => {
+    // OSINT: leadMaxAgeHours=96, secondaryMaxAgeHours=168. 120h is between them.
+    const beyondLeadRow = staleHighMissionRow('beyond-lead', AGO_HOURS(120));
+    const freshLeadRow = makeRow({
+      id: 'fresh-lead-slot',
+      title: 'Fresh executive accountability item',
+      canonical_url: 'https://example.com/fresh-lead-slot',
+      desk_lane: 'osint',
+      state_change_type: 'specialist_item',
+      mission_tags: ['courts', 'civil_liberties'],
+      branch_of_government: 'judicial',
+      institutional_area: 'courts',
+      relevance_score: 75,
+      published_at: AGO_HOURS(1),
+      sources: {
+        slug: 'fresh-lead-slot-source',
+        name: 'Fresh Lead Slot',
+        provenance_class: 'SPECIALIST',
+        desk_lane: 'osint',
+        source_family: 'general',
+      },
+    });
+
+    fetchSurfacedSourceItemsForLive.mockImplementation(
+      async (_limit: number, lane: string) => {
+        if (lane === 'osint') return [beyondLeadRow, freshLeadRow];
+        return defaultRowsForLane(lane);
+      },
+    );
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    const leadIds = (desk.leadItems ?? []).map((it: any) => it.id);
+    const secondaryIds = (desk.secondaryLeadItems ?? []).map((it: any) => it.id);
+    // Fresh item wins lead
+    expect(leadIds).toContain('fresh-lead-slot');
+    // beyond-lead is NOT in lead (leadEligible=false)
+    expect(leadIds).not.toContain('beyond-lead');
+    // beyond-lead IS in secondary (secondaryEligible=true, 120h < 168h)
+    expect(secondaryIds).toContain('beyond-lead');
+  });
+
+  it('item beyond secondaryMaxAgeHours is excluded from secondary', async () => {
+    // OSINT: secondaryMaxAgeHours=168h. 200h exceeds it.
+    const beyondSecondaryRow = staleHighMissionRow('beyond-secondary', AGO_HOURS(200));
+
+    fetchSurfacedSourceItemsForLive.mockImplementation(
+      async (_limit: number, lane: string) => {
+        if (lane === 'osint') return [beyondSecondaryRow];
+        return defaultRowsForLane(lane);
+      },
+    );
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    const leadIds = (desk.leadItems ?? []).map((it: any) => it.id);
+    const secondaryIds = (desk.secondaryLeadItems ?? []).map((it: any) => it.id);
+    expect(leadIds).not.toContain('beyond-secondary');
+    expect(secondaryIds).not.toContain('beyond-secondary');
+  });
 });
