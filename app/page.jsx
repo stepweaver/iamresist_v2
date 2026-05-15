@@ -101,7 +101,7 @@ export default function Home() {
           <Suspense fallback={<HomeFeedSkeleton />}>
             <HomeFeed />
           </Suspense>
-          <JournalSection />
+          <JournalSection limit={3} />
         </div>
       </div>
     </main>
