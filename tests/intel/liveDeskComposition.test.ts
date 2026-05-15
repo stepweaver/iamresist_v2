@@ -533,6 +533,10 @@ describe('live desk debug payload', () => {
   });
 
   it('exposes Segment 3 coherence attachment metadata in debug output without changing visible counts', async () => {
+    // Use relative timestamps so items remain within defaultVisibleMaxAgeHours (OSINT: 336h = 14d).
+    const recentBase = new Date(Date.now() - 6 * 3600000); // 6 hours ago
+    const t = (offsetH: number) => new Date(recentBase.getTime() + offsetH * 3600000).toISOString();
+
     fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) => {
       if (lane === 'osint') {
         return [
@@ -542,7 +546,7 @@ describe('live desk debug payload', () => {
             desk_lane: 'osint',
             cluster_keys: { bill: '118-hr-900' },
             mission_tags: ['congress', 'civil_liberties'],
-            published_at: '2026-04-19T10:00:00.000Z',
+            published_at: t(0),
             relevance_score: 72,
             sources: {
               slug: 'anchor-main-source',
@@ -557,7 +561,7 @@ describe('live desk debug payload', () => {
             desk_lane: 'osint',
             cluster_keys: { bill: '118-hr-900' },
             mission_tags: ['congress', 'civil_liberties'],
-            published_at: '2026-04-19T11:00:00.000Z',
+            published_at: t(1),
             relevance_score: 68,
             sources: {
               slug: 'anchor-report-source',
@@ -573,7 +577,7 @@ describe('live desk debug payload', () => {
             desk_lane: 'osint',
             cluster_keys: { topic: 'unsupported-attachment-topic' },
             mission_tags: ['congress', 'civil_liberties'],
-            published_at: '2026-04-19T12:30:00.000Z',
+            published_at: t(2.5),
             relevance_score: 66,
             sources: {
               slug: 'attached-analysis-source',
@@ -1187,5 +1191,152 @@ describe('live desk creator corroboration bridge', () => {
         (entry: any) => entry?.ruleId === 'live_desk:creator_corroboration_bridge',
       ),
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Freshness gate tests
+// ---------------------------------------------------------------------------
+
+describe('freshness gate', () => {
+  const AGO_HOURS = (h: number) =>
+    new Date(Date.now() - h * 3600000).toISOString();
+
+  function staleHighMissionRow(id: string, publishedAt: string) {
+    return makeRow({
+      id,
+      title: 'Court grants preliminary injunction in civil liberties case',
+      canonical_url: `https://example.com/${id}`,
+      desk_lane: 'osint',
+      cluster_keys: {},
+      state_change_type: 'specialist_item',
+      mission_tags: ['courts', 'civil_liberties', 'voting_rights'],
+      branch_of_government: 'judicial',
+      institutional_area: 'courts',
+      relevance_score: 80,
+      published_at: publishedAt,
+      sources: {
+        slug: 'lawfare',
+        name: 'Lawfare',
+        provenance_class: 'SPECIALIST',
+        desk_lane: 'osint',
+        source_family: 'general',
+      },
+    });
+  }
+
+  it('30-day-old high-mission OSINT item must not win the lead (lead age gate)', async () => {
+    const staleRow = staleHighMissionRow('stale-lead', AGO_HOURS(30 * 24));
+    const freshRow = makeRow({
+      id: 'fresh-item',
+      title: 'New executive order issued today',
+      canonical_url: 'https://example.com/fresh',
+      desk_lane: 'osint',
+      state_change_type: 'presidential_action',
+      mission_tags: ['executive_power', 'courts'],
+      branch_of_government: 'executive',
+      institutional_area: 'courts',
+      relevance_score: 65,
+      published_at: AGO_HOURS(2),
+      sources: {
+        slug: 'fresh-source',
+        name: 'Fresh Source',
+        provenance_class: 'SPECIALIST',
+        desk_lane: 'osint',
+        source_family: 'general',
+      },
+    });
+
+    fetchSurfacedSourceItemsForLive.mockImplementation(
+      async (_limit: number, lane: string) => {
+        if (lane === 'osint') return [staleRow, freshRow];
+        return defaultRowsForLane(lane);
+      },
+    );
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    const leadIds = (desk.leadItems ?? []).map((it: any) => it.id);
+    expect(leadIds).not.toContain('stale-lead');
+    expect(leadIds).toContain('fresh-item');
+  });
+
+  it('30-day-old item displayBucket is demoted by freshness gate (lead_age_gate explanation)', async () => {
+    const staleRow = staleHighMissionRow('stale-bucket', AGO_HOURS(30 * 24));
+
+    fetchSurfacedSourceItemsForLive.mockImplementation(
+      async (_limit: number, lane: string) => {
+        if (lane === 'osint') return [staleRow];
+        return defaultRowsForLane(lane);
+      },
+    );
+
+    const { getLiveIntelDeskDebug } = await import('@/lib/feeds/liveIntel.service');
+    const debug = await getLiveIntelDeskDebug('osint');
+
+    const debugItem = debug.items.preCapCandidates.find((it: any) => it.id === 'stale-bucket');
+    expect(debugItem).toBeDefined();
+    // Lead gate demotes to secondary or routine; must not remain 'lead'
+    expect(debugItem?.displayBucket).not.toBe('lead');
+    // Freshness gate explanation must be present
+    const hasGateExplanation = debugItem?.shortExplanations?.display?.some(
+      (e: any) => e?.ruleId === 'freshness:lead_age_gate',
+    );
+    expect(hasGateExplanation).toBe(true);
+  });
+
+  it('3-day-old high-mission OSINT item (within leadMaxAgeHours: 96h) can win the lead', async () => {
+    const recentRow = staleHighMissionRow('recent-lead', AGO_HOURS(3 * 24));
+
+    fetchSurfacedSourceItemsForLive.mockImplementation(
+      async (_limit: number, lane: string) => {
+        if (lane === 'osint') return [recentRow];
+        return defaultRowsForLane(lane);
+      },
+    );
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    const leadIds = (desk.leadItems ?? []).map((it: any) => it.id);
+    expect(leadIds).toContain('recent-lead');
+  });
+
+  it('20-day-old item (exceeds defaultVisibleMaxAgeHours: 336h = 14d) is excluded from visible', async () => {
+    const oldRow = staleHighMissionRow('old-invisible', AGO_HOURS(20 * 24));
+    const freshRow = makeRow({
+      id: 'fresh-visible',
+      title: 'Recent surveillance story',
+      canonical_url: 'https://example.com/fresh-vis',
+      desk_lane: 'osint',
+      state_change_type: 'specialist_item',
+      mission_tags: ['civil_liberties'],
+      branch_of_government: 'judicial',
+      institutional_area: 'courts',
+      relevance_score: 60,
+      published_at: AGO_HOURS(12),
+      sources: {
+        slug: 'fresh-vis-source',
+        name: 'Fresh Vis Source',
+        provenance_class: 'SPECIALIST',
+        desk_lane: 'osint',
+        source_family: 'general',
+      },
+    });
+
+    fetchSurfacedSourceItemsForLive.mockImplementation(
+      async (_limit: number, lane: string) => {
+        if (lane === 'osint') return [oldRow, freshRow];
+        return defaultRowsForLane(lane);
+      },
+    );
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    const visibleIds = (desk.items ?? []).map((it: any) => it.id);
+    expect(visibleIds).not.toContain('old-invisible');
+    expect(visibleIds).toContain('fresh-visible');
   });
 });

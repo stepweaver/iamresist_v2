@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 import { dbEnv } from '@/lib/env/db';
 import { computeRelevanceProfile, editorialControlsForDb } from '@/lib/intel/relevance';
 import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
+import { policyForLane } from '@/lib/intel/freshnessPolicy';
 import type {
   DeskLane,
   IngestRunStatus,
@@ -365,11 +366,18 @@ async function fetchSurfacedTopRelevanceForLive(
   const laneSourceIds = await resolveLaneSourceIds(deskLane, opts);
   if (laneSourceIds.length === 0) return [];
 
+  // Hard archive cutoff: relevance-sorted fetch must not surface items older than the lane
+  // archive window. Without this, archived high-relevance items can re-enter the candidate
+  // pool and beat genuinely current items in lead selection.
+  const archiveH = policyForLane(deskLane).archiveAfterHours;
+  const cutoffIso = new Date(Date.now() - archiveH * 3600000).toISOString();
+
   const { data, error } = await supabase
     .from('source_items')
     .select(SOURCE_ITEMS_LIVE_SELECT)
     .eq('surface_state', 'surfaced')
     .in('source_id', laneSourceIds)
+    .gte('published_at', cutoffIso)
     .order('relevance_score', { ascending: false, nullsFirst: false })
     .limit(limit);
 
