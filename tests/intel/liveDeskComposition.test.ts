@@ -534,7 +534,9 @@ describe('live desk debug payload', () => {
 
   it('exposes Segment 3 coherence attachment metadata in debug output without changing visible counts', async () => {
     // Use relative timestamps so items remain within defaultVisibleMaxAgeHours (OSINT: 336h = 14d).
-    const recentBase = new Date(Date.now() - 6 * 3600000); // 6 hours ago
+    // Base is 8h ago so anchor-main (t(0)) is clearly outside RECENT_WINDOW_HOURS=6 and the
+    // provenance-based duplicate winner (PRIMARY > WIRE) is stable regardless of execution speed.
+    const recentBase = new Date(Date.now() - 8 * 3600000); // 8 hours ago
     const t = (offsetH: number) => new Date(recentBase.getTime() + offsetH * 3600000).toISOString();
 
     fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) => {

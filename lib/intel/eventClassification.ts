@@ -184,6 +184,16 @@ export function classifyEvent(
     signals.push({ ruleId: 'event:detention_infrastructure_signal', message: 'Detention infrastructure language' });
     return { eventType: 'detention_infrastructure_signal', signals };
   }
+  // Congress urgency is checked before surveillance_authority_signal so that a FISA floor vote
+  // in a legislative context classifies as congress_urgency rather than the broader signal.
+  if (legislativeContext && hasAny(h, RE_CONGRESS_URGENCY)) {
+    signals.push({
+      ruleId: 'event:congress_urgency',
+      message: 'Congressional procedural/surveillance urgency language detected',
+    });
+    return { eventType: 'congress_urgency', signals };
+  }
+
   if (/\bfisa\b|\bsection\s*702\b|\bsurveillance\s+(?:authority|authorization|power)\b|\bdata\s+broker\b/i.test(h)) {
     signals.push({ ruleId: 'event:surveillance_authority_signal', message: 'Surveillance authority language' });
     return { eventType: 'surveillance_authority_signal', signals };
@@ -191,14 +201,6 @@ export function classifyEvent(
   if (/\bdata\s+centers?\b.*\b(grid|water|electric|power|environment)\b|\b(grid|water)\b.*\bdata\s+centers?\b/i.test(h)) {
     signals.push({ ruleId: 'event:data_center_environment_signal', message: 'Data center grid/water impact language' });
     return { eventType: 'data_center_environment_signal', signals };
-  }
-
-  if (legislativeContext && hasAny(h, RE_CONGRESS_URGENCY)) {
-    signals.push({
-      ruleId: 'event:congress_urgency',
-      message: 'Congressional procedural/surveillance urgency language detected',
-    });
-    return { eventType: 'congress_urgency', signals };
   }
 
   // Hard keys first (clusterKeys already deterministic).
