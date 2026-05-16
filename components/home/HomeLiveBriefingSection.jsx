@@ -17,7 +17,7 @@ function BriefingLaneBadge({ lane }) {
   );
 }
 
-function IntelBriefingCard({ row, hero = false, compact = false }) {
+function IntelBriefingCard({ row, hero = false, compact = false, loading = 'lazy' }) {
   const { sourceUrl, internalUrl, shareUrl } = buildIntelBriefingLinks(row);
   const when = row.publishedAt ? formatDate(row.publishedAt) : null;
   const linkLabel = getIntelSourceLinkLabel(row);
@@ -57,6 +57,7 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
           {row.imageUrl ? (
             <RemoteCoverImage
               src={row.imageUrl}
+              loading={loading}
               className="relative w-full aspect-[2/1] max-h-[200px] sm:max-h-none sm:aspect-video rounded overflow-hidden bg-muted"
             />
           ) : null}
@@ -120,6 +121,7 @@ function IntelBriefingCard({ row, hero = false, compact = false }) {
         {row.imageUrl ? (
           <RemoteCoverImage
             src={row.imageUrl}
+            loading={loading}
             className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-28 sm:w-28 sm:max-w-none rounded"
           />
         ) : null}
@@ -220,11 +222,12 @@ export default function HomeLiveBriefingSection({ briefing }) {
               <div className="flex flex-wrap gap-2">
                 <BriefingLaneBadge lane={lead.briefLane} />
               </div>
-              <NewswireHeadlineCard story={lead.story} hero />
+              <NewswireHeadlineCard story={lead.story} hero loading="eager" />
             </div>
           ) : (
             <IntelBriefingCard
               hero
+              loading="eager"
               row={{
                 ...lead.intelItem,
                 briefLane: lead.briefLane,
@@ -239,11 +242,12 @@ export default function HomeLiveBriefingSection({ briefing }) {
               {entry.kind === 'newswire' ? (
                 <div className="space-y-2">
                   <BriefingLaneBadge lane={entry.briefLane} />
-                  <NewswireHeadlineCard story={entry.story} compact />
+                  <NewswireHeadlineCard story={entry.story} compact loading="eager" />
                 </div>
               ) : (
                 <IntelBriefingCard
                   compact
+                  loading="eager"
                   row={{
                     ...entry.intelItem,
                     briefLane: entry.briefLane,

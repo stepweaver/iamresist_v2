@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import NewswireImageBlock from '@/components/newswire/NewswireImageBlock';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 
-export default function NewswireHeadlineCard({ story, compact = false, hero = false }) {
+export default function NewswireHeadlineCard({ story, compact = false, hero = false, loading = 'lazy' }) {
   const { source, title, url, publishedAt, excerpt, image, supportUrl, note } = story;
   const linkUrl = url || '#';
   const hasImageFromFeed = Boolean(image);
@@ -31,6 +31,7 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
               href={linkUrl}
               src={image}
               alt=""
+              loading={loading}
               onUnavailable={onImageUnavailable}
               className="block w-full rounded bg-muted shrink-0 overflow-hidden relative aspect-[2/1] max-h-[200px] sm:max-h-none sm:aspect-video"
             />
@@ -122,6 +123,7 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
           src={image}
           alt=""
           showBrackets={false}
+          loading={loading}
           onUnavailable={onImageUnavailable}
           className={`block ${imageWrapClass}`}
         />

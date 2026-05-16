@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import NewswireImage from '@/components/newswire/NewswireImage';
 
 /** Framed remote image: on load failure the whole frame is omitted (no gray slot or icon). */
-export default function RemoteCoverImage({ src, className, objectPosition = 'top' }) {
+export default function RemoteCoverImage({ src, className, objectPosition = 'top', loading = 'lazy' }) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -19,6 +19,7 @@ export default function RemoteCoverImage({ src, className, objectPosition = 'top
         src={src}
         alt=""
         objectPosition={objectPosition}
+        loading={loading}
         onLoadError={() => setFailed(true)}
       />
     </div>

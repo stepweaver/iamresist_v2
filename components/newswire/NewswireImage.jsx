@@ -9,7 +9,7 @@ const OBJECT_POS_CLASS = {
 };
 
 /** Remote RSS/OG images — cover + focal point; img is absolute so the frame always fills (no letterboxing). */
-export default function NewswireImage({ src, alt = '', onLoadError, objectPosition = 'center' }) {
+export default function NewswireImage({ src, alt = '', onLoadError, objectPosition = 'center', loading = 'lazy' }) {
   const [status, setStatus] = useState(src ? 'loading' : 'error');
   const imgRef = useRef(null);
 
@@ -61,7 +61,7 @@ export default function NewswireImage({ src, alt = '', onLoadError, objectPositi
         className={`absolute inset-0 z-[1] h-full w-full object-cover transition-opacity duration-300 ${posClass} ${
           status === 'loaded' ? 'opacity-100' : 'opacity-0'
         }`}
-        loading="lazy"
+        loading={loading}
         decoding="async"
         onLoad={() => setStatus('loaded')}
         onError={() => setStatus('error')}

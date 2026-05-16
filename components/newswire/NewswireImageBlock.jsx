@@ -26,6 +26,7 @@ export default function NewswireImageBlock({
   showBrackets = true,
   /** Called after retries exhausted — parent can drop the image column. */
   onUnavailable,
+  loading = 'lazy',
 }) {
   const [failed, setFailed] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -70,7 +71,7 @@ export default function NewswireImageBlock({
         rel="noopener noreferrer"
         className="absolute inset-0 block overflow-hidden"
       >
-        {showRemote ? <NewswireImage src={resolvedSrc} alt={alt} onLoadError={onImageFailed} /> : null}
+        {showRemote ? <NewswireImage src={resolvedSrc} alt={alt} loading={loading} onLoadError={onImageFailed} /> : null}
       </Link>
     </div>
   );
