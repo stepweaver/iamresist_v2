@@ -1,4 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { getPublishedAtMs } from '@/lib/intel/freshnessPolicy';
 
 vi.mock('next/cache', () => ({
   unstable_cache: (fn: (...args: any[]) => any) => fn,
@@ -1452,5 +1453,215 @@ describe('freshness gate', () => {
     const secondaryIds = (desk.secondaryLeadItems ?? []).map((it: any) => it.id);
     expect(leadIds).not.toContain('beyond-secondary');
     expect(secondaryIds).not.toContain('beyond-secondary');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// freshnessMeta.display tests
+// ---------------------------------------------------------------------------
+
+describe('freshness display metadata', () => {
+  const AGO_HOURS = (h: number) => new Date(Date.now() - h * 3600000).toISOString();
+
+  beforeEach(() => {
+    vi.useRealTimers();
+    fetchSurfacedSourceItemsForLive.mockClear();
+    fetchIntelFreshnessForDeskLane.mockClear();
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) =>
+      defaultRowsForLane(lane),
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('freshnessMeta.display is attached with required fields', async () => {
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    expect(desk.freshnessMeta).toBeDefined();
+    const d = desk.freshnessMeta?.display;
+    expect(d).toBeDefined();
+    expect(d).toHaveProperty('newestVisiblePublishedAt');
+    expect(d).toHaveProperty('leadPublishedAt');
+    expect(d).toHaveProperty('newestVisibleAgeHours');
+    expect(d).toHaveProperty('leadAgeHours');
+    expect(d).toHaveProperty('displayFreshnessState');
+    expect(d).toHaveProperty('hasStaleDisplay');
+  });
+
+  it('fresh items produce a fresh or recent displayFreshnessState', async () => {
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (_limit: number, lane: string) => {
+      if (lane === 'osint') {
+        return [
+          makeRow({
+            id: 'fresh-display',
+            title: 'Court grants preliminary injunction',
+            canonical_url: 'https://example.com/fresh-display',
+            desk_lane: 'osint',
+            mission_tags: ['courts', 'civil_liberties'],
+            published_at: AGO_HOURS(4),
+            relevance_score: 75,
+            sources: {
+              slug: 'lawfare',
+              name: 'Lawfare',
+              provenance_class: 'SPECIALIST',
+              desk_lane: 'osint',
+              source_family: 'general',
+            },
+          }),
+        ];
+      }
+      return defaultRowsForLane(lane);
+    });
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    const state = desk.freshnessMeta?.display?.displayFreshnessState;
+    expect(['fresh', 'recent']).toContain(state);
+    expect(desk.freshnessMeta?.display?.hasStaleDisplay).toBe(false);
+    expect(typeof desk.freshnessMeta?.display?.newestVisibleAgeHours).toBe('number');
+  });
+
+  it('stale-only surfaced rows produce empty or stale displayFreshnessState with no lead/secondary', async () => {
+    // 25-day-old items exceed OSINT defaultVisibleMaxAgeHours (336h = 14d), so they are
+    // excluded from visible entirely, and also excluded from lead/secondary by freshness gates.
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (_limit: number, lane: string) => {
+      if (lane === 'osint') {
+        return [
+          makeRow({
+            id: 'stale-display-1',
+            title: 'Court grants injunction in civil liberties case',
+            canonical_url: 'https://example.com/stale-display-1',
+            desk_lane: 'osint',
+            mission_tags: ['courts', 'civil_liberties'],
+            published_at: AGO_HOURS(25 * 24),
+            relevance_score: 80,
+            sources: {
+              slug: 'lawfare',
+              name: 'Lawfare',
+              provenance_class: 'SPECIALIST',
+              desk_lane: 'osint',
+              source_family: 'general',
+            },
+          }),
+        ];
+      }
+      return defaultRowsForLane(lane);
+    });
+
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('osint');
+
+    expect((desk.leadItems ?? []).length).toBe(0);
+    expect((desk.secondaryLeadItems ?? []).length).toBe(0);
+
+    const state = desk.freshnessMeta?.display?.displayFreshnessState;
+    expect(state === 'empty' || state === 'stale').toBe(true);
+    expect(desk.freshnessMeta?.display?.hasStaleDisplay).toBe(true);
+    expect(desk.freshnessMeta?.display?.newestVisiblePublishedAt).toBeNull();
+  });
+
+  it('debug nonSurfaceReasons includes freshness exclusion reasons', async () => {
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (_limit: number, lane: string) => {
+      if (lane === 'osint') {
+        return [
+          makeRow({
+            id: 'stale-debug-reasons',
+            title: 'Court grants injunction in civil liberties case',
+            canonical_url: 'https://example.com/stale-debug-reasons',
+            desk_lane: 'osint',
+            mission_tags: ['courts', 'civil_liberties'],
+            published_at: AGO_HOURS(30 * 24),
+            relevance_score: 80,
+            sources: {
+              slug: 'lawfare',
+              name: 'Lawfare',
+              provenance_class: 'SPECIALIST',
+              desk_lane: 'osint',
+              source_family: 'general',
+            },
+          }),
+        ];
+      }
+      return defaultRowsForLane(lane);
+    });
+
+    const { getLiveIntelDeskDebug } = await import('@/lib/feeds/liveIntel.service');
+    const debug = await getLiveIntelDeskDebug('osint');
+
+    const debugItem = debug.items.preCapCandidates.find((it: any) => it.id === 'stale-debug-reasons');
+    expect(debugItem).toBeDefined();
+    expect(debugItem?.nonSurfaceReasons).toContain('excluded_from_lead_by_freshness');
+    expect(debugItem?.nonSurfaceReasons).toContain('excluded_from_secondary_by_freshness');
+    expect(debugItem?.nonSurfaceReasons).toContain('excluded_by_default_visible_age_gate');
+  });
+
+  it('debug nonSurfaceReasons includes missing-timestamp reason for null publishedAt', async () => {
+    fetchSurfacedSourceItemsForLive.mockImplementation(async (_limit: number, lane: string) => {
+      if (lane === 'osint') {
+        return [
+          {
+            id: 'no-date-debug',
+            title: 'No publishedAt item',
+            summary: null,
+            canonical_url: 'https://example.com/no-date-debug',
+            image_url: null,
+            published_at: null,
+            fetched_at: new Date().toISOString(),
+            desk_lane: 'osint',
+            content_use_mode: 'feed_summary',
+            cluster_keys: {},
+            state_change_type: 'specialist_item',
+            mission_tags: ['courts'],
+            branch_of_government: 'judicial',
+            institutional_area: 'courts',
+            relevance_score: 90,
+            surface_state: 'surfaced',
+            suppression_reason: null,
+            relevance_explanations: [],
+            sources: {
+              slug: 'no-date-debug-source',
+              name: 'No Date Source',
+              provenance_class: 'SPECIALIST',
+              desk_lane: 'osint',
+              source_family: 'general',
+              trust_warning_mode: 'none',
+            },
+          },
+        ];
+      }
+      return defaultRowsForLane(lane);
+    });
+
+    const { getLiveIntelDeskDebug } = await import('@/lib/feeds/liveIntel.service');
+    const debug = await getLiveIntelDeskDebug('osint');
+
+    const debugItem = debug.items.preCapCandidates.find((it: any) => it.id === 'no-date-debug');
+    expect(debugItem).toBeDefined();
+    expect(debugItem?.nonSurfaceReasons).toContain('excluded_missing_or_invalid_published_at');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// freshnessPolicy helper tests
+// ---------------------------------------------------------------------------
+
+describe('freshnessPolicy helpers', () => {
+  it('getPublishedAtMs supports both publishedAt and published_at object shapes', () => {
+    const iso = '2026-04-01T12:00:00.000Z';
+    const expected = new Date(iso).getTime();
+
+    expect(getPublishedAtMs(iso)).toBe(expected);
+    expect(getPublishedAtMs({ publishedAt: iso })).toBe(expected);
+    expect(getPublishedAtMs({ published_at: iso })).toBe(expected);
+    // publishedAt takes priority over published_at when both are present
+    expect(getPublishedAtMs({ publishedAt: iso, published_at: '2026-01-01T00:00:00.000Z' })).toBe(expected);
+    expect(getPublishedAtMs(null)).toBeNull();
+    expect(getPublishedAtMs(undefined)).toBeNull();
+    expect(getPublishedAtMs({ publishedAt: null, published_at: null })).toBeNull();
+    expect(getPublishedAtMs({ publishedAt: 'not-a-date' })).toBeNull();
   });
 });

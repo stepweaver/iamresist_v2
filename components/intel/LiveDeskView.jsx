@@ -287,15 +287,45 @@ function CompactFreshnessLine({
     );
   }
 
-  const newestLeadRel = formatRelativeAgeMinutes(freshnessMeta?.newestLeadPublishedAt);
+  const display = freshnessMeta?.display;
+  const state = display?.displayFreshnessState;
+  const newestItemRel = formatRelativeAgeMinutes(display?.newestVisiblePublishedAt);
+
+  if (state === 'empty') {
+    return (
+      <p className="text-xs text-foreground/75 font-mono tracking-wide">
+        {fetchRel ? `Updated ${fetchRel} · no current items` : 'No current items'}
+      </p>
+    );
+  }
+
+  if (state === 'stale') {
+    return (
+      <p className="text-xs text-foreground/75 font-mono tracking-wide">
+        {fetchRel ? `Updated ${fetchRel} · display stale` : 'Display stale'}
+      </p>
+    );
+  }
+
+  if (state === 'aging') {
+    return (
+      <p className="text-xs text-foreground/75 font-mono tracking-wide">
+        {fetchRel ? `Updated ${fetchRel} · display aging` : 'Display aging'}
+      </p>
+    );
+  }
+
+  if (newestItemRel) {
+    return (
+      <p className="text-xs text-foreground/75 font-mono tracking-wide">
+        Fresh · newest item {newestItemRel}
+      </p>
+    );
+  }
 
   return (
     <p className="text-xs text-foreground/75 font-mono tracking-wide">
-      {newestLeadRel
-        ? `Lead ${newestLeadRel}`
-        : fetchRel
-          ? `Updated ${fetchRel}`
-          : 'Live'}
+      {fetchRel ? `Updated ${fetchRel}` : 'Live'}
     </p>
   );
 }

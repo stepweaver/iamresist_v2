@@ -101,11 +101,18 @@ export const DESK_FRESHNESS_POLICY: Record<IntelDeskLane, FreshnessPolicy> = {
 /** Age thresholds (hours) for freshness bucket boundaries. */
 const BUCKET_THRESHOLDS = { breaking: 2, fresh: 12, recent: 48, aging: 96, stale: 336 } as const;
 
-/** Parses publishedAt to ms epoch. Returns null if missing or invalid. */
+/** Parses publishedAt (or published_at) to ms epoch. Returns null if missing or invalid. */
 export function getPublishedAtMs(
-  itemOrIso: string | { publishedAt?: string | null } | null | undefined,
+  itemOrIso:
+    | string
+    | { publishedAt?: string | null; published_at?: string | null }
+    | null
+    | undefined,
 ): number | null {
-  const iso = typeof itemOrIso === 'string' ? itemOrIso : (itemOrIso?.publishedAt ?? null);
+  const iso =
+    typeof itemOrIso === 'string'
+      ? itemOrIso
+      : (itemOrIso?.publishedAt ?? itemOrIso?.published_at ?? null);
   if (!iso) return null;
   const t = new Date(iso).getTime();
   return Number.isNaN(t) ? null : t;
@@ -116,7 +123,11 @@ export function getPublishedAtMs(
  * `now` is an epoch-ms value (defaults to Date.now()).
  */
 export function getAgeHours(
-  itemOrIso: string | { publishedAt?: string | null } | null | undefined,
+  itemOrIso:
+    | string
+    | { publishedAt?: string | null; published_at?: string | null }
+    | null
+    | undefined,
   now: number = Date.now(),
 ): number | null {
   const t = getPublishedAtMs(itemOrIso);
@@ -165,7 +176,7 @@ export function isFreshEnoughForSurface({
   surface,
   now = Date.now(),
 }: {
-  item: string | { publishedAt?: string | null } | null | undefined;
+  item: string | { publishedAt?: string | null; published_at?: string | null } | null | undefined;
   lane: string | null | undefined;
   surface: DeskSurface;
   now?: number;
@@ -185,7 +196,7 @@ export function getFreshnessExclusionReason({
   surface,
   now = Date.now(),
 }: {
-  item: string | { publishedAt?: string | null } | null | undefined;
+  item: string | { publishedAt?: string | null; published_at?: string | null } | null | undefined;
   lane: string | null | undefined;
   surface: DeskSurface;
   now?: number;
