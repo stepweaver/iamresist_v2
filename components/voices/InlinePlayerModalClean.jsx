@@ -342,6 +342,40 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     } catch {}
   }, [ytPlayerState]);
 
+  // Screen Wake Lock — keeps the display on while a video is playing so the
+  // screen never auto-locks and cuts off playback mid-video.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    if (ytPlayerState !== 1) return;
+
+    let lock = null;
+    let cancelled = false;
+
+    async function acquire() {
+      if (cancelled) return;
+      try {
+        lock = await navigator.wakeLock.request("screen");
+        lock.addEventListener("release", () => {
+          // Re-acquire after returning from background (e.g. switching apps and back).
+          if (!cancelled) {
+            document.addEventListener("visibilitychange", onVisible, { once: true });
+          }
+        });
+      } catch {}
+    }
+
+    function onVisible() {
+      if (!document.hidden && !cancelled) acquire();
+    }
+
+    acquire();
+
+    return () => {
+      cancelled = true;
+      lock?.release().catch(() => {});
+    };
+  }, [ytPlayerState]);
+
   if (!item) return null;
 
   const baseUrl = getCanonicalBaseUrl();
