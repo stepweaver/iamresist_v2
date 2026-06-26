@@ -2,42 +2,40 @@
 
 import { useRef } from "react";
 
+// 0.1-second silent WAV as a data URI. Using an inline data URI avoids a
+// network fetch that could fail or be blocked, and keeps this self-contained.
+// Brave on iOS blocks the Web Audio API (anti-fingerprinting), so we try
+// Web Audio first and fall back to a plain <audio> element, which Brave does
+// NOT restrict.
+const SILENT_WAV_URI =
+  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
+
 /**
- * Anchors the iOS audio session so the lock-screen Now Playing widget persists.
+ * Anchors the iOS/Brave audio session so the lock-screen Now Playing widget
+ * persists while the video player modal is open.
  *
- * iOS Safari drops the Media Session widget after a few seconds unless a native
- * audio element or AudioContext is actively producing sound. YouTube iframes are
- * cross-origin sandboxed and don't satisfy that requirement on their own.
+ * Strategy (in priority order):
+ * 1. Web Audio API — better session integration, but Brave Shields blocks it.
+ * 2. <audio> element with inline silent data URI — works in all browsers
+ *    including Brave, because Brave only restricts AudioContext fingerprinting,
+ *    not plain HTML media elements.
  *
- * This hook plays a completely silent Web Audio buffer in a continuous loop
- * for as long as the player modal is open. It must be started synchronously
- * inside the click handler that opens the modal — that's the only point where
- * iOS will allow AudioContext.resume() without throwing a NotAllowedError.
- *
- * Usage:
- *   const { startKeepAlive, stopKeepAlive } = useMediaKeepAlive();
- *
- *   function handlePlay(item) {
- *     startKeepAlive();   // ← must be in the click handler
- *     setActiveItem(item);
- *   }
- *   function handleClose() {
- *     stopKeepAlive();
- *     setActiveItem(null);
- *   }
+ * IMPORTANT: startKeepAlive() must be called synchronously inside the user's
+ * click handler (the one that opens the modal). iOS and Brave only allow
+ * audio to start playing within the user-gesture window.
  */
 export function useMediaKeepAlive() {
-  const ctxRef = useRef(null);
+  const ctxRef = useRef(null);     // Web Audio path
+  const audioElRef = useRef(null); // <audio> fallback path
 
+  // --- Web Audio path ---
   function scheduleChunk(ctx) {
-    if (ctxRef.current !== ctx) return; // stopped or replaced
+    if (ctxRef.current !== ctx) return;
     let buf;
     try {
-      // 0.5 s of silence — short enough to chain quickly, long enough to avoid
-      // overhead from thousands of tiny buffers.
       buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.5), ctx.sampleRate);
     } catch {
-      return; // context was closed
+      return;
     }
     const source = ctx.createBufferSource();
     source.buffer = buf;
@@ -46,33 +44,68 @@ export function useMediaKeepAlive() {
     source.start();
   }
 
-  function startKeepAlive() {
-    if (ctxRef.current) return; // already running
-
+  function tryWebAudio() {
     const Ctx =
       typeof AudioContext !== "undefined"
         ? AudioContext
         : typeof window !== "undefined" && window.webkitAudioContext
           ? window.webkitAudioContext
           : null;
-    if (!Ctx) return;
+    if (!Ctx) return false;
 
     try {
       const ctx = new Ctx();
       ctxRef.current = ctx;
-      // resume() must be called during the user-gesture window; the promise
-      // resolving starts the silent buffer loop.
-      ctx.resume().then(() => scheduleChunk(ctx)).catch(() => {});
+      ctx.resume().then(() => {
+        if (ctx.state === "running") {
+          scheduleChunk(ctx);
+        } else {
+          // AudioContext didn't start — likely blocked by Brave Shields.
+          ctx.close().catch(() => {});
+          ctxRef.current = null;
+          startAudioElement();
+        }
+      }).catch(() => {
+        ctxRef.current = null;
+        startAudioElement();
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // --- <audio> element fallback (works in Brave) ---
+  function startAudioElement() {
+    if (audioElRef.current) return;
+    try {
+      const audio = new Audio(SILENT_WAV_URI);
+      audio.loop = true;
+      audioElRef.current = audio;
+      audio.play().catch(() => {});
     } catch {}
+  }
+
+  function startKeepAlive() {
+    if (ctxRef.current || audioElRef.current) return; // already running
+    if (!tryWebAudio()) {
+      startAudioElement();
+    }
   }
 
   function stopKeepAlive() {
     const ctx = ctxRef.current;
     ctxRef.current = null;
-    if (!ctx) return;
-    try {
-      ctx.close();
-    } catch {}
+    if (ctx) {
+      try { ctx.close(); } catch {}
+    }
+
+    const audio = audioElRef.current;
+    audioElRef.current = null;
+    if (audio) {
+      audio.pause();
+      audio.src = "";
+    }
   }
 
   return { startKeepAlive, stopKeepAlive };
