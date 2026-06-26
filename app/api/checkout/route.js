@@ -24,7 +24,7 @@ export async function POST(request) {
 
     const validatedItems = parsed.items;
     const totalQuantity = validatedItems.reduce((sum, i) => sum + i.quantity, 0);
-    const subtotalCents = getSubtotalCents(totalQuantity);
+    const subtotalCents = getSubtotalCents(validatedItems);
     const shippingCents = getShippingCents(totalQuantity);
     const totalCents = subtotalCents + shippingCents;
     const freeShipping = qualifiesForFreeShipping(totalQuantity);

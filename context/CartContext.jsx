@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useCallback, useEffect, useState } from 'react';
-import { getSubtotalCents, getShippingCents, getTotalCents, qualifiesForFreeShipping } from '@/lib/shopPricing';
+import { getSubtotalCents, getShippingCents, qualifiesForFreeShipping } from '@/lib/shopPricing';
 import { MAX_LINE_ITEM_QUANTITY, MAX_CART_TOTAL_QUANTITY } from '@/lib/constants/shopLimits';
 
 const LEGACY_STORAGE_KEY = 'iamresist_cart';
@@ -147,9 +147,9 @@ export function CartProvider({ children }) {
   const clearCart = useCallback(() => setItems([]), []);
 
   const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
-  const subtotalCents = getSubtotalCents(totalQuantity);
+  const subtotalCents = getSubtotalCents(items);
   const shippingCents = getShippingCents(totalQuantity);
-  const totalCents = getTotalCents(totalQuantity);
+  const totalCents = subtotalCents + shippingCents;
   const freeShipping = qualifiesForFreeShipping(totalQuantity);
 
   const value = {

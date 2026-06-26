@@ -151,7 +151,7 @@ export default function CartPageClient() {
                         </button>
                         <span className="px-4 py-2 min-w-[3rem] text-center font-medium">{item.quantity}</span>
                         <button
-                          onClick={() => updateQuantity(item.slug, item.quantity + 1)}
+                          onClick={() => updateQuantity(item.slug, item.productKey, item.quantity + 1)}
                           className="p-2 hover:bg-primary/10 transition-colors"
                           aria-label="Increase quantity"
                         >
