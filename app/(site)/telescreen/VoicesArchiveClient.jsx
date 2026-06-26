@@ -7,6 +7,7 @@ import { RefreshCw } from "lucide-react";
 import FilterDropdown from "@/components/FilterDropdown";
 import VoiceCard from "@/components/voices/VoiceCard";
 import InlinePlayerModal from "@/components/voices/InlinePlayerModalClean";
+import { useMediaKeepAlive } from "@/components/useMediaKeepAlive";
 import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
 import { buildTelescreenHref, TELESCREEN_MODES, TELESCREEN_MODE_OPTIONS } from "@/lib/telescreen";
 
@@ -44,6 +45,7 @@ export default function VoicesArchiveClient({
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
+  const { startKeepAlive, stopKeepAlive } = useMediaKeepAlive();
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
@@ -290,7 +292,11 @@ export default function VoicesArchiveClient({
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {items.map((item, index) => (
                 <li key={`${item.id ?? item.url}-${index}`}>
-                  <VoiceCard item={item} onPlay={setActiveItem} priority={index < 6} />
+                  <VoiceCard
+                    item={item}
+                    onPlay={(it) => { startKeepAlive(); setActiveItem(it); }}
+                    priority={index < 6}
+                  />
                 </li>
               ))}
             </ul>
@@ -299,7 +305,7 @@ export default function VoicesArchiveClient({
               <InlinePlayerModal
                 item={activeItem}
                 allItems={items}
-                onClose={() => setActiveItem(null)}
+                onClose={() => { stopKeepAlive(); setActiveItem(null); }}
                 onSelectItem={setActiveItem}
               />
             ) : null}

@@ -4,11 +4,23 @@ import { useState } from 'react';
 import Link from 'next/link';
 import VoiceCard from '@/components/voices/VoiceCard';
 import InlinePlayerModal from '@/components/voices/InlinePlayerModalClean';
+import { useMediaKeepAlive } from '@/components/useMediaKeepAlive';
 
 export default function ProtestMusicSection({ items = [] }) {
   const [activeItem, setActiveItem] = useState(null);
+  const { startKeepAlive, stopKeepAlive } = useMediaKeepAlive();
 
   if (!items.length) return null;
+
+  function handlePlay(item) {
+    startKeepAlive();
+    setActiveItem(item);
+  }
+
+  function handleClose() {
+    stopKeepAlive();
+    setActiveItem(null);
+  }
 
   return (
     <section className="mb-6 sm:mb-8">
@@ -26,7 +38,7 @@ export default function ProtestMusicSection({ items = [] }) {
       <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {items.map((item) => (
           <li key={item.id ?? item.url}>
-            <VoiceCard item={item} onPlay={setActiveItem} />
+            <VoiceCard item={item} onPlay={handlePlay} />
           </li>
         ))}
       </ul>
@@ -34,7 +46,7 @@ export default function ProtestMusicSection({ items = [] }) {
         <InlinePlayerModal
           item={activeItem}
           allItems={items}
-          onClose={() => setActiveItem(null)}
+          onClose={handleClose}
           onSelectItem={setActiveItem}
         />
       )}
