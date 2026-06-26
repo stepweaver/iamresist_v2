@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Play, X } from "lucide-react";
+import { ExternalLink, Play, Smartphone, X } from "lucide-react";
 import ShareButton from "@/components/ShareButton";
 import { getCanonicalBaseUrl } from "@/lib/siteConfig";
 import useHorizontalSwipe from "@/components/useHorizontalSwipe";
@@ -564,6 +564,25 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
                   >
                     <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
                     {sourceButtonLabel(item)}
+                  </a>
+                ) : null}
+                {isYouTube && videoId ? (
+                  <a
+                    href={`https://youtu.be/${videoId}`}
+                    title="Open in the YouTube app — supports lock-screen audio playback"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      // Try the YouTube app custom URL scheme first.
+                      // If the app isn't installed, fall back to the web URL.
+                      window.location.href = `youtube://watch?v=${videoId}`;
+                      setTimeout(() => {
+                        window.open(`https://youtu.be/${videoId}`, "_blank", "noopener");
+                      }, 800);
+                    }}
+                    className="button-label inline-flex items-center gap-2 border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:border-primary hover:bg-primary/20"
+                  >
+                    <Smartphone className="h-4 w-4 shrink-0" aria-hidden />
+                    Open in App
                   </a>
                 ) : null}
                 {currentIndex >= 0 && allItems.length ? (
