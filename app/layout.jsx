@@ -7,6 +7,7 @@ import DocumentChrome from '@/components/layout/DocumentChrome';
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { CartProvider } from '@/context/CartContext';
 import { buildPageMetadata, BASE_URL } from '@/lib/metadata';
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
 
 export const metadata = {
   ...buildPageMetadata({
@@ -16,6 +17,11 @@ export const metadata = {
   }),
   manifest: '/manifest.json',
   metadataBase: new URL(BASE_URL),
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'RESIST',
+  },
 };
 
 export default async function RootLayout({ children }) {
@@ -40,6 +46,7 @@ export default async function RootLayout({ children }) {
         <link rel="preconnect" href="https://img.youtube.com" />
       </head>
       <body className="antialiased">
+        <ServiceWorkerRegistration />
         <ThemeProvider>
           <CartProvider>
             <Navigation />
