@@ -88,6 +88,7 @@ function sourceButtonLabel(item) {
 export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem }) {
   const [lazyExtraItems, setLazyExtraItems] = useState([]);
   const [lazyExtraLoading, setLazyExtraLoading] = useState(false);
+  const [ytPlayerState, setYtPlayerState] = useState(-1);
 
   const dialogRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -202,6 +203,8 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   const nextItemRef = useRef(nextItem);
   nextItemRef.current = nextItem;
+  const prevItemRef = useRef(prevItem);
+  prevItemRef.current = prevItem;
 
   const swipeHandlers = useHorizontalSwipe({
     onSwipeLeft: () => nextItem && onSelectItem?.(nextItem),
@@ -257,9 +260,13 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
           return;
         }
       }
-      if (data?.event === "onStateChange" && data?.info === 0) {
-        const nxt = nextItemRef.current;
-        if (nxt) onSelectItem?.(nxt);
+      if (data?.event === "onStateChange") {
+        const state = data?.info;
+        setYtPlayerState(state);
+        if (state === 0) {
+          const nxt = nextItemRef.current;
+          if (nxt) onSelectItem?.(nxt);
+        }
       }
     }
 
@@ -271,6 +278,69 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       iframe.removeEventListener("load", subscribe);
     };
   }, [isYouTube, videoId, onSelectItem]);
+
+  // Media Session API — lock-screen metadata and controls.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    if (!item) return;
+
+    const thumbnailUrl = youtubeThumbnailCandidates(item.url, item.sourceId)[0] ?? null;
+
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: item.title || "Video",
+        artist: item.voice?.title || "",
+        album: "iamresist",
+        artwork: thumbnailUrl
+          ? [{ src: thumbnailUrl, sizes: "480x360", type: "image/jpeg" }]
+          : [],
+      });
+    } catch {}
+
+    function sendYtCmd(func) {
+      for (const origin of YOUTUBE_PLAYER_ORIGINS) {
+        ytIframeRef.current?.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func, args: "" }),
+          origin,
+        );
+      }
+    }
+
+    try {
+      navigator.mediaSession.setActionHandler("play", () => sendYtCmd("playVideo"));
+      navigator.mediaSession.setActionHandler("pause", () => sendYtCmd("pauseVideo"));
+      navigator.mediaSession.setActionHandler("nexttrack", () => {
+        const nxt = nextItemRef.current;
+        if (nxt) onSelectItem?.(nxt);
+      });
+      navigator.mediaSession.setActionHandler("previoustrack", () => {
+        const prv = prevItemRef.current;
+        if (prv) onSelectItem?.(prv);
+      });
+    } catch {}
+
+    return () => {
+      try {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.setActionHandler("play", null);
+        navigator.mediaSession.setActionHandler("pause", null);
+        navigator.mediaSession.setActionHandler("nexttrack", null);
+        navigator.mediaSession.setActionHandler("previoustrack", null);
+      } catch {}
+    };
+  }, [item, onSelectItem]);
+
+  // Keep lock-screen playback indicator in sync with YouTube player state.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    try {
+      if (ytPlayerState === 1) {
+        navigator.mediaSession.playbackState = "playing";
+      } else if (ytPlayerState === 2 || ytPlayerState === 5) {
+        navigator.mediaSession.playbackState = "paused";
+      }
+    } catch {}
+  }, [ytPlayerState]);
 
   if (!item) return null;
 
