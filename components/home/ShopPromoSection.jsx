@@ -4,7 +4,7 @@ import Card from '@/components/Card';
 import { getProductBySlug } from '@/lib/shopProducts';
 
 export default function ShopPromoSection() {
-  const featuredProduct = getProductBySlug('taco');
+  const featuredProduct = getProductBySlug('antifa');
 
   return (
     <div className="mb-6 sm:mb-8">
