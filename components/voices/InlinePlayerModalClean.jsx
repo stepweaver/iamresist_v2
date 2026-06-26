@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Play, Smartphone, X } from "lucide-react";
+import { Play, X } from "lucide-react";
 import ShareButton from "@/components/ShareButton";
 import { getCanonicalBaseUrl } from "@/lib/siteConfig";
 import useHorizontalSwipe from "@/components/useHorizontalSwipe";
@@ -11,8 +11,6 @@ import useModalFocusTrap from "@/components/useModalFocusTrap";
 import { getYoutubeVideoId, youtubeThumbnailCandidates } from "@/lib/utils/youtube";
 import { formatDate } from "@/lib/utils/date";
 import { buildTelescreenHref, TELESCREEN_MODES } from "@/lib/telescreen";
-import { getVoiceSourceLinkLabel } from "@/lib/sourceLinkLabels";
-
 const MOBILE_RELATED_CAP = 4;
 const DESKTOP_RELATED_CAP = 6;
 const YOUTUBE_PLAYER_ORIGINS = ["https://www.youtube.com", "https://www.youtube-nocookie.com"];
@@ -79,10 +77,6 @@ function descriptionLabel(item) {
     text: "Source preview",
     className: "text-foreground/60",
   };
-}
-
-function sourceButtonLabel(item) {
-  return getVoiceSourceLinkLabel(item);
 }
 
 export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem }) {
@@ -555,36 +549,6 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
                 >
                   →
                 </button>
-                {item.url ? (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="button-label inline-flex items-center gap-2 border border-border/60 bg-military-grey px-3 py-2 text-xs font-bold text-foreground hover:border-primary hover:text-primary"
-                  >
-                    <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-                    {sourceButtonLabel(item)}
-                  </a>
-                ) : null}
-                {isYouTube && videoId ? (
-                  <a
-                    href={`https://youtu.be/${videoId}`}
-                    title="Open in the YouTube app — supports lock-screen audio playback"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      // Try the YouTube app custom URL scheme first.
-                      // If the app isn't installed, fall back to the web URL.
-                      window.location.href = `youtube://watch?v=${videoId}`;
-                      setTimeout(() => {
-                        window.open(`https://youtu.be/${videoId}`, "_blank", "noopener");
-                      }, 800);
-                    }}
-                    className="button-label inline-flex items-center gap-2 border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:border-primary hover:bg-primary/20"
-                  >
-                    <Smartphone className="h-4 w-4 shrink-0" aria-hidden />
-                    Open in App
-                  </a>
-                ) : null}
                 {currentIndex >= 0 && allItems.length ? (
                   <span className="ml-auto font-mono text-[10px] text-foreground/50 tabular-nums">
                     {currentIndex + 1} / {allItems.length}
