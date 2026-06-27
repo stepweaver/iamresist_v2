@@ -256,6 +256,17 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
             modestbranding: 1,
           },
           events: {
+            onReady(e) {
+              // YT.Player replaces the container div with a sized iframe.
+              // Apply positioning so the iframe fills the wrapper div.
+              const iframe = e.target.getIframe();
+              if (iframe) {
+                iframe.style.cssText =
+                  "position:absolute;inset:0;width:100%;height:100%;border:0;";
+                iframe.allow =
+                  "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+              }
+            },
             onStateChange(e) {
               setYtPlayerState(e.data);
               if (e.data === 0) {
@@ -494,10 +505,11 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="relative aspect-video w-full max-h-[45vh] min-h-[200px] shrink-0 bg-black">
               {isYouTube ? (
-                <div
-                  ref={playerContainerRef}
-                  className="absolute inset-0 h-full w-full"
-                />
+                // YT.Player replaces the inner div with an iframe — the outer
+                // div holds position/size so the resulting iframe fills the area.
+                <div className="absolute inset-0 [&>iframe]:absolute [&>iframe]:inset-0 [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0">
+                  <div ref={playerContainerRef} />
+                </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-foreground/70 text-sm">
                   No embeddable video for this item.
