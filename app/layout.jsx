@@ -8,6 +8,7 @@ import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { CartProvider } from '@/context/CartContext';
 import { buildPageMetadata, BASE_URL } from '@/lib/metadata';
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
+import PwaInstallBanner from '@/components/PwaInstallBanner';
 
 export const metadata = {
   ...buildPageMetadata({
@@ -52,6 +53,7 @@ export default async function RootLayout({ children }) {
             <Navigation />
             <DocumentChrome>{children}</DocumentChrome>
             <Footer />
+            <PwaInstallBanner />
           </CartProvider>
         </ThemeProvider>
       </body>

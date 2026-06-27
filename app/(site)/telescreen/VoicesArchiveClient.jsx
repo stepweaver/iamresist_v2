@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { Play, RefreshCw } from "lucide-react";
 import FilterDropdown from "@/components/FilterDropdown";
 import VoiceCard from "@/components/voices/VoiceCard";
 import InlinePlayerModal from "@/components/voices/InlinePlayerModalClean";
@@ -289,6 +289,16 @@ export default function VoicesArchiveClient({
           <p className="system-label text-foreground/70 text-sm">{modeCopy.empty}</p>
         ) : (
           <>
+            <div className="flex justify-end mb-3">
+              <button
+                onClick={() => { startKeepAlive(); setActiveItem(items[0]); }}
+                className="flex items-center gap-1.5 text-xs font-bold nav-label text-foreground/60 hover:text-primary transition-colors"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                Play All
+              </button>
+            </div>
+
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {items.map((item, index) => (
                 <li key={`${item.id ?? item.url}-${index}`}>

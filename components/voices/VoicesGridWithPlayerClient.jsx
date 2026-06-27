@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { Play } from "lucide-react";
 import VoiceCard from "@/components/voices/VoiceCard";
 import InlinePlayerModal from "@/components/voices/InlinePlayerModalClean";
 import { useMediaKeepAlive } from "@/components/useMediaKeepAlive";
 
-export default function VoicesGridWithPlayerClient({ items = [] }) {
+export default function VoicesGridWithPlayerClient({ items = [], showPlayAll = true }) {
   const [activeItem, setActiveItem] = useState(null);
   const { startKeepAlive, stopKeepAlive } = useMediaKeepAlive();
 
@@ -23,6 +24,18 @@ export default function VoicesGridWithPlayerClient({ items = [] }) {
 
   return (
     <>
+      {showPlayAll && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={() => handlePlay(items[0])}
+            className="flex items-center gap-1.5 text-xs font-bold nav-label text-foreground/60 hover:text-primary transition-colors"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            Play All
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {items.map((item, index) => (
           <VoiceCard key={item.id ?? item.url ?? index} item={item} onPlay={handlePlay} priority={index < 6} />
