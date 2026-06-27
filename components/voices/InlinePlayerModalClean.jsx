@@ -238,10 +238,10 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     const iframe = ytIframeRef.current;
     if (!iframe) return;
 
+    // Use '*' so the message is delivered even if the iframe hasn't transitioned
+    // to its final YouTube origin yet (avoids silent drop on early calls).
     function subscribe() {
-      for (const origin of YOUTUBE_PLAYER_ORIGINS) {
-        iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening" }), origin);
-      }
+      iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening" }), "*");
     }
 
     function onMessage(e) {
@@ -254,6 +254,12 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
           return;
         }
       }
+      // YouTube's player.js initializes asynchronously after the iframe's HTML
+      // document loads. The player signals readiness with onReady — re-subscribe
+      // at that moment so state-change events start flowing reliably.
+      if (data?.event === "onReady") {
+        subscribe();
+      }
       if (data?.event === "onStateChange") {
         const state = data?.info;
         setYtPlayerState(state);
@@ -264,10 +270,17 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       }
     }
 
+    // Subscribe immediately, on iframe HTML load, and after short delays as
+    // belt-and-suspenders in case onReady arrives before our listener is up.
     iframe.addEventListener("load", subscribe);
     subscribe();
+    const t1 = setTimeout(subscribe, 500);
+    const t2 = setTimeout(subscribe, 2000);
+
     window.addEventListener("message", onMessage);
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
       window.removeEventListener("message", onMessage);
       iframe.removeEventListener("load", subscribe);
     };
