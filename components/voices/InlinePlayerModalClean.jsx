@@ -13,7 +13,25 @@ import { formatDate } from "@/lib/utils/date";
 import { buildTelescreenHref, TELESCREEN_MODES } from "@/lib/telescreen";
 const MOBILE_RELATED_CAP = 4;
 const DESKTOP_RELATED_CAP = 6;
-const YOUTUBE_PLAYER_ORIGINS = ["https://www.youtube.com", "https://www.youtube-nocookie.com"];
+// Loads https://www.youtube.com/iframe_api once per page session and resolves
+// with the global YT object. Subsequent calls reuse the same promise.
+let _ytApiPromise = null;
+function ensureYouTubeApi() {
+  if (typeof window === "undefined") return Promise.reject(new Error("ssr"));
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (_ytApiPromise) return _ytApiPromise;
+  _ytApiPromise = new Promise((resolve) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof prev === "function") prev();
+      resolve(window.YT);
+    };
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+  });
+  return _ytApiPromise;
+}
 
 function isSameItem(a, b) {
   const aYt = getYoutubeVideoId(a?.url, a?.sourceId);
@@ -89,6 +107,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
   const mainScrollRef = useRef(null);
   const railScrollRef = useRef(null);
   const ytIframeRef = useRef(null);
+  const ytPlayerInstanceRef = useRef(null);
 
   useModalFocusTrap(dialogRef, closeButtonRef);
 
@@ -235,54 +254,40 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   useEffect(() => {
     if (!isYouTube || !videoId) return;
-    const iframe = ytIframeRef.current;
-    if (!iframe) return;
 
-    // Use '*' so the message is delivered even if the iframe hasn't transitioned
-    // to its final YouTube origin yet (avoids silent drop on early calls).
-    function subscribe() {
-      iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening" }), "*");
-    }
+    let cancelled = false;
+    let player = null;
 
-    function onMessage(e) {
-      if (!YOUTUBE_PLAYER_ORIGINS.includes(e.origin)) return;
-      let data = e.data;
-      if (typeof data === "string") {
-        try {
-          data = JSON.parse(data);
-        } catch {
-          return;
-        }
-      }
-      // YouTube's player.js initializes asynchronously after the iframe's HTML
-      // document loads. The player signals readiness with onReady — re-subscribe
-      // at that moment so state-change events start flowing reliably.
-      if (data?.event === "onReady") {
-        subscribe();
-      }
-      if (data?.event === "onStateChange") {
-        const state = data?.info;
-        setYtPlayerState(state);
-        if (state === 0) {
-          const nxt = nextItemRef.current;
-          if (nxt) onSelectItem?.(nxt);
-        }
-      }
-    }
+    // The YouTube IFrame Player API handles all internal subscription timing
+    // (retrying "listening" until player.js is ready). This is far more
+    // reliable than manual postMessage polling.
+    ensureYouTubeApi()
+      .then((YT) => {
+        if (cancelled) return;
+        const iframe = ytIframeRef.current;
+        if (!iframe) return;
+        // Attach to the already-rendered iframe — does not reload or reset it.
+        player = new YT.Player(iframe, {
+          events: {
+            onStateChange(e) {
+              setYtPlayerState(e.data);
+              if (e.data === 0) {
+                const nxt = nextItemRef.current;
+                if (nxt) onSelectItem?.(nxt);
+              }
+            },
+          },
+        });
+        ytPlayerInstanceRef.current = player;
+      })
+      .catch(() => {});
 
-    // Subscribe immediately, on iframe HTML load, and after short delays as
-    // belt-and-suspenders in case onReady arrives before our listener is up.
-    iframe.addEventListener("load", subscribe);
-    subscribe();
-    const t1 = setTimeout(subscribe, 500);
-    const t2 = setTimeout(subscribe, 2000);
-
-    window.addEventListener("message", onMessage);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      window.removeEventListener("message", onMessage);
-      iframe.removeEventListener("load", subscribe);
+      cancelled = true;
+      // Don't call player.destroy() — React controls the iframe's DOM lifetime
+      // via key={videoId}. Destroying here would remove the iframe mid-render.
+      ytPlayerInstanceRef.current = null;
+      player = null;
     };
   }, [isYouTube, videoId, onSelectItem]);
 
@@ -304,18 +309,9 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       });
     } catch {}
 
-    function sendYtCmd(func) {
-      for (const origin of YOUTUBE_PLAYER_ORIGINS) {
-        ytIframeRef.current?.contentWindow?.postMessage(
-          JSON.stringify({ event: "command", func, args: "" }),
-          origin,
-        );
-      }
-    }
-
     try {
-      navigator.mediaSession.setActionHandler("play", () => sendYtCmd("playVideo"));
-      navigator.mediaSession.setActionHandler("pause", () => sendYtCmd("pauseVideo"));
+      navigator.mediaSession.setActionHandler("play", () => ytPlayerInstanceRef.current?.playVideo?.());
+      navigator.mediaSession.setActionHandler("pause", () => ytPlayerInstanceRef.current?.pauseVideo?.());
       navigator.mediaSession.setActionHandler("nexttrack", () => {
         const nxt = nextItemRef.current;
         if (nxt) onSelectItem?.(nxt);
