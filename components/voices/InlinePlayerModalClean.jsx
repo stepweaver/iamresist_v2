@@ -13,25 +13,7 @@ import { formatDate } from "@/lib/utils/date";
 import { buildTelescreenHref, TELESCREEN_MODES } from "@/lib/telescreen";
 const MOBILE_RELATED_CAP = 4;
 const DESKTOP_RELATED_CAP = 6;
-// Loads https://www.youtube.com/iframe_api once per page session and resolves
-// with the global YT object. Subsequent calls reuse the same promise.
-let _ytApiPromise = null;
-function ensureYouTubeApi() {
-  if (typeof window === "undefined") return Promise.reject(new Error("ssr"));
-  if (window.YT?.Player) return Promise.resolve(window.YT);
-  if (_ytApiPromise) return _ytApiPromise;
-  _ytApiPromise = new Promise((resolve) => {
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      if (typeof prev === "function") prev();
-      resolve(window.YT);
-    };
-    const tag = document.createElement("script");
-    tag.src = "https://www.youtube.com/iframe_api";
-    document.head.appendChild(tag);
-  });
-  return _ytApiPromise;
-}
+const YOUTUBE_ORIGINS = ["https://www.youtube.com", "https://www.youtube-nocookie.com"];
 
 function isSameItem(a, b) {
   const aYt = getYoutubeVideoId(a?.url, a?.sourceId);
@@ -106,13 +88,26 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
   const closeButtonRef = useRef(null);
   const mainScrollRef = useRef(null);
   const railScrollRef = useRef(null);
-  const playerContainerRef = useRef(null);
-  const ytPlayerInstanceRef = useRef(null);
+  const ytIframeRef = useRef(null);
 
   useModalFocusTrap(dialogRef, closeButtonRef);
 
   const videoId = getYoutubeVideoId(item?.url, item?.sourceId);
   const isYouTube = Boolean(videoId);
+
+  const embedUrl = useMemo(() => {
+    if (!videoId) return "";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const params = new URLSearchParams({
+      autoplay: "1",
+      playsinline: "1",
+      rel: "0",
+      modestbranding: "1",
+      enablejsapi: "1",
+    });
+    if (origin) params.set("origin", origin);
+    return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
+  }, [videoId]);
 
   /** Match production: no "more from" RSS fetch for protest-music (sidebar uses page list only). */
   const creatorBucketKey = useMemo(() => {
@@ -235,56 +230,56 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   useEffect(() => {
     if (!isYouTube || !videoId) return;
-    const container = playerContainerRef.current;
-    if (!container) return;
 
-    let cancelled = false;
-    let player = null;
+    // Re-read the ref inside this function so retries always hit the live iframe.
+    function subscribe() {
+      const iframe = ytIframeRef.current;
+      if (!iframe?.contentWindow) return;
+      const msg = JSON.stringify({ event: "listening" });
+      // Try the specific nocookie origin, then '*' as fallback.
+      try { iframe.contentWindow.postMessage(msg, "https://www.youtube-nocookie.com"); } catch {}
+      try { iframe.contentWindow.postMessage(msg, "https://www.youtube.com"); } catch {}
+      try { iframe.contentWindow.postMessage(msg, "*"); } catch {}
+    }
 
-    // YT.Player creates and manages the iframe inside `container`. It handles
-    // all internal subscription timing so onStateChange fires reliably.
-    ensureYouTubeApi()
-      .then((YT) => {
-        if (cancelled || !playerContainerRef.current) return;
-        player = new YT.Player(playerContainerRef.current, {
-          videoId,
-          host: "https://www.youtube-nocookie.com",
-          playerVars: {
-            autoplay: 1,
-            playsinline: 1,
-            rel: 0,
-            modestbranding: 1,
-          },
-          events: {
-            onReady(e) {
-              // YT.Player replaces the container div with a sized iframe.
-              // Apply positioning so the iframe fills the wrapper div.
-              const iframe = e.target.getIframe();
-              if (iframe) {
-                iframe.style.cssText =
-                  "position:absolute;inset:0;width:100%;height:100%;border:0;";
-                iframe.allow =
-                  "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
-              }
-            },
-            onStateChange(e) {
-              setYtPlayerState(e.data);
-              if (e.data === 0) {
-                const nxt = nextItemRef.current;
-                if (nxt) onSelectItem?.(nxt);
-              }
-            },
-          },
-        });
-        ytPlayerInstanceRef.current = player;
-      })
-      .catch(() => {});
+    function onMessage(e) {
+      if (!YOUTUBE_ORIGINS.includes(e.origin)) return;
+      let data = e.data;
+      if (typeof data === "string") {
+        try { data = JSON.parse(data); } catch { return; }
+      }
+      // onReady fires when player.js inside the iframe finishes initializing.
+      // Re-subscribe at that moment so state-change events flow reliably.
+      if (data?.event === "onReady" || data?.event === "initialDelivery") {
+        subscribe();
+      }
+      if (data?.event === "onStateChange") {
+        const state = data?.info;
+        setYtPlayerState(state);
+        if (state === 0) {
+          const nxt = nextItemRef.current;
+          if (nxt) onSelectItem?.(nxt);
+        }
+      }
+    }
+
+    window.addEventListener("message", onMessage);
+
+    // Attach load listener to the current iframe element.
+    const iframe = ytIframeRef.current;
+    if (iframe) iframe.addEventListener("load", subscribe);
+
+    // Subscribe immediately and retry on a schedule that covers slow networks
+    // and the gap between iframe HTML load and player.js initialization.
+    subscribe();
+    const timers = [200, 500, 1000, 2000, 3500, 5000].map((ms) =>
+      setTimeout(subscribe, ms),
+    );
 
     return () => {
-      cancelled = true;
-      try { player?.destroy(); } catch {}
-      ytPlayerInstanceRef.current = null;
-      player = null;
+      window.removeEventListener("message", onMessage);
+      if (iframe) iframe.removeEventListener("load", subscribe);
+      timers.forEach(clearTimeout);
     };
   }, [isYouTube, videoId, onSelectItem]);
 
@@ -306,9 +301,18 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       });
     } catch {}
 
+    function sendYtCmd(func) {
+      const iframe = ytIframeRef.current;
+      if (!iframe?.contentWindow) return;
+      const msg = JSON.stringify({ event: "command", func, args: "" });
+      for (const origin of YOUTUBE_ORIGINS) {
+        try { iframe.contentWindow.postMessage(msg, origin); } catch {}
+      }
+    }
+
     try {
-      navigator.mediaSession.setActionHandler("play", () => ytPlayerInstanceRef.current?.playVideo?.());
-      navigator.mediaSession.setActionHandler("pause", () => ytPlayerInstanceRef.current?.pauseVideo?.());
+      navigator.mediaSession.setActionHandler("play", () => sendYtCmd("playVideo"));
+      navigator.mediaSession.setActionHandler("pause", () => sendYtCmd("pauseVideo"));
       navigator.mediaSession.setActionHandler("nexttrack", () => {
         const nxt = nextItemRef.current;
         if (nxt) onSelectItem?.(nxt);
@@ -505,11 +509,15 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="relative aspect-video w-full max-h-[45vh] min-h-[200px] shrink-0 bg-black">
               {isYouTube ? (
-                // YT.Player replaces the inner div with an iframe — the outer
-                // div holds position/size so the resulting iframe fills the area.
-                <div className="absolute inset-0 [&>iframe]:absolute [&>iframe]:inset-0 [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0">
-                  <div ref={playerContainerRef} />
-                </div>
+                <iframe
+                  key={videoId}
+                  ref={ytIframeRef}
+                  src={embedUrl}
+                  title={item.title || "YouTube video"}
+                  className="absolute inset-0 h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-foreground/70 text-sm">
                   No embeddable video for this item.
