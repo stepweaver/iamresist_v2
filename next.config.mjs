@@ -133,7 +133,7 @@ const nextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=(), autoplay=*, fullscreen=*, picture-in-picture=*, encrypted-media=*',
           },
           {
             key: 'X-Permitted-Cross-Domain-Policies',
