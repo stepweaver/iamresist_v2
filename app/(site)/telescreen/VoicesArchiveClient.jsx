@@ -291,7 +291,7 @@ export default function VoicesArchiveClient({
           <>
             <div className="flex justify-end mb-3">
               <button
-                onClick={() => { startKeepAlive(); setActiveItem(items[0]); }}
+                onClick={() => { setActiveItem(items[0]); }}
                 className="flex items-center gap-1.5 text-xs font-bold nav-label text-foreground/60 hover:text-primary transition-colors"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
@@ -304,7 +304,7 @@ export default function VoicesArchiveClient({
                 <li key={`${item.id ?? item.url}-${index}`}>
                   <VoiceCard
                     item={item}
-                    onPlay={(it) => { startKeepAlive(); setActiveItem(it); }}
+                    onPlay={(it) => { setActiveItem(it); }}
                     priority={index < 6}
                   />
                 </li>
@@ -317,6 +317,7 @@ export default function VoicesArchiveClient({
                 allItems={items}
                 onClose={() => { stopKeepAlive(); setActiveItem(null); }}
                 onSelectItem={setActiveItem}
+                onPlayStart={startKeepAlive}
               />
             ) : null}
 

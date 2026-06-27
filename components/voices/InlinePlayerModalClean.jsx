@@ -79,7 +79,7 @@ function descriptionLabel(item) {
   };
 }
 
-export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem }) {
+export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem, onPlayStart }) {
   const [lazyExtraItems, setLazyExtraItems] = useState([]);
   const [lazyExtraLoading, setLazyExtraLoading] = useState(false);
   const [ytPlayerState, setYtPlayerState] = useState(-1);
@@ -194,6 +194,8 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
   nextItemRef.current = nextItem;
   const prevItemRef = useRef(prevItem);
   prevItemRef.current = prevItem;
+  const onPlayStartRef = useRef(onPlayStart);
+  onPlayStartRef.current = onPlayStart;
 
   const swipeHandlers = useHorizontalSwipe({
     onSwipeLeft: () => nextItem && onSelectItem?.(nextItem),
@@ -256,6 +258,12 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       if (data?.event === "onStateChange") {
         const state = data?.info;
         setYtPlayerState(state);
+        if (state === 1) {
+          // Video is playing — safe to start the keep-alive now.
+          // On iOS PWA, calling this after YouTube has started audio works
+          // without consuming the original user gesture.
+          onPlayStartRef.current?.();
+        }
         if (state === 0) {
           const nxt = nextItemRef.current;
           if (nxt) onSelectItem?.(nxt);

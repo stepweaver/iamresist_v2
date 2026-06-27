@@ -13,7 +13,6 @@ export default function VoicesGridWithPlayerClient({ items = [], showPlayAll = t
   if (!items?.length) return null;
 
   function handlePlay(item) {
-    startKeepAlive();
     setActiveItem(item);
   }
 
@@ -48,6 +47,7 @@ export default function VoicesGridWithPlayerClient({ items = [], showPlayAll = t
           allItems={items}
           onClose={handleClose}
           onSelectItem={setActiveItem}
+          onPlayStart={startKeepAlive}
         />
       )}
     </>
