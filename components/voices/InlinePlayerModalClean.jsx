@@ -106,32 +106,13 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
   const closeButtonRef = useRef(null);
   const mainScrollRef = useRef(null);
   const railScrollRef = useRef(null);
-  const ytIframeRef = useRef(null);
+  const playerContainerRef = useRef(null);
   const ytPlayerInstanceRef = useRef(null);
 
   useModalFocusTrap(dialogRef, closeButtonRef);
 
   const videoId = getYoutubeVideoId(item?.url, item?.sourceId);
   const isYouTube = Boolean(videoId);
-  /** Same embed query string as source `InlinePlayerModal.jsx` (autoplay, no forced mute). */
-  const embedUrl = useMemo(() => {
-    if (!videoId) return "";
-
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const params = new URLSearchParams({
-      autoplay: "1",
-      playsinline: "1",
-      rel: "0",
-      modestbranding: "1",
-      enablejsapi: "1",
-    });
-
-    if (origin) {
-      params.set("origin", origin);
-    }
-
-    return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
-  }, [videoId]);
 
   /** Match production: no "more from" RSS fetch for protest-music (sidebar uses page list only). */
   const creatorBucketKey = useMemo(() => {
@@ -254,20 +235,26 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
   useEffect(() => {
     if (!isYouTube || !videoId) return;
+    const container = playerContainerRef.current;
+    if (!container) return;
 
     let cancelled = false;
     let player = null;
 
-    // The YouTube IFrame Player API handles all internal subscription timing
-    // (retrying "listening" until player.js is ready). This is far more
-    // reliable than manual postMessage polling.
+    // YT.Player creates and manages the iframe inside `container`. It handles
+    // all internal subscription timing so onStateChange fires reliably.
     ensureYouTubeApi()
       .then((YT) => {
-        if (cancelled) return;
-        const iframe = ytIframeRef.current;
-        if (!iframe) return;
-        // Attach to the already-rendered iframe — does not reload or reset it.
-        player = new YT.Player(iframe, {
+        if (cancelled || !playerContainerRef.current) return;
+        player = new YT.Player(playerContainerRef.current, {
+          videoId,
+          host: "https://www.youtube-nocookie.com",
+          playerVars: {
+            autoplay: 1,
+            playsinline: 1,
+            rel: 0,
+            modestbranding: 1,
+          },
           events: {
             onStateChange(e) {
               setYtPlayerState(e.data);
@@ -284,8 +271,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
     return () => {
       cancelled = true;
-      // Don't call player.destroy() — React controls the iframe's DOM lifetime
-      // via key={videoId}. Destroying here would remove the iframe mid-render.
+      try { player?.destroy(); } catch {}
       ytPlayerInstanceRef.current = null;
       player = null;
     };
@@ -508,14 +494,9 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="relative aspect-video w-full max-h-[45vh] min-h-[200px] shrink-0 bg-black">
               {isYouTube ? (
-                <iframe
-                  key={videoId}
-                  ref={ytIframeRef}
-                  src={embedUrl}
-                  title={item.title || "YouTube video"}
+                <div
+                  ref={playerContainerRef}
                   className="absolute inset-0 h-full w-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-foreground/70 text-sm">
