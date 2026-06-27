@@ -100,6 +100,9 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const params = new URLSearchParams({
       autoplay: "1",
+      // Start muted so iOS PWA (standalone mode) always permits autoplay.
+      // We unmute immediately via postMessage once the player signals ready.
+      mute: "1",
       playsinline: "1",
       rel: "0",
       modestbranding: "1",
@@ -244,6 +247,20 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       try { iframe.contentWindow.postMessage(msg, "*"); } catch {}
     }
 
+    function sendCmd(func, args) {
+      const iframe = ytIframeRef.current;
+      if (!iframe?.contentWindow) return;
+      const msg = JSON.stringify({ event: "command", func, args: args ?? "" });
+      for (const origin of YOUTUBE_ORIGINS) {
+        try { iframe.contentWindow.postMessage(msg, origin); } catch {}
+      }
+    }
+
+    function unmute() {
+      sendCmd("unMute");
+      sendCmd("setVolume", [100]);
+    }
+
     function onMessage(e) {
       if (!YOUTUBE_ORIGINS.includes(e.origin)) return;
       let data = e.data;
@@ -251,17 +268,18 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
         try { data = JSON.parse(data); } catch { return; }
       }
       // onReady fires when player.js inside the iframe finishes initializing.
-      // Re-subscribe at that moment so state-change events flow reliably.
+      // Re-subscribe and unmute at that moment so we get state-change events
+      // and the muted-autoplay trick plays with audio on iOS PWA.
       if (data?.event === "onReady" || data?.event === "initialDelivery") {
         subscribe();
+        unmute();
       }
       if (data?.event === "onStateChange") {
         const state = data?.info;
         setYtPlayerState(state);
         if (state === 1) {
-          // Video is playing — safe to start the keep-alive now.
-          // On iOS PWA, calling this after YouTube has started audio works
-          // without consuming the original user gesture.
+          // Belt-and-suspenders unmute once the player confirms it's playing.
+          unmute();
           onPlayStartRef.current?.();
         }
         if (state === 0) {
