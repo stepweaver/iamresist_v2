@@ -100,6 +100,9 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const params = new URLSearchParams({
       autoplay: "1",
+      // Start muted — iOS always permits muted autoplay regardless of gesture
+      // context. Timer-based unMute commands below restore audio within ~500ms.
+      mute: "1",
       playsinline: "1",
       rel: "0",
       modestbranding: "1",
@@ -233,12 +236,28 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
   useEffect(() => {
     if (!isYouTube || !videoId) return;
 
+    function sendCmd(func, args) {
+      const iframe = ytIframeRef.current;
+      if (!iframe?.contentWindow) return;
+      // Use "*" so the command reaches YouTube regardless of exact iframe origin.
+      try {
+        iframe.contentWindow.postMessage(
+          JSON.stringify({ event: "command", func, args: args ?? "" }),
+          "*",
+        );
+      } catch {}
+    }
+
+    function unmute() {
+      sendCmd("unMute");
+      sendCmd("setVolume", [100]);
+    }
+
     // Re-read the ref inside this function so retries always hit the live iframe.
     function subscribe() {
       const iframe = ytIframeRef.current;
       if (!iframe?.contentWindow) return;
       const msg = JSON.stringify({ event: "listening" });
-      // Try the specific nocookie origin, then '*' as fallback.
       try { iframe.contentWindow.postMessage(msg, "https://www.youtube-nocookie.com"); } catch {}
       try { iframe.contentWindow.postMessage(msg, "https://www.youtube.com"); } catch {}
       try { iframe.contentWindow.postMessage(msg, "*"); } catch {}
@@ -250,15 +269,16 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       if (typeof data === "string") {
         try { data = JSON.parse(data); } catch { return; }
       }
-      // onReady fires when player.js inside the iframe finishes initializing.
-      // Re-subscribe at that moment so state-change events flow reliably.
+      // Re-subscribe and unmute as soon as the player signals it is ready.
       if (data?.event === "onReady" || data?.event === "initialDelivery") {
         subscribe();
+        unmute();
       }
       if (data?.event === "onStateChange") {
         const state = data?.info;
         setYtPlayerState(state);
         if (state === 1) {
+          unmute(); // confirmed playing — unmute if not already done
           onPlayStartRef.current?.();
         }
         if (state === 0) {
@@ -270,21 +290,26 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
 
     window.addEventListener("message", onMessage);
 
-    // Attach load listener to the current iframe element.
     const iframe = ytIframeRef.current;
     if (iframe) iframe.addEventListener("load", subscribe);
 
-    // Subscribe immediately and retry on a schedule that covers slow networks
-    // and the gap between iframe HTML load and player.js initialization.
     subscribe();
-    const timers = [200, 500, 1000, 2000, 3500, 5000].map((ms) =>
+    // Subscription retries to cover slow networks and delayed player.js init.
+    const subTimers = [200, 500, 1000, 2000, 3500, 5000].map((ms) =>
       setTimeout(subscribe, ms),
+    );
+    // Timer-based unmute: fires independently of postMessage events.
+    // Guarantees audio on videos where onReady/onStateChange are delayed or missed.
+    // Uses "*" so it reaches player.js regardless of subscription state.
+    const unmuteTimers = [400, 800, 1500, 2500].map((ms) =>
+      setTimeout(unmute, ms),
     );
 
     return () => {
       window.removeEventListener("message", onMessage);
       if (iframe) iframe.removeEventListener("load", subscribe);
-      timers.forEach(clearTimeout);
+      subTimers.forEach(clearTimeout);
+      unmuteTimers.forEach(clearTimeout);
     };
   }, [isYouTube, videoId, onSelectItem]);
 
