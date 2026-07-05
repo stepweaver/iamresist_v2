@@ -11,10 +11,10 @@ export default async function CurrentlyReadingCard() {
   return (
     <div className="mb-6 sm:mb-8">
       <Card className="p-4 sm:p-6 hover:border-primary transition-colors">
-        <div className="flex items-start gap-3 sm:gap-4">
+        <div className="flex items-stretch gap-3 sm:gap-4">
           {currentBook.coverImage && (
-            <div className="flex-shrink-0">
-              <div className="relative w-16 h-20 sm:w-20 sm:h-28 book-shadow">
+            <div className="flex-shrink-0 w-16 sm:w-20 self-stretch">
+              <div className="relative h-full min-h-20 sm:min-h-28 book-shadow">
                 <Image
                   src={currentBook.coverImage}
                   alt={`${currentBook.title} cover`}
