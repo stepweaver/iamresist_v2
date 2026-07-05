@@ -7,11 +7,13 @@ export default function CurrentlyReadingCardSkeleton() {
         <div className="flex items-start gap-3 sm:gap-4">
           <div className="flex-shrink-0 w-16 h-20 sm:w-20 sm:h-28 bg-foreground/10 rounded-sm animate-pulse" />
 
-          <div className="flex-1 min-w-0 space-y-3">
-            <div className="h-3 w-20 bg-foreground/10 rounded animate-pulse" />
-            <div className="h-5 w-3/4 max-w-48 bg-foreground/10 rounded animate-pulse" />
-            <div className="h-3 w-1/2 max-w-32 bg-foreground/10 rounded animate-pulse" />
-            <div className="h-3 w-16 bg-foreground/10 rounded animate-pulse self-end" />
+          <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+            <div className="space-y-3 min-w-0 flex-1">
+              <div className="h-3 w-20 bg-foreground/10 rounded animate-pulse" />
+              <div className="h-5 w-3/4 max-w-48 bg-foreground/10 rounded animate-pulse" />
+              <div className="h-3 w-1/2 max-w-32 bg-foreground/10 rounded animate-pulse" />
+            </div>
+            <div className="h-3 w-28 bg-foreground/10 rounded animate-pulse shrink-0" />
           </div>
         </div>
       </Card>

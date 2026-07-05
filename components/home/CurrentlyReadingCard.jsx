@@ -28,8 +28,8 @@ export default async function CurrentlyReadingCard() {
           )}
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div>
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+              <div className="min-w-0">
                 <span className="kicker text-primary text-xs sm:text-sm font-bold block mb-1">
                   Currently Reading
                 </span>
@@ -37,7 +37,7 @@ export default async function CurrentlyReadingCard() {
                   href={`/book-club/${currentBook.slug}`}
                   className="block hover:text-primary transition-colors"
                 >
-                  <h3 className="font-ui text-base sm:text-lg font-bold text-foreground mb-1 line-clamp-1">
+                  <h3 className="font-ui text-base sm:text-lg font-bold text-foreground mb-1 break-words">
                     {currentBook.title}
                   </h3>
                   <p className="prose-copy text-xs sm:text-sm text-foreground/60">by {currentBook.author}</p>
@@ -45,7 +45,7 @@ export default async function CurrentlyReadingCard() {
               </div>
               <Link
                 href="/book-club"
-                className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold whitespace-nowrap"
+                className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold whitespace-nowrap shrink-0 self-start"
               >
                 Browse book notes -&gt;
               </Link>

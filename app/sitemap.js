@@ -15,7 +15,6 @@ const STATIC_PATHS = [
   '/journal',
   '/book-club',
   '/resources',
-  '/subscribe',
   '/shop',
   '/intel/newswire',
   '/intel/voices',

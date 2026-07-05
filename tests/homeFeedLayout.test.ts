@@ -18,10 +18,6 @@ vi.mock('@/components/home/ShopPromoSection', () => ({
   default: () => createElement('section', { 'data-testid': 'shop-promo' }, 'Shop promo'),
 }));
 
-vi.mock('@/components/subscribe/ResistanceBriefSignup', () => ({
-  default: () => createElement('section', { 'data-testid': 'signup' }, 'Signup'),
-}));
-
 vi.mock('@/components/home/CurrentlyReadingCard', () => ({
   default: () => createElement('section', { 'data-testid': 'currently-reading' }, 'Currently reading'),
 }));
@@ -53,7 +49,7 @@ describe('HomeFeed layout ordering', () => {
     }
 
     const topLevelChildren = Children.toArray(element.props.children);
-    const orderedSections = topLevelChildren[3];
+    const orderedSections = topLevelChildren[2];
 
     if (!isValidElement(orderedSections)) {
       throw new Error('Expected ordered sections container to be a valid React element');
