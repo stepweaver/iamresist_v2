@@ -1,6 +1,13 @@
 import type { ProvenanceClass } from '@/lib/intel/types';
 import { computeAgendaPulseScore } from '@/lib/intel/agendaPulse';
 import { applyEditorialRankingProfile } from '@/lib/intel/rankingProfile';
+import { assessMissionScope } from '@/lib/intel/missionScope';
+import {
+  deriveThemeAttentionSignal,
+  type ThemeAttentionRankingSignal,
+  type ThemeRankingMode,
+} from '@/lib/intel/themeAttentionRanking';
+import type { ThemeAttentionForItem } from '@/lib/themeMemory/readModel';
 
 export type DisplayBucket = 'lead' | 'secondary' | 'routine';
 
@@ -13,6 +20,7 @@ export type DisplayPriorityResult = {
   displayPriority: number; // 0..100 (clamped)
   displayBucket: DisplayBucket;
   displayExplanations: DisplayExplanation[];
+  themeAttentionRanking?: ThemeAttentionRankingSignal;
 };
 
 export type RecentWindowTieBreakCandidate = {
@@ -29,7 +37,7 @@ export type RecentWindowTieBreakDecision = {
   scoreGap: number | null;
 };
 
-type ScoringInput = {
+export type DisplayPriorityInput = {
   title: string;
   summary: string | null;
   provenanceClass: ProvenanceClass;
@@ -48,7 +56,20 @@ type ScoringInput = {
   deskLane?: string;
   contentUseMode?: string | null;
   sourceFamily?: string | null;
+  surfaceState?: string | null;
+  isDuplicateLoser?: boolean;
+  missionScopeState?: string | null;
+  /** Precomputed Theme Memory context. Ranking never fetches or calls AI. */
+  themeAttention?: ThemeAttentionForItem | null;
+  /**
+   * off (default): ignore theme context.
+   * shadow: calculate/expose contribution, do not change score.
+   * active: apply bounded contribution.
+   */
+  themeRankingMode?: ThemeRankingMode;
 };
+
+type ScoringInput = DisplayPriorityInput;
 
 const PROVENANCE_TIEBREAK_ORDER: Record<ProvenanceClass, number> = {
   PRIMARY: 0,
@@ -436,6 +457,35 @@ export function computeDisplayPriority(input: ScoringInput): DisplayPriorityResu
     explanations.push({ ruleId: e.ruleId, message: e.message });
   }
 
+  if (input.sourceSlug === 'indicator-pentagon-pizza') {
+    score = Math.min(score, 28);
+  }
+
+  const mode: ThemeRankingMode = input.themeRankingMode ?? 'off';
+  let themeAttentionRanking: ThemeAttentionRankingSignal | undefined;
+  if (mode !== 'off') {
+    const missionScopeState =
+      input.missionScopeState ??
+      assessMissionScope({ title: input.title, summary: input.summary }).scopeState;
+    themeAttentionRanking = deriveThemeAttentionSignal(
+      input.themeAttention ?? null,
+      {
+        surfaceState: input.surfaceState,
+        isDuplicateLoser: input.isDuplicateLoser,
+        relevanceScore: input.relevanceScore,
+        provenanceClass: input.provenanceClass,
+        publishedAt: input.publishedAt,
+        contentUseMode: input.contentUseMode,
+        missionScopeState,
+        baseDisplayPriority: clamp(score),
+      },
+      mode,
+    );
+    if (themeAttentionRanking.appliedContribution > 0) {
+      score += themeAttentionRanking.appliedContribution;
+    }
+  }
+
   let displayPriority = clamp(score);
   if (input.sourceSlug === 'indicator-pentagon-pizza') {
     displayPriority = Math.min(displayPriority, 28);
@@ -449,7 +499,18 @@ export function computeDisplayPriority(input: ScoringInput): DisplayPriorityResu
     ruleId: 'display:score',
     message: `Display priority ${displayPriority} (bucket: ${displayBucket})`,
   });
+  if (themeAttentionRanking && themeAttentionRanking.appliedContribution > 0) {
+    explanations.splice(1, 0, {
+      ruleId: 'display:theme_attention',
+      message: `Bounded theme attention +${themeAttentionRanking.appliedContribution} (${themeAttentionRanking.reasons.join(', ')})`,
+    });
+  }
 
-  return { displayPriority, displayBucket, displayExplanations: explanations.slice(0, 8) };
+  return {
+    displayPriority,
+    displayBucket,
+    displayExplanations: explanations.slice(0, 8),
+    ...(themeAttentionRanking ? { themeAttentionRanking } : {}),
+  };
 }
 

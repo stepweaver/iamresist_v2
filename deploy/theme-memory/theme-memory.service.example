@@ -1,0 +1,21 @@
+[Unit]
+Description=Theme Memory daily ingest and process
+Documentation=file:///path/to/iamresist_v2/deploy/theme-memory/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=THEME_MEMORY_USER
+Group=THEME_MEMORY_GROUP
+WorkingDirectory=/path/to/iamresist_v2
+EnvironmentFile=/path/to/iamresist_v2/.env.local
+ExecStart=/usr/bin/npm run theme-memory:daily
+Nice=10
+TimeoutStartSec=3600
+# Application lock in the CLI prevents overlapping npm runs.
+# Optional extra host lock:
+# ExecStart=/usr/bin/flock -n /run/theme-memory.lock /usr/bin/npm run theme-memory:daily
+
+[Install]
+WantedBy=multi-user.target

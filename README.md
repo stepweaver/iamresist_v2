@@ -106,7 +106,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 
 **OSINT intel desk**
 
-- Apply intel SQL migrations in timestamp order (through `20260427143000_congress_gov_agenda_pulse.sql` so `fetch_kind`, `source_family`, and `state_change_type` constraints allow Congress.gov/Agenda Pulse rows). Earlier files include `20260412120000_intel_milestone1.sql`, `20260412140000_intel_live_desk_snapshot.sql`, `20260412150000_intel_milestone1_5_governance.sql`, `20260412160000_intel_milestone1_75_relevance.sql`, `20260412170000_intel_source_lanes_content_use.sql`, `20260418120000_intel_source_family_desk_lanes.sql`, and `20260418201000_intel_source_items_desk_lane_extend.sql`. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
+- Apply intel SQL migrations in timestamp order (through `20260915140000_theme_memory_themes.sql` so Theme Memory persistent theme tables exist, and through `20260427143000_congress_gov_agenda_pulse.sql` so `fetch_kind`, `source_family`, and `state_change_type` constraints allow Congress.gov/Agenda Pulse rows). Earlier files include `20260412120000_intel_milestone1.sql`, `20260412140000_intel_live_desk_snapshot.sql`, `20260412150000_intel_milestone1_5_governance.sql`, `20260412160000_intel_milestone1_75_relevance.sql`, `20260412170000_intel_source_lanes_content_use.sql`, `20260418120000_intel_source_family_desk_lanes.sql`, and `20260418201000_intel_source_items_desk_lane_extend.sql`. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
 - **Required:** Supabase **Project Settings → API → Exposed schemas** must include **`intel`** (not only `public`). Without this, the API returns `Invalid schema: intel` and `/intel/osint` cannot load.
 - Optional wire feeds (omit both if blocked — ingest skips them; no silent downgrade): `INTEL_REUTERS_RSS_URL`, `INTEL_AP_RSS_URL`
 - Optional Congress.gov structured primary-source ingestion: `CONGRESS_GOV_API_KEY`. When unset, Congress.gov source rows are present but disabled/skipped fail-closed; the key is appended only inside the fetch helper and is redacted from ingest metadata.
@@ -119,6 +119,22 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
   - **Job failure mode**: if `runIntelIngest()` throws or overall ingest is `failed`, the endpoint returns **500** with `overallStatus: failed`.
   - **Cadence assumption**: schedule it more frequently than `INTEL_DESK_STALE_AFTER_MINUTES` (default 90m), otherwise the desk and `/intel/sources` will show **stale**.
 - Agenda Pulse: Congress.gov rows feed deterministic ranking boosts for upcoming hearings/markups, witness documents, bill text/summaries/actions, House roll-call votes, CRS context, and high public-consequence congressional activity. Creator/video signals remain leads only; they do not count as proof unless corroborated by primary records or trusted reporting.
+
+**Theme Memory** (`lib/env/themeMemory.js`)
+
+- Optional local classification for persistent creator-led themes.
+- Ranking integration is **off by default**. Theme Memory does not replace the existing ranking model; it can supply a bounded longitudinal attention input when enabled.
+- `THEME_AI_PROVIDER` — `none` (default, deterministic fallback) or `ollama`
+- `OLLAMA_BASE_URL` — default `http://127.0.0.1:11434`
+- `OLLAMA_MODEL` — required when `THEME_AI_PROVIDER=ollama`
+- Optional: `THEME_AI_TIMEOUT_MS` (default `45000`), `THEME_AI_MAX_RETRIES` (default `2`)
+- `THEME_RANKING_MODE` — `off` (default), `shadow` (calculate, do not apply), or `active`
+- `THEME_RANKING_ENABLED` — `true`/`1` enables `active` only when `THEME_RANKING_MODE` is unset
+- Manual HTTP crons still exist: `GET /api/cron/theme-memory-ingest` and `GET /api/cron/theme-memory-process` with `Authorization: Bearer CRON_SECRET`
+- VPS batch (same host as Ollama; does not call the public site): `npm run theme-memory:daily`, smoke test `npm run theme-memory:ai-check`. See [`deploy/theme-memory/README.md`](deploy/theme-memory/README.md).
+- Internal calibration: `GET /api/internal/theme-ranking-diagnostics` in development or with `INTERNAL_THEME_RANKING_DEBUG=1` / `INTERNAL_INTEL_DESK_DEBUG=1`
+- Apply intel SQL migrations through `20260915140000_theme_memory_themes.sql` in addition to the OSINT desk migrations above
+- See [`docs/theme-memory.md`](docs/theme-memory.md)
 
 **Stripe / Printify / email** (`lib/env/shop.js`, `lib/env/site.js`)
 
@@ -155,6 +171,8 @@ Open [http://localhost:3000](http://localhost:3000). Turbopack is enabled in the
 | `npm run lint` | ESLint |
 | `npm run test` | Vitest (Node env) |
 | `npm run test:watch` | Vitest watch |
+| `npm run theme-memory:daily` | VPS/local Theme Memory ingest + process (direct services, not HTTP) |
+| `npm run theme-memory:ai-check` | Ollama reachability + membership schema smoke test (no Theme Memory writes) |
 
 ---
 

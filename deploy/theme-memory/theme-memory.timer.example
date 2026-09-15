@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Theme Memory batch timer
+
+[Timer]
+OnCalendar=*-*-* 06:15:00
+Persistent=true
+RandomizedDelaySec=180
+Unit=theme-memory.service
+
+[Install]
+WantedBy=timers.target

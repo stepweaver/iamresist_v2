@@ -38,6 +38,9 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# Local calibration / diagnostics artifacts (may contain live URLs)
+tmp/
+
 # Editors
 .idea/
 

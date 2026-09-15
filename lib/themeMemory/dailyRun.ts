@@ -1,0 +1,212 @@
+import { themeMemoryEnv } from '@/lib/env/themeMemory';
+import { resolveThemeRankingMode } from '@/lib/intel/themeAttentionRanking';
+import { ingestThemeMemorySources, type ThemeMemoryIngestResult } from '@/lib/themeMemory/ingest';
+import { getThemeMemoryDiagnostics, type ThemeMemoryDiagnostics } from '@/lib/themeMemory/diagnostics';
+import { findLikelyDuplicateThemes, type LikelyDuplicateTheme } from '@/lib/themeMemory/duplicates';
+import { runThemeMemoryProcess } from '@/lib/themeMemory/processRunner';
+import type { ThemeProcessDiagnostics, ThemeProcessResult } from '@/lib/themeMemory/process';
+import { acquireThemeMemoryRunLock, ThemeMemoryLockBusyError } from '@/lib/themeMemory/runLock';
+import { validateThemeMemoryRuntime, type ThemeMemoryStartupCheck } from '@/lib/themeMemory/startup';
+import { createSupabaseThemeStore } from '@/lib/themeMemory/themesDb';
+import type { ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
+
+export type ThemeMemoryDailyResult = {
+  ok: boolean;
+  overallStatus: 'success' | 'partial' | 'failed';
+  finishedAt: string;
+  skipped?: string;
+  startup: ThemeMemoryStartupCheck | null;
+  ingest: ThemeMemoryIngestResult | null;
+  process: ThemeProcessResult | null;
+  diagnostics: ThemeMemoryDiagnostics | null;
+  duplicateThemeCandidates: LikelyDuplicateTheme[];
+  rankingMode: string;
+  aiProvider: string;
+  aiModel: string | null;
+};
+
+export type ThemeMemoryDailyDeps = {
+  ingestFn?: typeof ingestThemeMemorySources;
+  processFn?: typeof runThemeMemoryProcess;
+  validateFn?: typeof validateThemeMemoryRuntime;
+  diagnosticsFn?: typeof getThemeMemoryDiagnostics;
+  listThemesFn?: () => Promise<ThemeRecord[]>;
+  listMembershipsFn?: () => Promise<ThemeMembershipRecord[]>;
+};
+
+function emptyProcessDiagnostics(): ThemeProcessDiagnostics {
+  return {
+    creatorItemsConsidered: 0,
+    creatorItemsSkippedUnchanged: 0,
+    newswireItemsConsidered: 0,
+    intelItemsConsidered: 0,
+    themesCreated: 0,
+    themesUpdated: 0,
+    deterministicMemberships: 0,
+    aiMembershipChecks: 0,
+    aiMembershipsAccepted: 0,
+    aiMembershipsRejected: 0,
+    aiFailures: 0,
+    aiUnavailable: false,
+    incompleteClassification: false,
+    newswireMembersAttached: 0,
+    intelMembersAttached: 0,
+    primaryMembersAttached: 0,
+    specialistMembersAttached: 0,
+    labelsGenerated: 0,
+    dailySignalsWritten: 0,
+    themesByLifecycle: { new: 0, developing: 0, persistent: 0, cooling: 0, resurging: 0, dormant: 0 },
+  };
+}
+
+function failedResult(input: {
+  finishedAt: string;
+  skipped: string;
+  startup?: ThemeMemoryStartupCheck | null;
+}): ThemeMemoryDailyResult {
+  return {
+    ok: false,
+    overallStatus: 'failed',
+    finishedAt: input.finishedAt,
+    skipped: input.skipped,
+    startup: input.startup ?? null,
+    ingest: null,
+    process: null,
+    diagnostics: null,
+    duplicateThemeCandidates: [],
+    rankingMode: resolveThemeRankingMode(),
+    aiProvider: themeMemoryEnv.THEME_AI_PROVIDER || 'none',
+    aiModel: themeMemoryEnv.OLLAMA_MODEL || null,
+  };
+}
+
+export function themeMemoryDailyExitCode(result: ThemeMemoryDailyResult): number {
+  return result.ok && result.overallStatus !== 'failed' ? 0 : 1;
+}
+
+export function formatThemeMemoryDailySummary(result: ThemeMemoryDailyResult): string {
+  const ingest = result.ingest;
+  const d = result.process?.diagnostics ?? emptyProcessDiagnostics();
+  const lifecycle = d.themesByLifecycle;
+  const voicesAttempted = ingest?.voices.sourcesAttempted ?? 0;
+  const voicesOk = ingest?.voices.sourcesSucceeded ?? 0;
+  const lines = [
+    'Theme Memory Daily',
+    '------------------',
+    'Ingest:',
+    `  Voices: ${voicesOk}/${voicesAttempted} feeds, ${ingest?.voices.itemsSeen ?? 0} seen, ${ingest?.voices.observationsTouched ?? 0} new`,
+    `  Newswire: ${ingest?.newswire.sourcesRepresented ?? 0} sources, ${ingest?.newswire.itemsSeen ?? 0} seen, ${ingest?.newswire.observationsTouched ?? 0} new`,
+    '',
+    'Process:',
+    `  Creator observations considered: ${d.creatorItemsConsidered}`,
+    `  Themes created: ${d.themesCreated}`,
+    `  Themes updated: ${d.themesUpdated}`,
+    `  Deterministic memberships: ${d.deterministicMemberships}`,
+    `  AI checks: ${d.aiMembershipChecks}`,
+    `  AI accepted: ${d.aiMembershipsAccepted}`,
+    `  AI rejected: ${d.aiMembershipsRejected}`,
+    `  AI failures: ${d.aiFailures}`,
+    `  Newswire attached: ${d.newswireMembersAttached}`,
+    `  Intel attached: ${d.intelMembersAttached}`,
+    '',
+    'Lifecycle:',
+    `  new: ${lifecycle.new}`,
+    `  developing: ${lifecycle.developing}`,
+    `  persistent: ${lifecycle.persistent}`,
+    `  cooling: ${lifecycle.cooling}`,
+    `  resurging: ${lifecycle.resurging}`,
+    `  dormant: ${lifecycle.dormant}`,
+    '',
+    'Ranking:',
+    `  mode: ${result.rankingMode}`,
+    `  provider: ${result.aiProvider}`,
+    `  model: ${result.aiModel || 'none'}`,
+    `  duplicate-theme candidates: ${result.duplicateThemeCandidates.length}`,
+  ];
+  if (result.skipped) {
+    lines.push('', `Status: ${result.overallStatus} (${result.skipped})`);
+  } else {
+    lines.push('', `Status: ${result.overallStatus}`);
+  }
+  return lines.join('\n');
+}
+
+export async function runThemeMemoryDaily(
+  opts: {
+    now?: Date | string;
+    refreshLabels?: boolean;
+    skipLock?: boolean;
+    skipValidate?: boolean;
+  } & ThemeMemoryDailyDeps = {},
+): Promise<ThemeMemoryDailyResult> {
+  const finishedAt = new Date().toISOString();
+  let lock: { release: () => void } | null = null;
+  try {
+    if (!opts.skipLock) {
+      lock = acquireThemeMemoryRunLock();
+    }
+
+    const validateFn = opts.validateFn || validateThemeMemoryRuntime;
+    const startup = opts.skipValidate ? null : await validateFn();
+    if (startup && !startup.ok) {
+      return failedResult({
+        finishedAt,
+        skipped: startup.errors.join('; '),
+        startup,
+      });
+    }
+
+    const ingestFn = opts.ingestFn || ingestThemeMemorySources;
+    const processFn = opts.processFn || runThemeMemoryProcess;
+    const ingest = await ingestFn({ includeDiagnostics: true, now: opts.now });
+    const processed = await processFn({
+      now: opts.now,
+      ingestFirst: false,
+      refreshLabels: opts.refreshLabels,
+    });
+    const diagnosticsFn = opts.diagnosticsFn || getThemeMemoryDiagnostics;
+    const diagnostics = await diagnosticsFn({ now: opts.now });
+
+    let duplicateThemeCandidates: LikelyDuplicateTheme[] = [];
+    try {
+      const listThemes = opts.listThemesFn || (async () => createSupabaseThemeStore({ now: opts.now }).listThemes());
+      const listMemberships =
+        opts.listMembershipsFn || (async () => createSupabaseThemeStore({ now: opts.now }).listMemberships());
+      const [themes, memberships] = await Promise.all([listThemes(), listMemberships()]);
+      duplicateThemeCandidates = findLikelyDuplicateThemes(themes, memberships);
+    } catch {
+      duplicateThemeCandidates = [];
+    }
+
+    const overallStatus =
+      processed.overallStatus === 'failed' || ingest.overallStatus === 'failed'
+        ? 'failed'
+        : processed.overallStatus === 'partial' || ingest.overallStatus === 'partial'
+          ? 'partial'
+          : 'success';
+
+    return {
+      ok: overallStatus !== 'failed',
+      overallStatus,
+      finishedAt: processed.finishedAt || finishedAt,
+      startup,
+      ingest,
+      process: processed,
+      diagnostics,
+      duplicateThemeCandidates,
+      rankingMode: resolveThemeRankingMode(),
+      aiProvider: themeMemoryEnv.THEME_AI_PROVIDER || 'none',
+      aiModel: themeMemoryEnv.OLLAMA_MODEL || null,
+    };
+  } catch (error) {
+    if (error instanceof ThemeMemoryLockBusyError) {
+      return failedResult({ finishedAt, skipped: error.message });
+    }
+    return failedResult({
+      finishedAt,
+      skipped: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    lock?.release();
+  }
+}

@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "cross-env NODE_ENV=test vitest run",
     "test:watch": "cross-env NODE_ENV=test vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "theme-memory:daily": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-daily.ts",
+    "theme-memory:ai-check": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-ai-check.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
@@ -32,6 +34,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "^15.5.14",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.20.5",
     "vitest": "^3.0.5"
   }
 }
