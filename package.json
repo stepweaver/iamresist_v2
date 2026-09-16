@@ -11,7 +11,8 @@
     "test:watch": "cross-env NODE_ENV=test vitest",
     "typecheck": "tsc --noEmit",
     "theme-memory:daily": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-daily.ts",
-    "theme-memory:ai-check": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-ai-check.ts"
+    "theme-memory:ai-check": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-ai-check.ts",
+    "theme-memory:reclassify": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-reclassify.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",

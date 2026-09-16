@@ -303,6 +303,51 @@ export function createSupabaseThemeStore(opts: {
   };
 }
 
+async function selectAllPages<T>(run: (from: number, to: number) => Promise<T[]>, pageSize = 500): Promise<T[]> {
+  const out: T[] = [];
+  let from = 0;
+  for (;;) {
+    const rows = await run(from, from + pageSize - 1);
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return out;
+}
+
+/**
+ * Unbounded read of persisted themes. Report-only tools should use this
+ * instead of the lookback-limited store listing.
+ */
+export async function listAllThemeRecords(): Promise<ThemeRecord[]> {
+  if (!intelDbConfigured()) return [];
+  return selectAllPages(async (from, to) => {
+    const { data, error } = await client()
+      .from('themes')
+      .select(THEME_SELECT)
+      .order('id', { ascending: true })
+      .range(from, to);
+    if (error) throw new Error(`themes select all: ${error.message}`);
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => mapTheme(row));
+  });
+}
+
+/**
+ * Unbounded read of persisted memberships. Select-only.
+ */
+export async function listAllMembershipRecords(): Promise<ThemeMembershipRecord[]> {
+  if (!intelDbConfigured()) return [];
+  return selectAllPages(async (from, to) => {
+    const { data, error } = await client()
+      .from('theme_memberships')
+      .select(MEMBERSHIP_SELECT)
+      .order('id', { ascending: true })
+      .range(from, to);
+    if (error) throw new Error(`theme_memberships select all: ${error.message}`);
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => mapMembership(row));
+  });
+}
+
 export function themeLookbackIso(now?: Date | string, days = THEME_MATCH_LOOKBACK_DAYS): string {
   const end = now ? new Date(now) : new Date();
   return toUtcIso(new Date(end.getTime() - days * 86400000)) || new Date().toISOString();
