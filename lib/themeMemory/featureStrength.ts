@@ -89,6 +89,51 @@ const WEAK_ENTITY_TOKENS = new Set([
   'senator',
   'representative',
   'representatives',
+  'congressman',
+  'congresswoman',
+  'lawmaker',
+  'lawmakers',
+]);
+
+/**
+ * Function / glue words that survive tokenization but never identify a story.
+ */
+const FUNCTION_WORDS = new Set([
+  'during',
+  'another',
+  'other',
+  'others',
+  'against',
+  'because',
+  'through',
+  'while',
+  'under',
+  'above',
+  'below',
+  'between',
+  'without',
+  'within',
+  'among',
+  'across',
+  'every',
+  'each',
+  'both',
+  'same',
+  'such',
+  'most',
+  'some',
+  'many',
+  'much',
+  'using',
+  'based',
+  'related',
+  'including',
+  'includes',
+  'include',
+  'himself',
+  'herself',
+  'itself',
+  'themselves',
 ]);
 
 /**
@@ -179,6 +224,13 @@ const SUPPORTING_TOKENS = new Set([
   'unrelated',
   'controversy',
   'debate',
+  'bombshell',
+  'bombshells',
+  'breaking',
+  'headline',
+  'headlines',
+  'secretary',
+  'federal',
 ]);
 
 /**
@@ -210,7 +262,6 @@ const DISTINCTIVE_ACTION_TOKENS = new Set([
   'guard',
   'troops',
   'militia',
-  'ruling',
   'appeal',
   'emergency',
   'authority',
@@ -232,8 +283,17 @@ const WEAK_PHRASES = new Set([
   'democratic party',
   'republican senate',
   'democratic senate',
+  'senate candidate',
+  'senate hearing',
+  'senate debate',
+  'house hearing',
+  'republican candidate',
+  'democratic candidate',
+  'supreme court ruling',
+  'supreme court decision',
   'house representatives',
   'federal government',
+  'latest news',
 ]);
 
 export function stemThemeToken(token: string): string {
@@ -285,6 +345,8 @@ function isSupportingToken(token: string): boolean {
 export function featureStrength(token: string): SemanticFeatureStrength {
   const raw = token.toLowerCase().trim();
   if (!raw) return 'weak';
+  const stemmed = stemThemeToken(raw);
+  if (FUNCTION_WORDS.has(raw) || FUNCTION_WORDS.has(stemmed)) return 'weak';
   if (isWeakEntityToken(raw)) return 'weak';
   if (isDistinctiveActionToken(raw)) return 'strong';
   if (isSupportingToken(raw)) return 'supporting';

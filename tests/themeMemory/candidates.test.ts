@@ -131,4 +131,23 @@ describe('Theme Memory deterministic candidates', () => {
     expect(isDeterministicThemeMatch(scored)).toBe(false);
     expect(isPlausibleThemeCandidate(scored)).toBe(false);
   });
+
+  it('does not treat Republican Senate candidate as an event identity', () => {
+    const scored = match(
+      "Got Oxy? How Michigan’s Mike Rogers Helped Fuel the Opioid Crisis",
+      'Republican Senate candidate CHEATS OFF Democratic opponent during debate',
+    );
+    expect(isDeterministicThemeMatch(scored)).toBe(false);
+    expect(isPlausibleThemeCandidate(scored)).toBe(false);
+  });
+
+  it('does not treat a generic Supreme Court ruling as a distinctive anchor', () => {
+    const scored = match(
+      'Supreme Court issues major ruling',
+      'Supreme Court hands down bombshell decision',
+    );
+    expect(scored.distinctiveAnchor).toBe(false);
+    expect(isDeterministicThemeMatch(scored)).toBe(false);
+    expect(isPlausibleThemeCandidate(scored)).toBe(false);
+  });
 });

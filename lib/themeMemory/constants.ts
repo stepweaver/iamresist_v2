@@ -3,9 +3,9 @@
  * Bump prompt/classification versions when membership or labeling rules change.
  */
 
-export const THEME_MEMBERSHIP_PROMPT_VERSION = 'tm-membership-v2';
-export const THEME_LABEL_PROMPT_VERSION = 'tm-label-v1';
-export const THEME_CLASSIFICATION_VERSION = 'tm-classify-v2';
+export const THEME_MEMBERSHIP_PROMPT_VERSION = 'tm-membership-v3';
+export const THEME_LABEL_PROMPT_VERSION = 'tm-label-v2';
+export const THEME_CLASSIFICATION_VERSION = 'tm-classify-v3';
 
 /**
  * Analysis cache key. A prior none/deterministic analysis must not permanently

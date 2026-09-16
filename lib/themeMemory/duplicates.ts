@@ -1,5 +1,5 @@
 import { isDeterministicThemeMatch, scoreThemeCandidate } from '@/lib/themeMemory/candidates';
-import { creatorAnchoredFingerprint } from '@/lib/themeMemory/features';
+import { buildThemeCoreFingerprint } from '@/lib/themeMemory/identity';
 import type { ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
 
 export type LikelyDuplicateTheme = {
@@ -29,7 +29,7 @@ export function findLikelyDuplicateThemes(
 
   const fingerprints = themes.map((theme) => ({
     theme,
-    fingerprint: creatorAnchoredFingerprint(theme, byTheme.get(theme.id) || []),
+    fingerprint: buildThemeCoreFingerprint(theme, byTheme.get(theme.id) || []),
   }));
 
   const out: LikelyDuplicateTheme[] = [];

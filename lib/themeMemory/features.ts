@@ -9,7 +9,7 @@ import {
   stemThemeToken,
 } from '@/lib/themeMemory/featureStrength';
 import type { ThemeCandidateItem } from '@/lib/themeMemory/types';
-import type { ThemeFingerprint, ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
+import type { ThemeFingerprint } from '@/lib/themeMemory/themeTypes';
 
 export { featureStrength, isWeakEntityToken, phraseStrength, stemThemeToken } from '@/lib/themeMemory/featureStrength';
 
@@ -153,24 +153,16 @@ export function mergeFingerprints(parts: ThemeFingerprint[]): ThemeFingerprint {
   };
 }
 
-export function creatorAnchoredFingerprint(
-  theme: ThemeRecord,
-  memberships: ThemeMembershipRecord[],
-): ThemeFingerprint {
-  const creatorMembers = memberships.filter((row) => row.member_role === 'creator');
-  const parts = [
-    extractThemeFingerprint({
-      title: theme.canonical_label,
-    }),
-    ...creatorMembers.slice(-8).map((row) =>
-      extractThemeFingerprint({
-        title: row.title,
-        summary: row.summary,
-        canonicalUrl: row.canonical_url,
-      }),
-    ),
-  ];
-  return mergeFingerprints(parts);
+export function fingerprintFromMembership(row: {
+  title: string;
+  summary?: string | null;
+  canonical_url?: string | null;
+}): ThemeFingerprint {
+  return extractThemeFingerprint({
+    title: row.title,
+    summary: row.summary,
+    canonicalUrl: row.canonical_url,
+  });
 }
 
 export function deterministicLabelFromFingerprint(fingerprint: ThemeFingerprint, fallbackTitle: string): string {

@@ -24,10 +24,9 @@ function hasDistinctiveAnchor(input: {
 }): boolean {
   if (input.sharedClusterKeys.length > 0) return true;
   if (input.sharedStrongPhrases.length > 0) return true;
-  if (input.sharedStrongTokens.length > 0) return true;
-  if (input.sharedActions.length > 0 && input.sharedStrongTokens.length + input.sharedStrongPhrases.length > 0) {
-    return true;
-  }
+  if (input.sharedStrongTokens.length >= 2) return true;
+  if (input.sharedStrongTokens.length >= 1 && input.sharedActions.length >= 1) return true;
+  if (input.sharedStrongTokens.some((token) => token.length >= THEME_STRONG_SUBJECT_MIN_LENGTH)) return true;
   return false;
 }
 
@@ -73,6 +72,10 @@ export function scoreThemeCandidate(input: {
     const distinctiveJaccard = tokenJaccard(input.item.distinctiveTokens, input.theme.distinctiveTokens);
     score += Math.min(0.5, distinctiveJaccard * 0.7 + sharedDistinctive.length * 0.08);
     reasons.push(`shared_distinctive:${sharedDistinctive.slice(0, 4).join(',')}`);
+    if (sharedDistinctive.length >= 2) {
+      score += 0.2;
+      reasons.push('aligned_event_anchors');
+    }
   }
 
   if (sharedSupporting.length > 0 && distinctiveAnchor) {
@@ -144,7 +147,7 @@ export function isDeterministicThemeMatch(match: ThemeCandidateMatch): boolean {
   if (!match.distinctiveAnchor) return false;
   if (match.sharedClusterKeys.length > 0) return true;
   const strongSubjects = match.sharedDistinctive.filter((token) => token.length >= THEME_STRONG_SUBJECT_MIN_LENGTH);
-  if (match.sharedPhrases.length >= 1 && match.sharedDistinctive.length >= 1 && match.score >= 0.55) {
+  if (match.sharedPhrases.length >= 1 && match.sharedDistinctive.length >= 2 && match.score >= 0.55) {
     return true;
   }
   if (match.sharedDistinctive.length >= THEME_DETERMINISTIC_MIN_DISTINCTIVE && match.score >= THEME_DETERMINISTIC_ACCEPT_SCORE) {

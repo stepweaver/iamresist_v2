@@ -10,13 +10,14 @@ import {
   THEME_MEMBERSHIP_PROMPT_VERSION,
   themeClassificationCacheVersion,
 } from '@/lib/themeMemory/constants';
+import { isDeterministicThemeMatch, isPlausibleThemeCandidate, rankThemeCandidates } from '@/lib/themeMemory/candidates';
+import { shouldAcceptAIMembership } from '@/lib/themeMemory/ai/accept';
+import { deterministicLabelFromFingerprint, fingerprintFromCandidate } from '@/lib/themeMemory/features';
 import {
-  isDeterministicThemeMatch,
-  isPlausibleThemeCandidate,
-  rankThemeCandidates,
-  scoreThemeCandidate,
-} from '@/lib/themeMemory/candidates';
-import { creatorAnchoredFingerprint, deterministicLabelFromFingerprint, fingerprintFromCandidate } from '@/lib/themeMemory/features';
+  compareCandidateToThemeCore,
+  coreMembersForLabel,
+  identityClassForAttachment,
+} from '@/lib/themeMemory/identity';
 import { resolveThemeLifecycle } from '@/lib/themeMemory/lifecycle';
 import { computeThemeDailySignal, toThemeDailySignalRecord, utcDateString } from '@/lib/themeMemory/signals';
 import { analysisIsCurrent, themeItemKey, type ThemeStore } from '@/lib/themeMemory/store';
@@ -133,10 +134,10 @@ function matchesForItem(
 ): ThemeCandidateMatch[] {
   const itemFp = fingerprintFromCandidate(item);
   const scored = themes.map((theme) =>
-    scoreThemeCandidate({
+    compareCandidateToThemeCore({
       item: itemFp,
-      theme: creatorAnchoredFingerprint(theme, membershipsByTheme.get(theme.id) || []),
-      themeRecord: theme,
+      theme,
+      memberships: membershipsByTheme.get(theme.id) || [],
       itemObservedAt: observedAt(item, fallback),
     }),
   );
@@ -153,6 +154,8 @@ function membershipRow(input: {
   providerName?: string;
   providerModel?: string | null;
   classificationVersion: string;
+  identityClass: 'core' | 'contextual';
+  seeded?: boolean;
 }): ThemeMembershipRecord {
   const observed = observedAt(input.item, input.now);
   return {
@@ -185,6 +188,8 @@ function membershipRow(input: {
       originalCandidateId: input.item.id,
       aiProvider: input.providerName ?? null,
       aiModel: input.providerModel ?? null,
+      identityClass: input.identityClass,
+      identityReason: input.identityClass === 'core' ? (input.seeded ? 'seed' : 'core_identity') : 'contextual',
     },
     created_at: input.now,
     updated_at: input.now,
@@ -310,6 +315,8 @@ export async function processThemeMemory(input: {
     confidence: number;
     reasons: string[];
     decision: ThemeItemAnalysisRecord['decision'];
+    match?: ThemeCandidateMatch | null;
+    seeded?: boolean;
   }) => {
     const existing = await input.store.getMembershipByItem({
       source_system: opts.item.sourceSystem,
@@ -318,16 +325,23 @@ export async function processThemeMemory(input: {
     });
     if (existing) return existing;
 
+    const identityClass = identityClassForAttachment({
+      item: opts.item,
+      match: opts.match || null,
+      seeded: Boolean(opts.seeded),
+    });
     const row = membershipRow({
       theme: opts.theme,
       item: opts.item,
       method: opts.method,
       confidence: opts.confidence,
-      reasons: opts.reasons,
+      reasons: [...opts.reasons, identityClass === 'core' ? 'identity_core' : 'identity_contextual'],
       now: finishedAt,
       providerName: opts.method === 'ai' ? input.ai.name : undefined,
       providerModel: opts.method === 'ai' ? input.ai.model : undefined,
       classificationVersion,
+      identityClass,
+      seeded: opts.seeded,
     });
     const saved = await input.store.upsertMembership(row);
     const list = membershipsByTheme.get(opts.theme.id) || [];
@@ -374,6 +388,7 @@ export async function processThemeMemory(input: {
       confidence: 1,
       reasons: ['seeded_creator_led_theme', ...reasons],
       decision: 'seeded',
+      seeded: true,
     });
     return theme;
   };
@@ -387,7 +402,9 @@ export async function processThemeMemory(input: {
       }
       diagnostics.aiMembershipChecks += 1;
       try {
-        const decision = await input.ai.classifyMembership({
+        const theme = themesById.get(candidate.theme.id) || candidate.theme;
+        const coreMembers = coreMembersForLabel(theme, membershipsByTheme.get(candidate.theme.id) || []);
+        const classifyInput = {
           itemTitle: item.title,
           itemSummary: item.summary,
           itemRole: item.role,
@@ -395,15 +412,18 @@ export async function processThemeMemory(input: {
           itemSourceName: item.sourceName,
           themeLabel: candidate.theme.canonical_label,
           themeHeadline: candidate.theme.display_headline,
-          themeMemberTitles: (membershipsByTheme.get(candidate.theme.id) || []).slice(-8).map((row) => row.title),
+          themeMemberTitles: coreMembers.map((row) => row.title),
+          themeCoreAnchors: [...candidate.sharedDistinctive, ...candidate.sharedPhrases, ...candidate.sharedClusterKeys],
           fingerprintOverlap: {
             sharedDistinctive: candidate.sharedDistinctive,
             sharedPhrases: candidate.sharedPhrases,
             reasons: candidate.reasons,
           },
           itemFingerprint: fingerprintFromCandidate(item),
-        });
-        if (decision.belongs && decision.confidence >= 0.55) {
+        };
+        const decision = await input.ai.classifyMembership(classifyInput);
+        const accepted = shouldAcceptAIMembership({ decision, match: candidate, classifyInput });
+        if (accepted.accept) {
           diagnostics.aiMembershipsAccepted += 1;
           return { candidate, decision };
         }
@@ -465,6 +485,7 @@ export async function processThemeMemory(input: {
           confidence: Math.max(0.8, deterministic.score),
           reasons: deterministic.reasons,
           decision: 'attached',
+          match: deterministic,
         });
         return;
       }
@@ -482,6 +503,7 @@ export async function processThemeMemory(input: {
             confidence: aiHit.decision.confidence,
             reasons: [...aiHit.candidate.reasons, ...aiHit.decision.reasons],
             decision: 'attached',
+            match: aiHit.candidate,
           });
           return;
         }
@@ -568,7 +590,8 @@ export async function processThemeMemory(input: {
     });
 
     let next = { ...theme, lifecycle_status: lifecycle, updated_at: finishedAt };
-    const fingerprint = memberFingerprint(members);
+    const labelMembers = coreMembersForLabel(theme, members);
+    const fingerprint = memberFingerprint(labelMembers.length > 0 ? labelMembers : members);
     const labelMeta = (theme.metadata?.label && typeof theme.metadata.label === 'object'
       ? (theme.metadata.label as Record<string, unknown>)
       : null);
@@ -582,11 +605,11 @@ export async function processThemeMemory(input: {
       try {
         const labeled = await input.ai.generateThemeLabel({
           currentLabel: theme.canonical_label,
-          memberTitles: members.map((row) => row.title),
-          memberRoles: [...new Set(members.map((row) => row.member_role))],
+          memberTitles: (labelMembers.length > 0 ? labelMembers : members).map((row) => row.title),
+          memberRoles: [...new Set((labelMembers.length > 0 ? labelMembers : members).map((row) => row.member_role))],
           creatorNames: [
             ...new Set(
-              members
+              (labelMembers.length > 0 ? labelMembers : members)
                 .filter((row) => row.source_system === 'voice')
                 .map((row) => row.source_name),
             ),

@@ -100,6 +100,8 @@ describe('Ollama Theme AI provider', () => {
     expect(body.messages?.some((row) => /topical association only|not factual corroboration/i.test(row.content))).toBe(
       true,
     );
+    expect(body.messages?.some((row) => /THIS SPECIFIC story|same underlying event/i.test(row.content))).toBe(true);
+    expect(body.messages?.some((row) => /Do not invent a bridge/i.test(row.content))).toBe(true);
     expect(body.messages?.some((row) => /untrusted evidence/i.test(row.content))).toBe(true);
   });
 

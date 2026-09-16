@@ -14,7 +14,10 @@ export type ThemeMembershipClassifyInput = {
   itemSourceName: string;
   themeLabel: string;
   themeHeadline: string | null;
+  /** Core identity evidence titles only. Do not pass contextual member titles. */
   themeMemberTitles: string[];
+  /** Optional extra core anchors (people, actions, case names) supplied in input. */
+  themeCoreAnchors?: string[];
   fingerprintOverlap: {
     sharedDistinctive: string[];
     sharedPhrases: string[];

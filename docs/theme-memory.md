@@ -132,11 +132,11 @@ AI is never asked to compare every item with every theme.
 For each item:
 
 1. Extract a fingerprint: strong distinctive tokens/phrases, supporting features, weak entities, cluster keys, action hints
-2. Compare against **creator-anchored** theme fingerprints (label + creator member titles)
-3. Weak / low-information features (broad countries, parties, Congress/Senate/House/Supreme Court, generic politician names) can **support** a match but cannot, by themselves, create a strong deterministic match
-4. Require a distinctive anchor (policy/object, case, agency action, legislation, event, or multiple aligned non-weak features)
+2. Compare against a **stable core fingerprint** (seed + strongly corroborated identity-bearing members). Contextual members may belong without adding theme-defining vocabulary.
+3. Weak / low-information features (broad countries, parties, Congress/Senate/House/Supreme Court, generic politician names, `ruling` / `hearing` / `candidate`) can **support** a match but cannot, by themselves, create a strong deterministic match
+4. Require a distinctive event-level anchor (specific people + action, case, agency action, legislation, event, or multiple aligned non-weak features)
 5. If evidence is overwhelming, attach deterministically
-6. If plausible but ambiguous, ask `ThemeAIProvider`
+6. If plausible but ambiguous, ask `ThemeAIProvider` using **core** evidence only; reject ungrounded invented bridges
 7. If no plausible candidate, Voice items may seed a new theme; Newswire/Intel do not
 
 False merges are treated as worse than temporary duplicate themes.
@@ -196,9 +196,9 @@ If Ollama is down:
 
 Central constants:
 
-- `THEME_MEMBERSHIP_PROMPT_VERSION`
-- `THEME_LABEL_PROMPT_VERSION`
-- `THEME_CLASSIFICATION_VERSION`
+- `THEME_MEMBERSHIP_PROMPT_VERSION` (`tm-membership-v3`)
+- `THEME_LABEL_PROMPT_VERSION` (`tm-label-v2`)
+- `THEME_CLASSIFICATION_VERSION` (`tm-classify-v3`)
 
 Memberships and analyses store content hash + `themeClassificationCacheVersion(provider)` (classification version + `none`/`ai` mode + membership prompt version). Unchanged items are skipped. A previous deterministic/no-AI analysis does **not** permanently block later AI-assisted classification. Labels regenerate only when missing, prompt version changes, member set changes, or `refreshLabels=1`.
 
