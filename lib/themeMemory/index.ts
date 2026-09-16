@@ -82,7 +82,7 @@ export type {
   ThemeRecord,
 } from '@/lib/themeMemory/themeTypes';
 
-export { processThemeMemory } from '@/lib/themeMemory/process';
+export { processThemeMemory, emptyThemeProcessDiagnostics } from '@/lib/themeMemory/process';
 export type { ThemeProcessDiagnostics, ThemeProcessResult } from '@/lib/themeMemory/process';
 
 export { createMemoryThemeStore } from '@/lib/themeMemory/store';

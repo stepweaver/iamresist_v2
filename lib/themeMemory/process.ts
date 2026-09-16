@@ -20,7 +20,7 @@ import { creatorAnchoredFingerprint, deterministicLabelFromFingerprint, fingerpr
 import { resolveThemeLifecycle } from '@/lib/themeMemory/lifecycle';
 import { computeThemeDailySignal, toThemeDailySignalRecord, utcDateString } from '@/lib/themeMemory/signals';
 import { analysisIsCurrent, themeItemKey, type ThemeStore } from '@/lib/themeMemory/store';
-import { ThemeAIUnavailableError, ThemeAIValidationError } from '@/lib/themeMemory/ai/types';
+import { emptyThemeAIFailureCategories, recordThemeAIFailure, type ThemeAIFailureCategory } from '@/lib/themeMemory/ai/failures';
 import type { ThemeAIProvider } from '@/lib/themeMemory/ai/types';
 import type { ThemeCandidateItem } from '@/lib/themeMemory/types';
 import type {
@@ -43,6 +43,8 @@ export type ThemeProcessDiagnostics = {
   aiMembershipsAccepted: number;
   aiMembershipsRejected: number;
   aiFailures: number;
+  aiFailureReasons: Record<string, number>;
+  aiFailureCategories: Record<ThemeAIFailureCategory, number>;
   aiUnavailable: boolean;
   incompleteClassification: boolean;
   newswireMembersAttached: number;
@@ -87,7 +89,7 @@ function memberFingerprint(members: ThemeMembershipRecord[]): string {
   return createHash('sha256').update(payload).digest('hex');
 }
 
-function emptyDiagnostics(): ThemeProcessDiagnostics {
+export function emptyThemeProcessDiagnostics(): ThemeProcessDiagnostics {
   return {
     creatorItemsConsidered: 0,
     creatorItemsSkippedUnchanged: 0,
@@ -100,6 +102,8 @@ function emptyDiagnostics(): ThemeProcessDiagnostics {
     aiMembershipsAccepted: 0,
     aiMembershipsRejected: 0,
     aiFailures: 0,
+    aiFailureReasons: {},
+    aiFailureCategories: emptyThemeAIFailureCategories(),
     aiUnavailable: false,
     incompleteClassification: false,
     newswireMembersAttached: 0,
@@ -275,7 +279,7 @@ export async function processThemeMemory(input: {
   maxAiLabels?: number;
 }): Promise<ThemeProcessResult> {
   const finishedAt = nowIso(input.now);
-  const diagnostics = emptyDiagnostics();
+  const diagnostics = emptyThemeProcessDiagnostics();
   const maxAiChecks = input.maxAiMembershipChecks ?? THEME_MAX_AI_MEMBERSHIP_CHECKS_PER_RUN;
   const maxAiLabels = input.maxAiLabels ?? THEME_MAX_AI_LABELS_PER_RUN;
   const classificationVersion = themeClassificationCacheVersion(input.ai.name);
@@ -405,12 +409,9 @@ export async function processThemeMemory(input: {
         }
         diagnostics.aiMembershipsRejected += 1;
       } catch (error) {
-        diagnostics.aiFailures += 1;
-        if (error instanceof ThemeAIUnavailableError || (error instanceof Error && /timeout|unavailable|ECONNREFUSED/i.test(error.message))) {
+        const classified = recordThemeAIFailure(diagnostics, error, '[theme-memory] AI membership check failed');
+        if (classified.category === 'unavailable') {
           diagnostics.aiUnavailable = true;
-        }
-        if (!(error instanceof ThemeAIValidationError) && !(error instanceof ThemeAIUnavailableError)) {
-          console.warn('[theme-memory] AI membership check failed');
         }
         diagnostics.incompleteClassification = true;
         return null;
@@ -608,8 +609,8 @@ export async function processThemeMemory(input: {
           },
         };
         diagnostics.labelsGenerated += 1;
-      } catch {
-        diagnostics.aiFailures += 1;
+      } catch (error) {
+        recordThemeAIFailure(diagnostics, error, '[theme-memory] AI label generation failed');
         diagnostics.incompleteClassification = true;
         next = {
           ...next,

@@ -4,7 +4,7 @@ import { intelDbConfigured } from '@/lib/intel/db';
 import { createThemeAIProvider } from '@/lib/themeMemory/ai/provider';
 import type { ThemeAIProvider } from '@/lib/themeMemory/ai/types';
 import { ingestThemeMemorySources } from '@/lib/themeMemory/ingest';
-import { processThemeMemory, type ThemeProcessResult } from '@/lib/themeMemory/process';
+import { processThemeMemory, emptyThemeProcessDiagnostics, type ThemeProcessResult } from '@/lib/themeMemory/process';
 import { getThemeCandidateItems } from '@/lib/themeMemory/query';
 import { createSupabaseThemeStore } from '@/lib/themeMemory/themesDb';
 import { THEME_PROCESS_WINDOW_DAYS } from '@/lib/themeMemory/constants';
@@ -25,28 +25,7 @@ export async function runThemeMemoryProcess(opts: {
       finishedAt,
       skipped: 'Supabase not configured',
       window: { start: null, end: null },
-      diagnostics: {
-        creatorItemsConsidered: 0,
-        creatorItemsSkippedUnchanged: 0,
-        newswireItemsConsidered: 0,
-        intelItemsConsidered: 0,
-        themesCreated: 0,
-        themesUpdated: 0,
-        deterministicMemberships: 0,
-        aiMembershipChecks: 0,
-        aiMembershipsAccepted: 0,
-        aiMembershipsRejected: 0,
-        aiFailures: 0,
-        aiUnavailable: false,
-        incompleteClassification: false,
-        newswireMembersAttached: 0,
-        intelMembersAttached: 0,
-        primaryMembersAttached: 0,
-        specialistMembersAttached: 0,
-        labelsGenerated: 0,
-        dailySignalsWritten: 0,
-        themesByLifecycle: { new: 0, developing: 0, persistent: 0, cooling: 0, resurging: 0, dormant: 0 },
-      },
+      diagnostics: emptyThemeProcessDiagnostics(),
     };
   }
 

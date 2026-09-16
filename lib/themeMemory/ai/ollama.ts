@@ -4,6 +4,11 @@ import { themeMemoryEnv } from '@/lib/env/themeMemory';
 import { ThemeAIUnavailableError, ThemeAIValidationError } from '@/lib/themeMemory/ai/types';
 import type { ThemeAIProvider, ThemeLabelGenerateInput, ThemeMembershipClassifyInput } from '@/lib/themeMemory/ai/types';
 import { buildLabelMessages, buildMembershipMessages } from '@/lib/themeMemory/ai/prompts';
+import {
+  THEME_AI_STRUCTURED_TEMPERATURE,
+  THEME_LABEL_JSON_SCHEMA,
+  THEME_MEMBERSHIP_JSON_SCHEMA,
+} from '@/lib/themeMemory/ai/schemas';
 import { parseMembershipOutput, parseThemeLabelOutput } from '@/lib/themeMemory/ai/validate';
 
 type OllamaChatResponse = {
@@ -30,6 +35,7 @@ function sleep(ms: number): Promise<void> {
 
 async function ollamaChat(input: {
   messages: Array<{ role: string; content: string }>;
+  format: typeof THEME_MEMBERSHIP_JSON_SCHEMA | typeof THEME_LABEL_JSON_SCHEMA;
   timeoutMs: number;
   baseUrl: string;
   model: string;
@@ -51,7 +57,8 @@ async function ollamaChat(input: {
           model: input.model,
           messages: input.messages,
           stream: false,
-          format: 'json',
+          format: input.format,
+          options: { temperature: THEME_AI_STRUCTURED_TEMPERATURE },
         }),
       });
 
@@ -64,7 +71,10 @@ async function ollamaChat(input: {
           detail = '';
         }
         const retryableStatus = res.status === 502 || res.status === 503 || res.status === 529;
-        const err = new ThemeAIUnavailableError(`ollama_http_${res.status}${detail}`.slice(0, 240));
+        const err = new ThemeAIUnavailableError(
+          `ollama_http_${res.status}${detail}`.slice(0, 240),
+          `ollama_http_${res.status}`,
+        );
         if (!retryableStatus || attempt === input.retries) throw err;
         lastError = err;
         await sleep(250 * (attempt + 1));
@@ -73,7 +83,7 @@ async function ollamaChat(input: {
 
       const json = (await res.json()) as OllamaChatResponse;
       if (json.error) {
-        throw new ThemeAIUnavailableError('ollama_error');
+        throw new ThemeAIUnavailableError('ollama_error', 'ollama_error');
       }
       const content = json.message?.content || json.response || '';
       if (!String(content).trim()) {
@@ -88,7 +98,7 @@ async function ollamaChat(input: {
     } catch (error) {
       lastError = error;
       if (error instanceof Error && error.name === 'AbortError') {
-        lastError = new ThemeAIUnavailableError('ollama_timeout');
+        lastError = new ThemeAIUnavailableError('ollama_timeout', 'ollama_timeout');
       }
       if (attempt === input.retries || !isRetryable(lastError)) {
         throw lastError;
@@ -99,7 +109,7 @@ async function ollamaChat(input: {
     }
   }
 
-  throw lastError instanceof Error ? lastError : new ThemeAIUnavailableError('ollama_failed');
+  throw lastError instanceof Error ? lastError : new ThemeAIUnavailableError('ollama_failed', 'ollama_failed');
 }
 
 export type OllamaProbeResult = {
@@ -246,7 +256,7 @@ export function createOllamaThemeAIProvider(opts: {
   const retries = opts.retries ?? themeMemoryEnv.THEME_AI_MAX_RETRIES ?? 2;
 
   if (!model) {
-    throw new ThemeAIUnavailableError('OLLAMA_MODEL is not configured');
+    throw new ThemeAIUnavailableError('OLLAMA_MODEL is not configured', 'model_not_configured');
   }
 
   return {
@@ -255,6 +265,7 @@ export function createOllamaThemeAIProvider(opts: {
     async classifyMembership(input: ThemeMembershipClassifyInput) {
       const { content } = await ollamaChat({
         messages: buildMembershipMessages(input),
+        format: THEME_MEMBERSHIP_JSON_SCHEMA,
         timeoutMs,
         baseUrl,
         model,
@@ -265,6 +276,7 @@ export function createOllamaThemeAIProvider(opts: {
     async generateThemeLabel(input: ThemeLabelGenerateInput) {
       const { content } = await ollamaChat({
         messages: buildLabelMessages(input),
+        format: THEME_LABEL_JSON_SCHEMA,
         timeoutMs,
         baseUrl,
         model,

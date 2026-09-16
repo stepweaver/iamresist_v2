@@ -25,6 +25,15 @@ describe('Theme Memory AI output validation', () => {
     expect(() => validateMembershipOutput({ belongs: 'yes', confidence: 0.9, reasons: [] })).toThrow(ThemeAIValidationError);
     expect(() => validateMembershipOutput({ belongs: true, confidence: 1.4, reasons: [] })).toThrow(ThemeAIValidationError);
     expect(() => validateMembershipOutput({ belongs: true, confidence: 87, reasons: [] })).toThrow(ThemeAIValidationError);
+    expect(() => validateMembershipOutput({ belongs: true, confidence: '0.9', reasons: [] })).toThrow(ThemeAIValidationError);
+    expect(() => validateMembershipOutput({ belongs: true, confidence: 0.9, reasons: 'same case' })).toThrow(ThemeAIValidationError);
+    expect(() =>
+      validateMembershipOutput({
+        belongs: true,
+        confidence: 0.9,
+        reasons: Array.from({ length: 9 }, () => 'too many'),
+      }),
+    ).toThrow(/reasons_too_many/);
     expect(() => parseMembershipOutput('not json')).toThrow(ThemeAIValidationError);
   });
 

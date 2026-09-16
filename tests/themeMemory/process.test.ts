@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { THEME_MEMBERSHIP_IS_NOT_CORROBORATION, themeClassificationCacheVersion } from '@/lib/themeMemory/constants';
 import { processThemeMemory } from '@/lib/themeMemory/process';
 import { getActiveThemes, getThemeAttentionForItem, getThemeMembers } from '@/lib/themeMemory/readModel';
 import { analysisIsCurrent, createMemoryThemeStore } from '@/lib/themeMemory/store';
 import { createDeterministicThemeAIProvider } from '@/lib/themeMemory/ai/deterministic';
+import { ThemeAIValidationError } from '@/lib/themeMemory/ai/types';
 import { createTestThemeAIProvider, intelCandidate, newswireCandidate, voiceCandidate } from './helpers';
 
 const DAY1 = '2026-09-01T16:00:00.000Z';
@@ -15,6 +16,9 @@ const DAY14 = '2026-09-14T16:00:00.000Z';
 const DAY15 = '2026-09-15T16:00:00.000Z';
 
 describe('Theme Memory processing pipeline', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   it('A: keeps multiple related episodes from the same creator on one theme', async () => {
     const store = createMemoryThemeStore();
     const items = [
@@ -253,6 +257,10 @@ describe('Theme Memory processing pipeline', () => {
         id: 'c2',
       }),
     ];
+    const warns: unknown[] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args) => {
+      warns.push(args);
+    });
     const result = await processThemeMemory({
       items,
       store,
@@ -261,7 +269,52 @@ describe('Theme Memory processing pipeline', () => {
     });
     expect(result.ok).toBe(true);
     expect(result.diagnostics.aiFailures).toBeGreaterThan(0);
+    expect(result.diagnostics.aiFailureCategories.validation).toBeGreaterThan(0);
+    expect(result.diagnostics.aiFailureCategories.unavailable).toBe(0);
+    expect(result.diagnostics.aiFailureReasons.canonicalLabel_not_string).toBeGreaterThan(0);
     expect((await store.listThemes()).length).toBeGreaterThanOrEqual(1);
+    const serialized = JSON.stringify({ diagnostics: result.diagnostics, warns });
+    expect(serialized).toMatch(/belongs_not_boolean|canonicalLabel_not_string/);
+    expect(serialized).not.toMatch(/Federal deployment|Legal limits on federal deployment|sk-|API_KEY/i);
+  });
+
+  it('records membership validation codes without leaking item text', async () => {
+    const warns: unknown[] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args) => {
+      warns.push(args);
+    });
+    const store = createMemoryThemeStore();
+    const items = [
+      voiceCandidate({
+        slug: 'meidastouch',
+        name: 'MeidasTouch',
+        title: 'Federal troops deployment authority explained',
+        publishedAt: DAY1,
+        id: 'meidas-d1',
+      }),
+      voiceCandidate({
+        slug: 'david-pakman',
+        name: 'David Pakman',
+        title: 'Can the president deploy federal forces domestically?',
+        publishedAt: DAY2,
+        id: 'pakman-d2',
+      }),
+    ];
+    const result = await processThemeMemory({
+      items,
+      store,
+      ai: createTestThemeAIProvider({
+        classify: async () => {
+          throw new ThemeAIValidationError('confidence_not_number');
+        },
+      }),
+      now: DAY2,
+    });
+    expect(result.diagnostics.aiFailureReasons.confidence_not_number).toBeGreaterThan(0);
+    expect(result.diagnostics.aiFailureCategories.validation).toBeGreaterThan(0);
+    const serialized = JSON.stringify({ diagnostics: result.diagnostics, warns });
+    expect(serialized).toContain('confidence_not_number');
+    expect(serialized).not.toMatch(/Federal troops|deploy federal forces|sk-|API_KEY/i);
   });
 
   it('J: AI unavailable still keeps deterministic creator work', async () => {
@@ -289,7 +342,55 @@ describe('Theme Memory processing pipeline', () => {
     expect(result.ok).toBe(true);
     expect((await store.listThemes()).length).toBeGreaterThanOrEqual(1);
     expect((await store.listMemberships()).length).toBe(2);
+    expect(result.diagnostics.aiFailureReasons.ollama_timeout).toBeGreaterThan(0);
+    expect(result.diagnostics.aiFailureCategories.unavailable).toBeGreaterThan(0);
+    expect(result.diagnostics.aiFailureCategories.validation).toBe(0);
     expect(result.diagnostics.incompleteClassification || result.diagnostics.aiUnavailable || result.diagnostics.themesCreated >= 1).toBe(true);
+  });
+
+  it('categorizes unexpected AI errors without leaking source text', async () => {
+    const warns: unknown[] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args) => {
+      warns.push(args);
+    });
+    const store = createMemoryThemeStore();
+    const items = [
+      voiceCandidate({
+        slug: 'meidastouch',
+        name: 'MeidasTouch',
+        title: 'Federal troops deployment authority explained',
+        publishedAt: DAY1,
+        id: 'meidas-d1',
+      }),
+      voiceCandidate({
+        slug: 'david-pakman',
+        name: 'David Pakman',
+        title: 'Can the president deploy federal forces domestically?',
+        publishedAt: DAY2,
+        id: 'pakman-d2',
+      }),
+      voiceCandidate({
+        slug: 'brian-tyler-cohen',
+        name: 'Brian Tyler Cohen',
+        title: 'Legal limits on federal deployment',
+        publishedAt: DAY3,
+        id: 'btc-d3',
+      }),
+    ];
+    const result = await processThemeMemory({
+      items,
+      store,
+      ai: createTestThemeAIProvider({
+        classify: async () => {
+          throw new Error('SECRET_TOKEN=abc Federal troops deployment authority explained');
+        },
+      }),
+      now: DAY3,
+    });
+    expect(result.diagnostics.aiFailureCategories.unexpected).toBeGreaterThan(0);
+    expect(result.diagnostics.aiFailureReasons.unexpected_error).toBeGreaterThan(0);
+    const serialized = JSON.stringify({ diagnostics: result.diagnostics, warns });
+    expect(serialized).not.toMatch(/SECRET_TOKEN|Federal troops|deploy federal forces/i);
   });
 
   it('K: exact rerun does not duplicate themes or memberships', async () => {

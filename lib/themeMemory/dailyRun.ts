@@ -5,6 +5,7 @@ import { getThemeMemoryDiagnostics, type ThemeMemoryDiagnostics } from '@/lib/th
 import { findLikelyDuplicateThemes, type LikelyDuplicateTheme } from '@/lib/themeMemory/duplicates';
 import { runThemeMemoryProcess } from '@/lib/themeMemory/processRunner';
 import type { ThemeProcessDiagnostics, ThemeProcessResult } from '@/lib/themeMemory/process';
+import { emptyThemeProcessDiagnostics } from '@/lib/themeMemory/process';
 import { acquireThemeMemoryRunLock, ThemeMemoryLockBusyError } from '@/lib/themeMemory/runLock';
 import { validateThemeMemoryRuntime, type ThemeMemoryStartupCheck } from '@/lib/themeMemory/startup';
 import { createSupabaseThemeStore } from '@/lib/themeMemory/themesDb';
@@ -34,29 +35,19 @@ export type ThemeMemoryDailyDeps = {
   listMembershipsFn?: () => Promise<ThemeMembershipRecord[]>;
 };
 
-function emptyProcessDiagnostics(): ThemeProcessDiagnostics {
-  return {
-    creatorItemsConsidered: 0,
-    creatorItemsSkippedUnchanged: 0,
-    newswireItemsConsidered: 0,
-    intelItemsConsidered: 0,
-    themesCreated: 0,
-    themesUpdated: 0,
-    deterministicMemberships: 0,
-    aiMembershipChecks: 0,
-    aiMembershipsAccepted: 0,
-    aiMembershipsRejected: 0,
-    aiFailures: 0,
-    aiUnavailable: false,
-    incompleteClassification: false,
-    newswireMembersAttached: 0,
-    intelMembersAttached: 0,
-    primaryMembersAttached: 0,
-    specialistMembersAttached: 0,
-    labelsGenerated: 0,
-    dailySignalsWritten: 0,
-    themesByLifecycle: { new: 0, developing: 0, persistent: 0, cooling: 0, resurging: 0, dormant: 0 },
-  };
+function formatFailureReasons(reasons: Record<string, number>): string {
+  return Object.entries(reasons)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 12)
+    .map(([reason, count]) => `${reason}=${count}`)
+    .join(', ');
+}
+
+function formatFailureCategories(categories: ThemeProcessDiagnostics['aiFailureCategories']): string {
+  return (['validation', 'unavailable', 'unexpected'] as const)
+    .filter((key) => categories[key] > 0)
+    .map((key) => `${key}=${categories[key]}`)
+    .join(', ');
 }
 
 function failedResult(input: {
@@ -86,10 +77,12 @@ export function themeMemoryDailyExitCode(result: ThemeMemoryDailyResult): number
 
 export function formatThemeMemoryDailySummary(result: ThemeMemoryDailyResult): string {
   const ingest = result.ingest;
-  const d = result.process?.diagnostics ?? emptyProcessDiagnostics();
+  const d = result.process?.diagnostics ?? emptyThemeProcessDiagnostics();
   const lifecycle = d.themesByLifecycle;
   const voicesAttempted = ingest?.voices.sourcesAttempted ?? 0;
   const voicesOk = ingest?.voices.sourcesSucceeded ?? 0;
+  const failureCategories = d.aiFailures > 0 ? formatFailureCategories(d.aiFailureCategories) : '';
+  const failureReasons = d.aiFailures > 0 ? formatFailureReasons(d.aiFailureReasons) : '';
   const lines = [
     'Theme Memory Daily',
     '------------------',
@@ -106,6 +99,8 @@ export function formatThemeMemoryDailySummary(result: ThemeMemoryDailyResult): s
     `  AI accepted: ${d.aiMembershipsAccepted}`,
     `  AI rejected: ${d.aiMembershipsRejected}`,
     `  AI failures: ${d.aiFailures}`,
+    ...(failureCategories ? [`  AI failure categories: ${failureCategories}`] : []),
+    ...(failureReasons ? [`  AI failure reasons: ${failureReasons}`] : []),
     `  Newswire attached: ${d.newswireMembersAttached}`,
     `  Intel attached: ${d.intelMembersAttached}`,
     '',

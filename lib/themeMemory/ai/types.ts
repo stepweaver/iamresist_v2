@@ -38,15 +38,19 @@ export interface ThemeAIProvider {
 }
 
 export class ThemeAIUnavailableError extends Error {
-  constructor(message: string) {
+  readonly code: string;
+  constructor(message: string, code?: string) {
     super(message);
     this.name = 'ThemeAIUnavailableError';
+    this.code = code || message;
   }
 }
 
 export class ThemeAIValidationError extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly code: string;
+  constructor(code: string) {
+    super(code);
     this.name = 'ThemeAIValidationError';
+    this.code = code;
   }
 }

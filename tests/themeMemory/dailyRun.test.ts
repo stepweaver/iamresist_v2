@@ -53,6 +53,8 @@ function processOk(): ThemeProcessResult {
       aiMembershipsAccepted: 7,
       aiMembershipsRejected: 11,
       aiFailures: 0,
+      aiFailureReasons: {},
+      aiFailureCategories: { validation: 0, unavailable: 0, unexpected: 0 },
       aiUnavailable: false,
       incompleteClassification: false,
       newswireMembersAttached: 16,
@@ -105,6 +107,36 @@ describe('Theme Memory daily runner', () => {
     expect(summary).toContain('AI checks: 18');
     expect(summary).toContain('AI accepted: 7');
     expect(summary).toMatch(/mode: (off|shadow|active)/);
+  });
+
+  it('prints bounded AI failure categories and reasons without content bodies', () => {
+    const result = {
+      ok: true,
+      overallStatus: 'partial' as const,
+      finishedAt: '2026-09-15T16:00:00.000Z',
+      startup: null,
+      ingest: ingestOk(),
+      process: {
+        ...processOk(),
+        overallStatus: 'partial' as const,
+        diagnostics: {
+          ...processOk().diagnostics,
+          aiFailures: 78,
+          aiFailureReasons: { confidence_not_number: 70, belongs_not_boolean: 8 },
+          aiFailureCategories: { validation: 78, unavailable: 0, unexpected: 0 },
+        },
+      },
+      diagnostics: diagnosticsOk(),
+      duplicateThemeCandidates: [],
+      rankingMode: 'shadow',
+      aiProvider: 'ollama',
+      aiModel: 'gemma3:4b',
+    };
+    const summary = formatThemeMemoryDailySummary(result);
+    expect(summary).toContain('AI failures: 78');
+    expect(summary).toContain('AI failure categories: validation=78');
+    expect(summary).toContain('confidence_not_number=70');
+    expect(summary).not.toMatch(/<source>|prompt:|sk-|API_KEY/i);
   });
 
   it('returns a non-zero status when startup validation fails', async () => {
