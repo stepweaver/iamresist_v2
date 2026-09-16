@@ -241,6 +241,7 @@ export async function smokeTestOllamaMembership(opts: {
       clusterKeys: {},
       actionHints: [],
       eventType: null,
+      entitySpans: [],
     },
   });
   return { provider: provider.name, model: provider.model, decision };

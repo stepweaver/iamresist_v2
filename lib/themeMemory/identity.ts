@@ -77,6 +77,7 @@ export function eventSpecificCoreAnchors(match: ThemeCandidateMatch): {
   tokens: string[];
   phrases: string[];
   clusterKeys: string[];
+  independentEventAnchors: string[];
 } {
   const tokens = unique(match.sharedDistinctive.filter((token) => featureStrength(token) === 'strong'));
   const phrases = unique(
@@ -89,18 +90,16 @@ export function eventSpecificCoreAnchors(match: ThemeCandidateMatch): {
     tokens,
     phrases,
     clusterKeys: unique(match.sharedClusterKeys),
+    independentEventAnchors: match.independentEventAnchors || [],
   };
 }
 
 export function hasEventSpecificCoreIdentity(match: ThemeCandidateMatch): boolean {
   if (!match.distinctiveAnchor) return false;
-  const { tokens, phrases, clusterKeys } = eventSpecificCoreAnchors(match);
+  const { clusterKeys, independentEventAnchors: anchors } = eventSpecificCoreAnchors(match);
   if (clusterKeys.length > 0) return true;
-  if (tokens.length >= 2) return true;
-  if (tokens.length >= 1 && phrases.length >= 1) return true;
-  return phrases.some(
-    (phrase) => phrase.split(' ').filter((part) => featureStrength(part) === 'strong').length >= 2,
-  );
+  if (anchors.length >= 2) return true;
+  return false;
 }
 
 export function canExpandThemeCore(
@@ -191,6 +190,9 @@ export function alignedFeaturesFromMember(memberFp: ThemeFingerprint, coreFp: Th
     clusterKeys,
     actionHints: intersect(memberFp.actionHints, coreFp.actionHints),
     eventType: coreFp.eventType && memberFp.eventType === coreFp.eventType ? memberFp.eventType : coreFp.eventType,
+    entitySpans: (memberFp.entitySpans || []).filter((span) =>
+      span.some((part) => coreDistinctive.has(part) || extraDistinctive.includes(part) || sharedDistinctive.includes(part)),
+    ),
   };
 }
 

@@ -138,6 +138,8 @@ export type ThemeFingerprint = {
   clusterKeys: Record<string, string>;
   actionHints: string[];
   eventType: string | null;
+  /** Adjacent given-name + surname spans. Same person is one entity, not two anchors. */
+  entitySpans: string[][];
 };
 
 export type ThemeCandidateMatch = {
@@ -150,6 +152,8 @@ export type ThemeCandidateMatch = {
   distinctiveAnchor: boolean;
   weakEntityOnly: boolean;
   reasons: string[];
+  /** Event anchors after collapsing same-named-entity tokens. */
+  independentEventAnchors: string[];
 };
 
 export type ThemeAIFailure = {

@@ -227,6 +227,41 @@ describe('Theme Memory legacy core reclassification', () => {
     );
   });
 
+  it('same-person Pete/Hegseth overlap does not KEEP_CORE or expand reconstructed core', () => {
+    const theme = massieTheme();
+    const seed = massieSeed();
+    const reporting = membershipRecord({
+      id: 'al-jazeera',
+      theme_id: MASSIE_CANARY,
+      source_system: 'newswire',
+      source_slug: 'al-jazeera',
+      source_name: 'Al Jazeera',
+      title: 'Republican congressman calls to impeach US Defence Secretary Pete Hegseth',
+      member_role: 'reporting',
+      metadata: { identityClass: 'core', identityReason: 'core_identity' },
+      first_assigned_at: LATER,
+      item_observed_at: LATER,
+    });
+    const samePerson = membershipRecord({
+      id: 'pete-hegseth-only',
+      theme_id: MASSIE_CANARY,
+      source_system: 'newswire',
+      source_slug: 'wire',
+      title: 'Pete Hegseth visits troops overseas',
+      member_role: 'reporting',
+      metadata: { identityClass: 'core', identityReason: 'core_identity' },
+      first_assigned_at: LATEST,
+      item_observed_at: LATEST,
+    });
+
+    const { decisions } = reclassifyThemeMemberships(theme, [seed, reporting, samePerson]);
+    expect(decisions.find((row) => row.membershipId === 'al-jazeera')?.proposedClass).toBe('KEEP_CORE');
+    expect(decisions.find((row) => row.membershipId === 'al-jazeera')?.contributedToReconstructedCore).toBe(true);
+    const rejected = decisions.find((row) => row.membershipId === 'pete-hegseth-only');
+    expect(rejected?.proposedClass).toBe('DOWNGRADE_CONTEXTUAL');
+    expect(rejected?.contributedToReconstructedCore).toBe(false);
+  });
+
   it('5: generic phrase overlap downgrades', () => {
     const theme = themeRecord({
       id: COURT_CANARY,

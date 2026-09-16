@@ -598,7 +598,7 @@ export async function processThemeMemory(input: {
       previousLifecycle: theme.lifecycle_status,
     });
 
-    let next = {
+    let next: ThemeRecord = {
       ...theme,
       lifecycle_status: lifecycle,
       updated_at: finishedAt,
@@ -609,14 +609,18 @@ export async function processThemeMemory(input: {
     };
     const labelMembers = coreMembersForLabel(theme, members);
     const fingerprint = memberFingerprint(labelMembers.length > 0 ? labelMembers : members);
-    const labelMeta = (theme.metadata?.label && typeof theme.metadata.label === 'object'
-      ? (theme.metadata.label as Record<string, unknown>)
-      : null);
+    const rawLabel = theme.metadata.label;
+    const labelMeta =
+      rawLabel && typeof rawLabel === 'object' && !Array.isArray(rawLabel) ? rawLabel : null;
+    const labelPromptVersion =
+      labelMeta && 'promptVersion' in labelMeta ? labelMeta.promptVersion : undefined;
+    const labelMemberFingerprint =
+      labelMeta && 'memberFingerprint' in labelMeta ? labelMeta.memberFingerprint : undefined;
     const needsLabel =
       Boolean(input.refreshLabels) ||
       !theme.display_headline ||
-      labelMeta?.promptVersion !== THEME_LABEL_PROMPT_VERSION ||
-      labelMeta?.memberFingerprint !== fingerprint;
+      labelPromptVersion !== THEME_LABEL_PROMPT_VERSION ||
+      labelMemberFingerprint !== fingerprint;
 
     if (needsLabel && diagnostics.labelsGenerated < maxAiLabels) {
       try {

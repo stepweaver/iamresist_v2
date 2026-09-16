@@ -1,6 +1,7 @@
 import { extractBillClusterKeys, extractExecutiveClusterKeys, mergeClusterParts } from '@/lib/intel/clusterKeys';
 import { classifyEvent } from '@/lib/intel/eventClassification';
 import { storyTextTokens, storyTokenJaccard } from '@/lib/intel/storyCoherence';
+import { extractPersonEntitySpans } from '@/lib/themeMemory/entityAnchors';
 import {
   featureStrength,
   isDistinctiveActionToken,
@@ -101,6 +102,7 @@ export function extractThemeFingerprint(input: {
     clusterKeys,
     actionHints: actionHintsFromTokens(rawTokens).slice(0, 12),
     eventType,
+    entitySpans: extractPersonEntitySpans(stemmed),
   };
 }
 
@@ -122,6 +124,7 @@ export function emptyThemeFingerprint(): ThemeFingerprint {
     clusterKeys: {},
     actionHints: [],
     eventType: null,
+    entitySpans: [],
   };
 }
 
@@ -131,6 +134,7 @@ export function mergeFingerprints(parts: ThemeFingerprint[]): ThemeFingerprint {
   const phrases: string[] = [];
   const weak: string[] = [];
   const hints: string[] = [];
+  const entitySpans: string[][] = [];
   let clusterKeys: Record<string, string> = {};
   let eventType: string | null = null;
   for (const part of parts) {
@@ -139,6 +143,7 @@ export function mergeFingerprints(parts: ThemeFingerprint[]): ThemeFingerprint {
     phrases.push(...part.phrases);
     weak.push(...part.weakEntities);
     hints.push(...part.actionHints);
+    entitySpans.push(...(part.entitySpans || []));
     clusterKeys = mergeClusterParts(clusterKeys, part.clusterKeys);
     if (!eventType && part.eventType) eventType = part.eventType;
   }
@@ -150,6 +155,12 @@ export function mergeFingerprints(parts: ThemeFingerprint[]): ThemeFingerprint {
     clusterKeys,
     actionHints: unique(hints).slice(0, 16),
     eventType,
+    entitySpans: unique(
+      entitySpans.map((span) => [...span].sort().join('|')).filter(Boolean),
+    )
+      .map((key) => key.split('|').filter(Boolean))
+      .filter((span) => span.length >= 2)
+      .slice(0, 16),
   };
 }
 

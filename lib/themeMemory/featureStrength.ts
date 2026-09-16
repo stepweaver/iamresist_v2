@@ -11,10 +11,10 @@
 export type SemanticFeatureStrength = 'strong' | 'supporting' | 'weak';
 
 /**
- * Broad country, party, institution, office, and celebrity tokens.
- * Matching only on these is not enough to claim the same subject.
+ * Famous-person surnames. These are weak as standalone story identity,
+ * but they can complete a First+Last named-entity span.
  */
-const WEAK_ENTITY_TOKENS = new Set([
+const WEAK_PERSON_ENTITY_TOKENS = new Set([
   'trump',
   'biden',
   'obama',
@@ -33,6 +33,14 @@ const WEAK_ENTITY_TOKENS = new Set([
   'mcconnell',
   'schumer',
   'pelosi',
+]);
+
+/**
+ * Broad country, party, institution, office, and celebrity tokens.
+ * Matching only on these is not enough to claim the same subject.
+ */
+const WEAK_ENTITY_TOKENS = new Set([
+  ...WEAK_PERSON_ENTITY_TOKENS,
   'president',
   'presidential',
   'administration',
@@ -375,6 +383,12 @@ export function isWeakEntityToken(token: string): boolean {
   const raw = token.toLowerCase();
   const stemmed = stemThemeToken(token);
   return WEAK_ENTITY_TOKENS.has(stemmed) || WEAK_ENTITY_TOKENS.has(raw);
+}
+
+export function isWeakPersonEntityToken(token: string): boolean {
+  const raw = token.toLowerCase();
+  const stemmed = stemThemeToken(token);
+  return WEAK_PERSON_ENTITY_TOKENS.has(stemmed) || WEAK_PERSON_ENTITY_TOKENS.has(raw);
 }
 
 function isBoilerplateToken(token: string): boolean {

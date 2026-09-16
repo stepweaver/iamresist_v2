@@ -10,6 +10,7 @@ import {
   hasEventSpecificCoreIdentity,
   identityClassForAttachment,
 } from '@/lib/themeMemory/identity';
+import { groupNamedEntityAnchors, independentEventAnchors, isPersonNamePair } from '@/lib/themeMemory/entityAnchors';
 import { featureStrength, phraseStrength } from '@/lib/themeMemory/featureStrength';
 import { processThemeMemory } from '@/lib/themeMemory/process';
 import { createMemoryThemeStore } from '@/lib/themeMemory/store';
@@ -514,6 +515,72 @@ describe('Theme Memory identity integrity', () => {
     expect(identityClass).toBe('contextual');
   });
 
+  it('groups Pete + Hegseth as one named entity, not two event anchors', () => {
+    expect(isPersonNamePair('pete', 'hegseth')).toBe(true);
+    expect(isPersonNamePair('donald', 'trump')).toBe(true);
+    expect(isPersonNamePair('mitch', 'mcconnell')).toBe(true);
+    expect(isPersonNamePair('colin', 'kaepernick')).toBe(true);
+    expect(isPersonNamePair('massie', 'hegseth')).toBe(false);
+    expect(isPersonNamePair('impeach', 'hegseth')).toBe(false);
+    const grouped = groupNamedEntityAnchors(['pete', 'hegseth'], [['pete', 'hegseth']]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]).toEqual(['hegseth', 'pete']);
+    const anchors = independentEventAnchors({
+      sharedTokens: ['pete', 'hegseth'],
+      sharedPhrases: ['pete hegseth'],
+      entitySpans: [['pete', 'hegseth']],
+    });
+    expect(anchors).toHaveLength(1);
+  });
+
+  it('Massie/Hegseth theme + unrelated Hegseth story is not core', () => {
+    const { match, identityClass } = coreAdmission(
+      'Pete Hegseth visits troops overseas',
+      'Republican congressman calls to impeach US Defence Secretary Pete Hegseth',
+    );
+    expect(match.sharedDistinctive).toEqual(expect.arrayContaining(['pete', 'hegseth']));
+    expect(match.independentEventAnchors.length).toBeLessThan(2);
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('same Trump entity on an unrelated event is not core', () => {
+    const { match, identityClass } = coreAdmission(
+      'Donald Trump plays golf at Bedminster',
+      'Donald Trump classified documents indictment unsealed',
+    );
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('same McConnell entity on an unrelated event is not core', () => {
+    const { match, identityClass } = coreAdmission(
+      'Mitch McConnell attends Kentucky fundraiser',
+      'Mitch McConnell announces Senate retirement',
+    );
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('two lexical tokens from one full name are not enough for core', () => {
+    const pete = coreAdmission(
+      'Pete Hegseth visits troops overseas',
+      'Pete Hegseth holds a Pentagon briefing',
+    );
+    expect(pete.match.sharedDistinctive).toEqual(expect.arrayContaining(['pete', 'hegseth']));
+    expect(pete.match.independentEventAnchors).toHaveLength(1);
+    expect(hasEventSpecificCoreIdentity(pete.match)).toBe(false);
+    expect(pete.identityClass).toBe('contextual');
+
+    const colin = coreAdmission(
+      'Colin Kaepernick signs a new endorsement deal',
+      'Colin Kaepernick takes a knee during the anthem',
+    );
+    expect(colin.match.sharedDistinctive).toEqual(expect.arrayContaining(['colin', 'kaepernick']));
+    expect(hasEventSpecificCoreIdentity(colin.match)).toBe(false);
+    expect(colin.identityClass).toBe('contextual');
+  });
+
   it('9: Flock Camera + Hackers Got Inside a Flock Camera is core', async () => {
     const scored = coreAdmission(
       'Hackers Got Inside a Flock Camera',
@@ -620,6 +687,25 @@ describe('Theme Memory identity integrity', () => {
       'BREAKING: Rep. Massie moves to IMPEACH Hegseth',
     );
     expect(scored.match.sharedDistinctive).toEqual(expect.arrayContaining(['impeach', 'hegseth']));
+    expect(scored.identityClass).toBe('core');
+  });
+
+  it('13: Hegseth + impeachment coverage is core', () => {
+    const scored = coreAdmission(
+      'House files articles of impeachment against Hegseth',
+      'Massie moves to impeach Hegseth',
+    );
+    expect(scored.match.sharedDistinctive).toEqual(expect.arrayContaining(['impeach', 'hegseth']));
+    expect(hasEventSpecificCoreIdentity(scored.match)).toBe(true);
+    expect(scored.identityClass).toBe('core');
+  });
+
+  it('14: same concrete event with different wording remains core', () => {
+    const scored = coreAdmission(
+      'Coverage of the Hegseth impeachment resolution in the House',
+      'Rep. Massie moves to IMPEACH Hegseth',
+    );
+    expect(hasEventSpecificCoreIdentity(scored.match)).toBe(true);
     expect(scored.identityClass).toBe('core');
   });
 });

@@ -141,13 +141,14 @@ describe('Theme Memory deterministic candidates', () => {
     expect(isPlausibleThemeCandidate(scored)).toBe(false);
   });
 
-  it('does not treat a generic Supreme Court ruling as a distinctive anchor', () => {
+  it('does not treat First+Last name overlap as two aligned event anchors', () => {
     const scored = match(
-      'Supreme Court issues major ruling',
-      'Supreme Court hands down bombshell decision',
+      'Pete Hegseth visits troops overseas',
+      'Pete Hegseth holds a Pentagon briefing',
     );
-    expect(scored.distinctiveAnchor).toBe(false);
+    expect(scored.sharedDistinctive).toEqual(expect.arrayContaining(['pete', 'hegseth']));
+    expect(scored.independentEventAnchors).toHaveLength(1);
+    expect(scored.reasons.join(' ')).not.toMatch(/aligned_event_anchors/);
     expect(isDeterministicThemeMatch(scored)).toBe(false);
-    expect(isPlausibleThemeCandidate(scored)).toBe(false);
   });
 });

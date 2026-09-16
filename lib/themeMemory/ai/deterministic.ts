@@ -20,7 +20,16 @@ export function createDeterministicThemeAIProvider(): ThemeAIProvider {
     },
     async generateThemeLabel(input: ThemeLabelGenerateInput): Promise<ThemeLabelResult> {
       const label = input.currentLabel.trim() || deterministicLabelFromFingerprint(
-        { distinctiveTokens: [], supportingTokens: [], phrases: [], weakEntities: [], clusterKeys: {}, actionHints: [], eventType: null },
+        {
+          distinctiveTokens: [],
+          supportingTokens: [],
+          phrases: [],
+          weakEntities: [],
+          clusterKeys: {},
+          actionHints: [],
+          eventType: null,
+          entitySpans: [],
+        },
         input.currentLabel,
       );
       const creatorNote = input.creatorNames.length

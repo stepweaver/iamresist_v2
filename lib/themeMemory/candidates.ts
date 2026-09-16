@@ -4,6 +4,7 @@ import {
   THEME_DETERMINISTIC_MIN_DISTINCTIVE,
   THEME_STRONG_SUBJECT_MIN_LENGTH,
 } from '@/lib/themeMemory/constants';
+import { independentEventAnchors } from '@/lib/themeMemory/entityAnchors';
 import { tokenJaccard } from '@/lib/themeMemory/features';
 import { featureStrength, phraseStrength } from '@/lib/themeMemory/featureStrength';
 import type { ThemeCandidateMatch, ThemeFingerprint, ThemeRecord } from '@/lib/themeMemory/themeTypes';
@@ -30,11 +31,12 @@ function hasDistinctiveAnchor(input: {
   sharedStrongPhrases: string[];
   sharedStrongTokens: string[];
   sharedActions: string[];
+  independentEventAnchors: string[];
 }): boolean {
   if (input.sharedClusterKeys.length > 0) return true;
   if (input.sharedStrongPhrases.length > 0) return true;
-  if (input.sharedStrongTokens.length >= 2) return true;
-  if (input.sharedStrongTokens.length >= 1 && input.sharedActions.length >= 1) return true;
+  if (input.independentEventAnchors.length >= 2) return true;
+  if (input.independentEventAnchors.length >= 1 && input.sharedActions.length >= 1) return true;
   if (input.sharedStrongTokens.some((token) => token.length >= THEME_STRONG_SUBJECT_MIN_LENGTH)) return true;
   return false;
 }
@@ -55,11 +57,18 @@ export function scoreThemeCandidate(input: {
   const sharedPhrases = eventSpecificPhrases(intersect(input.item.phrases, input.theme.phrases));
   const sharedActions = intersect(input.item.actionHints, input.theme.actionHints);
   const sharedWeak = intersect(input.item.weakEntities, input.theme.weakEntities);
+  const independentAnchors = independentEventAnchors({
+    sharedTokens: sharedDistinctive,
+    sharedPhrases,
+    entitySpans: [...(input.item.entitySpans || []), ...(input.theme.entitySpans || [])],
+    extraPhrases: [...input.item.phrases, ...input.theme.phrases],
+  });
   const distinctiveAnchor = hasDistinctiveAnchor({
     sharedClusterKeys,
     sharedStrongPhrases: sharedPhrases,
     sharedStrongTokens: sharedDistinctive,
     sharedActions,
+    independentEventAnchors: independentAnchors,
   });
   const weakEntityOnly =
     !distinctiveAnchor &&
@@ -79,11 +88,11 @@ export function scoreThemeCandidate(input: {
     reasons.push(`shared_phrase:${sharedPhrases[0]}`);
   }
 
-  if (sharedDistinctive.length > 0) {
+    if (sharedDistinctive.length > 0) {
     const distinctiveJaccard = tokenJaccard(input.item.distinctiveTokens, input.theme.distinctiveTokens);
     score += Math.min(0.5, distinctiveJaccard * 0.7 + sharedDistinctive.length * 0.08);
     reasons.push(`shared_distinctive:${sharedDistinctive.slice(0, 4).join(',')}`);
-    if (sharedDistinctive.length >= 2) {
+    if (independentAnchors.length >= 2) {
       score += 0.2;
       reasons.push('aligned_event_anchors');
     }
@@ -140,6 +149,7 @@ export function scoreThemeCandidate(input: {
     distinctiveAnchor,
     weakEntityOnly: !distinctiveAnchor && sharedWeak.length > 0,
     reasons,
+    independentEventAnchors: independentAnchors,
   };
 }
 
@@ -158,13 +168,14 @@ export function isDeterministicThemeMatch(match: ThemeCandidateMatch): boolean {
   if (!match.distinctiveAnchor) return false;
   if (match.sharedClusterKeys.length > 0) return true;
   const strongSubjects = match.sharedDistinctive.filter((token) => token.length >= THEME_STRONG_SUBJECT_MIN_LENGTH);
-  if (match.sharedPhrases.length >= 1 && match.sharedDistinctive.length >= 2 && match.score >= 0.55) {
+  const independentCount = match.independentEventAnchors?.length || 0;
+  if (match.sharedPhrases.length >= 1 && independentCount >= 2 && match.score >= 0.55) {
     return true;
   }
-  if (match.sharedDistinctive.length >= THEME_DETERMINISTIC_MIN_DISTINCTIVE && match.score >= THEME_DETERMINISTIC_ACCEPT_SCORE) {
+  if (independentCount >= THEME_DETERMINISTIC_MIN_DISTINCTIVE && match.score >= THEME_DETERMINISTIC_ACCEPT_SCORE) {
     return true;
   }
-  if (strongSubjects.length >= 1 && match.sharedDistinctive.length >= 2 && match.score >= 0.6) {
+  if (strongSubjects.length >= 1 && independentCount >= 2 && match.score >= 0.6) {
     return true;
   }
   return false;
