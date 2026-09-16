@@ -17,6 +17,7 @@ import {
   compareCandidateToThemeCore,
   coreMembersForLabel,
   identityClassForAttachment,
+  isRankingCoreMembership,
 } from '@/lib/themeMemory/identity';
 import { resolveThemeLifecycle } from '@/lib/themeMemory/lifecycle';
 import { computeThemeDailySignal, toThemeDailySignalRecord, utcDateString } from '@/lib/themeMemory/signals';
@@ -265,9 +266,16 @@ function touchTheme(theme: ThemeRecord, observed: string, now: string, extra: Re
   };
 }
 
-function creatorSeedStrength(members: ThemeMembershipRecord[]): 'single' | 'converged' {
+function creatorSeedStrength(theme: ThemeRecord, members: ThemeMembershipRecord[]): 'single' | 'converged' {
   const creators = new Set(
-    members.filter((row) => row.source_system === 'voice' && row.member_role === 'creator').map((row) => row.source_slug),
+    members
+      .filter(
+        (row) =>
+          row.source_system === 'voice' &&
+          row.member_role === 'creator' &&
+          isRankingCoreMembership(row, theme),
+      )
+      .map((row) => row.source_slug),
   );
   return creators.size >= 2 ? 'converged' : 'single';
 }
@@ -349,7 +357,7 @@ export async function processThemeMemory(input: {
     membershipsByTheme.set(opts.theme.id, list);
 
     const updated = touchTheme(opts.theme, row.item_observed_at, finishedAt, {
-      creatorSeedStrength: creatorSeedStrength(list),
+      creatorSeedStrength: creatorSeedStrength(opts.theme, list),
     });
     themesById.set(updated.id, updated);
     await input.store.upsertTheme(updated);
@@ -569,6 +577,7 @@ export async function processThemeMemory(input: {
     const members = byTheme.get(theme.id) || [];
     const computed = computeThemeDailySignal({
       themeId: theme.id,
+      theme,
       signalDate,
       memberships: members,
       nowIso: finishedAt,
@@ -589,7 +598,15 @@ export async function processThemeMemory(input: {
       previousLifecycle: theme.lifecycle_status,
     });
 
-    let next = { ...theme, lifecycle_status: lifecycle, updated_at: finishedAt };
+    let next = {
+      ...theme,
+      lifecycle_status: lifecycle,
+      updated_at: finishedAt,
+      metadata: {
+        ...theme.metadata,
+        creatorSeedStrength: creatorSeedStrength(theme, members),
+      },
+    };
     const labelMembers = coreMembersForLabel(theme, members);
     const fingerprint = memberFingerprint(labelMembers.length > 0 ? labelMembers : members);
     const labelMeta = (theme.metadata?.label && typeof theme.metadata.label === 'object'

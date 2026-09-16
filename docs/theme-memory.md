@@ -171,8 +171,11 @@ THEME_AI_PROVIDER=ollama
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=
 THEME_AI_TIMEOUT_MS=45000
+THEME_AI_STARTUP_TIMEOUT_MS=180000
 THEME_AI_MAX_RETRIES=2
 ```
+
+`THEME_AI_TIMEOUT_MS` applies to membership and label calls. `THEME_AI_STARTUP_TIMEOUT_MS` applies only to the readiness probe's tiny `/api/generate` warm-up so a cold CPU-only model load can finish without widening per-classification timeouts. The warm-up sends `keep_alive=30m` so the loaded model stays resident for the batch.
 
 `THEME_AI_PROVIDER=none` (default) uses the deterministic fallback. Ordinary tests do not require Ollama.
 

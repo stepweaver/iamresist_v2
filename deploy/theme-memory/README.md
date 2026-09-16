@@ -43,6 +43,8 @@ Required for a meaningful daily run:
 - `THEME_AI_PROVIDER=ollama`
 - `OLLAMA_BASE_URL=http://127.0.0.1:11434`
 - `OLLAMA_MODEL=` (set to an installed local model; do not hardcode in application logic)
+- `THEME_AI_TIMEOUT_MS=45000` for per-classification / label requests
+- `THEME_AI_STARTUP_TIMEOUT_MS=180000` for the Ollama readiness warm-up only (CPU-only model load can exceed 90s; do not raise `THEME_AI_TIMEOUT_MS` for that)
 - `THEME_RANKING_MODE=shadow` for calibration (do not set `active` yet)
 
 ## Overlap prevention

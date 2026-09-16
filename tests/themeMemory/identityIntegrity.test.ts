@@ -7,7 +7,10 @@ import {
   alignedFeaturesFromMember,
   buildThemeCoreFingerprint,
   compareCandidateToThemeCore,
+  hasEventSpecificCoreIdentity,
+  identityClassForAttachment,
 } from '@/lib/themeMemory/identity';
+import { featureStrength, phraseStrength } from '@/lib/themeMemory/featureStrength';
 import { processThemeMemory } from '@/lib/themeMemory/process';
 import { createMemoryThemeStore } from '@/lib/themeMemory/store';
 import type { ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
@@ -70,6 +73,14 @@ function matchTitles(itemTitle: string, themeTitle: string, label = 't') {
     themeRecord: themeRecord({ id: `theme-${label}`, canonical_label: label }),
     itemObservedAt: NOW,
   });
+}
+
+function coreAdmission(itemTitle: string, themeTitle: string, role: 'creator' | 'reporting' | 'specialist' = 'reporting') {
+  const match = matchTitles(itemTitle, themeTitle);
+  return {
+    match,
+    identityClass: identityClassForAttachment({ item: { role }, match, seeded: false }),
+  };
 }
 
 describe('Theme Memory identity integrity', () => {
@@ -394,5 +405,221 @@ describe('Theme Memory identity integrity', () => {
       },
     });
     expect(accepted.accept).toBe(false);
+  });
+
+  it('classifies social boilerplate and generic event words as weak/supporting', () => {
+    for (const token of ['year', 'today', 'just', 'goes', 'trying', 'make', 'again', 'short', 'shorts', 'feared', 'brutal']) {
+      expect(featureStrength(token)).toBe('weak');
+    }
+    for (const token of ['attack', 'return', 'camera', 'fighter', 'shot', 'public', 'chance', '2028']) {
+      expect(featureStrength(token)).not.toBe('strong');
+    }
+    expect(phraseStrength('shot down')).not.toBe('strong');
+    expect(phraseStrength('year today')).toBe('weak');
+    expect(phraseStrength('trump goes')).toBe('weak');
+    expect(phraseStrength('could lose')).not.toBe('strong');
+    expect(featureStrength('flock')).toBe('strong');
+    expect(featureStrength('massie')).toBe('strong');
+    expect(featureStrength('hegseth')).toBe('strong');
+    expect(featureStrength('impeach')).toBe('strong');
+  });
+
+  it('1: 9/11 theme does not admit Iran crackdown via year today', () => {
+    const { match, identityClass } = coreAdmission(
+      'Iran launches a brutal crackdown year today',
+      '9/11 Widow Blasts U.S. Cover-Up of Saudi Role in Attacks',
+    );
+    expect(match.sharedDistinctive).not.toEqual(expect.arrayContaining(['year', 'today']));
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('2: Lithuania/NATO drone theme does not admit Saudi fighter story via shot down', () => {
+    const { match, identityClass } = coreAdmission(
+      'Saudi fighter jet shot down by Houthis',
+      'NATO Drone Shootdown in Lithuania',
+    );
+    expect(match.sharedPhrases.join(' ')).not.toMatch(/shot down/);
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('3: census theme does not admit victim commentary via trying make', () => {
+    const { match, identityClass } = coreAdmission(
+      'Conservative Christians are always trying to make themselves the victim.',
+      'republican trying alter censu',
+    );
+    expect(match.sharedDistinctive).not.toEqual(expect.arrayContaining(['trying', 'make']));
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('4: data-center theme does not admit Trump GOES DARK via trump goes', () => {
+    const { match, identityClass } = coreAdmission(
+      'Trump GOES DARK…',
+      "Trump's Data Center Rant",
+    );
+    expect(match.sharedPhrases.join(' ')).not.toMatch(/trump goes/);
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('5: sleep theme does not admit Melania JUST DID IT AGAIN via just again', () => {
+    const { match, identityClass } = coreAdmission(
+      'Melania JUST DID IT AGAIN…',
+      "Trump’s Sleep Incident",
+    );
+    expect(match.sharedDistinctive).not.toEqual(expect.arrayContaining(['just', 'again']));
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('6: 2028 theme does not admit unrelated #shorts item', () => {
+    const { match, identityClass } = coreAdmission(
+      "They'll blame Biden until 2028 at this rate #shorts",
+      'nobody ready 2028 seem',
+    );
+    expect(match.sharedDistinctive).not.toEqual(expect.arrayContaining(['short', 'shorts', '2028']));
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('7: Trump-risk theme does not admit unrelated could-lose story', () => {
+    const { match, identityClass } = coreAdmission(
+      'Yemen says Saudi Arabia could lose territory',
+      'Trump Risk',
+    );
+    expect(match.sharedPhrases.join(' ')).not.toMatch(/could lose/);
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('8: Flock camera theme does not admit iPhone camera review', () => {
+    const { match, identityClass } = coreAdmission(
+      'iPhone camera review: the best smartphone camera yet',
+      'Flock Camera Surveillance Network',
+    );
+    expect(match.sharedDistinctive).not.toEqual(expect.arrayContaining(['camera']));
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('Hegseth alone is not enough for Massie impeachment core', () => {
+    const { match, identityClass } = coreAdmission(
+      'Pete Hegseth visits troops overseas',
+      'Massie moves to impeach Hegseth',
+    );
+    expect(match.sharedDistinctive).toEqual(['hegseth']);
+    expect(hasEventSpecificCoreIdentity(match)).toBe(false);
+    expect(identityClass).toBe('contextual');
+  });
+
+  it('9: Flock Camera + Hackers Got Inside a Flock Camera is core', async () => {
+    const scored = coreAdmission(
+      'Hackers Got Inside a Flock Camera',
+      'Flock Camera Surveillance Network',
+    );
+    expect(scored.match.sharedDistinctive).toContain('flock');
+    expect(scored.identityClass).toBe('core');
+
+    const store = createMemoryThemeStore();
+    await processThemeMemory({
+      items: [
+        voiceCandidate({
+          slug: 'ken-klippenstein',
+          name: 'Ken Klippenstein',
+          title: 'Flock Camera Surveillance Network',
+          publishedAt: NOW,
+          id: 'flock-seed',
+        }),
+        newswireCandidate({
+          slug: '404media',
+          source: '404 Media',
+          title: 'Hackers Got Inside a Flock Camera',
+          url: 'https://404media.test/flock-camera',
+          publishedAt: NOW,
+        }),
+      ],
+      store,
+      ai: createTestThemeAIProvider(),
+      now: NOW,
+    });
+    const attached = (await store.listMemberships()).find((row) => row.source_slug === '404media');
+    expect(attached?.metadata.identityClass).toBe('core');
+  });
+
+  it('10: Fed/rates creator seed + US Fed raises interest rates is core', async () => {
+    const scored = coreAdmission(
+      'US Fed raises interest rates',
+      'The Fed is raising interest rates — here is what it means',
+    );
+    expect(scored.identityClass).toBe('core');
+
+    const store = createMemoryThemeStore();
+    await processThemeMemory({
+      items: [
+        voiceCandidate({
+          slug: 'david-pakman',
+          name: 'David Pakman',
+          title: 'The Fed is raising interest rates — here is what it means',
+          publishedAt: NOW,
+          id: 'fed-seed',
+        }),
+        newswireCandidate({
+          slug: 'reuters',
+          source: 'Reuters',
+          title: 'US Fed raises interest rates',
+          url: 'https://reuters.test/fed-rates',
+          publishedAt: NOW,
+        }),
+      ],
+      store,
+      ai: createTestThemeAIProvider(),
+      now: NOW,
+    });
+    const attached = (await store.listMemberships()).find((row) => row.source_slug === 'reuters');
+    expect(attached?.metadata.identityClass).toBe('core');
+  });
+
+  it('11: Russian oligarch/Trump Jr wedding reporting is core', async () => {
+    const scored = coreAdmission(
+      'Reporting on Trump Jr wedding with Russian oligarch',
+      "Russian oligarch attends Trump Jr's wedding",
+    );
+    expect(scored.identityClass).toBe('core');
+
+    const store = createMemoryThemeStore();
+    await processThemeMemory({
+      items: [
+        voiceCandidate({
+          slug: 'meidastouch',
+          name: 'MeidasTouch',
+          title: "Russian oligarch attends Trump Jr's wedding",
+          publishedAt: NOW,
+          id: 'wedding-seed',
+        }),
+        newswireCandidate({
+          slug: 'ap',
+          source: 'AP',
+          title: 'Reporting on Trump Jr wedding with Russian oligarch',
+          url: 'https://ap.test/trump-jr-wedding',
+          publishedAt: NOW,
+        }),
+      ],
+      store,
+      ai: createTestThemeAIProvider(),
+      now: NOW,
+    });
+    const attached = (await store.listMemberships()).find((row) => row.source_slug === 'ap');
+    expect(attached?.metadata.identityClass).toBe('core');
+  });
+
+  it('12: Massie/Hegseth impeachment coverage with event anchors is core', () => {
+    const scored = coreAdmission(
+      'Republican congressman calls to impeach US Defence Secretary Pete Hegseth',
+      'BREAKING: Rep. Massie moves to IMPEACH Hegseth',
+    );
+    expect(scored.match.sharedDistinctive).toEqual(expect.arrayContaining(['impeach', 'hegseth']));
+    expect(scored.identityClass).toBe('core');
   });
 });

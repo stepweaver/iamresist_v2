@@ -6,11 +6,13 @@ vi.mock('@/lib/env/themeMemory', () => ({
     OLLAMA_BASE_URL: 'http://127.0.0.1:11434',
     OLLAMA_MODEL: 'test-model',
     THEME_AI_TIMEOUT_MS: 1000,
+    THEME_AI_STARTUP_TIMEOUT_MS: 180000,
     THEME_AI_MAX_RETRIES: 1,
   },
 }));
 
-import { createOllamaThemeAIProvider } from '@/lib/themeMemory/ai/ollama';
+import { themeMemoryEnv } from '@/lib/env/themeMemory';
+import { createOllamaThemeAIProvider, probeOllama } from '@/lib/themeMemory/ai/ollama';
 import { ThemeAIValidationError } from '@/lib/themeMemory/ai/types';
 import type { ThemeMembershipClassifyInput } from '@/lib/themeMemory/ai/types';
 import {
@@ -46,9 +48,80 @@ function chatBody(fetchMock: ReturnType<typeof vi.fn>, call = 0) {
   };
 }
 
+function abortError() {
+  const error = new Error('Aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+function waitForAbort(signal?: AbortSignal) {
+  return new Promise<never>((_, reject) => {
+    if (!signal) {
+      reject(new Error('missing AbortSignal'));
+      return;
+    }
+    if (signal.aborted) {
+      reject(abortError());
+      return;
+    }
+    signal.addEventListener('abort', () => reject(abortError()));
+  });
+}
+
+function delay(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    if (!signal) return;
+    if (signal.aborted) {
+      clearTimeout(timer);
+      reject(abortError());
+      return;
+    }
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(abortError());
+    });
+  });
+}
+
+function tagsOk() {
+  return {
+    ok: true,
+    json: async () => ({ models: [{ name: 'test-model' }] }),
+  };
+}
+
+function generateOk() {
+  return {
+    ok: true,
+    json: async () => ({ response: '{"ok":true}' }),
+  };
+}
+
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+function generateBody(fetchMock: ReturnType<typeof vi.fn>) {
+  const generateCall = fetchMock.mock.calls.find((call) => String(call[0]).includes('/api/generate'));
+  const init = generateCall?.[1] as { body?: string } | undefined;
+  return JSON.parse(String(init?.body || '{}')) as {
+    prompt?: string;
+    keep_alive?: string;
+    format?: string;
+    stream?: boolean;
+    model?: string;
+  };
+}
+
 describe('Ollama Theme AI provider', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+    themeMemoryEnv.THEME_AI_TIMEOUT_MS = 1000;
+    themeMemoryEnv.THEME_AI_STARTUP_TIMEOUT_MS = 180000;
+    themeMemoryEnv.THEME_AI_MAX_RETRIES = 1;
   });
 
   it('parses structured membership output', async () => {
@@ -198,6 +271,146 @@ describe('Ollama Theme AI provider', () => {
       ),
     ).rejects.toThrow(/timeout|abort|unavailable|ollama/i);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps classification timeout at THEME_AI_TIMEOUT_MS when startup timeout is longer', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string, init?: { signal?: AbortSignal }) => waitForAbort(init?.signal));
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createOllamaThemeAIProvider({ model: 'test-model', retries: 0 });
+    const pending = provider.classifyMembership(membershipInput());
+    let settled = false;
+    void pending.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await flushMicrotasks();
+
+    await vi.advanceTimersByTimeAsync(themeMemoryEnv.THEME_AI_TIMEOUT_MS - 1);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(pending).rejects.toThrow(/timeout|abort|unavailable|ollama/i);
+    expect(settled).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Ollama readiness probe', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    themeMemoryEnv.THEME_AI_TIMEOUT_MS = 1000;
+    themeMemoryEnv.THEME_AI_STARTUP_TIMEOUT_MS = 180000;
+  });
+
+  it('lets slow model startup succeed inside THEME_AI_STARTUP_TIMEOUT_MS', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (url: string, init?: { signal?: AbortSignal }) => {
+      if (String(url).includes('/api/tags')) return tagsOk();
+      await delay(themeMemoryEnv.THEME_AI_TIMEOUT_MS + 2000, init?.signal);
+      return generateOk();
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pending = probeOllama();
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(themeMemoryEnv.THEME_AI_TIMEOUT_MS + 2000);
+    const result = await pending;
+
+    expect(result.ok).toBe(true);
+    expect(result.error).toBeUndefined();
+    expect(generateBody(fetchMock).keep_alive).toBe('30m');
+    expect(generateBody(fetchMock).prompt).toBe('Reply with JSON: {"ok":true}');
+  });
+
+  it('reports ollama_timeout when warm-up exceeds the startup timeout', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((url: string, init?: { signal?: AbortSignal }) => {
+      if (String(url).includes('/api/tags')) return Promise.resolve(tagsOk());
+      return waitForAbort(init?.signal);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pending = probeOllama();
+    let settled = false;
+    void pending.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await flushMicrotasks();
+
+    await vi.advanceTimersByTimeAsync(themeMemoryEnv.THEME_AI_STARTUP_TIMEOUT_MS - 1);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
+    expect(result).toMatchObject({
+      ok: false,
+      reachable: true,
+      modelConfigured: true,
+      error: 'ollama_timeout',
+    });
+  });
+
+  it('honors a configured THEME_AI_STARTUP_TIMEOUT_MS', async () => {
+    vi.useFakeTimers();
+    themeMemoryEnv.THEME_AI_STARTUP_TIMEOUT_MS = 80;
+    const fetchMock = vi.fn((url: string, init?: { signal?: AbortSignal }) => {
+      if (String(url).includes('/api/tags')) return Promise.resolve(tagsOk());
+      return waitForAbort(init?.signal);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pending = probeOllama();
+    let settled = false;
+    void pending.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await flushMicrotasks();
+
+    await vi.advanceTimersByTimeAsync(79);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
+    expect(result.error).toBe('ollama_timeout');
+    expect(result.ok).toBe(false);
+  });
+
+  it('does not generate when the configured model is not installed', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes('/api/tags')) {
+        return {
+          ok: true,
+          json: async () => ({ models: [{ name: 'other-model' }] }),
+        };
+      }
+      return generateOk();
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await probeOllama();
+    expect(result.ok).toBe(false);
+    expect(result.reachable).toBe(true);
+    expect(result.error).toMatch(/configured model not installed/);
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/generate'))).toBe(false);
   });
 });
 

@@ -134,6 +134,42 @@ const FUNCTION_WORDS = new Set([
   'herself',
   'itself',
   'themselves',
+  'down',
+  'could',
+]);
+
+/**
+ * Social/video boilerplate and generic news verbs. These are noise, not story identity.
+ */
+const BOILERPLATE_WEAK_TOKENS = new Set([
+  'short',
+  'shorts',
+  'live',
+  'latestnews',
+  'latestnew',
+  'breaking',
+  'omg',
+  'just',
+  'goes',
+  'get',
+  'gets',
+  'today',
+  'year',
+  'years',
+  'major',
+  'brutal',
+  'nightmare',
+  'feared',
+  'trying',
+  'try',
+  'make',
+  'makes',
+  'making',
+  'again',
+  'lose',
+  'losing',
+  'lost',
+  'dark',
 ]);
 
 /**
@@ -231,6 +267,25 @@ const SUPPORTING_TOKENS = new Set([
   'headlines',
   'secretary',
   'federal',
+  'attack',
+  'attacks',
+  'attacked',
+  'return',
+  'returns',
+  'returned',
+  'camera',
+  'cameras',
+  'fighter',
+  'fighters',
+  'shot',
+  'shots',
+  'shoot',
+  'shooting',
+  'shootdown',
+  'public',
+  'chance',
+  'risk',
+  'risks',
 ]);
 
 /**
@@ -294,6 +349,13 @@ const WEAK_PHRASES = new Set([
   'house representatives',
   'federal government',
   'latest news',
+  'shot down',
+  'year today',
+  'trump goes',
+  'goes dark',
+  'could lose',
+  'just again',
+  'trying make',
 ]);
 
 export function stemThemeToken(token: string): string {
@@ -315,6 +377,20 @@ export function isWeakEntityToken(token: string): boolean {
   return WEAK_ENTITY_TOKENS.has(stemmed) || WEAK_ENTITY_TOKENS.has(raw);
 }
 
+function isBoilerplateToken(token: string): boolean {
+  const raw = token.toLowerCase();
+  const stemmed = stemThemeToken(raw);
+  if (BOILERPLATE_WEAK_TOKENS.has(raw) || BOILERPLATE_WEAK_TOKENS.has(stemmed)) return true;
+  for (const candidate of BOILERPLATE_WEAK_TOKENS) {
+    if (stemThemeToken(candidate) === stemmed) return true;
+  }
+  return false;
+}
+
+function isCalendarYearToken(token: string): boolean {
+  return /^\d{4}$/.test(token);
+}
+
 export function isDistinctiveActionToken(token: string): boolean {
   const raw = token.toLowerCase();
   const stemmed = stemThemeToken(token);
@@ -325,7 +401,7 @@ export function isWeakPhrase(phrase: string): boolean {
   const normalized = phrase.toLowerCase().replace(/\s+/g, ' ').trim();
   if (WEAK_PHRASES.has(normalized)) return true;
   const parts = normalized.split(' ').filter(Boolean);
-  return parts.length >= 2 && parts.every((part) => isWeakEntityToken(part));
+  return parts.length >= 2 && parts.every((part) => isWeakEntityToken(part) || isBoilerplateToken(part));
 }
 
 function isSupportingToken(token: string): boolean {
@@ -347,7 +423,9 @@ export function featureStrength(token: string): SemanticFeatureStrength {
   if (!raw) return 'weak';
   const stemmed = stemThemeToken(raw);
   if (FUNCTION_WORDS.has(raw) || FUNCTION_WORDS.has(stemmed)) return 'weak';
+  if (isBoilerplateToken(raw)) return 'weak';
   if (isWeakEntityToken(raw)) return 'weak';
+  if (isCalendarYearToken(raw) || isCalendarYearToken(stemmed)) return 'supporting';
   if (isDistinctiveActionToken(raw)) return 'strong';
   if (isSupportingToken(raw)) return 'supporting';
   return 'strong';

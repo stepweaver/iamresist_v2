@@ -49,7 +49,7 @@ function membership(over: Partial<ThemeMembershipRecord> = {}): ThemeMembershipR
     source_family: 'general',
     first_assigned_at: '2026-09-14T00:00:00.000Z',
     last_confirmed_at: '2026-09-14T00:00:00.000Z',
-    metadata: {},
+    metadata: { identityClass: 'core', identityReason: 'core_identity' },
     created_at: '2026-09-14T00:00:00.000Z',
     updated_at: '2026-09-14T00:00:00.000Z',
     ...over,
@@ -164,5 +164,83 @@ describe('getThemeAttentionForItems', () => {
     expect(row?.creatorCount7d).toBe(3);
     expect(row?.activeDays7d).toBe(4);
     expect(row?.reasons).toContain('theme:membership_is_not_corroboration');
+  });
+
+  it('17: contextual rankable item gets no theme attention', async () => {
+    const store = createMemoryThemeStore({
+      themes: [theme()],
+      memberships: [
+        membership({
+          metadata: { identityClass: 'contextual', identityReason: 'contextual' },
+        }),
+      ],
+      signals: [signal()],
+    });
+    const map = await getThemeAttentionForItems(
+      store,
+      [{ sourceSystem: 'intel', sourceSlug: 'lawfare', identityKey: 'url:https://lawfare.test/deployment' }],
+      { now: '2026-09-15T12:00:00.000Z' },
+    );
+    const hit = map.get(
+      themeItemKey({
+        source_system: 'intel',
+        source_slug: 'lawfare',
+        identity_key: 'url:https://lawfare.test/deployment',
+      }),
+    );
+    expect(hit).toBeNull();
+  });
+
+  it('legacy null identityClass gets no theme attention unless it is the seed', async () => {
+    const store = createMemoryThemeStore({
+      themes: [theme()],
+      memberships: [membership({ metadata: {}, membership_reasons: ['ai_overlap'] })],
+      signals: [signal()],
+    });
+    const map = await getThemeAttentionForItems(
+      store,
+      [{ sourceSystem: 'intel', sourceSlug: 'lawfare', identityKey: 'url:https://lawfare.test/deployment' }],
+      { now: '2026-09-15T12:00:00.000Z' },
+    );
+    const hit = map.get(
+      themeItemKey({
+        source_system: 'intel',
+        source_slug: 'lawfare',
+        identity_key: 'url:https://lawfare.test/deployment',
+      }),
+    );
+    expect(hit).toBeNull();
+  });
+
+  it('18: core rankable item still receives normal theme attention', async () => {
+    const store = createMemoryThemeStore({
+      themes: [theme()],
+      memberships: [
+        membership({
+          metadata: { identityClass: 'core', identityReason: 'core_identity' },
+        }),
+        membership({
+          id: 'mem-context',
+          identity_key: 'url:https://lawfare.test/context',
+          canonical_url: 'https://lawfare.test/context',
+          source_system: 'voice',
+          source_slug: 'other-creator',
+          member_role: 'creator',
+          title: 'Contextual camera mention',
+          metadata: { identityClass: 'contextual', identityReason: 'contextual' },
+          item_observed_at: '2026-09-14T12:00:00.000Z',
+        }),
+      ],
+      signals: [signal()],
+    });
+    const row = await getThemeAttentionForItem(store, {
+      sourceSystem: 'intel',
+      sourceSlug: 'lawfare',
+      identityKey: 'url:https://lawfare.test/deployment',
+    });
+    expect(row?.matchedThemeId).toBe('theme-1');
+    expect(row?.creatorCount7d).toBe(3);
+    expect(row?.creatorItemCount7d).toBe(0);
+    expect(row?.membershipIsNotCorroboration).toBe(true);
   });
 });

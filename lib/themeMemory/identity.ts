@@ -6,8 +6,8 @@
  * Contextual / mixed-topic members may belong without redefining theme vocabulary.
  */
 
-import { isDeterministicThemeMatch, scoreThemeCandidate } from '@/lib/themeMemory/candidates';
-import { featureStrength } from '@/lib/themeMemory/featureStrength';
+import { scoreThemeCandidate } from '@/lib/themeMemory/candidates';
+import { featureStrength, phraseStrength } from '@/lib/themeMemory/featureStrength';
 import {
   extractThemeFingerprint,
   fingerprintFromCandidate,
@@ -26,6 +26,7 @@ import type {
 export type ThemeIdentityClass = 'core' | 'contextual';
 
 const CORE_EXPAND_ROLES = new Set(['creator', 'reporting', 'primary']);
+const CORE_IDENTITY_ROLES = new Set(['creator', 'reporting', 'primary', 'specialist']);
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
@@ -42,7 +43,7 @@ function memberItemKey(row: Pick<ThemeMembershipRecord, 'source_system' | 'sourc
 
 export function isSeedMembership(
   member: Pick<ThemeMembershipRecord, 'source_system' | 'source_slug' | 'identity_key' | 'membership_reasons' | 'metadata'>,
-  theme: ThemeRecord,
+  theme: Pick<ThemeRecord, 'metadata'>,
 ): boolean {
   const seededKey = theme.metadata?.seededItemKey;
   if (typeof seededKey === 'string' && seededKey === memberItemKey(member)) return true;
@@ -68,17 +69,46 @@ export function seedMembers(theme: ThemeRecord, memberships: ThemeMembershipReco
 /**
  * A member may strengthen core identity only with a strong event-level match
  * against the current core, and only in identity-bearing roles.
+ *
+ * Generic words, boilerplate, the same person, or a shared institution are
+ * not enough. Require overlapping event/story anchors.
  */
+export function eventSpecificCoreAnchors(match: ThemeCandidateMatch): {
+  tokens: string[];
+  phrases: string[];
+  clusterKeys: string[];
+} {
+  const tokens = unique(match.sharedDistinctive.filter((token) => featureStrength(token) === 'strong'));
+  const phrases = unique(
+    match.sharedPhrases.filter((phrase) => {
+      if (phraseStrength(phrase) !== 'strong') return false;
+      return phrase.split(' ').some((part) => featureStrength(part) === 'strong');
+    }),
+  );
+  return {
+    tokens,
+    phrases,
+    clusterKeys: unique(match.sharedClusterKeys),
+  };
+}
+
+export function hasEventSpecificCoreIdentity(match: ThemeCandidateMatch): boolean {
+  if (!match.distinctiveAnchor) return false;
+  const { tokens, phrases, clusterKeys } = eventSpecificCoreAnchors(match);
+  if (clusterKeys.length > 0) return true;
+  if (tokens.length >= 2) return true;
+  if (tokens.length >= 1 && phrases.length >= 1) return true;
+  return phrases.some(
+    (phrase) => phrase.split(' ').filter((part) => featureStrength(part) === 'strong').length >= 2,
+  );
+}
+
 export function canExpandThemeCore(
   member: { member_role: string },
   match: ThemeCandidateMatch,
 ): boolean {
   if (!CORE_EXPAND_ROLES.has(member.member_role)) return false;
-  if (!match.distinctiveAnchor) return false;
-  if (!isDeterministicThemeMatch(match)) return false;
-  const eventAnchors =
-    match.sharedDistinctive.length + match.sharedPhrases.length + match.sharedClusterKeys.length;
-  return eventAnchors >= 2 || match.sharedClusterKeys.length > 0;
+  return hasEventSpecificCoreIdentity(match);
 }
 
 export function isCoreIdentityMember(
@@ -97,21 +127,35 @@ export function isCoreIdentityMember(
 }
 
 export function identityClassForAttachment(input: {
-  item: ThemeCandidateItem;
+  item: { role: string };
   match: ThemeCandidateMatch | null;
   seeded: boolean;
 }): ThemeIdentityClass {
   if (input.seeded) return 'core';
   if (!input.match) return 'contextual';
-  if (canExpandThemeCore({ member_role: input.item.role }, input.match)) return 'core';
-  if (
-    CORE_EXPAND_ROLES.has(input.item.role) &&
-    input.match.distinctiveAnchor &&
-    input.match.sharedDistinctive.length + input.match.sharedPhrases.length >= 2
-  ) {
-    return 'core';
-  }
+  if (!CORE_IDENTITY_ROLES.has(input.item.role)) return 'contextual';
+  if (hasEventSpecificCoreIdentity(input.match)) return 'core';
   return 'contextual';
+}
+
+/**
+ * Ranking/attention may use a membership only when it is known core, or a
+ * deterministic seed. Legacy rows with a missing identityClass fail closed.
+ */
+export function isRankingCoreMembership(
+  member: Pick<
+    ThemeMembershipRecord,
+    'source_system' | 'source_slug' | 'identity_key' | 'membership_reasons' | 'metadata'
+  >,
+  theme?: Pick<ThemeRecord, 'metadata'> | null,
+): boolean {
+  const identityClass = member.metadata?.identityClass;
+  if (identityClass === 'core') return true;
+  if (identityClass === 'contextual') return false;
+  if (theme) return isSeedMembership(member, theme);
+  return (
+    member.membership_reasons.includes('seeded_creator_led_theme') || member.metadata?.identityReason === 'seed'
+  );
 }
 
 /**

@@ -127,7 +127,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - `THEME_AI_PROVIDER` — `none` (default, deterministic fallback) or `ollama`
 - `OLLAMA_BASE_URL` — default `http://127.0.0.1:11434`
 - `OLLAMA_MODEL` — required when `THEME_AI_PROVIDER=ollama`
-- Optional: `THEME_AI_TIMEOUT_MS` (default `45000`), `THEME_AI_MAX_RETRIES` (default `2`)
+- Optional: `THEME_AI_TIMEOUT_MS` (default `45000`) for classification, `THEME_AI_STARTUP_TIMEOUT_MS` (default `180000`) for Ollama warm-up, `THEME_AI_MAX_RETRIES` (default `2`)
 - `THEME_RANKING_MODE` — `off` (default), `shadow` (calculate, do not apply), or `active`
 - `THEME_RANKING_ENABLED` — `true`/`1` enables `active` only when `THEME_RANKING_MODE` is unset
 - Manual HTTP crons still exist: `GET /api/cron/theme-memory-ingest` and `GET /api/cron/theme-memory-process` with `Authorization: Bearer CRON_SECRET`

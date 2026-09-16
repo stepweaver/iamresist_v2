@@ -1,6 +1,7 @@
 import { storyTokenJaccard, storyTextTokens } from '@/lib/intel/storyCoherence';
 import { THEME_MEMBERSHIP_IS_NOT_CORROBORATION, THEME_SIGNAL_FORMULAS } from '@/lib/themeMemory/constants';
-import type { ThemeDailySignalRecord, ThemeMembershipRecord } from '@/lib/themeMemory/themeTypes';
+import { isRankingCoreMembership } from '@/lib/themeMemory/identity';
+import type { ThemeDailySignalRecord, ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
 
 export function utcDateString(value: string | Date): string {
   const iso = value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -91,16 +92,27 @@ export type ThemeSignalComputation = Omit<
  *
  * Rolling: active_days_*, creator_breadth (distinct creators in last 7 days),
  * creator_momentum (today creator items / mean of prior 6 days).
+ *
+ * Ranking fields count CORE memberships only. Contextual and unclassified
+ * legacy rows are excluded unless they are the deterministic seed.
  */
 export function computeThemeDailySignal(input: {
   themeId: string;
   signalDate: string;
   memberships: ThemeMembershipRecord[];
   nowIso: string;
+  theme?: Pick<ThemeRecord, 'metadata'> | null;
 }): ThemeSignalComputation {
   const signalDate = input.signalDate;
   const asOf = `${signalDate}T23:59:59.999Z`;
-  const members = input.memberships.filter((row) => row.item_observed_at <= asOf);
+  const asOfMembers = input.memberships.filter((row) => row.item_observed_at <= asOf);
+  const members = asOfMembers.filter((row) => isRankingCoreMembership(row, input.theme));
+  const contextualCount = asOfMembers.filter((row) => row.metadata?.identityClass === 'contextual').length;
+  const coreLabeledCount = asOfMembers.filter((row) => row.metadata?.identityClass === 'core').length;
+  const legacyUnclassifiedCount = asOfMembers.filter((row) => {
+    const identityClass = row.metadata?.identityClass;
+    return identityClass !== 'core' && identityClass !== 'contextual';
+  }).length;
 
   const onDay = members.filter((row) => utcDateString(row.item_observed_at) === signalDate);
   const isVoiceCreator = (row: ThemeMembershipRecord) =>
@@ -167,6 +179,12 @@ export function computeThemeDailySignal(input: {
       evidenceDepthMeans: 'related_primary_specialist_reporting_context_not_claim_verification',
       computedAt: input.nowIso,
       lastCreatorActivityAt: creatorLast,
+      rankingSignalsUseCoreMembershipsOnly: true,
+      totalMembershipCount: asOfMembers.length,
+      coreMembershipCount: coreLabeledCount,
+      contextualMembershipCount: contextualCount,
+      legacyUnclassifiedCount,
+      rankingSignalMembershipCount: members.length,
     },
   };
 }

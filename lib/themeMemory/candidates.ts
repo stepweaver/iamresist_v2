@@ -5,6 +5,7 @@ import {
   THEME_STRONG_SUBJECT_MIN_LENGTH,
 } from '@/lib/themeMemory/constants';
 import { tokenJaccard } from '@/lib/themeMemory/features';
+import { featureStrength, phraseStrength } from '@/lib/themeMemory/featureStrength';
 import type { ThemeCandidateMatch, ThemeFingerprint, ThemeRecord } from '@/lib/themeMemory/themeTypes';
 
 function intersect(a: string[], b: string[]): string[] {
@@ -14,6 +15,14 @@ function intersect(a: string[], b: string[]): string[] {
 
 function roundScore(n: number): number {
   return Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000;
+}
+
+function eventSpecificTokens(tokens: string[]): string[] {
+  return tokens.filter((token) => featureStrength(token) === 'strong');
+}
+
+function eventSpecificPhrases(phrases: string[]): string[] {
+  return phrases.filter((phrase) => phraseStrength(phrase) === 'strong');
 }
 
 function hasDistinctiveAnchor(input: {
@@ -39,9 +48,11 @@ export function scoreThemeCandidate(input: {
   const sharedClusterKeys = Object.entries(input.item.clusterKeys)
     .filter(([key, value]) => input.theme.clusterKeys[key] && input.theme.clusterKeys[key] === value)
     .map(([key, value]) => `${key}:${value}`);
-  const sharedDistinctive = intersect(input.item.distinctiveTokens, input.theme.distinctiveTokens);
+  const sharedDistinctive = eventSpecificTokens(
+    intersect(input.item.distinctiveTokens, input.theme.distinctiveTokens),
+  );
   const sharedSupporting = intersect(input.item.supportingTokens || [], input.theme.supportingTokens || []);
-  const sharedPhrases = intersect(input.item.phrases, input.theme.phrases);
+  const sharedPhrases = eventSpecificPhrases(intersect(input.item.phrases, input.theme.phrases));
   const sharedActions = intersect(input.item.actionHints, input.theme.actionHints);
   const sharedWeak = intersect(input.item.weakEntities, input.theme.weakEntities);
   const distinctiveAnchor = hasDistinctiveAnchor({

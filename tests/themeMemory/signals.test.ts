@@ -23,7 +23,7 @@ function member(over: Partial<ThemeMembershipRecord> & Pick<ThemeMembershipRecor
     source_family: 'general',
     first_assigned_at: over.item_observed_at,
     last_confirmed_at: over.item_observed_at,
-    metadata: {},
+    metadata: { identityClass: 'core', identityReason: 'core_identity' },
     created_at: over.item_observed_at,
     updated_at: over.item_observed_at,
     ...over,
@@ -124,5 +124,187 @@ describe('Theme Memory daily signals', () => {
     expect(persistable.metadata.lastCreatorActivityAt).toBe('2026-09-10T12:00:00.000Z');
     expect(persistable.theme_id).toBe('theme-1');
     expect(persistable.signal_date).toBe('2026-09-10');
+  });
+
+  it('13: contextual creator does not increase creator_count, breadth, or momentum', () => {
+    const members = [
+      member({
+        id: 'c-core',
+        source_system: 'voice',
+        source_slug: 'pakman',
+        member_role: 'creator',
+        title: 'Flock camera breach continues',
+        item_observed_at: '2026-09-10T12:00:00.000Z',
+        membership_reasons: ['seeded_creator_led_theme'],
+        metadata: { identityClass: 'core', identityReason: 'seed' },
+      }),
+      member({
+        id: 'c-context',
+        source_system: 'voice',
+        source_slug: 'other-creator',
+        member_role: 'creator',
+        title: 'iPhone camera review',
+        item_observed_at: '2026-09-10T13:00:00.000Z',
+        metadata: { identityClass: 'contextual', identityReason: 'contextual' },
+      }),
+    ];
+    const signal = computeThemeDailySignal({
+      themeId: 'theme-1',
+      signalDate: '2026-09-10',
+      memberships: members,
+      nowIso: '2026-09-10T16:00:00.000Z',
+    });
+    expect(signal.creator_count).toBe(1);
+    expect(signal.creator_item_count).toBe(1);
+    expect(signal.creator_breadth).toBe(1);
+    expect(signal.creator_momentum).toBe(1);
+    expect(signal.lastCreatorActivityAt).toBe('2026-09-10T12:00:00.000Z');
+    expect(signal.metadata.contextualMembershipCount).toBe(1);
+    expect(signal.metadata.coreMembershipCount).toBe(1);
+    expect(signal.metadata.totalMembershipCount).toBe(2);
+  });
+
+  it('14: contextual newswire does not increase newswire counts or evidence_depth', () => {
+    const members = [
+      member({
+        id: 'c-core',
+        source_system: 'voice',
+        source_slug: 'pakman',
+        member_role: 'creator',
+        title: 'Flock camera breach continues',
+        item_observed_at: '2026-09-10T12:00:00.000Z',
+        metadata: { identityClass: 'core', identityReason: 'seed' },
+      }),
+      member({
+        id: 'n-context',
+        source_system: 'newswire',
+        source_slug: 'ap',
+        member_role: 'reporting',
+        title: 'Unrelated camera product review',
+        item_observed_at: '2026-09-10T13:00:00.000Z',
+        metadata: { identityClass: 'contextual', identityReason: 'contextual' },
+      }),
+    ];
+    const signal = computeThemeDailySignal({
+      themeId: 'theme-1',
+      signalDate: '2026-09-10',
+      memberships: members,
+      nowIso: '2026-09-10T16:00:00.000Z',
+    });
+    expect(signal.newswire_source_count).toBe(0);
+    expect(signal.newswire_item_count).toBe(0);
+    expect(signal.evidence_depth).toBe(0);
+  });
+
+  it('15: contextual primary/specialist does not increase evidence depth', () => {
+    const members = [
+      member({
+        id: 'c-core',
+        source_system: 'voice',
+        source_slug: 'pakman',
+        member_role: 'creator',
+        title: 'Flock camera breach continues',
+        item_observed_at: '2026-09-10T12:00:00.000Z',
+        metadata: { identityClass: 'core', identityReason: 'seed' },
+      }),
+      member({
+        id: 'p-context',
+        source_system: 'intel',
+        source_slug: 'federal-register',
+        member_role: 'primary',
+        title: 'Unrelated filing',
+        item_observed_at: '2026-09-10T14:00:00.000Z',
+        metadata: { identityClass: 'contextual', identityReason: 'contextual' },
+      }),
+      member({
+        id: 's-context',
+        source_system: 'intel',
+        source_slug: 'lawfare',
+        member_role: 'specialist',
+        title: 'Unrelated specialist note',
+        item_observed_at: '2026-09-10T15:00:00.000Z',
+        metadata: { identityClass: 'contextual', identityReason: 'contextual' },
+      }),
+    ];
+    const signal = computeThemeDailySignal({
+      themeId: 'theme-1',
+      signalDate: '2026-09-10',
+      memberships: members,
+      nowIso: '2026-09-10T16:00:00.000Z',
+    });
+    expect(signal.primary_source_count).toBe(0);
+    expect(signal.specialist_source_count).toBe(0);
+    expect(signal.intel_source_count).toBe(0);
+    expect(signal.evidence_depth).toBe(0);
+  });
+
+  it('16: legacy null identityClass does not inflate ranking signals', () => {
+    const members = [
+      member({
+        id: 'c-core',
+        source_system: 'voice',
+        source_slug: 'pakman',
+        member_role: 'creator',
+        title: 'Flock camera breach continues',
+        item_observed_at: '2026-09-10T12:00:00.000Z',
+        membership_reasons: ['seeded_creator_led_theme'],
+        metadata: { identityClass: 'core', identityReason: 'seed' },
+      }),
+      member({
+        id: 'legacy',
+        source_system: 'voice',
+        source_slug: 'legacy-creator',
+        member_role: 'creator',
+        title: 'Legacy unclassified member',
+        item_observed_at: '2026-09-10T13:00:00.000Z',
+        membership_reasons: ['ai_overlap'],
+        metadata: {},
+      }),
+      member({
+        id: 'legacy-news',
+        source_system: 'newswire',
+        source_slug: 'ap',
+        member_role: 'reporting',
+        title: 'Legacy unclassified reporting',
+        item_observed_at: '2026-09-10T14:00:00.000Z',
+        membership_reasons: ['deterministic_accept'],
+        metadata: { identityClass: null },
+      }),
+    ];
+    const signal = computeThemeDailySignal({
+      themeId: 'theme-1',
+      signalDate: '2026-09-10',
+      memberships: members,
+      nowIso: '2026-09-10T16:00:00.000Z',
+    });
+    expect(signal.creator_count).toBe(1);
+    expect(signal.creator_breadth).toBe(1);
+    expect(signal.newswire_source_count).toBe(0);
+    expect(signal.evidence_depth).toBe(0);
+    expect(signal.metadata.legacyUnclassifiedCount).toBe(2);
+    expect(signal.metadata.rankingSignalMembershipCount).toBe(1);
+  });
+
+  it('legacy seed metadata still counts when identityClass is missing', () => {
+    const members = [
+      member({
+        id: 'seed',
+        source_system: 'voice',
+        source_slug: 'pakman',
+        member_role: 'creator',
+        title: 'Seed episode',
+        item_observed_at: '2026-09-10T12:00:00.000Z',
+        membership_reasons: ['seeded_creator_led_theme'],
+        metadata: {},
+      }),
+    ];
+    const signal = computeThemeDailySignal({
+      themeId: 'theme-1',
+      signalDate: '2026-09-10',
+      memberships: members,
+      nowIso: '2026-09-10T16:00:00.000Z',
+    });
+    expect(signal.creator_count).toBe(1);
+    expect(signal.creator_item_count).toBe(1);
   });
 });

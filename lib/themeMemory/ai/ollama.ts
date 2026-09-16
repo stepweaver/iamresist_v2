@@ -33,6 +33,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const OLLAMA_TAGS_PROBE_TIMEOUT_MS = 25000;
+const OLLAMA_WARMUP_KEEP_ALIVE = '30m';
+const DEFAULT_THEME_AI_STARTUP_TIMEOUT_MS = 180000;
+
+function probeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.name === 'AbortError') return 'ollama_timeout';
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 async function ollamaChat(input: {
   messages: Array<{ role: string; content: string }>;
   format: typeof THEME_MEMBERSHIP_JSON_SCHEMA | typeof THEME_LABEL_JSON_SCHEMA;
@@ -125,18 +135,21 @@ export async function probeOllama(opts: {
   baseUrl?: string;
   model?: string;
   timeoutMs?: number;
+  startupTimeoutMs?: number;
 } = {}): Promise<OllamaProbeResult> {
   const baseUrl = (opts.baseUrl || themeMemoryEnv.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
   const model = opts.model || themeMemoryEnv.OLLAMA_MODEL || '';
-  const timeoutMs = opts.timeoutMs ?? Math.min(themeMemoryEnv.THEME_AI_TIMEOUT_MS || 45000, 25000);
+  const tagsTimeoutMs = opts.timeoutMs ?? Math.min(themeMemoryEnv.THEME_AI_TIMEOUT_MS || 45000, OLLAMA_TAGS_PROBE_TIMEOUT_MS);
+  const startupTimeoutMs =
+    opts.startupTimeoutMs ?? themeMemoryEnv.THEME_AI_STARTUP_TIMEOUT_MS ?? DEFAULT_THEME_AI_STARTUP_TIMEOUT_MS;
   if (!model) {
     return { ok: false, reachable: false, modelConfigured: false, model: null, baseUrl, error: 'OLLAMA_MODEL is not configured' };
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const tagsController = new AbortController();
+  const tagsTimer = setTimeout(() => tagsController.abort(), tagsTimeoutMs);
   try {
-    const res = await fetch(`${baseUrl}/api/tags`, { method: 'GET', cache: 'no-store', signal: controller.signal });
+    const res = await fetch(`${baseUrl}/api/tags`, { method: 'GET', cache: 'no-store', signal: tagsController.signal });
     if (!res.ok) {
       return { ok: false, reachable: true, modelConfigured: true, model, baseUrl, error: `ollama_http_${res.status}` };
     }
@@ -153,57 +166,46 @@ export async function probeOllama(opts: {
         error: `configured model not installed: ${model}`,
       };
     }
-
-    const pingController = new AbortController();
-    const pingTimer = setTimeout(() => pingController.abort(), timeoutMs);
-    try {
-      const ping = await fetch(`${baseUrl}/api/generate`, {
-        method: 'POST',
-        cache: 'no-store',
-        signal: pingController.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          prompt: 'Reply with JSON: {"ok":true}',
-          stream: false,
-          format: 'json',
-        }),
-      });
-      const pingJson = (await ping.json().catch(() => ({}))) as { error?: string; response?: string };
-      if (!ping.ok || pingJson.error) {
-        return {
-          ok: false,
-          reachable: true,
-          modelConfigured: true,
-          model,
-          baseUrl,
-          error: pingJson.error || `ollama_http_${ping.status}`,
-        };
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error && error.name === 'AbortError'
-          ? 'ollama_timeout'
-          : error instanceof Error
-            ? error.message
-            : String(error);
-      return { ok: false, reachable: true, modelConfigured: true, model, baseUrl, error: message };
-    } finally {
-      clearTimeout(pingTimer);
-    }
-
-    return { ok: true, reachable: true, modelConfigured: true, model, baseUrl };
   } catch (error) {
-    const message =
-      error instanceof Error && error.name === 'AbortError'
-        ? 'ollama_timeout'
-        : error instanceof Error
-          ? error.message
-          : String(error);
-    return { ok: false, reachable: false, modelConfigured: true, model, baseUrl, error: message };
+    return { ok: false, reachable: false, modelConfigured: true, model, baseUrl, error: probeErrorMessage(error) };
   } finally {
-    clearTimeout(timer);
+    clearTimeout(tagsTimer);
   }
+
+  const pingController = new AbortController();
+  const pingTimer = setTimeout(() => pingController.abort(), startupTimeoutMs);
+  try {
+    const ping = await fetch(`${baseUrl}/api/generate`, {
+      method: 'POST',
+      cache: 'no-store',
+      signal: pingController.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        prompt: 'Reply with JSON: {"ok":true}',
+        stream: false,
+        format: 'json',
+        keep_alive: OLLAMA_WARMUP_KEEP_ALIVE,
+      }),
+    });
+    const pingJson = (await ping.json().catch(() => ({}))) as { error?: string; response?: string };
+    if (!ping.ok || pingJson.error) {
+      return {
+        ok: false,
+        reachable: true,
+        modelConfigured: true,
+        model,
+        baseUrl,
+        error: pingJson.error || `ollama_http_${ping.status}`,
+      };
+    }
+  } catch (error) {
+    return { ok: false, reachable: true, modelConfigured: true, model, baseUrl, error: probeErrorMessage(error) };
+  } finally {
+    clearTimeout(pingTimer);
+  }
+
+  return { ok: true, reachable: true, modelConfigured: true, model, baseUrl };
 }
 
 export async function smokeTestOllamaMembership(opts: {

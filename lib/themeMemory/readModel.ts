@@ -1,4 +1,5 @@
 import { THEME_MEMBERSHIP_IS_NOT_CORROBORATION } from '@/lib/themeMemory/constants';
+import { isRankingCoreMembership } from '@/lib/themeMemory/identity';
 import { themeItemKey, type ThemeStore } from '@/lib/themeMemory/store';
 import type {
   ThemeDailySignalRecord,
@@ -78,6 +79,7 @@ export type ThemeMemberReadModel = {
   method: string;
   confidence: number;
   reasons: string[];
+  identityClass: 'core' | 'contextual' | null;
   membershipIsNotCorroboration: true;
 };
 
@@ -185,11 +187,12 @@ function toReadModel(
   signal: ThemeDailySignalRecord | null,
   members: ThemeMembershipRecord[] = [],
 ): ThemeReadModel {
-  const voiceCreators = members.filter((row) => row.source_system === 'voice' && row.member_role === 'creator');
-  const newswire = members.filter((row) => row.source_system === 'newswire');
-  const intel = members.filter((row) => row.source_system === 'intel');
-  const primary = members.filter((row) => row.member_role === 'primary');
-  const specialist = members.filter((row) => row.member_role === 'specialist');
+  const rankingMembers = members.filter((row) => isRankingCoreMembership(row, theme));
+  const voiceCreators = rankingMembers.filter((row) => row.source_system === 'voice' && row.member_role === 'creator');
+  const newswire = rankingMembers.filter((row) => row.source_system === 'newswire');
+  const intel = rankingMembers.filter((row) => row.source_system === 'intel');
+  const primary = rankingMembers.filter((row) => row.member_role === 'primary');
+  const specialist = rankingMembers.filter((row) => row.member_role === 'specialist');
   return {
     id: theme.id,
     slug: theme.slug,
@@ -274,6 +277,10 @@ export async function getThemeMembers(store: ThemeStore, themeId: string): Promi
       method: row.membership_method,
       confidence: row.membership_confidence,
       reasons: row.membership_reasons,
+      identityClass:
+        row.metadata?.identityClass === 'core' || row.metadata?.identityClass === 'contextual'
+          ? row.metadata.identityClass
+          : null,
       membershipIsNotCorroboration: THEME_MEMBERSHIP_IS_NOT_CORROBORATION,
     }));
 }
@@ -358,13 +365,15 @@ export async function getThemeAttentionForItems(
   for (const membership of memberships) {
     const theme = themeById.get(membership.theme_id);
     if (!theme) continue;
+    if (!isRankingCoreMembership(membership, theme)) continue;
     const key = themeItemKey(membership);
+    const themeMembers = (membersByTheme.get(theme.id) || []).filter((row) => isRankingCoreMembership(row, theme));
     out.set(
       key,
       toAttention({
         theme,
         signal: latestSignal(signalsByTheme.get(theme.id) || []),
-        members: membersByTheme.get(theme.id) || [],
+        members: themeMembers,
         now,
       }),
     );
