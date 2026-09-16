@@ -1,14 +1,14 @@
 /**
- * Report-only legacy core reclassification.
+ * Legacy core reclassification.
  *
  * Historical identityClass=core rows may predate Theme Identity Integrity.
  * Reconstruct a stable core from the original seed, then evaluate other
  * legacy cores against CURRENT admission rules. Rejected members never
  * enter the fingerprint used for later members.
  *
- * This module does not write. Apply mode is unimplemented.
+ * Dry-run is report-only. Guarded apply mutates DOWNGRADE_CONTEXTUAL
+ * memberships only: identity metadata, never row identity or membership history.
  */
-
 import { scoreThemeCandidate } from '@/lib/themeMemory/candidates';
 import { THEME_SIGNAL_FORMULAS } from '@/lib/themeMemory/constants';
 import {
@@ -27,16 +27,54 @@ import { distinctReportingSources } from '@/lib/themeMemory/signals';
 import { themeItemKey } from '@/lib/themeMemory/store';
 import type { ThemeFingerprint, ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
 
+export const THEME_RECLASSIFY_VERSION = 'tm-reclassify-legacy-core-v1';
+export const THEME_RECLASSIFY_REQUIRED_RANKING_MODE = 'shadow';
+
 export const THEME_RECLASSIFY_WRITE_BLOCKED =
   'Theme membership reclassification is dry-run only; database writes are blocked';
-export const THEME_RECLASSIFY_APPLY_UNIMPLEMENTED =
-  'Apply mode is not implemented. Historical memberships must not be updated in this version.';
 export const THEME_RECLASSIFY_DRY_RUN_REQUIRED =
-  'Refusing to run without --dry-run. This version is report-only.';
+  'Refusing to run without --dry-run or --apply. Zero writes.';
+export const THEME_RECLASSIFY_BOTH_MODES =
+  'Refusing to run with both --apply and --dry-run. Zero writes.';
+export const THEME_RECLASSIFY_EXPECTED_DOWNGRADES_REQUIRED =
+  'Refusing apply: --expected-downgrades is required. Zero writes.';
+export const THEME_RECLASSIFY_EXPECTED_DOWNGRADES_INVALID =
+  'Refusing apply: --expected-downgrades must be a non-negative integer. Zero writes.';
+export const THEME_RECLASSIFY_SHADOW_REQUIRED =
+  'Refusing apply: ranking mode must be shadow. Zero writes.';
+export const THEME_RECLASSIFY_NON_DOWNGRADE_APPLY_BLOCKED =
+  'Refusing apply: mutation plan includes memberships that are not DOWNGRADE_CONTEXTUAL. Zero writes.';
+export const THEME_RECLASSIFY_SEED_MUTATION_BLOCKED =
+  'Refusing apply: seed memberships cannot be mutated. Zero writes.';
+export const THEME_RECLASSIFY_MEMBERSHIP_MISSING =
+  'Refusing apply: a proposed downgrade is missing from the snapshot. Zero writes.';
+export const THEME_RECLASSIFY_NOT_CORE =
+  'Refusing apply: a proposed downgrade is not identityClass=core. Zero writes.';
 
-export function assertThemeReclassifyDryRun(input: { dryRun?: boolean; apply?: boolean }): void {
+export function themeReclassifyExpectedMismatch(expected: number, actual: number): string {
+  return `Refusing apply: expected ${expected} DOWNGRADE_CONTEXTUAL memberships, found ${actual}. Zero writes.`;
+}
+
+export function assertThemeReclassifyMode(input: {
+  dryRun?: boolean;
+  apply?: boolean;
+  expectedDowngrades?: number | null;
+}): void {
+  if (input.apply && input.dryRun) {
+    throw new Error(THEME_RECLASSIFY_BOTH_MODES);
+  }
   if (input.apply) {
-    throw new Error(THEME_RECLASSIFY_APPLY_UNIMPLEMENTED);
+    if (input.expectedDowngrades == null) {
+      throw new Error(THEME_RECLASSIFY_EXPECTED_DOWNGRADES_REQUIRED);
+    }
+    if (
+      Number.isNaN(input.expectedDowngrades) ||
+      !Number.isInteger(input.expectedDowngrades) ||
+      input.expectedDowngrades < 0
+    ) {
+      throw new Error(THEME_RECLASSIFY_EXPECTED_DOWNGRADES_INVALID);
+    }
+    return;
   }
   if (!input.dryRun) {
     throw new Error(THEME_RECLASSIFY_DRY_RUN_REQUIRED);
@@ -143,11 +181,48 @@ export type ThemeReclassifyThemeResult = {
   }>;
 };
 
+export type ThemeReclassifyWriteStatus = 'success' | 'failed';
+
+export type ThemeReclassifyWriteOutcome = {
+  membershipId: string;
+  themeId: string;
+  themeLabel: string;
+  sourceSystem: string;
+  sourceSlug: string;
+  sourceName: string;
+  title: string;
+  reasons: string[];
+  status: ThemeReclassifyWriteStatus;
+  error?: string;
+};
+
+export type ThemeReclassifyApplyPlanItem = {
+  membershipId: string;
+  themeId: string;
+  themeLabel: string;
+  sourceSystem: string;
+  sourceSlug: string;
+  sourceName: string;
+  title: string;
+  reasons: string[];
+  isSeed: boolean;
+  proposedClass: ThemeReclassifyProposedClass;
+  existing: ThemeMembershipRecord;
+  next: ThemeMembershipRecord;
+};
+
 export type ThemeReclassifyReport = {
-  mode: 'dry-run';
+  mode: 'dry-run' | 'apply';
   rankingMode: string;
   databaseWrites: number;
-  persisted: false;
+  persisted: boolean;
+  reclassificationVersion: string;
+  plannedWrites: number;
+  successfulWrites: number;
+  failedWrites: number;
+  reviewUntouchedCount: number;
+  keepCoreUntouchedCount: number;
+  writes: ThemeReclassifyWriteOutcome[];
   themesScanned: number;
   membershipsScanned: number;
   currentCoreMemberships: number;
@@ -642,6 +717,13 @@ export function reclassifyLegacyCoreMemberships(input: {
     rankingMode: input.rankingMode,
     databaseWrites: input.databaseWrites ?? 0,
     persisted: false,
+    reclassificationVersion: THEME_RECLASSIFY_VERSION,
+    plannedWrites: 0,
+    successfulWrites: 0,
+    failedWrites: 0,
+    reviewUntouchedCount: reviewCount,
+    keepCoreUntouchedCount: keepCoreCount,
+    writes: [],
     themesScanned: themes.length,
     membershipsScanned: input.memberships.length,
     currentCoreMemberships,
@@ -664,6 +746,7 @@ export function formatThemeReclassifyReport(report: ThemeReclassifyReport): stri
     '----------------------------------------',
     `Mode: ${report.mode}`,
     `Ranking mode (unchanged): ${report.rankingMode}`,
+    `Reclassification version: ${report.reclassificationVersion}`,
     `Database writes: ${report.databaseWrites}`,
     `Persisted: ${report.persisted}`,
     '',
@@ -675,6 +758,11 @@ export function formatThemeReclassifyReport(report: ThemeReclassifyReport): stri
     `  DOWNGRADE_CONTEXTUAL: ${report.downgradeContextualCount}`,
     `  REVIEW: ${report.reviewCount}`,
     `  Themes affected: ${report.themesAffected}`,
+    `  Planned writes: ${report.plannedWrites}`,
+    `  Successful writes: ${report.successfulWrites}`,
+    `  Failed writes: ${report.failedWrites}`,
+    `  REVIEW untouched: ${report.reviewUntouchedCount}`,
+    `  KEEP_CORE untouched: ${report.keepCoreUntouchedCount}`,
     '',
     'Canary themes',
     '-------------',
@@ -701,6 +789,34 @@ export function formatThemeReclassifyReport(report: ThemeReclassifyReport): stri
       pushThemeLines(lines, theme, false);
       lines.push('');
     }
+  }
+
+  if (report.mode === 'apply') {
+    lines.push('Changed memberships');
+    lines.push('-------------------');
+    if (report.writes.length === 0) {
+      lines.push('  (none)');
+    } else {
+      for (const row of report.writes) {
+        lines.push(`  membership ${row.membershipId}`);
+        lines.push(`    theme: ${row.themeId} (${row.themeLabel})`);
+        lines.push(`    source: ${row.sourceSystem}:${row.sourceSlug} (${row.sourceName})`);
+        lines.push(`    title: ${row.title}`);
+        lines.push('    core -> contextual');
+        lines.push(`    reasons: ${row.reasons.join(', ') || 'none'}`);
+        lines.push(`    persist: ${row.status}${row.error ? ` (${row.error})` : ''}`);
+      }
+    }
+    lines.push('');
+    lines.push('Apply result');
+    lines.push('------------');
+    lines.push(`  Planned writes: ${report.plannedWrites}`);
+    lines.push(`  Successful writes: ${report.successfulWrites}`);
+    lines.push(`  Failed writes: ${report.failedWrites}`);
+    lines.push(`  REVIEW untouched: ${report.reviewUntouchedCount}`);
+    lines.push(`  KEEP_CORE untouched: ${report.keepCoreUntouchedCount}`);
+    lines.push(`  Ranking mode: ${report.rankingMode}`);
+    lines.push(`  Reclassification version: ${report.reclassificationVersion}`);
   }
 
   return lines.join('\n').trimEnd();
@@ -764,4 +880,195 @@ function pushThemeLines(lines: string[], theme: ThemeReclassifyThemeResult, incl
       lines.push(`    calibration: ${member.calibrationNotes.join('; ')}`);
     }
   }
+}
+
+export function contextualDowngradeMetadata(
+  existing: Record<string, unknown>,
+  reasons: string[],
+  now: string,
+): Record<string, unknown> {
+  return {
+    ...existing,
+    identityClass: 'contextual',
+    identityReason: 'legacy_reclassified_contextual',
+    previousIdentityClass: 'core',
+    reclassifiedAt: now,
+    reclassificationVersion: THEME_RECLASSIFY_VERSION,
+    reclassificationReasons: [...reasons],
+  };
+}
+
+export function buildThemeReclassifyApplyPlan(input: {
+  report: ThemeReclassifyReport;
+  memberships: ThemeMembershipRecord[];
+  now: string;
+}): ThemeReclassifyApplyPlanItem[] {
+  const byId = new Map(input.memberships.map((row) => [row.id, row]));
+  const labels = new Map(input.report.themes.map((row) => [row.themeId, row.canonicalLabel]));
+  const plan: ThemeReclassifyApplyPlanItem[] = [];
+
+  for (const theme of input.report.themes) {
+    for (const decision of theme.memberships) {
+      if (decision.proposedClass !== 'DOWNGRADE_CONTEXTUAL') continue;
+      const existing = byId.get(decision.membershipId);
+      if (!existing) {
+        throw new Error(`${THEME_RECLASSIFY_MEMBERSHIP_MISSING} (${decision.membershipId})`);
+      }
+      if (currentIdentityClass(existing) !== 'core') {
+        throw new Error(`${THEME_RECLASSIFY_NOT_CORE} (${decision.membershipId})`);
+      }
+      if (decision.isSeed) {
+        throw new Error(`${THEME_RECLASSIFY_SEED_MUTATION_BLOCKED} (${decision.membershipId})`);
+      }
+      plan.push({
+        membershipId: existing.id,
+        themeId: existing.theme_id,
+        themeLabel: labels.get(existing.theme_id) || theme.canonicalLabel,
+        sourceSystem: existing.source_system,
+        sourceSlug: existing.source_slug,
+        sourceName: existing.source_name,
+        title: existing.title,
+        reasons: [...decision.reasons],
+        isSeed: decision.isSeed,
+        proposedClass: decision.proposedClass,
+        existing,
+        next: {
+          ...existing,
+          membership_reasons: [...existing.membership_reasons],
+          metadata: contextualDowngradeMetadata(existing.metadata, decision.reasons, input.now),
+          updated_at: input.now,
+        },
+      });
+    }
+  }
+
+  return plan;
+}
+
+export function assertThemeReclassifyApplySafety(input: {
+  rankingMode: string;
+  expectedDowngrades: number;
+  report: ThemeReclassifyReport;
+  plan: ThemeReclassifyApplyPlanItem[];
+}): void {
+  if (input.rankingMode !== THEME_RECLASSIFY_REQUIRED_RANKING_MODE) {
+    throw new Error(
+      `${THEME_RECLASSIFY_SHADOW_REQUIRED} (ranking mode: ${input.rankingMode})`,
+    );
+  }
+  if (input.report.downgradeContextualCount !== input.expectedDowngrades) {
+    throw new Error(themeReclassifyExpectedMismatch(input.expectedDowngrades, input.report.downgradeContextualCount));
+  }
+  if (input.plan.length !== input.expectedDowngrades) {
+    throw new Error(themeReclassifyExpectedMismatch(input.expectedDowngrades, input.plan.length));
+  }
+  if (input.plan.some((row) => row.proposedClass !== 'DOWNGRADE_CONTEXTUAL' || row.isSeed)) {
+    throw new Error(THEME_RECLASSIFY_NON_DOWNGRADE_APPLY_BLOCKED);
+  }
+  const forbidden = new Set(
+    input.report.themes.flatMap((theme) =>
+      theme.memberships
+        .filter((row) => row.proposedClass !== 'DOWNGRADE_CONTEXTUAL')
+        .map((row) => row.membershipId),
+    ),
+  );
+  if (input.plan.some((row) => forbidden.has(row.membershipId))) {
+    throw new Error(THEME_RECLASSIFY_NON_DOWNGRADE_APPLY_BLOCKED);
+  }
+}
+
+export function formatThemeReclassifyApplyPlan(input: {
+  report: ThemeReclassifyReport;
+  plan: ThemeReclassifyApplyPlanItem[];
+  expectedDowngrades: number;
+}): string {
+  const lines = [
+    'Theme Memory legacy core reclassification apply plan',
+    '----------------------------------------------------',
+    `Ranking mode (unchanged): ${input.report.rankingMode}`,
+    `Reclassification version: ${THEME_RECLASSIFY_VERSION}`,
+    `Expected downgrades: ${input.expectedDowngrades}`,
+    `Planned DOWNGRADE_CONTEXTUAL writes: ${input.plan.length}`,
+    `KEEP_CORE untouched: ${input.report.keepCoreCount}`,
+    `REVIEW untouched: ${input.report.reviewCount}`,
+    'REVIEW will not be applied.',
+    'KEEP_CORE will not be mutated.',
+    'Seeds will not be mutated.',
+    '',
+    'Planned membership changes',
+    '--------------------------',
+  ];
+  if (input.plan.length === 0) {
+    lines.push('  (none)');
+  } else {
+    for (const row of input.plan) {
+      lines.push(`  membership ${row.membershipId}`);
+      lines.push(`    theme: ${row.themeId} (${row.themeLabel})`);
+      lines.push(`    source: ${row.sourceSystem}:${row.sourceSlug} (${row.sourceName})`);
+      lines.push(`    title: ${row.title}`);
+      lines.push('    core -> contextual');
+      lines.push(`    reasons: ${row.reasons.join(', ') || 'none'}`);
+    }
+  }
+  lines.push('');
+  lines.push('Proceeding with writes...');
+  return lines.join('\n');
+}
+
+export async function persistThemeReclassifyPlan(input: {
+  plan: ThemeReclassifyApplyPlanItem[];
+  persistMembership: (row: ThemeMembershipRecord) => Promise<unknown>;
+}): Promise<ThemeReclassifyWriteOutcome[]> {
+  const out: ThemeReclassifyWriteOutcome[] = [];
+  for (const item of input.plan) {
+    try {
+      await input.persistMembership(item.next);
+      out.push({
+        membershipId: item.membershipId,
+        themeId: item.themeId,
+        themeLabel: item.themeLabel,
+        sourceSystem: item.sourceSystem,
+        sourceSlug: item.sourceSlug,
+        sourceName: item.sourceName,
+        title: item.title,
+        reasons: item.reasons,
+        status: 'success',
+      });
+    } catch (error) {
+      out.push({
+        membershipId: item.membershipId,
+        themeId: item.themeId,
+        themeLabel: item.themeLabel,
+        sourceSystem: item.sourceSystem,
+        sourceSlug: item.sourceSlug,
+        sourceName: item.sourceName,
+        title: item.title,
+        reasons: item.reasons,
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return out;
+}
+
+export function withThemeReclassifyApplyResult(
+  report: ThemeReclassifyReport,
+  writes: ThemeReclassifyWriteOutcome[],
+): ThemeReclassifyReport {
+  const successfulWrites = writes.filter((row) => row.status === 'success').length;
+  const failedWrites = writes.filter((row) => row.status === 'failed').length;
+  return {
+    ...report,
+    mode: 'apply',
+    reclassificationVersion: THEME_RECLASSIFY_VERSION,
+    plannedWrites: writes.length,
+    successfulWrites,
+    failedWrites,
+    databaseWrites: successfulWrites,
+    persisted: failedWrites === 0,
+    reviewUntouchedCount: report.reviewCount,
+    keepCoreUntouchedCount: report.keepCoreCount,
+    writes,
+  };
 }

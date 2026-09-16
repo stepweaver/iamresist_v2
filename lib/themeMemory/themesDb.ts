@@ -348,6 +348,26 @@ export async function listAllMembershipRecords(): Promise<ThemeMembershipRecord[
   });
 }
 
+/**
+ * Metadata-only membership update. Used by guarded reclassification apply so
+ * identity, title, confidence, method, and historical reasons cannot change.
+ */
+export async function updateThemeMembershipMetadata(input: {
+  id: string;
+  metadata: Record<string, unknown>;
+  updatedAt: string;
+}): Promise<void> {
+  if (!intelDbConfigured()) throw new Error('Supabase not configured');
+  const { data, error } = await client()
+    .from('theme_memberships')
+    .update({ metadata: input.metadata, updated_at: input.updatedAt })
+    .eq('id', input.id)
+    .select('id')
+    .maybeSingle();
+  if (error) throw new Error(`theme_memberships metadata update: ${error.message}`);
+  if (!data) throw new Error(`theme_memberships metadata update: no row ${input.id}`);
+}
+
 export function themeLookbackIso(now?: Date | string, days = THEME_MATCH_LOOKBACK_DAYS): string {
   const end = now ? new Date(now) : new Date();
   return toUtcIso(new Date(end.getTime() - days * 86400000)) || new Date().toISOString();
