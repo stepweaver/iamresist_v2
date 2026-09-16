@@ -275,6 +275,7 @@ Diagnostics include creator items considered, themes created/updated, determinis
 - VPS daily batch is documented but not auto-installed
 - Intel adapter remains time-bounded (max 1000 rows per window)
 - RSS ingest can only persist items still present in each feed
+- YouTube channel RSS (`youtube.com/feeds/videos.xml`) may return HTTP 404 for valid channel IDs. `lib/feeds/rss.js` treats that 404 (plus 429, 5xx, timeouts, and network errors) as transient and retries with a bounded 2s then 5s backoff. Exhausted retries still fail (`ok: false`); they are not stored as an empty feed. Multi-hour YouTube RSS outages will still miss those creators for that run.
 - Local Ollama inference may be slow; the pipeline caps AI checks/labels per run
 - Ambiguous matches without AI may create temporary duplicate themes by design
 - `intel.events` remains unused

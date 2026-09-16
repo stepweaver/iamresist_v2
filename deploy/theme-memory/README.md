@@ -29,6 +29,8 @@ node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-mem
 
 Theme Memory ingest calls Notion/Newswire **uncached** (`getAllVoices`, `getNewswireStoriesUncached`) so the CLI does not require Next.js `incrementalCache`.
 
+Creator Voice feeds that use YouTube RSS (`youtube.com/feeds/videos.xml`) can return **transient HTTP 404** even when the channel ID is valid. Fetch retries those 404s (and 429/5xx/timeouts) a bounded number of times; persistent YouTube RSS outages still mark those voices as failed for the run, not as empty feeds.
+
 
 ## Environment
 
