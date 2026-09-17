@@ -43,10 +43,16 @@ function emptyChannel(error?: string): ThemeMemoryIngestChannelSummary {
   };
 }
 
-function overallStatus(voicesFailed: boolean, newswireFailed: boolean, anyTouched: boolean, anySeen: boolean): ThemeMemoryIngestResult['overallStatus'] {
-  if (voicesFailed && newswireFailed) return 'failed';
-  if (voicesFailed || newswireFailed) return 'partial';
-  if (!anyTouched && anySeen) return 'partial';
+export function deriveThemeMemoryIngestOverallStatus(input: {
+  voicesChannelFailed: boolean;
+  voiceFeedFailures: number;
+  newswireFailed: boolean;
+  anyTouched: boolean;
+  anySeen: boolean;
+}): ThemeMemoryIngestResult['overallStatus'] {
+  if (input.voicesChannelFailed && input.newswireFailed) return 'failed';
+  if (input.voicesChannelFailed || input.newswireFailed || input.voiceFeedFailures > 0) return 'partial';
+  if (!input.anyTouched && input.anySeen) return 'partial';
   return 'success';
 }
 
@@ -121,7 +127,13 @@ export async function ingestThemeMemorySources(opts: {
 
   const anyTouched = (voices.observationsTouched || 0) + (newswire.observationsTouched || 0) > 0;
   const anySeen = (voices.itemsSeen || 0) + (newswire.itemsSeen || 0) > 0;
-  const status = overallStatus(voicesFailed, newswireFailed, anyTouched, anySeen);
+  const status = deriveThemeMemoryIngestOverallStatus({
+    voicesChannelFailed: voicesFailed,
+    voiceFeedFailures: voices.sourcesFailed || 0,
+    newswireFailed,
+    anyTouched,
+    anySeen,
+  });
 
   const result: ThemeMemoryIngestResult = {
     ok: status !== 'failed',

@@ -10,14 +10,14 @@ import {
   THEME_MEMBERSHIP_PROMPT_VERSION,
   themeClassificationCacheVersion,
 } from '@/lib/themeMemory/constants';
-import { isDeterministicThemeMatch, isPlausibleThemeCandidate, rankThemeCandidates } from '@/lib/themeMemory/candidates';
+import { isDeterministicThemeMatch } from '@/lib/themeMemory/candidates';
 import { shouldAcceptAIMembership } from '@/lib/themeMemory/ai/accept';
 import { deterministicLabelFromFingerprint, fingerprintFromCandidate } from '@/lib/themeMemory/features';
 import {
-  compareCandidateToThemeCore,
   coreMembersForLabel,
   identityClassForAttachment,
   isRankingCoreMembership,
+  matchItemToPlausibleThemeCores,
 } from '@/lib/themeMemory/identity';
 import { resolveThemeLifecycle } from '@/lib/themeMemory/lifecycle';
 import { computeThemeDailySignal, toThemeDailySignalRecord, utcDateString } from '@/lib/themeMemory/signals';
@@ -133,16 +133,12 @@ function matchesForItem(
   membershipsByTheme: Map<string, ThemeMembershipRecord[]>,
   fallback: string,
 ): ThemeCandidateMatch[] {
-  const itemFp = fingerprintFromCandidate(item);
-  const scored = themes.map((theme) =>
-    compareCandidateToThemeCore({
-      item: itemFp,
-      theme,
-      memberships: membershipsByTheme.get(theme.id) || [],
-      itemObservedAt: observedAt(item, fallback),
-    }),
-  );
-  return rankThemeCandidates(scored.filter(isPlausibleThemeCandidate));
+  return matchItemToPlausibleThemeCores({
+    itemFingerprint: fingerprintFromCandidate(item),
+    themes,
+    membershipsByTheme,
+    itemObservedAt: observedAt(item, fallback),
+  });
 }
 
 function membershipRow(input: {

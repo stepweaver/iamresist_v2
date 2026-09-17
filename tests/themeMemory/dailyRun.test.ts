@@ -181,4 +181,33 @@ describe('Theme Memory daily runner', () => {
       else process.env.THEME_MEMORY_LOCK_FILE = previous;
     }
   });
+
+  it('prints Status: partial when Voice ingest is incomplete', () => {
+    const ingest: ThemeMemoryIngestResult = {
+      ...ingestOk(),
+      overallStatus: 'partial',
+      voices: {
+        ...ingestOk().voices,
+        sourcesSucceeded: 3,
+        sourcesFailed: 12,
+      },
+    };
+    const result = {
+      ok: true,
+      overallStatus: 'partial' as const,
+      finishedAt: '2026-09-15T16:00:00.000Z',
+      startup: null,
+      ingest,
+      process: processOk(),
+      diagnostics: diagnosticsOk(),
+      duplicateThemeCandidates: [],
+      rankingMode: 'shadow',
+      aiProvider: 'none',
+      aiModel: null,
+    };
+    const summary = formatThemeMemoryDailySummary(result);
+    expect(summary).toContain('Voices: 3/15 feeds');
+    expect(summary).toContain('Status: partial');
+    expect(summary).not.toMatch(/Status: success/);
+  });
 });

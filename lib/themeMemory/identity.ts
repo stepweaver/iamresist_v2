@@ -6,7 +6,11 @@
  * Contextual / mixed-topic members may belong without redefining theme vocabulary.
  */
 
-import { scoreThemeCandidate } from '@/lib/themeMemory/candidates';
+import {
+  isPlausibleThemeCandidate,
+  rankThemeCandidates,
+  scoreThemeCandidate,
+} from '@/lib/themeMemory/candidates';
 import {
   hasConnectedEventCollocation,
   isHardEventPhrase,
@@ -308,6 +312,27 @@ export function compareCandidateToThemeCore(input: {
     themeRecord: input.theme,
     itemObservedAt: input.itemObservedAt,
   });
+}
+
+/**
+ * Current deterministic candidate narrowing against theme cores.
+ * Preview/ranking diagnostics must reuse this rather than a parallel matcher.
+ */
+export function matchItemToPlausibleThemeCores(input: {
+  itemFingerprint: ThemeFingerprint;
+  themes: ThemeRecord[];
+  membershipsByTheme: Map<string, ThemeMembershipRecord[]>;
+  itemObservedAt?: string | null;
+}): ThemeCandidateMatch[] {
+  const scored = input.themes.map((theme) =>
+    compareCandidateToThemeCore({
+      item: input.itemFingerprint,
+      theme,
+      memberships: input.membershipsByTheme.get(theme.id) || [],
+      itemObservedAt: input.itemObservedAt,
+    }),
+  );
+  return rankThemeCandidates(scored.filter(isPlausibleThemeCandidate));
 }
 
 export function coreMembersForLabel(theme: ThemeRecord, memberships: ThemeMembershipRecord[]): ThemeMembershipRecord[] {

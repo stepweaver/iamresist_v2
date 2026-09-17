@@ -207,6 +207,8 @@ describe('Theme Memory ingest', () => {
     expect(second.newswire.observationsTouched).toBe(2);
     expect(newsKeys(1)).toEqual(newsKeys(3));
     expect(new Set(newsKeys(1)).size).toBe(2);
+    expect(first.overallStatus).toBe('success');
+    expect(second.overallStatus).toBe('success');
   });
 
   it('does not discard other creator feeds when one feed fails', async () => {
@@ -227,6 +229,7 @@ describe('Theme Memory ingest', () => {
     const out = await ingestThemeMemorySources({ includeDiagnostics: false });
 
     expect(out.ok).toBe(true);
+    expect(out.overallStatus).toBe('partial');
     expect(out.voices.sourcesAttempted).toBe(2);
     expect(out.voices.sourcesSucceeded).toBe(1);
     expect(out.voices.sourcesFailed).toBe(1);
@@ -242,5 +245,70 @@ describe('Theme Memory ingest', () => {
     for (const [, args] of fetchFeedItemsWithMeta.mock.calls.entries()) {
       expect(args[1].limit).toBe(25);
     }
+  });
+
+  function manyVoices(count: number) {
+    return Array.from({ length: count }, (_, index) => voice(`voice-${index + 1}`, `Voice ${index + 1}`));
+  }
+
+  function succeedFirstNFeeds(succeeded: number) {
+    fetchFeedItemsWithMeta.mockImplementation(async (feedUrl: string) => {
+      const match = String(feedUrl).match(/voice-(\d+)/);
+      const n = match ? Number(match[1]) : 0;
+      if (n < 1 || n > succeeded) {
+        return { ok: false, reason: 'http_404', items: [] };
+      }
+      return {
+        ok: true,
+        reason: null,
+        items: [
+          feedItem(
+            `voice-${n}-1`,
+            `Episode ${n}`,
+            `https://youtube.com/watch?v=voice${String(n).padStart(5, '0')}aaaa`,
+            '2026-09-14T12:00:00.000Z',
+          ),
+        ],
+      };
+    });
+  }
+
+  it('reports success when all 15 Voice feeds succeed', async () => {
+    getAllVoices.mockResolvedValue(manyVoices(15));
+    succeedFirstNFeeds(15);
+    const { ingestThemeMemorySources } = await import('@/lib/themeMemory/ingest');
+    const out = await ingestThemeMemorySources({ includeDiagnostics: false });
+    expect(out.voices.sourcesAttempted).toBe(15);
+    expect(out.voices.sourcesSucceeded).toBe(15);
+    expect(out.voices.sourcesFailed).toBe(0);
+    expect(out.overallStatus).toBe('success');
+    expect(out.ok).toBe(true);
+  });
+
+  it('reports partial when only 3 of 15 Voice feeds succeed', async () => {
+    getAllVoices.mockResolvedValue(manyVoices(15));
+    succeedFirstNFeeds(3);
+    const { ingestThemeMemorySources } = await import('@/lib/themeMemory/ingest');
+    const out = await ingestThemeMemorySources({ includeDiagnostics: false });
+    expect(out.voices.sourcesAttempted).toBe(15);
+    expect(out.voices.sourcesSucceeded).toBe(3);
+    expect(out.voices.sourcesFailed).toBe(12);
+    expect(out.voices.observationsTouched).toBe(3);
+    expect(out.newswire.itemsSeen).toBeGreaterThan(0);
+    expect(out.overallStatus).toBe('partial');
+    expect(out.ok).toBe(true);
+  });
+
+  it('never reports success when 0 of 15 Voice feeds succeed even if Newswire is healthy', async () => {
+    getAllVoices.mockResolvedValue(manyVoices(15));
+    succeedFirstNFeeds(0);
+    const { ingestThemeMemorySources } = await import('@/lib/themeMemory/ingest');
+    const out = await ingestThemeMemorySources({ includeDiagnostics: false });
+    expect(out.voices.sourcesAttempted).toBe(15);
+    expect(out.voices.sourcesSucceeded).toBe(0);
+    expect(out.voices.sourcesFailed).toBe(15);
+    expect(out.newswire.itemsSeen).toBeGreaterThan(0);
+    expect(out.overallStatus).not.toBe('success');
+    expect(['partial', 'failed']).toContain(out.overallStatus);
   });
 });

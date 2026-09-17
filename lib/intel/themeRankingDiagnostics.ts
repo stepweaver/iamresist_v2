@@ -4,6 +4,11 @@ import { prefetchThemeAttentionByItemId } from '@/lib/intel/themeAttentionPrefet
 import { resolveThemeRankingMode } from '@/lib/intel/themeAttentionRanking';
 import type { ProvenanceClass } from '@/lib/intel/types';
 import type { ThemeAttentionForItem, ThemeAttentionThemeDiagnostic } from '@/lib/themeMemory/readModel';
+import {
+  loadThemeRankingCoverageAudit,
+  type ThemeRankingCoverageReport,
+} from '@/lib/themeMemory/rankingCoverageAudit';
+import type { ThemeStore } from '@/lib/themeMemory/store';
 
 function toCompareItem(item: Record<string, unknown>): ThemeRankableCompareItem | null {
   if (!item || typeof item.id !== 'string' || typeof item.title !== 'string') return null;
@@ -89,7 +94,11 @@ export function summarizeThemeMemoryShadowDiagnostics(input: {
  * Always computes the comparison even when THEME_RANKING_MODE=off.
  * Does not activate ranking.
  */
-export async function buildThemeRankingDiagnostics(opts: { lane?: string; limit?: number } = {}) {
+export async function buildThemeRankingDiagnostics(opts: {
+  lane?: string;
+  limit?: number;
+  coverageStore?: ThemeStore | null;
+} = {}) {
   const lane = opts.lane || 'osint';
   const limit = Math.max(1, Math.min(80, Number(opts.limit) || 40));
   const mode = resolveThemeRankingMode();
@@ -119,13 +128,26 @@ export async function buildThemeRankingDiagnostics(opts: { lane?: string; limit?
     attentionByItemId: prefetch.byId,
   });
 
+  let coverage: ThemeRankingCoverageReport | null = null;
+  try {
+    const store =
+      opts.coverageStore === undefined
+        ? (await import('@/lib/themeMemory/themesDb')).createSupabaseThemeStore()
+        : opts.coverageStore;
+    if (store) {
+      coverage = await loadThemeRankingCoverageAudit(store, items, { deskLane: lane });
+    }
+  } catch (error) {
+    console.warn('[theme-ranking-diagnostics] coverage audit failed; ranking snapshot continues', error);
+  }
+
   return {
     generatedAt: new Date().toISOString(),
     currentMode: mode,
     deskLane: lane,
     configured: desk.configured ?? null,
     attentionIsNotCorroboration: true as const,
-    note: 'Theme Memory does not replace ranking. This snapshot compares baseline vs bounded theme-aware display priority. Unresolved legacy REVIEW themes are quarantined from ranking attention.',
+    note: 'Theme Memory does not replace ranking. This snapshot compares baseline vs bounded theme-aware display priority. Unresolved legacy REVIEW themes are quarantined from ranking attention. Coverage is read-only and does not change ranking mode.',
     summary: {
       ...comparison.summary,
       themesConsidered: themeMemory.themesConsidered,
@@ -134,8 +156,10 @@ export async function buildThemeRankingDiagnostics(opts: { lane?: string; limit?
       rankableItemsWithThemeAttention: themeMemory.rankableItemsWithThemeAttention,
       maxThemeBoost: themeMemory.maxThemeBoost,
       averageThemeBoost: themeMemory.averageThemeBoost,
+      coverage: coverage?.totals ?? null,
     },
     themeMemory,
+    coverage,
     rows: comparison.rows,
   };
 }

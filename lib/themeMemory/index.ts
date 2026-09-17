@@ -42,8 +42,20 @@ export {
   windowForDays,
 } from '@/lib/themeMemory/windows';
 
-export { ingestThemeMemorySources } from '@/lib/themeMemory/ingest';
+export { ingestThemeMemorySources, deriveThemeMemoryIngestOverallStatus } from '@/lib/themeMemory/ingest';
 export type { ThemeMemoryIngestResult } from '@/lib/themeMemory/ingest';
+
+export {
+  auditThemeRankingCoverage,
+  formatThemeRankingCoverageReport,
+  loadThemeRankingCoverageAudit,
+} from '@/lib/themeMemory/rankingCoverageAudit';
+export type {
+  ThemeCoverageDeskItem,
+  ThemeCoveragePreviewOutcome,
+  ThemeCoverageState,
+  ThemeRankingCoverageReport,
+} from '@/lib/themeMemory/rankingCoverageAudit';
 
 export {
   describeThemeMemoryWindow,

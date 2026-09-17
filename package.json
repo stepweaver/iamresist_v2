@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "theme-memory:daily": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-daily.ts",
     "theme-memory:ai-check": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-ai-check.ts",
-    "theme-memory:reclassify": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-reclassify.ts"
+    "theme-memory:reclassify": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-reclassify.ts",
+    "theme-memory:ranking-coverage": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/theme-memory-ranking-coverage.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",
