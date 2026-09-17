@@ -2,10 +2,11 @@ import { intelDbConfigured } from '@/lib/intel/db';
 import { resolveThemeRankingMode, type ThemeRankingMode } from '@/lib/intel/themeAttentionRanking';
 import { themeIdentityFromCanonical } from '@/lib/themeMemory/normalize';
 import {
-  getThemeAttentionForItems,
+  loadThemeAttentionForRanking,
   themeAttentionKey,
   type ThemeAttentionForItem,
   type ThemeAttentionItemRef,
+  type ThemeAttentionThemeDiagnostic,
 } from '@/lib/themeMemory/readModel';
 import { createSupabaseThemeStore } from '@/lib/themeMemory/themesDb';
 import type { ThemeSourceSystem } from '@/lib/themeMemory/types';
@@ -22,6 +23,7 @@ export type ThemeAttentionPrefetchItem = {
 export type ThemeAttentionPrefetchResult = {
   mode: ThemeRankingMode;
   byId: Map<string, ThemeAttentionForItem | null>;
+  themes: ThemeAttentionThemeDiagnostic[];
 };
 
 function toRef(item: ThemeAttentionPrefetchItem): ThemeAttentionItemRef | null {
@@ -51,10 +53,10 @@ export async function prefetchThemeAttentionByItemId(
   const mode = opts.mode ?? resolveThemeRankingMode();
   const byId = new Map<string, ThemeAttentionForItem | null>();
   if (mode === 'off' || items.length === 0) {
-    return { mode, byId };
+    return { mode, byId, themes: [] };
   }
   if (!intelDbConfigured()) {
-    return { mode, byId };
+    return { mode, byId, themes: [] };
   }
 
   const refs: ThemeAttentionItemRef[] = [];
@@ -71,15 +73,16 @@ export async function prefetchThemeAttentionByItemId(
 
   try {
     const store = createSupabaseThemeStore({ now: opts.now });
-    const attention = await getThemeAttentionForItems(store, refs, { now: opts.now });
-    for (const [key, value] of attention) {
+    const loaded = await loadThemeAttentionForRanking(store, refs, { now: opts.now });
+    for (const [key, value] of loaded.byItem) {
       for (const id of idByKey.get(key) || []) {
         byId.set(id, value);
       }
     }
+    return { mode, byId, themes: loaded.themes };
   } catch (error) {
     console.warn('[theme-attention] batch prefetch failed; ranking continues without theme context', error);
   }
 
-  return { mode, byId };
+  return { mode, byId, themes: [] };
 }

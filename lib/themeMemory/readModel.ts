@@ -1,5 +1,6 @@
 import { THEME_MEMBERSHIP_IS_NOT_CORROBORATION } from '@/lib/themeMemory/constants';
 import { isRankingCoreMembership } from '@/lib/themeMemory/identity';
+import { evaluateThemeLegacyReviewQuarantines } from '@/lib/themeMemory/legacyReview';
 import { themeItemKey, type ThemeStore } from '@/lib/themeMemory/store';
 import type {
   ThemeDailySignalRecord,
@@ -89,6 +90,22 @@ export type ThemeTimelineEntry = {
   sourceName: string;
   role: string;
   canonicalUrl: string;
+};
+
+export type ThemeAttentionThemeDiagnostic = {
+  themeId: string;
+  canonicalLabel: string;
+  quarantined: boolean;
+  quarantineReason: string | null;
+  reviewMembershipCount: number;
+  coreMembershipCount: number;
+  /** True if ranking attention would have been returned without REVIEW quarantine. */
+  attentionWouldOtherwiseApply: boolean;
+};
+
+export type ThemeAttentionLoadResult = {
+  byItem: Map<string, ThemeAttentionForItem | null>;
+  themes: ThemeAttentionThemeDiagnostic[];
 };
 
 function latestSignal(signals: ThemeDailySignalRecord[]): ThemeDailySignalRecord | null {
@@ -322,26 +339,38 @@ export async function getThemeAttentionForItem(
  * Batch-load persisted theme attention for ranking.
  * Uses a bounded number of store queries, never one query per comparator.
  * Does not call AI or re-run semantic matching.
+ *
+ * Unresolved legacy REVIEW themes are quarantined: ranking attention is null,
+ * daily signals are unused, and the theme remains in the diagnostic list.
  */
 export async function getThemeAttentionForItems(
   store: ThemeStore,
   items: ThemeAttentionItemRef[],
   opts: { now?: Date | string } = {},
 ): Promise<Map<string, ThemeAttentionForItem | null>> {
+  const loaded = await loadThemeAttentionForRanking(store, items, opts);
+  return loaded.byItem;
+}
+
+export async function loadThemeAttentionForRanking(
+  store: ThemeStore,
+  items: ThemeAttentionItemRef[],
+  opts: { now?: Date | string } = {},
+): Promise<ThemeAttentionLoadResult> {
   const now = opts.now ? new Date(opts.now) : new Date();
-  const out = new Map<string, ThemeAttentionForItem | null>();
-  if (items.length === 0) return out;
+  const byItem = new Map<string, ThemeAttentionForItem | null>();
+  if (items.length === 0) return { byItem, themes: [] };
 
   const refs = items.map((item) => ({
     source_system: item.sourceSystem as ThemeSourceSystem,
     source_slug: item.sourceSlug,
     identity_key: item.identityKey,
   }));
-  for (const item of items) out.set(attentionMapKey(item), null);
+  for (const item of items) byItem.set(attentionMapKey(item), null);
 
   const memberships = await store.getMembershipsByItems(refs);
   const themeIds = [...new Set(memberships.map((row) => row.theme_id))];
-  if (themeIds.length === 0) return out;
+  if (themeIds.length === 0) return { byItem, themes: [] };
 
   const [themes, signals, themeMembers] = await Promise.all([
     store.listThemesByIds(themeIds),
@@ -362,23 +391,47 @@ export async function getThemeAttentionForItems(
     membersByTheme.set(row.theme_id, list);
   }
 
+  const quarantines = evaluateThemeLegacyReviewQuarantines(themes, themeMembers);
+  const otherwiseApply = new Set<string>();
+
   for (const membership of memberships) {
     const theme = themeById.get(membership.theme_id);
     if (!theme) continue;
     if (!isRankingCoreMembership(membership, theme)) continue;
+    otherwiseApply.add(theme.id);
+    const quarantine = quarantines.get(theme.id);
+    if (!quarantine || quarantine.quarantined) continue;
     const key = themeItemKey(membership);
-    const themeMembers = (membersByTheme.get(theme.id) || []).filter((row) => isRankingCoreMembership(row, theme));
-    out.set(
+    const rankingMembers = (membersByTheme.get(theme.id) || []).filter((row) => isRankingCoreMembership(row, theme));
+    byItem.set(
       key,
       toAttention({
         theme,
         signal: latestSignal(signalsByTheme.get(theme.id) || []),
-        members: themeMembers,
+        members: rankingMembers,
         now,
       }),
     );
   }
-  return out;
+
+  const themeDiagnostics: ThemeAttentionThemeDiagnostic[] = themes
+    .slice()
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((theme) => {
+      const quarantine = quarantines.get(theme.id);
+      const quarantined = Boolean(quarantine?.quarantined);
+      return {
+        themeId: theme.id,
+        canonicalLabel: theme.canonical_label,
+        quarantined,
+        quarantineReason: quarantined ? quarantine?.quarantineReason ?? 'unresolved_legacy_review' : null,
+        reviewMembershipCount: quarantine?.reviewMembershipCount ?? 0,
+        coreMembershipCount: quarantine?.coreMembershipCount ?? 0,
+        attentionWouldOtherwiseApply: otherwiseApply.has(theme.id),
+      };
+    });
+
+  return { byItem, themes: themeDiagnostics };
 }
 
 export function themeAttentionKey(item: ThemeAttentionItemRef): string {

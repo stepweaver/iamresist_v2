@@ -13,6 +13,7 @@ export type ThemeRankableCompareItem = DisplayPriorityInput & {
 
 export type ThemeRankingComparisonRow = {
   itemId: string;
+  title: string;
   baselinePosition: number;
   themePosition: number;
   delta: number;
@@ -115,6 +116,7 @@ export function compareThemeRanking(
     themeScores.push({ id: item.id, score: themeAware.displayPriority });
     rows.push({
       itemId: item.id,
+      title: item.title,
       baselinePosition: 0,
       themePosition: 0,
       delta: 0,

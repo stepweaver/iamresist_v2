@@ -8,25 +8,43 @@
  *
  * Dry-run is report-only. Guarded apply mutates DOWNGRADE_CONTEXTUAL
  * memberships only: identity metadata, never row identity or membership history.
+ *
+ * Ranking-safe REVIEW detection lives in legacyReview.ts. This module owns
+ * CLI/report/apply only.
  */
-import { scoreThemeCandidate } from '@/lib/themeMemory/candidates';
 import { THEME_SIGNAL_FORMULAS } from '@/lib/themeMemory/constants';
+import { isSeedMembership } from '@/lib/themeMemory/identity';
 import {
-  alignedFeaturesFromMember,
-  canExpandThemeCore,
-  hasEventSpecificCoreIdentity,
-  hasHardEventEvidence,
-  identityClassForAttachment,
-  isSeedMembership,
-} from '@/lib/themeMemory/identity';
-import {
-  extractThemeFingerprint,
-  fingerprintFromMembership,
-  mergeFingerprints,
-} from '@/lib/themeMemory/features';
+  classifyLegacyCoreMemberships,
+  currentIdentityClass,
+  isLegacyCoreMembership,
+  type ThemeLegacyClassDecision,
+  type ThemeReclassifyProposedClass,
+  type ThemeSeedResolution,
+  type ThemeSeedResolutionStatus,
+} from '@/lib/themeMemory/legacyReview';
 import { distinctReportingSources } from '@/lib/themeMemory/signals';
 import { themeItemKey } from '@/lib/themeMemory/store';
-import type { ThemeFingerprint, ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
+import type { ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
+
+export {
+  classifyLegacyCoreMemberships,
+  evaluateThemeLegacyReviewQuarantine,
+  evaluateThemeLegacyReviewQuarantines,
+  fingerprintIsStableIdentity,
+  isLegacyCoreMembership,
+  reconstructedCoreFromSeed,
+  resolveThemeSeed,
+  sortLegacyCoreMembers,
+} from '@/lib/themeMemory/legacyReview';
+
+export type {
+  ThemeLegacyClassDecision,
+  ThemeLegacyReviewQuarantine,
+  ThemeReclassifyProposedClass,
+  ThemeSeedResolution,
+  ThemeSeedResolutionStatus,
+} from '@/lib/themeMemory/legacyReview';
 
 export const THEME_RECLASSIFY_VERSION = 'tm-reclassify-legacy-core-v1';
 export const THEME_RECLASSIFY_REQUIRED_RANKING_MODE = 'shadow';
@@ -81,17 +99,6 @@ export function assertThemeReclassifyMode(input: {
     throw new Error(THEME_RECLASSIFY_DRY_RUN_REQUIRED);
   }
 }
-
-export type ThemeReclassifyProposedClass = 'KEEP_CORE' | 'DOWNGRADE_CONTEXTUAL' | 'REVIEW';
-
-export type ThemeSeedResolutionStatus = 'identified' | 'missing' | 'ambiguous' | 'unmatched_seed_key';
-
-export type ThemeSeedResolution = {
-  status: ThemeSeedResolutionStatus;
-  seed: ThemeMembershipRecord | null;
-  candidates: ThemeMembershipRecord[];
-  reasons: string[];
-};
 
 export type ThemeReclassifyCanary = {
   id: string;
@@ -235,146 +242,6 @@ export type ThemeReclassifyReport = {
   canaries: ThemeReclassifyThemeResult[];
 };
 
-function uniqueById(rows: ThemeMembershipRecord[]): ThemeMembershipRecord[] {
-  const seen = new Set<string>();
-  const out: ThemeMembershipRecord[] = [];
-  for (const row of rows) {
-    if (seen.has(row.id)) continue;
-    seen.add(row.id);
-    out.push(row);
-  }
-  return out;
-}
-
-function currentIdentityClass(member: ThemeMembershipRecord): string | null {
-  const value = member.metadata?.identityClass;
-  return typeof value === 'string' ? value : null;
-}
-
-export function isLegacyCoreMembership(member: ThemeMembershipRecord): boolean {
-  return currentIdentityClass(member) === 'core';
-}
-
-function seedMarkerReasons(
-  member: ThemeMembershipRecord,
-  theme: Pick<ThemeRecord, 'metadata'>,
-): string[] {
-  const reasons: string[] = [];
-  const seededKey = theme.metadata?.seededItemKey;
-  if (typeof seededKey === 'string' && seededKey === themeItemKey(member)) {
-    reasons.push('seededItemKey');
-  }
-  if (member.membership_reasons.includes('seeded_creator_led_theme')) {
-    reasons.push('seeded_creator_led_theme');
-  }
-  if (member.metadata?.identityReason === 'seed') {
-    reasons.push('identityReason=seed');
-  }
-  return reasons;
-}
-
-/**
- * Identify the original creator seed without guessing the earliest creator.
- * Ambiguous or missing seeds fail open to REVIEW.
- */
-export function resolveThemeSeed(theme: ThemeRecord, memberships: ThemeMembershipRecord[]): ThemeSeedResolution {
-  const seededKey = typeof theme.metadata?.seededItemKey === 'string' ? String(theme.metadata.seededItemKey) : null;
-  const marked = uniqueById(memberships.filter((row) => isSeedMembership(row, theme)));
-  const keyed = seededKey ? memberships.filter((row) => themeItemKey(row) === seededKey) : [];
-
-  if (seededKey && keyed.length === 0) {
-    return {
-      status: 'unmatched_seed_key',
-      seed: null,
-      candidates: marked,
-      reasons: [`seededItemKey:${seededKey}`, 'seededItemKey_unmatched'],
-    };
-  }
-
-  if (marked.length === 1) {
-    return {
-      status: 'identified',
-      seed: marked[0],
-      candidates: marked,
-      reasons: seedMarkerReasons(marked[0], theme),
-    };
-  }
-
-  if (marked.length > 1) {
-    return {
-      status: 'ambiguous',
-      seed: null,
-      candidates: marked,
-      reasons: ['multiple_seed_markers', ...marked.map((row) => `seed_candidate:${row.id}`)],
-    };
-  }
-
-  return {
-    status: 'missing',
-    seed: null,
-    candidates: [],
-    reasons: ['seed_not_identified'],
-  };
-}
-
-export function fingerprintIsStableIdentity(fp: ThemeFingerprint): boolean {
-  return (
-    fp.distinctiveTokens.length > 0 || fp.phrases.length > 0 || Object.keys(fp.clusterKeys).length > 0
-  );
-}
-
-export function reconstructedCoreFromSeed(theme: ThemeRecord, seed: ThemeMembershipRecord): ThemeFingerprint {
-  const seedFp = fingerprintFromMembership(seed);
-  const labelFp = extractThemeFingerprint({
-    title: theme.canonical_label,
-    summary: theme.summary,
-  });
-  return mergeFingerprints([seedFp, alignedFeaturesFromMember(labelFp, seedFp)]);
-}
-
-function timestampMs(value: string | null | undefined): number {
-  const ms = Date.parse(String(value || ''));
-  return Number.isFinite(ms) ? ms : 0;
-}
-
-function scoreAgainstCore(input: {
-  member: ThemeMembershipRecord;
-  core: ThemeFingerprint;
-  theme: ThemeRecord;
-}) {
-  return scoreThemeCandidate({
-    item: fingerprintFromMembership(input.member),
-    theme: input.core,
-    themeRecord: input.theme,
-    itemObservedAt: input.member.item_observed_at,
-  });
-}
-
-/**
- * Seed first, then members that already have event-specific overlap with the
- * seed, then chronological first_assigned_at / item_observed_at.
- */
-export function sortLegacyCoreMembers(
-  theme: ThemeRecord,
-  seed: ThemeMembershipRecord,
-  members: ThemeMembershipRecord[],
-): ThemeMembershipRecord[] {
-  const seedFp = reconstructedCoreFromSeed(theme, seed);
-  return [...members].sort((a, b) => {
-    const aSeed = a.id === seed.id ? 0 : 1;
-    const bSeed = b.id === seed.id ? 0 : 1;
-    if (aSeed !== bSeed) return aSeed - bSeed;
-    const aAligned = hasEventSpecificCoreIdentity(scoreAgainstCore({ member: a, core: seedFp, theme })) ? 0 : 1;
-    const bAligned = hasEventSpecificCoreIdentity(scoreAgainstCore({ member: b, core: seedFp, theme })) ? 0 : 1;
-    if (aAligned !== bAligned) return aAligned - bAligned;
-    const assigned = timestampMs(a.first_assigned_at) - timestampMs(b.first_assigned_at);
-    if (assigned !== 0) return assigned;
-    const observed = timestampMs(a.item_observed_at) - timestampMs(b.item_observed_at);
-    if (observed !== 0) return observed;
-    return a.id.localeCompare(b.id);
-  });
-}
-
 function isVoiceCreator(row: ThemeMembershipRecord): boolean {
   return row.source_system === 'voice' && row.member_role === 'creator';
 }
@@ -439,45 +306,11 @@ function calibrationNotesFor(themeId: string, title: string): string[] {
   return canary.suspicious.filter((entry) => entry.pattern.test(title)).map((entry) => entry.note);
 }
 
-function membershipResult(input: {
-  member: ThemeMembershipRecord;
-  proposedClass: ThemeReclassifyProposedClass;
-  reasons: string[];
-  contributedToReconstructedCore: boolean;
-  isSeed: boolean;
-}): ThemeReclassifyMembershipResult {
+function withCalibrationNotes(row: ThemeLegacyClassDecision): ThemeReclassifyMembershipResult {
   return {
-    membershipId: input.member.id,
-    themeId: input.member.theme_id,
-    sourceSystem: input.member.source_system,
-    sourceSlug: input.member.source_slug,
-    sourceName: input.member.source_name,
-    title: input.member.title,
-    currentIdentityClass: currentIdentityClass(input.member),
-    proposedClass: input.proposedClass,
-    reasons: input.reasons,
-    firstAssignedAt: input.member.first_assigned_at,
-    itemObservedAt: input.member.item_observed_at,
-    contributedToReconstructedCore: input.contributedToReconstructedCore,
-    isSeed: input.isSeed,
-    calibrationNotes: calibrationNotesFor(input.member.theme_id, input.member.title),
+    ...row,
+    calibrationNotes: calibrationNotesFor(row.themeId, row.title),
   };
-}
-
-function reviewAllCores(input: {
-  cores: ThemeMembershipRecord[];
-  reasons: string[];
-  seedId?: string | null;
-}): ThemeReclassifyMembershipResult[] {
-  return input.cores.map((member) =>
-    membershipResult({
-      member,
-      proposedClass: 'REVIEW',
-      reasons: input.reasons,
-      contributedToReconstructedCore: false,
-      isSeed: member.id === input.seedId,
-    }),
-  );
 }
 
 export function reclassifyThemeMemberships(
@@ -487,130 +320,11 @@ export function reclassifyThemeMemberships(
   seedResolution: ThemeSeedResolution;
   decisions: ThemeReclassifyMembershipResult[];
 } {
-  const cores = memberships.filter(isLegacyCoreMembership);
-  const seedResolution = resolveThemeSeed(theme, memberships);
-
-  if (seedResolution.status !== 'identified' || !seedResolution.seed) {
-    return {
-      seedResolution,
-      decisions: reviewAllCores({
-        cores,
-        reasons: ['theme_identity_ambiguous', ...seedResolution.reasons],
-      }),
-    };
-  }
-
-  const seed = seedResolution.seed;
-  const seedFp = reconstructedCoreFromSeed(theme, seed);
-  if (!fingerprintIsStableIdentity(seedFp)) {
-    return {
-      seedResolution,
-      decisions: reviewAllCores({
-        cores,
-        reasons: ['insufficient_seed_evidence', 'changing_class_could_remove_only_core_evidence', ...seedResolution.reasons],
-        seedId: seed.id,
-      }).map((row) =>
-        row.membershipId === seed.id
-          ? {
-              ...row,
-              proposedClass: 'KEEP_CORE',
-              isSeed: true,
-              contributedToReconstructedCore: true,
-              reasons: ['seed_preserved', 'insufficient_seed_evidence', ...seedResolution.reasons],
-            }
-          : row,
-      ),
-    };
-  }
-
-  const labelFp = extractThemeFingerprint({
-    title: theme.canonical_label,
-    summary: theme.summary,
-  });
-  if (fingerprintIsStableIdentity(labelFp)) {
-    const seedVsLabel = scoreThemeCandidate({
-      item: fingerprintFromMembership(seed),
-      theme: labelFp,
-      themeRecord: theme,
-      itemObservedAt: seed.item_observed_at,
-    });
-    if (!hasEventSpecificCoreIdentity(seedVsLabel)) {
-      return {
-        seedResolution,
-        decisions: reviewAllCores({
-          cores,
-          reasons: ['theme_identity_ambiguous', 'seed_label_mismatch', ...seedResolution.reasons, ...seedVsLabel.reasons.slice(0, 4)],
-          seedId: seed.id,
-        }),
-      };
-    }
-  }
-
-  const ordered = sortLegacyCoreMembers(theme, seed, cores);
-  const decisions: ThemeReclassifyMembershipResult[] = [];
-  let core = seedFp;
-
-  for (const member of ordered) {
-    if (member.id === seed.id) {
-      decisions.push(
-        membershipResult({
-          member,
-          proposedClass: 'KEEP_CORE',
-          reasons: ['seed_preserved', ...seedResolution.reasons],
-          contributedToReconstructedCore: true,
-          isSeed: true,
-        }),
-      );
-      continue;
-    }
-
-    const memberFp = fingerprintFromMembership(member);
-    const match = scoreAgainstCore({ member, core, theme });
-    const admitted =
-      identityClassForAttachment({
-        item: { role: member.member_role },
-        match,
-        seeded: false,
-      }) === 'core';
-    const expand = admitted && canExpandThemeCore(member, match);
-
-    if (admitted) {
-      if (expand) {
-        core = mergeFingerprints([core, alignedFeaturesFromMember(memberFp, core)]);
-      }
-      decisions.push(
-        membershipResult({
-          member,
-          proposedClass: 'KEEP_CORE',
-          reasons: [
-            'event_specific_core_admission',
-            expand ? 'expanded_reconstructed_core' : 'keep_core_without_expanding_fingerprint',
-            ...match.reasons.slice(0, 6),
-          ],
-          contributedToReconstructedCore: expand,
-          isSeed: false,
-        }),
-      );
-      continue;
-    }
-
-    decisions.push(
-      membershipResult({
-        member,
-        proposedClass: 'DOWNGRADE_CONTEXTUAL',
-        reasons: [
-          'fails_event_specific_core_admission',
-          ...(hasHardEventEvidence(match) ? [] : ['no_hard_event_evidence']),
-          'historical_membership_preserved',
-          ...match.reasons.slice(0, 6),
-        ],
-        contributedToReconstructedCore: false,
-        isSeed: false,
-      }),
-    );
-  }
-
-  return { seedResolution, decisions };
+  const { seedResolution, decisions } = classifyLegacyCoreMemberships(theme, memberships);
+  return {
+    seedResolution,
+    decisions: decisions.map(withCalibrationNotes),
+  };
 }
 
 function emptyThemeResult(canary: ThemeReclassifyCanary): ThemeReclassifyThemeResult {

@@ -17,9 +17,44 @@ function theme(over: Partial<ThemeRecord> = {}): ThemeRecord {
     first_seen_at: '2026-09-08T00:00:00.000Z',
     last_seen_at: '2026-09-15T00:00:00.000Z',
     lifecycle_status: 'persistent',
-    metadata: { creatorSeedStrength: 'converged' },
+    metadata: {
+      creatorSeedStrength: 'converged',
+      seededItemKey: 'voice:pakman:url:https://pakman.test/deployment-seed',
+    },
     created_at: '2026-09-08T00:00:00.000Z',
     updated_at: '2026-09-15T00:00:00.000Z',
+    ...over,
+  };
+}
+
+function seedMembership(over: Partial<ThemeMembershipRecord> = {}): ThemeMembershipRecord {
+  return {
+    id: 'mem-seed',
+    theme_id: 'theme-1',
+    source_system: 'voice',
+    source_slug: 'pakman',
+    source_name: 'David Pakman',
+    identity_key: 'url:https://pakman.test/deployment-seed',
+    canonical_url: 'https://pakman.test/deployment-seed',
+    title: 'Federal deployment authority dispute',
+    summary: 'Creators tracking troop-deployment authority.',
+    published_at: '2026-09-08T00:00:00.000Z',
+    item_observed_at: '2026-09-08T00:00:00.000Z',
+    member_role: 'creator',
+    membership_confidence: 1,
+    membership_method: 'deterministic',
+    membership_reasons: ['seeded_creator_led_theme'],
+    content_hash: 'hash-seed',
+    classification_version: 'tm-classify-v1',
+    membership_prompt_version: null,
+    provenance_class: null,
+    desk_lane: 'voices',
+    source_family: 'general',
+    first_assigned_at: '2026-09-08T00:00:00.000Z',
+    last_confirmed_at: '2026-09-08T00:00:00.000Z',
+    metadata: { identityClass: 'core', identityReason: 'seed' },
+    created_at: '2026-09-08T00:00:00.000Z',
+    updated_at: '2026-09-08T00:00:00.000Z',
     ...over,
   };
 }
@@ -120,6 +155,7 @@ describe('getThemeAttentionForItems', () => {
     const inner = createMemoryThemeStore({
       themes: [theme()],
       memberships: [
+        seedMembership(),
         membership(),
         membership({
           id: 'mem-2',
@@ -153,7 +189,7 @@ describe('getThemeAttentionForItems', () => {
   it('getThemeAttentionForItem reuses the batch helper', async () => {
     const store = createMemoryThemeStore({
       themes: [theme()],
-      memberships: [membership()],
+      memberships: [seedMembership(), membership()],
       signals: [signal()],
     });
     const row = await getThemeAttentionForItem(store, {
@@ -216,6 +252,7 @@ describe('getThemeAttentionForItems', () => {
     const store = createMemoryThemeStore({
       themes: [theme()],
       memberships: [
+        seedMembership(),
         membership({
           metadata: { identityClass: 'core', identityReason: 'core_identity' },
         }),
