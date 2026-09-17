@@ -12,6 +12,11 @@
 import { isDeterministicThemeMatch } from '@/lib/themeMemory/candidates';
 import { fingerprintFromCandidate } from '@/lib/themeMemory/features';
 import {
+  excludedByIntelCandidateCap,
+  isInsideProcessWindow,
+  type ThemeIntelCandidateSaturation,
+} from '@/lib/themeMemory/intelSaturation';
+import {
   hardEventEvidence,
   identityClassForAttachment,
   matchItemToPlausibleThemeCores,
@@ -78,6 +83,11 @@ export type ThemeCoverageRow = {
   matchReasons: string[];
   hardEventEvidence: string[];
   priorNoMatchAnalysis: boolean | null;
+  insideProcessWindow: boolean | null;
+  presentInSelectedIntelCandidateSet: boolean | null;
+  excludedByCandidateCap: boolean | null;
+  alreadyHasAnalysis: boolean | null;
+  analysisClassificationVersion: string | null;
 };
 
 export type ThemeCoverageWouldBeCore = {
@@ -119,6 +129,7 @@ export type ThemeRankingCoverageReport = {
   note: string;
   readOnly: true;
   totals: ThemeRankingCoverageTotals;
+  intelSaturation: ThemeIntelCandidateSaturation | null;
   rows: ThemeCoverageRow[];
   wouldBeCore: ThemeCoverageWouldBeCore[];
   cleanIntelCoresNotInPool: ThemeCoverageCleanCoreOutsidePool[];
@@ -246,19 +257,83 @@ function analysisKey(row: Pick<ThemeItemAnalysisRecord, 'source_system' | 'sourc
   return themeItemKey(row);
 }
 
+function analysisForIdentity(
+  identity: { sourceSystem: string; sourceSlug: string; identityKey: string } | null,
+  analysesByItem: Map<string, ThemeItemAnalysisRecord>,
+): ThemeItemAnalysisRecord | null {
+  if (!identity) return null;
+  return (
+    analysesByItem.get(
+      themeItemKey({
+        source_system: identity.sourceSystem,
+        source_slug: identity.sourceSlug,
+        identity_key: identity.identityKey,
+      }),
+    ) || null
+  );
+}
+
 function hasPriorNoMatch(
   identity: { sourceSystem: string; sourceSlug: string; identityKey: string } | null,
   analysesByItem: Map<string, ThemeItemAnalysisRecord>,
 ): boolean {
-  if (!identity) return false;
-  const row = analysesByItem.get(
-    themeItemKey({
-      source_system: identity.sourceSystem,
-      source_slug: identity.sourceSlug,
-      identity_key: identity.identityKey,
-    }),
+  return analysisForIdentity(identity, analysesByItem)?.decision === 'no_match';
+}
+
+function processGapFields(input: {
+  item: ThemeCoverageDeskItem;
+  identity: ReturnType<typeof rankingIdentityFromDeskItem>;
+  analysesByItem: Map<string, ThemeItemAnalysisRecord>;
+  intelSaturation: ThemeIntelCandidateSaturation | null;
+}): Pick<
+  ThemeCoverageRow,
+  | 'insideProcessWindow'
+  | 'presentInSelectedIntelCandidateSet'
+  | 'excludedByCandidateCap'
+  | 'alreadyHasAnalysis'
+  | 'analysisClassificationVersion'
+> {
+  const analysis = analysisForIdentity(input.identity, input.analysesByItem);
+  const saturation = input.intelSaturation;
+  if (!saturation) {
+    return {
+      insideProcessWindow: null,
+      presentInSelectedIntelCandidateSet: null,
+      excludedByCandidateCap: null,
+      alreadyHasAnalysis: analysis ? true : input.identity ? false : null,
+      analysisClassificationVersion: analysis?.classification_version ?? null,
+    };
+  }
+  const itemTimestamp = input.item.publishedAt || null;
+  const insideProcessWindow = isInsideProcessWindow(
+    itemTimestamp,
+    saturation.windowStart,
+    saturation.windowEnd,
   );
-  return row?.decision === 'no_match';
+  const selectedSet = new Set(saturation.selectedIdentityKeys);
+  const presentInSelectedIntelCandidateSet = Boolean(
+    input.identity &&
+      selectedSet.has(
+        themeItemKey({
+          source_system: input.identity.sourceSystem,
+          source_slug: input.identity.sourceSlug,
+          identity_key: input.identity.identityKey,
+        }),
+      ),
+  );
+  return {
+    insideProcessWindow,
+    presentInSelectedIntelCandidateSet,
+    excludedByCandidateCap: excludedByIntelCandidateCap({
+      insideProcessWindow,
+      presentInSelectedSet: presentInSelectedIntelCandidateSet,
+      candidateLimitHit: saturation.candidateLimitHit,
+      itemTimestamp,
+      oldestSelectedAt: saturation.oldestSelectedAt,
+    }),
+    alreadyHasAnalysis: Boolean(analysis),
+    analysisClassificationVersion: analysis?.classification_version ?? null,
+  };
 }
 
 function countState(rows: ThemeCoverageRow[], state: ThemeCoverageState): number {
@@ -280,8 +355,10 @@ export function auditThemeRankingCoverage(input: {
   analyses?: ThemeItemAnalysisRecord[];
   deskLane?: string;
   now?: Date | string;
+  intelSaturation?: ThemeIntelCandidateSaturation | null;
 }): ThemeRankingCoverageReport {
   const generatedAt = input.now ? new Date(input.now).toISOString() : new Date().toISOString();
+  const intelSaturation = input.intelSaturation || null;
   const themesById = new Map(input.themes.map((theme) => [theme.id, theme]));
   const membershipsByTheme = new Map<string, ThemeMembershipRecord[]>();
   for (const row of input.memberships) {
@@ -343,6 +420,7 @@ export function auditThemeRankingCoverage(input: {
         matchReasons: [],
         hardEventEvidence: [],
         priorNoMatchAnalysis: null,
+        ...processGapFields({ item, identity, analysesByItem, intelSaturation }),
       };
     }
 
@@ -367,6 +445,7 @@ export function auditThemeRankingCoverage(input: {
         matchReasons: [],
         hardEventEvidence: [],
         priorNoMatchAnalysis: hasPriorNoMatch(identity, analysesByItem),
+        ...processGapFields({ item, identity, analysesByItem, intelSaturation }),
       };
     }
 
@@ -403,6 +482,7 @@ export function auditThemeRankingCoverage(input: {
       matchReasons: top?.reasons || [],
       hardEventEvidence: evidence,
       priorNoMatchAnalysis: hasPriorNoMatch(identity, analysesByItem),
+      ...processGapFields({ item, identity, analysesByItem, intelSaturation }),
     };
   });
 
@@ -455,6 +535,7 @@ export function auditThemeRankingCoverage(input: {
     note: COVERAGE_NOTE,
     readOnly: true,
     totals: rows.length === 0 ? { ...emptyTotals() } : totals,
+    intelSaturation,
     rows,
     wouldBeCore,
     cleanIntelCoresNotInPool,
@@ -464,7 +545,11 @@ export function auditThemeRankingCoverage(input: {
 export async function loadThemeRankingCoverageAudit(
   store: ThemeStore,
   deskItems: ThemeCoverageDeskItem[],
-  opts: { deskLane?: string; now?: Date | string } = {},
+  opts: {
+    deskLane?: string;
+    now?: Date | string;
+    intelSaturation?: ThemeIntelCandidateSaturation | null;
+  } = {},
 ): Promise<ThemeRankingCoverageReport> {
   const [themes, memberships] = await Promise.all([store.listThemes(), store.listMemberships()]);
   const draft = auditThemeRankingCoverage({
@@ -473,18 +558,18 @@ export async function loadThemeRankingCoverageAudit(
     memberships,
     deskLane: opts.deskLane,
     now: opts.now,
+    intelSaturation: opts.intelSaturation,
   });
-  const previewIds = draft.rows.filter(
-    (row) => row.coverageState === 'NO_MEMBERSHIP' && row.previewOutcome === 'WOULD_BE_CORE' && row.derivedIdentityKey,
+  const lookupRows = draft.rows.filter(
+    (row) => row.coverageState === 'NO_MEMBERSHIP' && row.derivedIdentityKey,
   );
-  if (previewIds.length === 0) return draft;
+  if (lookupRows.length === 0) return draft;
 
   const analyses: ThemeItemAnalysisRecord[] = [];
-  for (const row of previewIds) {
-    const sourceSlug = row.sourceSlug || 'unknown';
+  for (const row of lookupRows) {
     const analysis = await store.getAnalysis({
       source_system: 'intel',
-      source_slug: sourceSlug,
+      source_slug: String(row.sourceSlug || 'unknown').toLowerCase(),
       identity_key: row.derivedIdentityKey as string,
     });
     if (analysis) analyses.push(analysis);
@@ -497,11 +582,18 @@ export async function loadThemeRankingCoverageAudit(
     analyses,
     deskLane: opts.deskLane,
     now: opts.now,
+    intelSaturation: opts.intelSaturation,
   });
+}
+
+function formatFlag(value: boolean | null | undefined): string {
+  if (value == null) return 'unknown';
+  return value ? 'yes' : 'no';
 }
 
 export function formatThemeRankingCoverageReport(report: ThemeRankingCoverageReport): string {
   const t = report.totals;
+  const sat = report.intelSaturation;
   const lines = [
     'Theme Memory live desk ranking coverage',
     '=======================================',
@@ -522,9 +614,23 @@ export function formatThemeRankingCoverageReport(report: ThemeRankingCoverageRep
     `NO_PLAUSIBLE_THEME preview: ${t.NO_PLAUSIBLE_THEME}`,
     `IDENTITY_LOOKUP_MISMATCH: ${t.IDENTITY_LOOKUP_MISMATCH}`,
     '',
-    'Identity audit',
-    '--------------',
+    'Intel process-window coverage',
+    '-----------------------------',
   ];
+  if (!sat) {
+    lines.push('(not loaded)');
+  } else {
+    lines.push(
+      `available in process window: ${sat.availableInWindow}`,
+      `selected for processing: ${sat.selectedForProcessing}`,
+      `configured candidate limit: ${sat.candidateLimit}`,
+      `candidate limit hit: ${sat.candidateLimitHit ? 'yes' : 'no'}`,
+      `newest selected timestamp: ${sat.newestSelectedAt || '(none)'}`,
+      `oldest selected timestamp: ${sat.oldestSelectedAt || '(none)'}`,
+    );
+  }
+
+  lines.push('', 'Identity audit', '--------------');
 
   for (const row of report.rows) {
     lines.push(
@@ -538,6 +644,15 @@ export function formatThemeRankingCoverageReport(report: ThemeRankingCoverageRep
       `    exact lookup matched: ${row.exactLookupMatched ? 'yes' : 'no'}`,
       `    coverage: ${row.coverageState}${row.previewOutcome ? ` / ${row.previewOutcome}` : ''}`,
     );
+    if (row.coverageState === 'NO_MEMBERSHIP') {
+      lines.push(
+        `    inside process window: ${formatFlag(row.insideProcessWindow)}`,
+        `    present in selected Intel candidate set: ${formatFlag(row.presentInSelectedIntelCandidateSet)}`,
+        `    excluded by candidate cap: ${formatFlag(row.excludedByCandidateCap)}`,
+        `    already has analysis: ${formatFlag(row.alreadyHasAnalysis)}`,
+        `    analysis classification version: ${row.analysisClassificationVersion || '(none)'}`,
+      );
+    }
   }
 
   lines.push('', 'Clean Intel cores not in ranking pool', '-------------------------------------');

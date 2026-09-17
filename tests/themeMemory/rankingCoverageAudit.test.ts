@@ -433,4 +433,125 @@ describe('Theme Memory live desk ranking coverage audit', () => {
     expect(text).toContain('CORE_ELIGIBLE: 1');
     expect(text).toContain('exact lookup matched: yes');
   });
+
+  it('does not preview unrelated executive-order items as WOULD_BE_CORE', () => {
+    const theme = themeRecord({
+      id: 'theme-scotus-eo',
+      canonical_label: "Supreme Court Blocks Trump’s Executive Order",
+      metadata: {
+        seededItemKey: 'voice:meidastouch:url:https://meidastouch.test/scotus-eo-seed',
+        creatorSeedStrength: 'converged',
+      },
+    });
+    const seed = membershipRecord({
+      id: 'scotus-eo-seed',
+      theme_id: 'theme-scotus-eo',
+      source_slug: 'meidastouch',
+      identity_key: 'url:https://meidastouch.test/scotus-eo-seed',
+      canonical_url: 'https://meidastouch.test/scotus-eo-seed',
+      title: "Supreme Court Blocks Trump’s Executive Order",
+      member_role: 'creator',
+      membership_reasons: ['seeded_creator_led_theme'],
+      metadata: { identityClass: 'core', identityReason: 'seed' },
+    });
+    const titles = [
+      'White House issues executive order on electrical grid reliability',
+      'New executive order targets voting procedures in several states',
+      'President signs executive order on federal contracting rules',
+      'Executive order directs agencies to rewrite environmental reviews',
+      'Administration executive order on student loan servicing',
+    ];
+    const deskItems = titles.map((title, index) =>
+      deskItem({
+        id: `desk-eo-${index}`,
+        title,
+        canonicalUrl: `https://lawfare.test/eo-${index}`,
+        sourceSlug: 'lawfare',
+      }),
+    );
+    const report = auditThemeRankingCoverage({
+      deskItems,
+      themes: [theme],
+      memberships: [seed],
+      deskLane: 'osint',
+      now: NOW,
+    });
+    expect(report.totals.WOULD_BE_CORE).toBe(0);
+    expect(report.wouldBeCore).toHaveLength(0);
+    for (const row of report.rows) {
+      expect(row.coverageState).toBe('NO_MEMBERSHIP');
+      expect(['PLAUSIBLE_CONTEXTUAL', 'NO_PLAUSIBLE_THEME']).toContain(row.previewOutcome);
+      expect(row.hardEventEvidence.join(' ')).not.toMatch(/executive order/);
+    }
+  });
+
+  it('reports Intel cap saturation on NO_MEMBERSHIP rows', () => {
+    const item = deskItem({
+      id: 'desk-cap',
+      title: 'Routine weather advisory for the mid-Atlantic',
+      canonicalUrl: 'https://weather.test/advisory',
+      sourceSlug: 'weather-desk',
+      publishedAt: '2026-09-01T12:00:00.000Z',
+    });
+    const identity = themeIdentityFromCanonical({
+      sourceSystem: 'intel',
+      sourceSlug: 'weather-desk',
+      canonicalUrl: item.canonicalUrl as string,
+    });
+    const report = auditThemeRankingCoverage({
+      deskItems: [item],
+      themes: [cleanTheme()],
+      memberships: [cleanSeed()],
+      now: NOW,
+      intelSaturation: {
+        windowStart: '2026-09-02T16:00:00.000Z',
+        windowEnd: NOW,
+        availableInWindow: 1500,
+        selectedForProcessing: 1000,
+        fetchedRaw: 1000,
+        candidateLimit: 1000,
+        candidateLimitHit: true,
+        newestSelectedAt: NOW,
+        oldestSelectedAt: '2026-09-09T16:00:00.000Z',
+        selectedIdentityKeys: ['intel:other:url:https://other.test/item'],
+      },
+    });
+    expect(report.intelSaturation?.candidateLimitHit).toBe(true);
+    expect(report.rows[0]?.insideProcessWindow).toBe(false);
+    expect(report.rows[0]?.presentInSelectedIntelCandidateSet).toBe(false);
+    expect(report.rows[0]?.excludedByCandidateCap).toBe(false);
+    expect(report.rows[0]?.alreadyHasAnalysis).toBe(false);
+    const olderInWindow = deskItem({
+      id: 'desk-cap-old',
+      title: 'Older Intel item truncated by cap',
+      canonicalUrl: 'https://weather.test/older',
+      sourceSlug: 'weather-desk',
+      publishedAt: '2026-09-03T12:00:00.000Z',
+    });
+    const truncated = auditThemeRankingCoverage({
+      deskItems: [olderInWindow],
+      themes: [cleanTheme()],
+      memberships: [cleanSeed()],
+      now: NOW,
+      intelSaturation: {
+        windowStart: '2026-09-02T16:00:00.000Z',
+        windowEnd: NOW,
+        availableInWindow: 1500,
+        selectedForProcessing: 1000,
+        fetchedRaw: 1000,
+        candidateLimit: 1000,
+        candidateLimitHit: true,
+        newestSelectedAt: NOW,
+        oldestSelectedAt: '2026-09-09T16:00:00.000Z',
+        selectedIdentityKeys: ['intel:other:url:https://other.test/item'],
+      },
+    });
+    expect(truncated.rows[0]?.insideProcessWindow).toBe(true);
+    expect(truncated.rows[0]?.presentInSelectedIntelCandidateSet).toBe(false);
+    expect(truncated.rows[0]?.excludedByCandidateCap).toBe(true);
+    expect(identity.identityKey).toBeTruthy();
+    const text = formatThemeRankingCoverageReport(truncated);
+    expect(text).toContain('candidate limit hit: yes');
+    expect(text).toContain('excluded by candidate cap: yes');
+  });
 });

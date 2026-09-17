@@ -6,15 +6,18 @@
 export const THEME_MEMBERSHIP_PROMPT_VERSION = 'tm-membership-v3';
 export const THEME_LABEL_PROMPT_VERSION = 'tm-label-v2';
 export const THEME_CLASSIFICATION_VERSION = 'tm-classify-v3';
+/** Bump when deterministic matcher/feature semantics change. */
+export const THEME_DETERMINISTIC_MATCH_VERSION = 'tm-match-v4';
 
 /**
  * Analysis cache key. A prior none/deterministic analysis must not permanently
- * block AI-assisted classification after the provider or prompt changes.
+ * block AI-assisted classification after the provider, prompt, or deterministic
+ * matcher changes.
  */
 export function themeClassificationCacheVersion(providerName?: string | null): string {
   const name = String(providerName || 'none').toLowerCase();
   const aiMode = name === 'none' || name === 'deterministic' ? 'none' : 'ai';
-  return `${THEME_CLASSIFICATION_VERSION}:${aiMode}:${THEME_MEMBERSHIP_PROMPT_VERSION}`;
+  return `${THEME_CLASSIFICATION_VERSION}:${THEME_DETERMINISTIC_MATCH_VERSION}:${aiMode}:${THEME_MEMBERSHIP_PROMPT_VERSION}`;
 }
 
 /** Membership is topical association. It is never factual corroboration. */

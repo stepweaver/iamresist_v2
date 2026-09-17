@@ -12,7 +12,7 @@ import {
   identityClassForAttachment,
 } from '@/lib/themeMemory/identity';
 import { groupNamedEntityAnchors, independentEventAnchors, isPersonNamePair } from '@/lib/themeMemory/entityAnchors';
-import { featureStrength, phraseStrength } from '@/lib/themeMemory/featureStrength';
+import { featureStrength, isGenericInstitutionalEventType, phraseStrength } from '@/lib/themeMemory/featureStrength';
 import { processThemeMemory } from '@/lib/themeMemory/process';
 import { createMemoryThemeStore } from '@/lib/themeMemory/store';
 import type { ThemeFingerprint, ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
@@ -836,5 +836,63 @@ describe('Theme Memory identity integrity', () => {
     expect(hasHardEventEvidence(scored.match)).toBe(true);
     expect(hasEventSpecificCoreIdentity(scored.match)).toBe(true);
     expect(scored.identityClass).toBe('core');
+  });
+
+  it('generic institutional document types are supporting, not hard-event identity', () => {
+    expect(featureStrength('executive')).toBe('supporting');
+    expect(isGenericInstitutionalEventType('executive order')).toBe(true);
+    expect(isGenericInstitutionalEventType('court ruling')).toBe(true);
+    expect(isGenericInstitutionalEventType('supreme court ruling')).toBe(true);
+    expect(isGenericInstitutionalEventType('court order')).toBe(true);
+    expect(isGenericInstitutionalEventType('federal rule')).toBe(true);
+    expect(isGenericInstitutionalEventType('federal regulation')).toBe(true);
+    expect(isGenericInstitutionalEventType('congressional hearing')).toBe(true);
+    expect(isGenericInstitutionalEventType('senate hearing')).toBe(true);
+    expect(isGenericInstitutionalEventType('house hearing')).toBe(true);
+    expect(isGenericInstitutionalEventType('federal lawsuit')).toBe(true);
+    expect(isGenericInstitutionalEventType('presidential memorandum')).toBe(true);
+    expect(phraseStrength('executive order')).toBe('supporting');
+    expect(phraseStrength('congressional hearing')).toBe('supporting');
+    expect(isGenericInstitutionalEventType('congressional map')).toBe(false);
+    expect(isGenericInstitutionalEventType('birthright citizenship')).toBe(false);
+  });
+
+  it('executive order alone does not make unrelated orders CORE', () => {
+    const themeTitle = "Supreme Court Blocks Trump’s Executive Order";
+    const unrelated = [
+      'White House issues executive order on electrical grid reliability',
+      'New executive order targets voting procedures in several states',
+      'President signs executive order on federal contracting rules',
+      'Executive order directs agencies to rewrite environmental reviews',
+      'Administration executive order on student loan servicing',
+    ];
+    for (const itemTitle of unrelated) {
+      const scored = coreAdmission(itemTitle, themeTitle);
+      expect(scored.match.sharedPhrases.join(' ')).not.toMatch(/executive order/);
+      expect(hasEventSpecificCoreIdentity(scored.match)).toBe(false);
+      expect(isDeterministicThemeMatch(scored.match)).toBe(false);
+      expect(scored.identityClass).toBe('contextual');
+    }
+  });
+
+  it('executive order plus the same specific policy object can still be CORE', () => {
+    const scored = coreAdmission(
+      'Appeals court reviews the birthright citizenship policy',
+      'Supreme Court fight over the birthright citizenship policy',
+    );
+    expect(scored.match.sharedPhrases.join(' ')).toMatch(/birthright citizenship/);
+    expect(hasHardEventEvidence(scored.match)).toBe(true);
+    expect(hasEventSpecificCoreIdentity(scored.match)).toBe(true);
+    expect(scored.identityClass).toBe('core');
+  });
+
+  it('Supreme Court ruling alone is not CORE', () => {
+    const generic = coreAdmission(
+      'Analysts debate a new Supreme Court ruling',
+      'Supreme Court issues a major ruling today',
+    );
+    expect(hasEventSpecificCoreIdentity(generic.match)).toBe(false);
+    expect(isDeterministicThemeMatch(generic.match)).toBe(false);
+    expect(generic.identityClass).toBe('contextual');
   });
 });

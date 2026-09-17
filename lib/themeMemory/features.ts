@@ -12,7 +12,13 @@ import {
 import type { ThemeCandidateItem } from '@/lib/themeMemory/types';
 import type { ThemeFingerprint } from '@/lib/themeMemory/themeTypes';
 
-export { featureStrength, isWeakEntityToken, phraseStrength, stemThemeToken } from '@/lib/themeMemory/featureStrength';
+export {
+  featureStrength,
+  isGenericInstitutionalEventType,
+  isWeakEntityToken,
+  phraseStrength,
+  stemThemeToken,
+} from '@/lib/themeMemory/featureStrength';
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];

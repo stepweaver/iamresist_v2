@@ -309,3 +309,37 @@ export async function countIntelSourceItemsInWindow(input: {
   if (error) throw new Error(`source_items window count: ${error.message}`);
   return count ?? 0;
 }
+
+/**
+ * Count rows the Intel adapter would consider in-window, matching
+ * fetchIntelSourceItemsForThemeWindow filters (published in range, plus
+ * unpublished rows with fetched_at in range). Does not apply the 1000 cap.
+ */
+export async function countIntelSourceItemsAvailableForThemeWindow(input: {
+  start: Date | string;
+  end: Date | string;
+}): Promise<number> {
+  if (!intelDbConfigured()) return 0;
+  const startIso = toUtcIso(input.start);
+  const endIso = toUtcIso(input.end);
+  if (!startIso || !endIso) return 0;
+
+  const supabase = client();
+  const [publishedRes, fetchedRes] = await Promise.all([
+    supabase
+      .from('source_items')
+      .select('id', { count: 'exact', head: true })
+      .gte('published_at', startIso)
+      .lte('published_at', endIso),
+    supabase
+      .from('source_items')
+      .select('id', { count: 'exact', head: true })
+      .is('published_at', null)
+      .gte('fetched_at', startIso)
+      .lte('fetched_at', endIso),
+  ]);
+
+  if (publishedRes.error) throw new Error(`source_items available count: ${publishedRes.error.message}`);
+  if (fetchedRes.error) throw new Error(`source_items available fetched count: ${fetchedRes.error.message}`);
+  return (publishedRes.count ?? 0) + (fetchedRes.count ?? 0);
+}

@@ -9,6 +9,7 @@
 import {
   featureStrength,
   isDistinctiveActionToken,
+  isGenericInstitutionalEventType,
   isWeakEntityToken,
   isWeakPersonEntityToken,
   isWeakPhrase,
@@ -349,6 +350,7 @@ export function isStrongNonPersonPhrase(phrase: string): boolean {
  * "flock camera" qualifies. "price problem" does not.
  */
 export function isHardEventPhrase(phrase: string): boolean {
+  if (isGenericInstitutionalEventType(phrase)) return false;
   if (!isStrongNonPersonPhrase(phrase)) return false;
   const parts = phraseParts(phrase);
   if (parts.some((part) => isDistinctiveActionToken(part))) return true;
@@ -457,6 +459,7 @@ function entityAnchorId(parts: string[]): string {
 
 function phraseAddsIndependentObject(phrase: string, countedTokens: Set<string>): boolean {
   if (isPersonNamePhrase(phrase)) return false;
+  if (isGenericInstitutionalEventType(phrase)) return false;
   const parts = phrase
     .toLowerCase()
     .replace(/\s+/g, ' ')

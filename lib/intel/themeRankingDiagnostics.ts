@@ -3,6 +3,7 @@ import { compareThemeRanking, type ThemeRankableCompareItem, type ThemeRankingCo
 import { prefetchThemeAttentionByItemId } from '@/lib/intel/themeAttentionPrefetch';
 import { resolveThemeRankingMode } from '@/lib/intel/themeAttentionRanking';
 import type { ProvenanceClass } from '@/lib/intel/types';
+import { getThemeIntelCandidateSaturation } from '@/lib/themeMemory/query';
 import type { ThemeAttentionForItem, ThemeAttentionThemeDiagnostic } from '@/lib/themeMemory/readModel';
 import {
   loadThemeRankingCoverageAudit,
@@ -135,7 +136,13 @@ export async function buildThemeRankingDiagnostics(opts: {
         ? (await import('@/lib/themeMemory/themesDb')).createSupabaseThemeStore()
         : opts.coverageStore;
     if (store) {
-      coverage = await loadThemeRankingCoverageAudit(store, items, { deskLane: lane });
+      let intelSaturation = null;
+      try {
+        intelSaturation = await getThemeIntelCandidateSaturation();
+      } catch {
+        intelSaturation = null;
+      }
+      coverage = await loadThemeRankingCoverageAudit(store, items, { deskLane: lane, intelSaturation });
     }
   } catch (error) {
     console.warn('[theme-ranking-diagnostics] coverage audit failed; ranking snapshot continues', error);

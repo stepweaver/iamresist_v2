@@ -3,11 +3,14 @@ import 'server-only';
 import { intelDbConfigured } from '@/lib/intel/db';
 import { createThemeAIProvider } from '@/lib/themeMemory/ai/provider';
 import type { ThemeAIProvider } from '@/lib/themeMemory/ai/types';
+import { THEME_PROCESS_WINDOW_DAYS } from '@/lib/themeMemory/constants';
+import { countIntelSourceItemsAvailableForThemeWindow } from '@/lib/themeMemory/db';
 import { ingestThemeMemorySources } from '@/lib/themeMemory/ingest';
+import { measureIntelCandidateSaturation } from '@/lib/themeMemory/intelSaturation';
 import { processThemeMemory, emptyThemeProcessDiagnostics, type ThemeProcessResult } from '@/lib/themeMemory/process';
 import { getThemeCandidateItems } from '@/lib/themeMemory/query';
 import { createSupabaseThemeStore } from '@/lib/themeMemory/themesDb';
-import { THEME_PROCESS_WINDOW_DAYS } from '@/lib/themeMemory/constants';
+import { THEME_MEMORY_INTEL_CANDIDATE_LIMIT } from '@/lib/themeMemory/types';
 import { resolveThemeMemoryWindow } from '@/lib/themeMemory/windows';
 
 export async function runThemeMemoryProcess(opts: {
@@ -43,6 +46,24 @@ export async function runThemeMemoryProcess(opts: {
     end: window.end,
     now: opts.now,
   });
+  const intelItems = items.filter((item) => item.sourceSystem === 'intel');
+  let availableInWindow = intelItems.length;
+  try {
+    availableInWindow = await countIntelSourceItemsAvailableForThemeWindow({
+      start: window.start,
+      end: window.end,
+    });
+  } catch {
+    availableInWindow = intelItems.length;
+  }
+  const intelSaturation = measureIntelCandidateSaturation({
+    availableInWindow,
+    selected: intelItems,
+    fetchedRaw: intelItems.length,
+    candidateLimit: THEME_MEMORY_INTEL_CANDIDATE_LIMIT,
+    windowStart: window.start,
+    windowEnd: window.end,
+  });
   const store = createSupabaseThemeStore({ now: opts.now });
   const ai = createThemeAIProvider(opts.ai);
   const result = await processThemeMemory({
@@ -53,6 +74,7 @@ export async function runThemeMemoryProcess(opts: {
     refreshLabels: opts.refreshLabels,
     windowStart: window.start,
     windowEnd: window.end,
+    intelSaturation,
   });
 
   return ingest ? { ...result, ingest } : result;

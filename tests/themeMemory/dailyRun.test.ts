@@ -46,6 +46,14 @@ function processOk(): ThemeProcessResult {
       creatorItemsSkippedUnchanged: 0,
       newswireItemsConsidered: 20,
       intelItemsConsidered: 10,
+      intelAvailableInWindow: 10,
+      intelSelectedForProcessing: 10,
+      intelCandidateLimit: 1000,
+      intelCandidateLimitHit: false,
+      intelNewestSelectedAt: '2026-09-15T16:00:00.000Z',
+      intelOldestSelectedAt: '2026-09-08T16:00:00.000Z',
+      staleAnalysesReevaluated: 0,
+      noMatchAnalysesReevaluated: 0,
       themesCreated: 2,
       themesUpdated: 9,
       deterministicMemberships: 14,
@@ -104,6 +112,13 @@ describe('Theme Memory daily runner', () => {
     const summary = formatThemeMemoryDailySummary(result);
     expect(summary).toContain('Theme Memory Daily');
     expect(summary).toContain('Voices: 15/15 feeds, 230 seen, 12 new');
+    expect(summary).toContain('Creator observations considered: 37');
+    expect(summary).toContain('Newswire candidates considered: 20');
+    expect(summary).toContain('Intel candidates considered: 10');
+    expect(summary).toContain('Intel available in process window: 10');
+    expect(summary).toContain('Intel candidate limit hit: no');
+    expect(summary).toContain('Stale analyses re-evaluated: 0');
+    expect(summary).toContain('Prior no_match re-evaluated: 0');
     expect(summary).toContain('AI checks: 18');
     expect(summary).toContain('AI accepted: 7');
     expect(summary).toMatch(/mode: (off|shadow|active)/);

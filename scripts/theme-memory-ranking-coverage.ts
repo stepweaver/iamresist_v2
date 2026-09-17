@@ -1,5 +1,6 @@
 import { getLiveIntelDeskUncached } from '@/lib/feeds/liveIntel.service';
 import { resolveThemeRankingMode } from '@/lib/intel/themeAttentionRanking';
+import { getThemeIntelCandidateSaturation } from '@/lib/themeMemory/query';
 import {
   formatThemeRankingCoverageReport,
   loadThemeRankingCoverageAudit,
@@ -23,7 +24,16 @@ async function main() {
       ? desk.items
       : [];
   const items = pool.slice(0, limit);
-  const report = await loadThemeRankingCoverageAudit(createSupabaseThemeStore(), items, { deskLane: lane });
+  let intelSaturation = null;
+  try {
+    intelSaturation = await getThemeIntelCandidateSaturation();
+  } catch (error) {
+    console.warn('[theme-memory:ranking-coverage] Intel saturation unavailable', error);
+  }
+  const report = await loadThemeRankingCoverageAudit(createSupabaseThemeStore(), items, {
+    deskLane: lane,
+    intelSaturation,
+  });
   console.log(formatThemeRankingCoverageReport(report));
   console.log('');
   console.log(`Ranking mode (unchanged): ${mode}`);

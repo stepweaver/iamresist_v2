@@ -210,6 +210,21 @@ const SUPPORTING_TOKENS = new Set([
   'policies',
   'bill',
   'bills',
+  'executive',
+  'lawsuit',
+  'lawsuits',
+  'legislation',
+  'memorandum',
+  'memo',
+  'memos',
+  'regulation',
+  'regulations',
+  'proclamation',
+  'proclamations',
+  'filing',
+  'filings',
+  'complaint',
+  'complaints',
   'law',
   'laws',
   'legal',
@@ -333,6 +348,64 @@ const DISTINCTIVE_ACTION_TOKENS = new Set([
 ]);
 
 /**
+ * Institutional office/branch adjectives. These name a class of actor, not
+ * a specific event. They may complete a document-type phrase.
+ */
+const INSTITUTIONAL_TYPE_MODIFIERS = new Set([
+  'executive',
+  'presidential',
+  'congressional',
+  'legislative',
+  'judicial',
+  'federal',
+  'court',
+  'supreme',
+  'senate',
+  'house',
+  'congress',
+  'agency',
+  'department',
+  'government',
+  'administration',
+  'president',
+  'white',
+]);
+
+/**
+ * Document / proceeding nouns. Sharing the TYPE of instrument is not the
+ * same as sharing a specific order, case, bill, or hearing.
+ */
+const INSTITUTIONAL_DOCUMENT_NOUNS = new Set([
+  'order',
+  'orders',
+  'ruling',
+  'decision',
+  'opinion',
+  'regulation',
+  'regulations',
+  'rule',
+  'rules',
+  'hearing',
+  'hearings',
+  'lawsuit',
+  'lawsuits',
+  'bill',
+  'bills',
+  'legislation',
+  'memorandum',
+  'memo',
+  'memos',
+  'proclamation',
+  'proclamations',
+  'notice',
+  'notices',
+  'filing',
+  'filings',
+  'complaint',
+  'complaints',
+]);
+
+/**
  * Multi-word low-information phrases. Token-level weakness already covers
  * most of these; the set exists so a remaining unstemmed phrase cannot
  * become a strong shared_phrase by itself.
@@ -418,14 +491,55 @@ export function isWeakPhrase(phrase: string): boolean {
   return parts.length >= 2 && parts.every((part) => isWeakEntityToken(part) || isBoilerplateToken(part));
 }
 
-function isSupportingToken(token: string): boolean {
+function tokenMatchesSet(token: string, set: Set<string>): boolean {
   const raw = token.toLowerCase();
   const stemmed = stemThemeToken(raw);
-  if (SUPPORTING_TOKENS.has(raw) || SUPPORTING_TOKENS.has(stemmed)) return true;
-  for (const candidate of SUPPORTING_TOKENS) {
+  if (set.has(raw) || set.has(stemmed)) return true;
+  for (const candidate of set) {
     if (stemThemeToken(candidate) === stemmed) return true;
   }
   return false;
+}
+
+function isSupportingToken(token: string): boolean {
+  return tokenMatchesSet(token, SUPPORTING_TOKENS);
+}
+
+export function isInstitutionalTypeModifier(token: string): boolean {
+  return tokenMatchesSet(token, INSTITUTIONAL_TYPE_MODIFIERS);
+}
+
+export function isInstitutionalDocumentNoun(token: string): boolean {
+  return tokenMatchesSet(token, INSTITUTIONAL_DOCUMENT_NOUNS);
+}
+
+function isGenericInstitutionalPart(token: string): boolean {
+  if (!token) return false;
+  if (isDistinctiveActionToken(token)) return false;
+  if (isWeakEntityToken(token)) return true;
+  if (isBoilerplateToken(token)) return true;
+  if (isInstitutionalTypeModifier(token)) return true;
+  if (isInstitutionalDocumentNoun(token)) return true;
+  if (isSupportingToken(token)) return true;
+  return false;
+}
+
+/**
+ * A shared document/action TYPE is not a shared specific event.
+ * "executive order" or "court ruling" can support a match only with another
+ * independent specific anchor (named order, policy/object, case, cluster key).
+ */
+export function isGenericInstitutionalEventType(phrase: string): boolean {
+  const parts = phrase
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+  if (parts.length < 2) return false;
+  if (parts.some((part) => isDistinctiveActionToken(part))) return false;
+  if (!parts.some((part) => isInstitutionalDocumentNoun(part))) return false;
+  return parts.every((part) => isGenericInstitutionalPart(part));
 }
 
 /**
@@ -449,6 +563,7 @@ export function phraseStrength(phrase: string): SemanticFeatureStrength {
   const normalized = phrase.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return 'weak';
   if (isWeakPhrase(normalized)) return 'weak';
+  if (isGenericInstitutionalEventType(normalized)) return 'supporting';
   const parts = normalized.split(' ').filter(Boolean);
   const strengths = parts.map((part) => featureStrength(part));
   if (strengths.every((strength) => strength === 'weak')) return 'weak';

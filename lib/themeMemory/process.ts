@@ -14,6 +14,10 @@ import { isDeterministicThemeMatch } from '@/lib/themeMemory/candidates';
 import { shouldAcceptAIMembership } from '@/lib/themeMemory/ai/accept';
 import { deterministicLabelFromFingerprint, fingerprintFromCandidate } from '@/lib/themeMemory/features';
 import {
+  measureIntelCandidateSaturation,
+  type ThemeIntelCandidateSaturation,
+} from '@/lib/themeMemory/intelSaturation';
+import {
   coreMembersForLabel,
   identityClassForAttachment,
   isRankingCoreMembership,
@@ -24,7 +28,7 @@ import { computeThemeDailySignal, toThemeDailySignalRecord, utcDateString } from
 import { analysisIsCurrent, themeItemKey, type ThemeStore } from '@/lib/themeMemory/store';
 import { emptyThemeAIFailureCategories, recordThemeAIFailure, type ThemeAIFailureCategory } from '@/lib/themeMemory/ai/failures';
 import type { ThemeAIProvider } from '@/lib/themeMemory/ai/types';
-import type { ThemeCandidateItem } from '@/lib/themeMemory/types';
+import { THEME_MEMORY_INTEL_CANDIDATE_LIMIT, type ThemeCandidateItem } from '@/lib/themeMemory/types';
 import type {
   ThemeCandidateMatch,
   ThemeItemAnalysisRecord,
@@ -38,6 +42,14 @@ export type ThemeProcessDiagnostics = {
   creatorItemsSkippedUnchanged: number;
   newswireItemsConsidered: number;
   intelItemsConsidered: number;
+  intelAvailableInWindow: number;
+  intelSelectedForProcessing: number;
+  intelCandidateLimit: number;
+  intelCandidateLimitHit: boolean;
+  intelNewestSelectedAt: string | null;
+  intelOldestSelectedAt: string | null;
+  staleAnalysesReevaluated: number;
+  noMatchAnalysesReevaluated: number;
   themesCreated: number;
   themesUpdated: number;
   deterministicMemberships: number;
@@ -97,6 +109,14 @@ export function emptyThemeProcessDiagnostics(): ThemeProcessDiagnostics {
     creatorItemsSkippedUnchanged: 0,
     newswireItemsConsidered: 0,
     intelItemsConsidered: 0,
+    intelAvailableInWindow: 0,
+    intelSelectedForProcessing: 0,
+    intelCandidateLimit: THEME_MEMORY_INTEL_CANDIDATE_LIMIT,
+    intelCandidateLimitHit: false,
+    intelNewestSelectedAt: null,
+    intelOldestSelectedAt: null,
+    staleAnalysesReevaluated: 0,
+    noMatchAnalysesReevaluated: 0,
     themesCreated: 0,
     themesUpdated: 0,
     deterministicMemberships: 0,
@@ -286,6 +306,7 @@ export async function processThemeMemory(input: {
   windowEnd?: Date | string | null;
   maxAiMembershipChecks?: number;
   maxAiLabels?: number;
+  intelSaturation?: ThemeIntelCandidateSaturation | null;
 }): Promise<ThemeProcessResult> {
   const finishedAt = nowIso(input.now);
   const diagnostics = emptyThemeProcessDiagnostics();
@@ -311,6 +332,22 @@ export async function processThemeMemory(input: {
   diagnostics.creatorItemsConsidered = creatorItems.length;
   diagnostics.newswireItemsConsidered = newswireItems.length;
   diagnostics.intelItemsConsidered = intelItems.length;
+  const intelSaturation =
+    input.intelSaturation ||
+    measureIntelCandidateSaturation({
+      availableInWindow: intelItems.length,
+      selected: intelItems,
+      fetchedRaw: intelItems.length,
+      candidateLimit: THEME_MEMORY_INTEL_CANDIDATE_LIMIT,
+      windowStart: input.windowStart || finishedAt,
+      windowEnd: input.windowEnd || finishedAt,
+    });
+  diagnostics.intelAvailableInWindow = intelSaturation.availableInWindow;
+  diagnostics.intelSelectedForProcessing = intelSaturation.selectedForProcessing;
+  diagnostics.intelCandidateLimit = intelSaturation.candidateLimit;
+  diagnostics.intelCandidateLimitHit = intelSaturation.candidateLimitHit;
+  diagnostics.intelNewestSelectedAt = intelSaturation.newestSelectedAt;
+  diagnostics.intelOldestSelectedAt = intelSaturation.oldestSelectedAt;
 
   const attachToTheme = async (opts: {
     theme: ThemeRecord;
@@ -475,6 +512,10 @@ export async function processThemeMemory(input: {
     if (existingAnalysis && analysisIsCurrent(existingAnalysis, item.contentHash, classificationVersion)) {
       if (canSeed) diagnostics.creatorItemsSkippedUnchanged += 1;
       return;
+    }
+    if (existingAnalysis) {
+      diagnostics.staleAnalysesReevaluated += 1;
+      if (existingAnalysis.decision === 'no_match') diagnostics.noMatchAnalysesReevaluated += 1;
     }
 
     const candidates = matchesForItem(item, [...themesById.values()], membershipsByTheme, finishedAt);

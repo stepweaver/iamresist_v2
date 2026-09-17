@@ -1,9 +1,15 @@
 import 'server-only';
 
 import {
+  countIntelSourceItemsAvailableForThemeWindow,
   fetchIntelSourceItemsForThemeWindow,
   fetchThemeObservationsInWindow,
 } from '@/lib/themeMemory/db';
+import { THEME_PROCESS_WINDOW_DAYS } from '@/lib/themeMemory/constants';
+import {
+  measureIntelCandidateSaturation,
+  type ThemeIntelCandidateSaturation,
+} from '@/lib/themeMemory/intelSaturation';
 import {
   normalizeIntelThemeCandidate,
 } from '@/lib/themeMemory/normalize';
@@ -152,4 +158,51 @@ export function describeThemeMemoryWindow(input: {
     end: toUtcIso(window.end)!,
     days: window.days,
   };
+}
+
+/**
+ * Intel adapter saturation for the Theme Memory process window.
+ * Counts available rows without raising the candidate cap or scanning
+ * an unbounded table into processing.
+ */
+export async function getThemeIntelCandidateSaturation(input: {
+  start?: Date | string | number | null;
+  end?: Date | string | number | null;
+  days?: number;
+  now?: Date | string | number | null;
+  intelLimit?: number;
+} = {}): Promise<ThemeIntelCandidateSaturation> {
+  const window = resolveThemeMemoryWindow({
+    days: input.days ?? THEME_PROCESS_WINDOW_DAYS,
+    start: input.start,
+    end: input.end,
+    now: input.now,
+  });
+  const intelLimit = Math.min(
+    THEME_MEMORY_INTEL_CANDIDATE_LIMIT,
+    Math.max(1, Number(input.intelLimit) || THEME_MEMORY_INTEL_CANDIDATE_LIMIT),
+  );
+  const [availableInWindow, intelRows] = await Promise.all([
+    countIntelSourceItemsAvailableForThemeWindow({
+      start: window.start,
+      end: window.end,
+    }),
+    fetchIntelSourceItemsForThemeWindow({
+      start: window.start,
+      end: window.end,
+      limit: intelLimit,
+    }),
+  ]);
+  const selected = intelRows
+    .map((row) => normalizeIntelThemeCandidate(row))
+    .filter((item): item is ThemeCandidateItem => Boolean(item));
+  const inWindow = filterCandidatesByWindow(selected, window.start, window.end);
+  return measureIntelCandidateSaturation({
+    availableInWindow,
+    selected: inWindow,
+    fetchedRaw: intelRows.length,
+    candidateLimit: intelLimit,
+    windowStart: window.start,
+    windowEnd: window.end,
+  });
 }

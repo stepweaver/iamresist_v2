@@ -134,10 +134,11 @@ For each item:
 1. Extract a fingerprint: strong distinctive tokens/phrases, supporting features, weak entities, cluster keys, action hints
 2. Compare against a **stable core fingerprint** (seed + strongly corroborated identity-bearing members). Contextual members may belong without adding theme-defining vocabulary.
 3. Weak / low-information features (broad countries, parties, Congress/Senate/House/Supreme Court, generic politician names, `ruling` / `hearing` / `candidate`) can **support** a match but cannot, by themselves, create a strong deterministic match
-4. Require a distinctive event-level anchor (specific people + action, case, agency action, legislation, event, or multiple aligned non-weak features)
-5. If evidence is overwhelming, attach deterministically
-6. If plausible but ambiguous, ask `ThemeAIProvider` using **core** evidence only; reject ungrounded invented bridges
-7. If no plausible candidate, Voice items may seed a new theme; Newswire/Intel do not
+4. Generic institutional **document/action types** (`executive order`, `court ruling`, `congressional hearing`, unnumbered `bill`/`legislation`) are supporting context, not sufficient hard-event identity. They may support CORE only with another independent specific anchor (named order, same policy/object, same case, same cluster key).
+5. Require a distinctive event-level anchor (specific people + action, case, agency action, legislation, event, or multiple aligned non-weak features)
+6. If evidence is overwhelming, attach deterministically
+7. If plausible but ambiguous, ask `ThemeAIProvider` using **core** evidence only; reject ungrounded invented bridges
+8. If no plausible candidate, Voice items may seed a new theme; Newswire/Intel do not
 
 False merges are treated as worse than temporary duplicate themes.
 
@@ -202,8 +203,9 @@ Central constants:
 - `THEME_MEMBERSHIP_PROMPT_VERSION` (`tm-membership-v3`)
 - `THEME_LABEL_PROMPT_VERSION` (`tm-label-v2`)
 - `THEME_CLASSIFICATION_VERSION` (`tm-classify-v3`)
+- `THEME_DETERMINISTIC_MATCH_VERSION` (`tm-match-v4`)
 
-Memberships and analyses store content hash + `themeClassificationCacheVersion(provider)` (classification version + `none`/`ai` mode + membership prompt version). Unchanged items are skipped. A previous deterministic/no-AI analysis does **not** permanently block later AI-assisted classification. Labels regenerate only when missing, prompt version changes, member set changes, or `refreshLabels=1`.
+Memberships and analyses store content hash + `themeClassificationCacheVersion(provider)` (classification version + deterministic matcher version + `none`/`ai` mode + membership prompt version). Unchanged items are skipped. A previous deterministic/no-AI analysis does **not** permanently block later AI-assisted classification. A previous `no_match` does **not** remain current after deterministic matcher semantics change. Labels regenerate only when missing, prompt version changes, member set changes, or `refreshLabels=1`.
 
 ## Lifecycle (deterministic)
 
@@ -269,7 +271,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   "$ORIGIN/api/cron/theme-memory-process?ingest=1&refreshLabels=1"
 ```
 
-Diagnostics include creator items considered, themes created/updated, deterministic vs AI memberships, AI failures, Newswire/Intel/primary attaches, and `themesByLifecycle`. The daily CLI also prints a lock-protected ingest/process summary and reports likely duplicate themes without merging them.
+Diagnostics include creator items considered, Newswire/Intel candidates considered, Intel candidate-limit hit, themes created/updated, deterministic vs AI memberships, AI failures, Newswire/Intel/primary attaches, and `themesByLifecycle`. The daily CLI also prints a lock-protected ingest/process summary and reports likely duplicate themes without merging them.
 
 ## Current limitations
 

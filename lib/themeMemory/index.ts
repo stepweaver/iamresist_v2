@@ -58,11 +58,17 @@ export type {
 } from '@/lib/themeMemory/rankingCoverageAudit';
 
 export {
+  measureIntelCandidateSaturation,
+} from '@/lib/themeMemory/intelSaturation';
+export type { ThemeIntelCandidateSaturation } from '@/lib/themeMemory/intelSaturation';
+
+export {
   describeThemeMemoryWindow,
   filterCandidatesByWindow,
   getThemeCandidateItems,
   getThemeCandidateItemsByWindows,
   getThemeCandidateItemsForDays,
+  getThemeIntelCandidateSaturation,
 } from '@/lib/themeMemory/query';
 
 export { getThemeMemoryDiagnostics } from '@/lib/themeMemory/diagnostics';
@@ -76,6 +82,7 @@ export type {
 
 export {
   THEME_CLASSIFICATION_VERSION,
+  THEME_DETERMINISTIC_MATCH_VERSION,
   THEME_LABEL_PROMPT_VERSION,
   THEME_LIFECYCLE_THRESHOLDS,
   THEME_MEMBERSHIP_IS_NOT_CORROBORATION,

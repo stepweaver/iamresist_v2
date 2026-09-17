@@ -151,4 +151,13 @@ describe('Theme Memory deterministic candidates', () => {
     expect(scored.reasons.join(' ')).not.toMatch(/aligned_event_anchors/);
     expect(isDeterministicThemeMatch(scored)).toBe(false);
   });
+
+  it('does not treat a shared executive order type as a distinctive event', () => {
+    const scored = match(
+      'White House issues executive order on electrical grid reliability',
+      "Supreme Court Blocks Trump’s Executive Order",
+    );
+    expect(scored.sharedPhrases).not.toEqual(expect.arrayContaining(['executive order']));
+    expect(isDeterministicThemeMatch(scored)).toBe(false);
+  });
 });

@@ -626,4 +626,148 @@ describe('Theme Memory processing pipeline', () => {
     expect(newswireMembers).toHaveLength(1);
     expect(newswireMembers[0]?.membership_method).toBe('ai');
   });
+
+  it('skips a cached no_match when content hash and matcher version are unchanged', async () => {
+    const store = createMemoryThemeStore();
+    const items = [
+      voiceCandidate({
+        slug: 'david-pakman',
+        title: 'Federal deployment authority dispute continues',
+        publishedAt: DAY1,
+        id: 'cache-seed',
+      }),
+      intelCandidate({
+        id: 'intel-nomatch',
+        slug: 'gazette',
+        title: 'Municipal compost schedule updated for autumn',
+        url: 'https://gazette.test/compost',
+        publishedAt: DAY1,
+        provenance: 'WIRE',
+      }),
+    ];
+    const first = await processThemeMemory({
+      items,
+      store,
+      ai: createDeterministicThemeAIProvider(),
+      now: DAY1,
+    });
+    expect(first.diagnostics.intelItemsConsidered).toBe(1);
+    const analysis = await store.getAnalysis({
+      source_system: 'intel',
+      source_slug: 'gazette',
+      identity_key: items[1]!.identityKey,
+    });
+    expect(analysis?.decision).toBe('no_match');
+    expect(analysis?.classification_version).toBe(themeClassificationCacheVersion('none'));
+    expect(analysisIsCurrent(analysis!, items[1]!.contentHash, themeClassificationCacheVersion('none'))).toBe(true);
+
+    const second = await processThemeMemory({
+      items,
+      store,
+      ai: createDeterministicThemeAIProvider(),
+      now: DAY2,
+    });
+    expect(second.diagnostics.staleAnalysesReevaluated).toBe(0);
+    expect(second.diagnostics.noMatchAnalysesReevaluated).toBe(0);
+    const members = (await store.listMemberships()).filter((row) => row.source_system === 'intel');
+    expect(members).toHaveLength(0);
+    const after = await store.getAnalysis({
+      source_system: 'intel',
+      source_slug: 'gazette',
+      identity_key: items[1]!.identityKey,
+    });
+    expect(after?.updated_at).toBe(analysis?.updated_at);
+  });
+
+  it('reevaluates a cached no_match when the deterministic matcher version changes', async () => {
+    const store = createMemoryThemeStore();
+    const creator = voiceCandidate({
+      slug: 'david-pakman',
+      title: 'Federal deployment authority dispute continues',
+      publishedAt: DAY1,
+      id: 'cache-seed-v',
+    });
+    const intel = intelCandidate({
+      id: 'intel-stale',
+      slug: 'gazette',
+      title: 'Municipal compost schedule updated for autumn',
+      url: 'https://gazette.test/compost-stale',
+      publishedAt: DAY1,
+      provenance: 'WIRE',
+    });
+    await processThemeMemory({
+      items: [creator],
+      store,
+      ai: createDeterministicThemeAIProvider(),
+      now: DAY1,
+    });
+    await store.upsertAnalysis({
+      source_system: 'intel',
+      source_slug: intel.sourceSlug,
+      identity_key: intel.identityKey,
+      content_hash: intel.contentHash,
+      classification_version: 'tm-classify-v3:none:tm-membership-v3',
+      theme_id: null,
+      decision: 'no_match',
+      membership_method: 'deterministic',
+      reasons: ['no_plausible_creator_led_theme'],
+      created_at: DAY1,
+      updated_at: DAY1,
+    });
+    expect(
+      analysisIsCurrent(
+        (await store.getAnalysis({
+          source_system: 'intel',
+          source_slug: intel.sourceSlug,
+          identity_key: intel.identityKey,
+        }))!,
+        intel.contentHash,
+        themeClassificationCacheVersion('none'),
+      ),
+    ).toBe(false);
+
+    const result = await processThemeMemory({
+      items: [creator, intel],
+      store,
+      ai: createDeterministicThemeAIProvider(),
+      now: DAY2,
+    });
+    expect(result.diagnostics.staleAnalysesReevaluated).toBe(1);
+    expect(result.diagnostics.noMatchAnalysesReevaluated).toBe(1);
+    const after = await store.getAnalysis({
+      source_system: 'intel',
+      source_slug: intel.sourceSlug,
+      identity_key: intel.identityKey,
+    });
+    expect(after?.classification_version).toBe(themeClassificationCacheVersion('none'));
+    expect(after?.updated_at).toBe(DAY2);
+  });
+
+  it('keeps existing memberships idempotent across a matcher-version bump', async () => {
+    const store = createMemoryThemeStore();
+    const item = voiceCandidate({
+      slug: 'david-pakman',
+      title: 'Federal deployment authority dispute continues',
+      publishedAt: DAY1,
+      id: 'idempotent-seed',
+    });
+    await processThemeMemory({
+      items: [item],
+      store,
+      ai: createDeterministicThemeAIProvider(),
+      now: DAY1,
+    });
+    const first = await store.listMemberships();
+    expect(first).toHaveLength(1);
+    await processThemeMemory({
+      items: [item],
+      store,
+      ai: createDeterministicThemeAIProvider(),
+      now: DAY2,
+    });
+    const second = await store.listMemberships();
+    expect(second).toHaveLength(1);
+    expect(second[0]?.id).toBe(first[0]?.id);
+    expect(second[0]?.theme_id).toBe(first[0]?.theme_id);
+  });
 });
