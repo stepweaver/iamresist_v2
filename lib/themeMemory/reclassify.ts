@@ -15,6 +15,7 @@ import {
   alignedFeaturesFromMember,
   canExpandThemeCore,
   hasEventSpecificCoreIdentity,
+  hasHardEventEvidence,
   identityClassForAttachment,
   isSeedMembership,
 } from '@/lib/themeMemory/identity';
@@ -599,6 +600,7 @@ export function reclassifyThemeMemberships(
         proposedClass: 'DOWNGRADE_CONTEXTUAL',
         reasons: [
           'fails_event_specific_core_admission',
+          ...(hasHardEventEvidence(match) ? [] : ['no_hard_event_evidence']),
           'historical_membership_preserved',
           ...match.reasons.slice(0, 6),
         ],

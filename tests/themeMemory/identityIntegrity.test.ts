@@ -8,13 +8,14 @@ import {
   buildThemeCoreFingerprint,
   compareCandidateToThemeCore,
   hasEventSpecificCoreIdentity,
+  hasHardEventEvidence,
   identityClassForAttachment,
 } from '@/lib/themeMemory/identity';
 import { groupNamedEntityAnchors, independentEventAnchors, isPersonNamePair } from '@/lib/themeMemory/entityAnchors';
 import { featureStrength, phraseStrength } from '@/lib/themeMemory/featureStrength';
 import { processThemeMemory } from '@/lib/themeMemory/process';
 import { createMemoryThemeStore } from '@/lib/themeMemory/store';
-import type { ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
+import type { ThemeFingerprint, ThemeMembershipRecord, ThemeRecord } from '@/lib/themeMemory/themeTypes';
 import { createTestThemeAIProvider, newswireCandidate, voiceCandidate } from './helpers';
 
 const NOW = '2026-09-15T16:00:00.000Z';
@@ -81,6 +82,33 @@ function coreAdmission(itemTitle: string, themeTitle: string, role: 'creator' | 
   return {
     match,
     identityClass: identityClassForAttachment({ item: { role }, match, seeded: false }),
+  };
+}
+
+function fingerprint(over: Partial<ThemeFingerprint>): ThemeFingerprint {
+  return {
+    distinctiveTokens: [],
+    supportingTokens: [],
+    phrases: [],
+    weakEntities: [],
+    clusterKeys: {},
+    actionHints: [],
+    eventType: null,
+    entitySpans: [],
+    ...over,
+  };
+}
+
+function matchFingerprints(item: ThemeFingerprint, themeFp: ThemeFingerprint, label = 't') {
+  const match = scoreThemeCandidate({
+    item,
+    theme: themeFp,
+    themeRecord: themeRecord({ id: `theme-${label}`, canonical_label: label }),
+    itemObservedAt: NOW,
+  });
+  return {
+    match,
+    identityClass: identityClassForAttachment({ item: { role: 'reporting' }, match, seeded: false }),
   };
 }
 
@@ -705,6 +733,107 @@ describe('Theme Memory identity integrity', () => {
       'Coverage of the Hegseth impeachment resolution in the House',
       'Rep. Massie moves to IMPEACH Hegseth',
     );
+    expect(hasEventSpecificCoreIdentity(scored.match)).toBe(true);
+    expect(scored.identityClass).toBe('core');
+  });
+
+  it('CE1: Trump Pushing AI theme does not admit an unrelated money/push economic item as core', () => {
+    const scored = coreAdmission(
+      'Syrian fuel-price protests as money dries up and officials push new fees',
+      'Why Is Trump Pushing AI? Follow the Money.',
+    );
+    expect(scored.match.sharedDistinctive).toEqual(expect.arrayContaining(['money', 'push']));
+    expect(scored.match.sharedPhrases).toHaveLength(0);
+    expect(scored.match.reasons.join(' ')).toMatch(/aligned_event_anchors/);
+    expect(hasHardEventEvidence(scored.match)).toBe(false);
+    expect(hasEventSpecificCoreIdentity(scored.match)).toBe(false);
+    expect(isPlausibleThemeCandidate(scored.match)).toBe(true);
+    expect(scored.identityClass).toBe('contextual');
+  });
+
+  it('CE2: two standalone strong lexical tokens with no phrase/action/cluster are not core', () => {
+    const scored = matchFingerprints(
+      fingerprint({ distinctiveTokens: ['reason', 'want'] }),
+      fingerprint({ distinctiveTokens: ['reason', 'want'] }),
+      'lexical-pair',
+    );
+    expect(scored.match.sharedDistinctive).toEqual(['reason', 'want']);
+    expect(scored.match.sharedPhrases).toHaveLength(0);
+    expect(scored.match.sharedClusterKeys).toHaveLength(0);
+    expect(scored.match.independentEventAnchors.length).toBeGreaterThanOrEqual(2);
+    expect(hasHardEventEvidence(scored.match)).toBe(false);
+    expect(hasEventSpecificCoreIdentity(scored.match)).toBe(false);
+    expect(scored.identityClass).toBe('contextual');
+  });
+
+  it('CE3: same person only remains contextual', () => {
+    for (const [item, theme] of [
+      ['Pete Hegseth visits troops overseas', 'Pete Hegseth holds a Pentagon briefing'],
+      ['Donald Trump plays golf at Bedminster', 'Donald Trump classified documents indictment unsealed'],
+      ['Mitch McConnell attends Kentucky fundraiser', 'Mitch McConnell announces Senate retirement'],
+    ] as const) {
+      const scored = coreAdmission(item, theme);
+      expect(hasHardEventEvidence(scored.match)).toBe(false);
+      expect(hasEventSpecificCoreIdentity(scored.match)).toBe(false);
+      expect(scored.identityClass).toBe('contextual');
+    }
+  });
+
+  it('CE4: broad abstract lexical overlap is not core', () => {
+    const pairs = [
+      ['they want to destroy everything', 'everything they destroy is gone'],
+      ['price problem in local markets', 'price problem hits households'],
+      ['everything they want is a reason to wait', 'reason people want change now'],
+    ] as const;
+    for (const [item, theme] of pairs) {
+      const scored = coreAdmission(item, theme);
+      expect(hasHardEventEvidence(scored.match)).toBe(false);
+      expect(hasEventSpecificCoreIdentity(scored.match)).toBe(false);
+      expect(scored.identityClass).toBe('contextual');
+    }
+  });
+
+  it('CE5: Massie/Hegseth impeachment coverage with impeachment event anchor is core', () => {
+    const scored = coreAdmission(
+      'Republican congressman calls to impeach US Defence Secretary Pete Hegseth',
+      'BREAKING: Rep. Massie moves to IMPEACH Hegseth',
+    );
+    expect(hasHardEventEvidence(scored.match)).toBe(true);
+    expect(scored.match.sharedDistinctive).toEqual(expect.arrayContaining(['impeach', 'hegseth']));
+    expect(scored.identityClass).toBe('core');
+  });
+
+  it('CE6: Flock-camera hacking coverage sharing a strong event/object phrase is core', () => {
+    const scored = coreAdmission('Hackers Got Inside a Flock Camera', 'Flock Camera Surveillance Network');
+    expect(scored.match.sharedPhrases.join(' ')).toMatch(/flock camera/);
+    expect(hasHardEventEvidence(scored.match)).toBe(true);
+    expect(scored.identityClass).toBe('core');
+  });
+
+  it('CE7: Federal Reserve interest-rate coverage is core', () => {
+    const scored = coreAdmission(
+      'US Fed raises interest rates',
+      'The Fed is raising interest rates — here is what it means',
+    );
+    expect(hasHardEventEvidence(scored.match)).toBe(true);
+    expect(scored.identityClass).toBe('core');
+  });
+
+  it('CE8: same concrete event with differing wording but a shared cluster key is core', () => {
+    const scored = matchFingerprints(
+      extractThemeFingerprint({
+        title: 'Congressional Research Service summary of the new bill',
+        canonicalUrl: 'https://congress.gov/bill/details/BILLS-119hr1234',
+      }),
+      extractThemeFingerprint({
+        title: 'House files the same bill text',
+        canonicalUrl: 'https://congress.gov/bill/details/BILLS-119hr1234',
+      }),
+      'bill-cluster',
+    );
+    expect(scored.match.sharedClusterKeys).toEqual(['bill:119-hr-1234']);
+    expect(scored.match.sharedDistinctive).toHaveLength(0);
+    expect(hasHardEventEvidence(scored.match)).toBe(true);
     expect(hasEventSpecificCoreIdentity(scored.match)).toBe(true);
     expect(scored.identityClass).toBe('core');
   });

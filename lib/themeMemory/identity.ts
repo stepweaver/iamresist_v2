@@ -7,7 +7,12 @@
  */
 
 import { scoreThemeCandidate } from '@/lib/themeMemory/candidates';
-import { featureStrength, phraseStrength } from '@/lib/themeMemory/featureStrength';
+import {
+  hasConnectedEventCollocation,
+  isHardEventPhrase,
+  isPersonNamePhrase,
+} from '@/lib/themeMemory/entityAnchors';
+import { featureStrength, isDistinctiveActionToken, phraseStrength } from '@/lib/themeMemory/featureStrength';
 import {
   extractThemeFingerprint,
   fingerprintFromCandidate,
@@ -78,6 +83,7 @@ export function eventSpecificCoreAnchors(match: ThemeCandidateMatch): {
   phrases: string[];
   clusterKeys: string[];
   independentEventAnchors: string[];
+  hardEventEvidence: string[];
 } {
   const tokens = unique(match.sharedDistinctive.filter((token) => featureStrength(token) === 'strong'));
   const phrases = unique(
@@ -91,15 +97,69 @@ export function eventSpecificCoreAnchors(match: ThemeCandidateMatch): {
     phrases,
     clusterKeys: unique(match.sharedClusterKeys),
     independentEventAnchors: match.independentEventAnchors || [],
+    hardEventEvidence: hardEventEvidence(match),
   };
+}
+
+function hasNamedEntityPlusIndependentEventObject(match: ThemeCandidateMatch): boolean {
+  const anchors = match.independentEventAnchors || [];
+  if (!anchors.some((anchor) => anchor.startsWith('entity:'))) return false;
+  if ((match.sharedDistinctive || []).some((token) => isDistinctiveActionToken(token))) return true;
+  if ((match.sharedPhrases || []).some((phrase) => isHardEventPhrase(phrase))) return true;
+  return anchors.some((anchor) => {
+    if (!anchor.startsWith('phrase:')) return false;
+    return !isPersonNamePhrase(anchor.slice('phrase:'.length));
+  });
+}
+
+/**
+ * Structured event identity. Two standalone lexical tokens are never enough,
+ * even when featureStrength() defaults those tokens to "strong".
+ */
+export function hardEventEvidence(match: ThemeCandidateMatch): string[] {
+  const evidence: string[] = [];
+  for (const key of match.sharedClusterKeys || []) {
+    evidence.push(`cluster:${key}`);
+  }
+  for (const phrase of match.sharedPhrases || []) {
+    if (isHardEventPhrase(phrase)) evidence.push(`phrase:${phrase}`);
+  }
+  if (hasConnectedEventCollocation(match.sharedPhrases || [])) {
+    evidence.push('connected_event_collocation');
+  }
+  for (const token of match.sharedDistinctive || []) {
+    if (isDistinctiveActionToken(token)) evidence.push(`action:${token}`);
+  }
+  if (hasNamedEntityPlusIndependentEventObject(match)) {
+    evidence.push('entity_plus_event_object');
+  }
+  return unique(evidence);
+}
+
+export function hasHardEventEvidence(match: ThemeCandidateMatch): boolean {
+  return hardEventEvidence(match).length > 0;
 }
 
 export function hasEventSpecificCoreIdentity(match: ThemeCandidateMatch): boolean {
   if (!match.distinctiveAnchor) return false;
-  const { clusterKeys, independentEventAnchors: anchors } = eventSpecificCoreAnchors(match);
-  if (clusterKeys.length > 0) return true;
-  if (anchors.length >= 2) return true;
-  return false;
+  const evidence = hardEventEvidence(match);
+  if (evidence.length === 0) return false;
+
+  if (evidence.some((item) => item.startsWith('cluster:'))) return true;
+  if (evidence.some((item) => item.startsWith('phrase:'))) return true;
+  if (evidence.includes('connected_event_collocation')) return true;
+  if (evidence.includes('entity_plus_event_object')) return true;
+
+  const actions = evidence
+    .filter((item) => item.startsWith('action:'))
+    .map((item) => item.slice('action:'.length));
+  if (actions.length === 0) return false;
+
+  const independent = (match.independentEventAnchors || []).filter((anchor) => {
+    if (anchor.startsWith('token:')) return !actions.includes(anchor.slice('token:'.length));
+    return true;
+  });
+  return independent.length >= 1;
 }
 
 export function canExpandThemeCore(
@@ -133,6 +193,7 @@ export function identityClassForAttachment(input: {
   if (input.seeded) return 'core';
   if (!input.match) return 'contextual';
   if (!CORE_IDENTITY_ROLES.has(input.item.role)) return 'contextual';
+  // Plausible AI/deterministic membership is not core without hard event evidence.
   if (hasEventSpecificCoreIdentity(input.match)) return 'core';
   return 'contextual';
 }

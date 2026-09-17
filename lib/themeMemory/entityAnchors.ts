@@ -9,7 +9,10 @@
 import {
   featureStrength,
   isDistinctiveActionToken,
+  isWeakEntityToken,
   isWeakPersonEntityToken,
+  isWeakPhrase,
+  phraseStrength,
   stemThemeToken,
 } from '@/lib/themeMemory/featureStrength';
 
@@ -310,15 +313,68 @@ export function isPersonNamePair(left: string, right: string): boolean {
 }
 
 export function isPersonNamePhrase(phrase: string): boolean {
-  const parts = phrase
+  const parts = phraseParts(phrase);
+  if (parts.length < 2) return false;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    if (isPersonNamePair(parts[i], parts[i + 1])) return true;
+  }
+  return false;
+}
+
+function phraseParts(phrase: string): string[] {
+  return phrase
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
     .split(' ')
     .filter(Boolean);
+}
+
+/**
+ * A strong multi-word phrase that is not a person name and not a known
+ * weak/generic phrase. Two default-strong unigrams glued together are not
+ * yet hard event evidence; see isHardEventPhrase().
+ */
+export function isStrongNonPersonPhrase(phrase: string): boolean {
+  const parts = phraseParts(phrase);
   if (parts.length < 2) return false;
-  for (let i = 0; i < parts.length - 1; i += 1) {
-    if (isPersonNamePair(parts[i], parts[i + 1])) return true;
+  if (isPersonNamePhrase(phrase)) return false;
+  if (isWeakPhrase(phrase)) return false;
+  return phraseStrength(phrase) === 'strong';
+}
+
+/**
+ * A phrase that itself identifies an event/object: mixed strength
+ * (strong + supporting/entity), a distinctive action, or 3+ tokens.
+ * "flock camera" qualifies. "price problem" does not.
+ */
+export function isHardEventPhrase(phrase: string): boolean {
+  if (!isStrongNonPersonPhrase(phrase)) return false;
+  const parts = phraseParts(phrase);
+  if (parts.some((part) => isDistinctiveActionToken(part))) return true;
+  const strengths = parts.map((part) => featureStrength(part));
+  const hasStrong = strengths.some((strength) => strength === 'strong');
+  const hasSupporting = strengths.some((strength) => strength === 'supporting');
+  const hasWeakEntity = parts.some((part) => isWeakEntityToken(part));
+  if (hasStrong && hasSupporting) return true;
+  if (hasStrong && hasWeakEntity) return true;
+  return parts.length >= 3 && hasStrong;
+}
+
+/**
+ * Two or more strong non-person phrases that share a token, e.g.
+ * "interest rate" + "rais interest". A single generic bigram is not enough.
+ */
+export function hasConnectedEventCollocation(phrases: string[]): boolean {
+  const strong = [...new Set(phrases.filter(isStrongNonPersonPhrase))];
+  if (strong.length < 2) return false;
+  const tokenSets = strong.map((phrase) => new Set(phraseParts(phrase).map((part) => stemThemeToken(part))));
+  for (let i = 0; i < tokenSets.length; i += 1) {
+    for (let j = i + 1; j < tokenSets.length; j += 1) {
+      for (const token of tokenSets[i]) {
+        if (token && tokenSets[j].has(token)) return true;
+      }
+    }
   }
   return false;
 }
