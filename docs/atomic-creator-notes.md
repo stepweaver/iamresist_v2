@@ -109,21 +109,33 @@ The model is not allowed to mark something `supported`, `disputed`, or `contradi
 
 There is no automated external fact-checking in this milestone.
 
-## Notebook text vs exact quote vs event features
+## Provenance hierarchy
 
-These fields are intentionally distinct:
+The model does **not** get to manufacture transcript evidence.
 
-| Field | Meaning |
+| Layer | Meaning |
 |-------|---------|
-| `exactQuote` | Verified **verbatim transcript evidence**. Copied from the supplied transcript after deterministic matching. Null if missing or unverifiable. |
-| `text` | Concise **notebook-style paraphrase** of what that excerpt means. This is the listener's note, not a quotation. |
-| `eventFeatures` | Unverified structured extraction **candidates** (actors/action/object/institutions/locations/documents). Not theme identity and not auto-linked. |
+| Original transcript segments | Source of truth. Indexed as `[SEGMENT n \| start-end]`. Chunk overlap keeps those original indexes. |
+| `sourceExcerpt` | Deterministic **verbatim evidence**. Copied by application code from the referenced original segments. Never generated or rewritten by the model. |
+| `exactQuote` | Optional **narrower verbatim substring** requested by the model. Retained only if it occurs in `sourceExcerpt` after normalizing whitespace, line breaks, and smart/straight quotes. Null otherwise. |
+| `text` | Concise **AI-generated notebook paraphrase** of what that excerpt means. This is the listener's note, not a quotation. |
+| `eventFeatures` | Unverified structured extraction **candidates**. Not theme identity and not auto-linked. |
 
-The model may return quotation marks. That is not enough. Transcript quotes are verified locally against the referenced segment texts. If the excerpt cannot be found after normalizing only whitespace, line breaks, and smart/straight quotes, `exactQuote` is set to `null`. The note itself is kept if otherwise valid. Unverifiable quotes are never rewritten into something that looks verbatim.
+```
+sourceExcerpt = exact text copied by code from the supplied transcript
+text          = concise AI-generated notebook note
+```
 
-`sourceSegmentIndexes` are the original transcript segment indexes shown to the model as `[SEGMENT n | start-end]`. Chunk overlap keeps those original indexes. Quote verification concatenates the referenced segments in transcript order and checks that `exactQuote` occurs in that source text.
+The model's primary provenance job is selecting `sourceSegmentIndexes`, not reproducing quote text. For every accepted note the application:
 
-Exact quotes are bounded (typically one or two sentences, max 500 characters). An oversized quote is omitted rather than truncated into misleading wording.
+1. validates `sourceSegmentIndexes` (in-bounds, contiguous or nearly contiguous)
+2. retrieves those exact original transcript segments
+3. constructs a deterministic `sourceExcerpt` from that original text
+4. optionally verifies `exactQuote` against that excerpt
+
+Referenced segments are normally at most 3 and must be contiguous or nearly contiguous (at most one missing index between neighbors). The excerpt target is 800 characters. If the referenced text exceeds that bound, the application keeps the smallest complete referenced segment range that fits. It never truncates in the middle of a word and never inserts generated text into the excerpt.
+
+A fabricated or paraphrased `exactQuote` becomes `null`. That is not a run failure when `sourceExcerpt` exists. Unverifiable quotes are never rewritten into something that looks verbatim.
 
 The notebook paraphrase should preserve concrete names and identifiers that actually appear in the transcript (people, courts, cases, filings, dates, amounts). It must not invent them from outside knowledge, and it should not replace them with generic nouns.
 
@@ -153,9 +165,11 @@ CLI v1 reads a JSON file. YouTube / Pocket Casts fetching is out of scope.
 }
 ```
 
-`--source-item` is the provenance id. Real persisted runs should use the intel `source_items.id` UUID whenever possible. Calibration and local dry-runs may use any stable string (for example `calibration-david-pakman-2026-09-17`). Source metadata lookup only queries `source_items` when that id is a UUID; non-UUID ids skip the lookup rather than sending invalid input to Postgres.
+`--source-item` is the provenance id. Real persisted runs should use the intel `source_items.id` UUID whenever possible. Calibration and local dry-runs may use any stable string (for example `calibration-david-pakman-2026-09-17`). Source metadata lookup only queries `source_items` when that id is a UUID and the run is **not** `--dry-run`. Non-UUID ids skip the lookup rather than sending invalid input to Postgres.
 
-Optional file fields fill creator/title/URL when the database row is missing or unavailable. During calibration, source metadata may be absent (`creatorId`, `creatorName`, `sourceTitle`, `sourceUrl`, `publishedAt` stay null unless the transcript file supplies them). Extraction still proceeds. Do not invent metadata.
+Optional file fields fill creator/title/URL when the database row is missing or unavailable. Explicit CLI flags (`--creator-name`, `--source-title`, `--source-url`) fill remaining missing fields. They do not override stored source metadata on persisted runs, and they are not written back as invented `source_items` rows. Omitted flags stay null when metadata cannot be resolved. Known `creatorName` is used for required attribution.
+
+During calibration, source metadata may be absent unless the transcript file or CLI flags supply it. Extraction still proceeds. Do not invent metadata.
 
 The episode title may be stored and shown. It is **not** treated as event identity. The prompt states this explicitly.
 
@@ -171,16 +185,28 @@ Flags:
 
 | Flag | Effect |
 |------|--------|
-| `--dry-run` | Extract + validate + print. Zero DB writes. Does **not** query or write `intel.creator_note_runs` / `intel.creator_atomic_notes`, and does **not** require the creator-notes migration. |
+| `--dry-run` | Extract + validate + print. Zero DB writes. Does **not** query or write `intel.creator_note_runs` / `intel.creator_atomic_notes`, and does **not** require the creator-notes migration or a `source_items` lookup. |
 | `--force` | Bypass equivalent-run skip; still fingerprint-dedupes notes. |
 | `--limit-notes <n>` | Keep at most n notes after dedupe. |
 | `--json` | Machine-readable result instead of the human report. |
+| `--creator-name <name>` | Fill missing creator attribution metadata. Used for dry-run calibration when DB metadata is absent. |
+| `--source-title <title>` | Fill missing source title. Not persisted as invented source metadata. |
+| `--source-url <url>` | Fill missing source URL. Not persisted as invented source metadata. |
 
 Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
-Human preview (not `--json`) shows timestamp, kind, attribution, verified quote or `(not available)`, notebook paraphrase, and source segment indexes. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `quotes requested`, `quotes verified`, and `quotes rejected`.
+Human preview (not `--json`) shows timestamp, kind, attribution, `Transcript:` evidence from `sourceExcerpt` or `(not available)`, notebook paraphrase, and source segment indexes. A narrower verified `exactQuote` is shown only when it is not essentially identical to the transcript excerpt. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `notes with source evidence`, `notes without source evidence`, `invalid source segment references`, `exact quotes requested`, `exact quotes verified`, and `exact quotes rejected`.
 
-First real calibration (do not persist). `--source-item` may be a stable calibration string; it does not have to be an intel UUID.
+First real calibration (do not persist). `--source-item` may be a stable calibration string; it does not have to be an intel UUID. CLI metadata does not require a DB lookup:
+
+```bash
+npm run creator-notes:extract -- \
+  --source-item calibration-david-pakman-2026-09-17 \
+  --creator-name "David Pakman" \
+  --source-title "Calibration segment" \
+  --transcript-file ./tmp/creator-notes-calibration.json \
+  --dry-run
+```
 
 Richer fixture (named court, case, filing, date, amount):
 
@@ -204,7 +230,7 @@ When you persist, pass the real `source_items.id` UUID whenever it exists so pro
 
 ## Idempotency
 
-Transcript hash: SHA-256 of normalized segments (line endings collapsed, trim, timestamps + text). Version: `creator-notes-v1.1`.
+Transcript hash: SHA-256 of normalized segments (line endings collapsed, trim, timestamps + text). Version: `creator-notes-v1.2`.
 
 A completed **success** run with the same:
 
@@ -228,7 +254,7 @@ Extraction execution metadata: model, version, transcript hash, status (`running
 
 ### `intel.creator_atomic_notes`
 
-One notebook idea per row: kind, paraphrase (`text`), optional verified `exact_quote`, `source_segment_indexes`, optional timestamps, attribution, event features JSON, verification status, fingerprint.
+One notebook idea per row: kind, paraphrase (`text`), deterministic `source_excerpt`, optional verified `exact_quote`, `source_segment_indexes`, optional timestamps, attribution, event features JSON, verification status, fingerprint.
 
 ## Why title text is not event identity
 
@@ -264,7 +290,7 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 
 Chunking is by transcript segments, with ~800 characters of overlap. Individual segments are split only if they exceed the chunk budget. Overlap preserves original segment indexes. Prompts label each segment as `[SEGMENT n | startSeconds-endSeconds]`.
 
-Exact quote max length is 500 characters (`CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS`). At most 8 source segment indexes per note.
+Source excerpts are copied from original segments (`CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS`, 800). Normally at most 3 referenced segments. Optional exact quotes are max 500 characters (`CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS`). Parse allows at most 8 source segment indexes per note; evidence construction bounds the stored range.
 
 ## Milestone 1 scope boundaries
 
@@ -322,7 +348,7 @@ Creator commentary remains attributed perspective. It still is not corroboration
 
 ## Calibration
 
-Dry-run calibration does not require the creator-notes migration. Source metadata may be unavailable when the id is a calibration string rather than an intel UUID; that is expected and does not block extraction.
+Dry-run calibration does not require the creator-notes migration or a `source_items` lookup. Pass `--creator-name` when attribution should use a known creator. Source metadata may still be unavailable when the id is a calibration string rather than an intel UUID; that is expected and does not block extraction.
 
 Before enabling this broadly, inspect a real transcript dry-run:
 
@@ -335,5 +361,6 @@ Before enabling this broadly, inspect a real transcript dry-run:
 - Is "why it matters" distinct from analysis?
 - Are event features useful without overreaching?
 - Did notebook notes keep named people, courts, cases, filings, dates, and amounts from the transcript?
-- Are `exactQuote` lines actual transcript excerpts, or did unverifiable quotes get dropped?
+- Are `sourceExcerpt` lines actual original transcript segments, or did the model rewrite them?
+- Did unverifiable `exactQuote` values become null without dropping otherwise valid notes?
 - Is attribution the known creator name rather than generic "The speaker" when `creatorName` is present?

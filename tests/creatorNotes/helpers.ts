@@ -37,6 +37,7 @@ export const SYNTHETIC_NOTES: RawCreatorNote[] = [
     },
     exactQuote:
       "A federal appeals court issued a stay late Tuesday blocking the administration's National Guard deployment order in Chicago.",
+    sourceExcerpt: null,
     sourceSegmentIndexes: [1],
   },
   {
@@ -48,6 +49,7 @@ export const SYNTHETIC_NOTES: RawCreatorNote[] = [
     eventFeatures: null,
     exactQuote:
       'The speaker says the order would have placed 2,000 troops under federal control inside the city by the weekend.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [2],
   },
   {
@@ -59,6 +61,7 @@ export const SYNTHETIC_NOTES: RawCreatorNote[] = [
     eventFeatures: null,
     exactQuote:
       'a district judge had already temporarily restrained the same deployment last month after local officials sued.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [3],
   },
   {
@@ -77,6 +80,7 @@ export const SYNTHETIC_NOTES: RawCreatorNote[] = [
     },
     exactQuote:
       'Pakman points to a Congressional Research Service report on the Insurrection Act and to the Seventh Circuit docket entry from Tuesday night.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [4],
   },
   {
@@ -88,6 +92,7 @@ export const SYNTHETIC_NOTES: RawCreatorNote[] = [
     eventFeatures: null,
     exactQuote:
       'In my view, this is the administration testing how far it can push domestic military deployments before the courts slam the door.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [5],
   },
   {
@@ -99,6 +104,7 @@ export const SYNTHETIC_NOTES: RawCreatorNote[] = [
     eventFeatures: null,
     exactQuote:
       'This matters because if the stay is lifted, other cities could see the same federalization playbook within days.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [6],
   },
   {
@@ -109,6 +115,7 @@ export const SYNTHETIC_NOTES: RawCreatorNote[] = [
     attribution: null,
     eventFeatures: null,
     exactQuote: null,
+    sourceExcerpt: null,
     sourceSegmentIndexes: [1],
   },
 ];
@@ -130,6 +137,7 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
     },
     exactQuote:
       'On March 3, 2026, Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [1],
   },
   {
@@ -148,6 +156,7 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
     },
     exactQuote:
       'The filing is the Supplemental Declaration of Records Custodian Ellis Voss, and it lists a $2.6 million no-bid Harborline water contract.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [2],
   },
   {
@@ -159,6 +168,7 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
     eventFeatures: null,
     exactQuote:
       'Calder v. Westmere Civic Board started last fall after the board closed the rate workshop in Westmere.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [3],
   },
   {
@@ -176,6 +186,7 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
       referencedDocuments: ['Voss declaration', 'March 3 docket entry'],
     },
     exactQuote: 'Quinn points to the Voss declaration and to the March 3 docket entry from Westmere County Court.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [4],
   },
   {
@@ -187,6 +198,7 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
     eventFeatures: null,
     exactQuote:
       'In my view, the Westmere Civic Board is using a protective-order request to hide the Harborline contract itself from public view.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [5],
   },
   {
@@ -198,6 +210,7 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
     eventFeatures: null,
     exactQuote:
       'This matters because if the court grants that motion, residents will not see the Harborline water-rate numbers before the April 12 vote.',
+    sourceExcerpt: null,
     sourceSegmentIndexes: [6],
   },
   {
@@ -208,10 +221,18 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
     attribution: 'Riley Quinn',
     eventFeatures: null,
     exactQuote: null,
+    sourceExcerpt: null,
     sourceSegmentIndexes: [1],
   },
 ];
 
 export function mockExtractChunk(notes: RawCreatorNote[] = SYNTHETIC_NOTES, rejected = 0) {
-  return async () => ({ notes: notes.map((note) => ({ ...note, sourceSegmentIndexes: [...note.sourceSegmentIndexes] })), rejected });
+  return async () => ({
+    notes: notes.map((note) => ({
+      ...note,
+      sourceExcerpt: 'MODEL-GENERATED EVIDENCE THAT MUST NOT SURVIVE',
+      sourceSegmentIndexes: [...note.sourceSegmentIndexes],
+    })),
+    rejected,
+  });
 }

@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS intel.creator_atomic_notes (
   event_features jsonb,
   verification_status text NOT NULL,
   note_fingerprint text NOT NULL,
+  source_excerpt text,
   exact_quote text,
   source_segment_indexes integer[] NOT NULL DEFAULT '{}'::integer[],
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -88,6 +89,13 @@ CREATE TABLE IF NOT EXISTS intel.creator_atomic_notes (
   CONSTRAINT creator_atomic_notes_seconds_nonnegative_check CHECK (
     (start_seconds IS NULL OR start_seconds >= 0)
     AND (end_seconds IS NULL OR end_seconds >= 0)
+  ),
+  CONSTRAINT creator_atomic_notes_source_excerpt_length_check CHECK (
+    source_excerpt IS NULL
+    OR (
+      char_length(source_excerpt) > 0
+      AND char_length(source_excerpt) <= 800
+    )
   ),
   CONSTRAINT creator_atomic_notes_exact_quote_length_check CHECK (
     exact_quote IS NULL
@@ -127,7 +135,7 @@ COMMENT ON TABLE intel.creator_note_runs IS
   'Atomic Creator Notes extraction runs. Inspectable and idempotent. Does not mutate Theme Memory or ranking.';
 
 COMMENT ON TABLE intel.creator_atomic_notes IS
-  'Notebook-style notes from one creator transcript. Claims are unverified. Creator analysis is not fact. Not Theme Memory identity.';
+  'Notebook-style notes from one creator transcript. source_excerpt is verbatim transcript evidence. text is an AI notebook paraphrase. Claims are unverified. Creator analysis is not fact. Not Theme Memory identity.';
 
 COMMENT ON COLUMN intel.creator_atomic_notes.verification_status IS
   'Milestone 1 defaults: factual notes unverified; analysis/why_it_matters/evidence_reference not_applicable. LLM world knowledge must not set supported/disputed/contradicted.';
@@ -138,11 +146,14 @@ COMMENT ON COLUMN intel.creator_atomic_notes.event_features IS
 COMMENT ON COLUMN intel.creator_atomic_notes.note_fingerprint IS
   'Deterministic sha256 of source item + kind + normalized text + start timestamp.';
 
+COMMENT ON COLUMN intel.creator_atomic_notes.source_excerpt IS
+  'Deterministic verbatim transcript evidence copied from original referenced segments. Never model-generated. Null if source segment indexes are missing or invalid.';
+
 COMMENT ON COLUMN intel.creator_atomic_notes.exact_quote IS
-  'Verified verbatim transcript excerpt supporting the notebook paraphrase. Null if missing or unverifiable. Never a reconstructed quotation.';
+  'Optional narrower verbatim substring requested by the model and verified against source_excerpt. Null if missing or unverifiable. Never a reconstructed quotation.';
 
 COMMENT ON COLUMN intel.creator_atomic_notes.source_segment_indexes IS
-  'Original transcript segment indexes cited for provenance. Quote verification concatenates these segments in transcript order.';
+  'Original transcript segment indexes used to construct source_excerpt. Application copies those segment texts; the model does not manufacture transcript evidence.';
 
 COMMENT ON COLUMN intel.creator_note_runs.transcript_hash IS
   'SHA-256 of normalized transcript segments. Used with extraction_version and model identity for rerun idempotency.';

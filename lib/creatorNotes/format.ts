@@ -1,3 +1,4 @@
+import { normalizeForQuoteMatch } from '@/lib/creatorNotes/quotes';
 import type { CreatorAtomicNote, CreatorNotesExtractArgs, CreatorNotesRunResult } from '@/lib/creatorNotes/types';
 
 function argValue(argv: string[], name: string): string | null {
@@ -22,6 +23,13 @@ function parseLimitNotes(argv: string[]): number | null {
   return Number(raw);
 }
 
+function parseOptionalFlag(argv: string[], name: string): string | null {
+  const raw = argValue(argv, name);
+  if (raw == null) return null;
+  const cleaned = raw.trim();
+  return cleaned || null;
+}
+
 export function parseCreatorNotesExtractArgs(argv: string[]): CreatorNotesExtractArgs {
   const sourceItemId = argValue(argv, '--source-item');
   const transcriptFile = argValue(argv, '--transcript-file');
@@ -38,6 +46,9 @@ export function parseCreatorNotesExtractArgs(argv: string[]): CreatorNotesExtrac
     force: argv.includes('--force'),
     limitNotes: parseLimitNotes(argv),
     json: argv.includes('--json'),
+    creatorName: parseOptionalFlag(argv, '--creator-name'),
+    sourceTitle: parseOptionalFlag(argv, '--source-title'),
+    sourceUrl: parseOptionalFlag(argv, '--source-url'),
   };
 }
 
@@ -67,18 +78,27 @@ function formatSourceSegments(indexes: number[] | undefined): string {
   return indexes.join(', ');
 }
 
+function essentiallyIdenticalText(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  return normalizeForQuoteMatch(a).normalized === normalizeForQuoteMatch(b).normalized;
+}
+
 export function formatNotePreview(note: CreatorAtomicNote): string {
   const who = note.attribution || '—';
   const lines = [
     `${formatNoteTimestamp(note.startSeconds)} ${kindLabel(note.kind)} — ${who}`,
     '',
   ];
-  if (note.exactQuote) {
-    lines.push('Quote:', `"${note.exactQuote}"`, '');
+  if (note.sourceExcerpt) {
+    lines.push('Transcript:', `"${note.sourceExcerpt}"`, '');
   } else {
-    lines.push('Quote: (not available)', '');
+    lines.push('Transcript: (not available)', '');
   }
-  lines.push('Note:', note.text, '', `Source segments: ${formatSourceSegments(note.sourceSegmentIndexes)}`);
+  lines.push('Note:', note.text, '');
+  if (note.exactQuote && !essentiallyIdenticalText(note.exactQuote, note.sourceExcerpt)) {
+    lines.push('Exact quote:', `"${note.exactQuote}"`, '');
+  }
+  lines.push(`Source segments: ${formatSourceSegments(note.sourceSegmentIndexes)}`);
   if (note.eventFeatures) {
     const extra: string[] = [];
     if (note.eventFeatures.actors.length) extra.push(`  actors: ${featureList(note.eventFeatures.actors)}`);
@@ -131,9 +151,12 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  why_it_matters: ${result.kindCounts.why_it_matters}`,
     `  validation rejected: ${result.validationRejected}`,
     `  duplicates removed: ${result.duplicatesRemoved}`,
-    `  quotes requested: ${result.quoteDiagnostics.requested}`,
-    `  quotes verified: ${result.quoteDiagnostics.verified}`,
-    `  quotes rejected: ${result.quoteDiagnostics.rejected}`,
+    `  notes with source evidence: ${result.evidenceDiagnostics.notesWithSourceEvidence}`,
+    `  notes without source evidence: ${result.evidenceDiagnostics.notesWithoutSourceEvidence}`,
+    `  invalid source segment references: ${result.evidenceDiagnostics.invalidSourceSegmentReferences}`,
+    `  exact quotes requested: ${result.evidenceDiagnostics.exactQuotesRequested}`,
+    `  exact quotes verified: ${result.evidenceDiagnostics.exactQuotesVerified}`,
+    `  exact quotes rejected: ${result.evidenceDiagnostics.exactQuotesRejected}`,
     '',
     'Persistence:',
     `  dry run: ${result.persistence.dryRun ? 'yes' : 'no'}`,

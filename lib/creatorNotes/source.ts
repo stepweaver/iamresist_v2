@@ -22,6 +22,10 @@ export type LoadCreatorSourceMetadataDeps = {
   fetchById?: (id: string) => Promise<SourceItemMetadataRow | null>;
 };
 
+export function shouldLookupCreatorSourceMetadata(dryRun: boolean): boolean {
+  return !dryRun;
+}
+
 export async function loadCreatorSourceMetadata(
   sourceItemId: string,
   deps: LoadCreatorSourceMetadataDeps = {},

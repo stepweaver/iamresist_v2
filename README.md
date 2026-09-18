@@ -142,7 +142,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - Reuses Theme AI / Ollama env (`THEME_AI_PROVIDER=ollama`, `OLLAMA_MODEL`, `THEME_AI_TIMEOUT_MS`). Live extraction has no deterministic fallback.
 - Optional: `CREATOR_NOTES_CHUNK_CHARS` (default `12000`), `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` (default `30`)
 - Apply intel SQL migrations through `20260917210000_creator_atomic_notes.sql`
-- CLI: `npm run creator-notes:extract -- --source-item <id> --transcript-file ./tmp/transcript.json --dry-run`
+- CLI: `npm run creator-notes:extract -- --source-item <id> --transcript-file ./tmp/transcript.json --creator-name "David Pakman" --dry-run`
 - See [`docs/atomic-creator-notes.md`](docs/atomic-creator-notes.md)
 
 **Stripe / Printify / email** (`lib/env/shop.js`, `lib/env/site.js`)

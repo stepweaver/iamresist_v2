@@ -16,11 +16,11 @@ import {
   isUuid,
   serializeTranscriptForHash,
 } from '@/lib/creatorNotes/identity';
-import { loadCreatorSourceMetadata } from '@/lib/creatorNotes/source';
+import { loadCreatorSourceMetadata, shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
 import { defaultVerificationStatus, dedupeRawCreatorNotes, toAtomicNotes } from '@/lib/creatorNotes/postprocess';
 import { buildCreatorNoteMessages, CREATOR_NOTE_SYSTEM_PROMPT } from '@/lib/creatorNotes/prompt';
 import { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
-import { parseTranscriptFilePayload } from '@/lib/creatorNotes/transcript';
+import { parseTranscriptFilePayload, mergeTranscriptMetadata } from '@/lib/creatorNotes/transcript';
 import type { CreatorNoteRun, RawCreatorNote } from '@/lib/creatorNotes/types';
 import { parseCreatorNotesOutput, parseEventFeatures, validateRawCreatorNote } from '@/lib/creatorNotes/validate';
 import { loadSpecificTranscript, loadSyntheticTranscript, mockExtractChunk, SPECIFIC_NOTES, SYNTHETIC_NOTES } from './helpers';
@@ -308,6 +308,7 @@ describe('Atomic Creator Notes postprocess', () => {
         attribution: null,
         eventFeatures: null,
         exactQuote: null,
+        sourceExcerpt: null,
         sourceSegmentIndexes: [1],
       },
       {
@@ -318,6 +319,7 @@ describe('Atomic Creator Notes postprocess', () => {
         attribution: null,
         eventFeatures: null,
         exactQuote: null,
+        sourceExcerpt: null,
         sourceSegmentIndexes: [1],
       },
       {
@@ -328,6 +330,7 @@ describe('Atomic Creator Notes postprocess', () => {
         attribution: 'David Pakman',
         eventFeatures: null,
         exactQuote: null,
+        sourceExcerpt: null,
         sourceSegmentIndexes: [2],
       },
     ];
@@ -391,11 +394,14 @@ describe('Atomic Creator Notes prompt contract', () => {
       chunkCount: 1,
     });
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not infer event identity solely from the episode title');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not paraphrase evidence as a quotation');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('The application will retrieve the verbatim transcript itself');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not invent or reconstruct quotations');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not unnecessarily generalize');
     expect(messages[1].content).toContain('creator_analysis != fact');
     expect(messages[1].content).toContain('exactQuote');
     expect(messages[1].content).toContain('sourceSegmentIndexes');
+    expect(messages[1].content).toContain('Do not paraphrase evidence as a quotation');
     expect(messages[1].content).toContain('[SEGMENT 1 | 12-28]');
     expect(messages[1].content).toContain('named people');
     expect(messages[1].content).toContain('Do not unnecessarily generalize');
@@ -427,12 +433,74 @@ describe('Atomic Creator Notes CLI args', () => {
       force: true,
       limitNotes: 8,
       json: true,
+      creatorName: null,
+      sourceTitle: null,
+      sourceUrl: null,
     });
   });
 
-  it('formats quote, note, and source segments without null event arrays', () => {
-    const withQuote = formatNotePreview({
+  it('parses optional dry-run source metadata flags', () => {
+    expect(
+      parseCreatorNotesExtractArgs([
+        '--source-item',
+        'calibration-david-pakman-2026-09-17',
+        '--transcript-file',
+        './tmp/creator-notes-calibration.json',
+        '--dry-run',
+        '--creator-name',
+        'David Pakman',
+        '--source-title',
+        'Calibration segment',
+        '--source-url',
+        'https://example.test/calibration',
+      ]),
+    ).toEqual({
+      sourceItemId: 'calibration-david-pakman-2026-09-17',
+      transcriptFile: './tmp/creator-notes-calibration.json',
+      dryRun: true,
+      force: false,
+      limitNotes: null,
+      json: false,
+      creatorName: 'David Pakman',
+      sourceTitle: 'Calibration segment',
+      sourceUrl: 'https://example.test/calibration',
+    });
+  });
+
+  it('formats transcript evidence, note, and source segments without duplicating an identical quote', () => {
+    const withExcerpt = formatNotePreview({
       id: 'n1',
+      sourceItemId: 's1',
+      creatorId: 'riley-quinn',
+      startSeconds: 90,
+      endSeconds: 118,
+      kind: 'creator_analysis',
+      text: 'Quinn interprets the development as politically significant and discusses its potential consequences.',
+      attribution: 'David Pakman',
+      eventFeatures: null,
+      sourceExcerpt:
+        'The speaker argues that the development is politically significant, while making clear that this is their interpretation of the consequences.',
+      exactQuote:
+        'The speaker argues that the development is politically significant, while making clear that this is their interpretation of the consequences.',
+      sourceSegmentIndexes: [3],
+      verificationStatus: 'not_applicable',
+      extractionRunId: 'run-1',
+      noteFingerprint: 'fp',
+      createdAt: '2026-09-17T20:00:00.000Z',
+    });
+    expect(withExcerpt).toContain('[00:01:30] CREATOR ANALYSIS — David Pakman');
+    expect(withExcerpt).toContain('Transcript:');
+    expect(withExcerpt).toContain(
+      '"The speaker argues that the development is politically significant, while making clear that this is their interpretation of the consequences."',
+    );
+    expect(withExcerpt).toContain('Note:');
+    expect(withExcerpt).toContain('Source segments: 3');
+    expect(withExcerpt).not.toContain('Exact quote:');
+    expect(withExcerpt).not.toContain('Quote:');
+    expect(withExcerpt).not.toContain('eventFeatures');
+
+    const withNarrowQuote = formatNotePreview({
+      id: 'n1b',
       sourceItemId: 's1',
       creatorId: 'riley-quinn',
       startSeconds: 877,
@@ -441,6 +509,8 @@ describe('Atomic Creator Notes CLI args', () => {
       text: 'Quinn says if the court grants that motion, residents will not see the Harborline water-rate numbers before the April 12 vote.',
       attribution: 'Riley Quinn',
       eventFeatures: null,
+      sourceExcerpt:
+        'This matters because if the court grants that motion, residents will not see the Harborline water-rate numbers before the April 12 vote. That is why the April hearing is the live fight.',
       exactQuote:
         'This matters because if the court grants that motion, residents will not see the Harborline water-rate numbers before the April 12 vote.',
       sourceSegmentIndexes: [17, 18],
@@ -449,16 +519,11 @@ describe('Atomic Creator Notes CLI args', () => {
       noteFingerprint: 'fp',
       createdAt: '2026-09-17T20:00:00.000Z',
     });
-    expect(withQuote).toContain('[00:14:37] WHY IT MATTERS — Riley Quinn');
-    expect(withQuote).toContain('Quote:');
-    expect(withQuote).toContain(
-      '"This matters because if the court grants that motion, residents will not see the Harborline water-rate numbers before the April 12 vote."',
-    );
-    expect(withQuote).toContain('Note:');
-    expect(withQuote).toContain('Source segments: 17, 18');
-    expect(withQuote).not.toContain('eventFeatures');
+    expect(withNarrowQuote).toContain('Transcript:');
+    expect(withNarrowQuote).toContain('Exact quote:');
+    expect(withNarrowQuote).toContain('Source segments: 17, 18');
 
-    const withoutQuote = formatNotePreview({
+    const withoutExcerpt = formatNotePreview({
       id: 'n2',
       sourceItemId: 's1',
       creatorId: null,
@@ -468,6 +533,7 @@ describe('Atomic Creator Notes CLI args', () => {
       text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
       attribution: 'Riley Quinn',
       eventFeatures: null,
+      sourceExcerpt: null,
       exactQuote: null,
       sourceSegmentIndexes: [],
       verificationStatus: 'unverified',
@@ -475,8 +541,9 @@ describe('Atomic Creator Notes CLI args', () => {
       noteFingerprint: 'fp2',
       createdAt: '2026-09-17T20:00:00.000Z',
     });
-    expect(withoutQuote).toContain('Quote: (not available)');
-    expect(withoutQuote).toContain('Source segments: (none)');
+    expect(withoutExcerpt).toContain('Transcript: (not available)');
+    expect(withoutExcerpt).toContain('Source segments: (none)');
+    expect(withoutExcerpt).not.toContain('Quote: (not available)');
   });
 });
 
@@ -567,10 +634,13 @@ describe('Atomic Creator Notes run', () => {
     expect(report).toContain('prior equivalent run: skipped (dry-run)');
     expect(report).toContain('run id: (none)');
     expect(report).toContain('notes written: 0');
-    expect(report).toContain('quotes requested:');
-    expect(report).toContain('quotes verified:');
-    expect(report).toContain('quotes rejected:');
-    expect(report).toContain('Quote:');
+    expect(report).toContain('notes with source evidence:');
+    expect(report).toContain('notes without source evidence:');
+    expect(report).toContain('invalid source segment references:');
+    expect(report).toContain('exact quotes requested:');
+    expect(report).toContain('exact quotes verified:');
+    expect(report).toContain('exact quotes rejected:');
+    expect(report).toContain('Transcript:');
     expect(report).toContain('Note:');
     expect(report).toContain('Source segments:');
     expect(report).not.toContain('eventFeatures: null');
@@ -692,10 +762,14 @@ describe('Atomic Creator Notes run', () => {
     );
     expect(result.persistence.notesWritten).toBeGreaterThan(0);
     const persisted = store.notes.find((note) => note.kind === 'event');
+    const original = loadSyntheticTranscript().segments[1].text;
+    expect(persisted?.sourceExcerpt).toBe(original);
+    expect(persisted?.sourceExcerpt).not.toBe('MODEL-GENERATED EVIDENCE THAT MUST NOT SURVIVE');
     expect(persisted?.exactQuote).toContain("administration's National Guard deployment order in Chicago");
     expect(persisted?.sourceSegmentIndexes).toEqual([1]);
     expect(result.quoteDiagnostics.verified).toBeGreaterThan(0);
     expect(result.quoteDiagnostics.requested).toBeGreaterThanOrEqual(result.quoteDiagnostics.verified);
+    expect(result.evidenceDiagnostics.notesWithSourceEvidence).toBeGreaterThan(0);
   });
 
   it('records quote diagnostics for mixed verified and rejected quotes', async () => {
@@ -714,6 +788,7 @@ describe('Atomic Creator Notes run', () => {
       {
         ...SPECIFIC_NOTES[6],
         exactQuote: null,
+        sourceExcerpt: null,
         sourceSegmentIndexes: [1],
       },
     ];
@@ -722,8 +797,18 @@ describe('Atomic Creator Notes run', () => {
       { extractChunk: mockExtractChunk(mixed), aiConfig: TEST_AI, id: ids('quote-diag'), log: () => {} },
     );
     expect(result.quoteDiagnostics).toEqual({ requested: 2, verified: 1, rejected: 1 });
+    expect(result.evidenceDiagnostics).toMatchObject({
+      notesWithSourceEvidence: 3,
+      notesWithoutSourceEvidence: 0,
+      invalidSourceSegmentReferences: 0,
+      exactQuotesRequested: 2,
+      exactQuotesVerified: 1,
+      exactQuotesRejected: 1,
+    });
     expect(result.notes.find((note) => note.kind === 'event')?.exactQuote).toContain('Westmere County Court');
+    expect(result.notes.find((note) => note.kind === 'event')?.sourceExcerpt).toBe(transcript.segments[1].text);
     expect(result.notes.find((note) => note.kind === 'why_it_matters')?.exactQuote).toBeNull();
+    expect(result.notes.find((note) => note.kind === 'why_it_matters')?.sourceExcerpt).toBe(transcript.segments[6].text);
     expect(result.notes).toHaveLength(3);
   });
 });
@@ -795,4 +880,152 @@ describe('Atomic Creator Notes source metadata', () => {
     expect(fetchById).toHaveBeenCalledTimes(1);
     expect(result).toBeNull();
   });
+
+  it('does not require a DB source lookup to use dry-run CLI metadata', () => {
+    expect(shouldLookupCreatorSourceMetadata(true)).toBe(false);
+    const fetchById = vi.fn(async () => {
+      throw new Error('DB lookup should not run for dry-run CLI metadata');
+    });
+    const fromFile = {
+      ...loadSyntheticTranscript(CALIBRATION_SOURCE_ID),
+      creatorName: null,
+      sourceTitle: null,
+      sourceUrl: null,
+    };
+    const merged = mergeTranscriptMetadata(fromFile, {
+      creatorName: 'David Pakman',
+      sourceTitle: 'Calibration segment',
+      sourceUrl: null,
+    });
+    expect(fetchById).not.toHaveBeenCalled();
+    expect(merged.creatorName).toBe('David Pakman');
+    expect(merged.sourceTitle).toBe('Calibration segment');
+    expect(merged.sourceUrl).toBeNull();
+  });
+
+  it('prefers stored source metadata over CLI flags for persisted real-source runs', async () => {
+    expect(shouldLookupCreatorSourceMetadata(false)).toBe(true);
+    const fetchById = vi.fn(async (id: string) => ({
+      id,
+      desk_lane: 'voices',
+      title: 'DEAR GOD: This is OFF THE RAILS',
+      canonical_url: 'https://www.youtube.com/watch?v=example',
+      published_at: '2026-09-17T00:00:00.000Z',
+      sources: {
+        desk_lane: 'voices',
+        name: 'David Pakman',
+        slug: 'david-pakman',
+      },
+    }));
+    const dbMeta = await loadCreatorSourceMetadata(INTEL_SOURCE_UUID, {
+      dbConfigured: () => true,
+      fetchById,
+    });
+    const fromFile = {
+      ...loadSyntheticTranscript(INTEL_SOURCE_UUID),
+      creatorName: null,
+      sourceTitle: null,
+      sourceUrl: null,
+    };
+    const withDb = mergeTranscriptMetadata(fromFile, dbMeta);
+    const withCli = mergeTranscriptMetadata(withDb, {
+      creatorName: 'CLI Override',
+      sourceTitle: 'Calibration segment',
+      sourceUrl: 'https://example.test/calibration',
+    });
+    expect(fetchById).toHaveBeenCalledTimes(1);
+    expect(withCli.creatorName).toBe('David Pakman');
+    expect(withCli.sourceTitle).toBe('DEAR GOD: This is OFF THE RAILS');
+    expect(withCli.sourceUrl).toBe('https://www.youtube.com/watch?v=example');
+  });
 });
+
+describe('Atomic Creator Notes deterministic evidence', () => {
+  it('ignores model-supplied sourceExcerpt at parse time', () => {
+    const parsed = parseCreatorNotesOutput(
+      JSON.stringify({
+        notes: [
+          {
+            kind: 'event',
+            text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            sourceExcerpt: 'A model paraphrase pretending to be transcript evidence.',
+            sourceSegmentIndexes: [1],
+          },
+        ],
+      }),
+      { segmentCount: 9 },
+    );
+    expect(parsed.notes[0].sourceExcerpt).toBeNull();
+  });
+
+  it('resolves overlapping chunk indexes to original transcript segments', async () => {
+    const segments = Array.from({ length: 8 }, (_, index) => ({
+      index,
+      startSeconds: index * 10,
+      endSeconds: index * 10 + 8,
+      text: `Original segment ${index} names Westmere County Court in Calder v. Westmere Civic Board.`,
+    }));
+    const chunks = chunkCreatorTranscript(segments, { chunkChars: 180, overlapChars: 80 });
+    expect(chunks.length).toBeGreaterThan(1);
+    const overlapIndex = chunks[1].segments[0].index;
+    expect(chunks[0].segmentIndexes).toContain(overlapIndex);
+
+    const transcript = {
+      ...loadSyntheticTranscript(),
+      segments,
+    };
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      {
+        extractChunk: mockExtractChunk([
+          {
+            kind: 'event',
+            startSeconds: segments[overlapIndex].startSeconds,
+            endSeconds: segments[overlapIndex].endSeconds,
+            text: 'Westmere County Court accepted another filing in Calder v. Westmere Civic Board.',
+            attribution: null,
+            eventFeatures: null,
+            sourceExcerpt: 'MODEL PARAPHRASE FROM AN OVERLAPPING CHUNK',
+            exactQuote: null,
+            sourceSegmentIndexes: [overlapIndex],
+          },
+        ]),
+        aiConfig: TEST_AI,
+        id: ids('overlap-evidence'),
+        log: () => {},
+      },
+    );
+    expect(result.notes[0].sourceExcerpt).toBe(segments[overlapIndex].text);
+    expect(result.notes[0].sourceExcerpt).not.toBe('MODEL PARAPHRASE FROM AN OVERLAPPING CHUNK');
+    expect(result.notes[0].sourceSegmentIndexes).toEqual([overlapIndex]);
+  });
+
+  it('uses --creator-name for attribution during dry-run when file metadata is missing', async () => {
+    const transcript = mergeTranscriptMetadata(
+      {
+        ...loadSyntheticTranscript(CALIBRATION_SOURCE_ID),
+        creatorName: null,
+        creatorId: null,
+      },
+      { creatorName: 'David Pakman' },
+    );
+    const speakerNotes = SYNTHETIC_NOTES.map((item) => ({
+      ...item,
+      attribution: 'The speaker',
+      sourceSegmentIndexes: [...item.sourceSegmentIndexes],
+    }));
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      { extractChunk: mockExtractChunk(speakerNotes), aiConfig: TEST_AI, id: ids('cli-attr'), log: () => {} },
+    );
+    expect(result.source.creatorName).toBe('David Pakman');
+    const attributed = result.notes.filter(
+      (item) => item.kind === 'claim' || item.kind === 'creator_analysis' || item.kind === 'why_it_matters',
+    );
+    expect(attributed.length).toBeGreaterThan(0);
+    expect(attributed.every((item) => item.attribution === 'David Pakman')).toBe(true);
+    expect(result.persistence.dryRun).toBe(true);
+    expect(result.persistence.notesWritten).toBe(0);
+  });
+});
+

@@ -221,6 +221,7 @@ export function validateRawCreatorNote(
     text,
     attribution,
     eventFeatures: parseEventFeatures(value.eventFeatures ?? value.event_features),
+    sourceExcerpt: null,
     exactQuote: parseExactQuote(value.exactQuote ?? value.exact_quote),
     sourceSegmentIndexes,
   };

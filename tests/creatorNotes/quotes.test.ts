@@ -21,6 +21,7 @@ function note(overrides: Partial<RawCreatorNote> = {}): RawCreatorNote {
     text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
     attribution: null,
     eventFeatures: null,
+    sourceExcerpt: null,
     exactQuote: null,
     sourceSegmentIndexes: [],
     ...overrides,

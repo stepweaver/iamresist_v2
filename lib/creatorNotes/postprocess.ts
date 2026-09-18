@@ -89,6 +89,7 @@ export function toAtomicNotes(input: {
     text: note.text,
     attribution: note.attribution,
     eventFeatures: note.eventFeatures && !eventFeaturesAreEmpty(note.eventFeatures) ? note.eventFeatures : null,
+    sourceExcerpt: note.sourceExcerpt || null,
     exactQuote: note.exactQuote || null,
     sourceSegmentIndexes: Array.isArray(note.sourceSegmentIndexes) ? note.sourceSegmentIndexes : [],
     verificationStatus: defaultVerificationStatus(note.kind),

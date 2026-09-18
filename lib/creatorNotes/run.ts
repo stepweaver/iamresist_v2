@@ -11,7 +11,11 @@ import {
 } from '@/lib/creatorNotes/extract';
 import { applyKnownCreatorAttribution, hashCreatorTranscript, transcriptCharCount } from '@/lib/creatorNotes/identity';
 import { countNoteKinds, dedupeRawCreatorNotes, emptyKindCounts, toAtomicNotes } from '@/lib/creatorNotes/postprocess';
-import { applyQuoteVerification, emptyQuoteDiagnostics } from '@/lib/creatorNotes/quotes';
+import {
+  applySourceEvidence,
+  emptyEvidenceDiagnostics,
+  quoteDiagnosticsFromEvidence,
+} from '@/lib/creatorNotes/sourceEvidence';
 import type {
   CreatorAtomicNote,
   CreatorNoteRun,
@@ -136,7 +140,8 @@ export async function runCreatorNoteExtraction(
       kindCounts: emptyKindCounts(),
       validationRejected: 0,
       duplicatesRemoved: 0,
-      quoteDiagnostics: emptyQuoteDiagnostics(),
+      evidenceDiagnostics: emptyEvidenceDiagnostics(),
+      quoteDiagnostics: quoteDiagnosticsFromEvidence(emptyEvidenceDiagnostics()),
       persistence: {
         dryRun: false,
         priorEquivalentRunId: equivalent.id,
@@ -228,14 +233,17 @@ export async function runCreatorNoteExtraction(
       limited = limited.slice(0, input.limitNotes);
     }
 
-    const quoted = applyQuoteVerification(limited, transcript.segments);
-    if (quoted.diagnostics.rejected > 0) {
-      logEvent(log, '[creator-notes]', 'quote verification rejected', { ...quoted.diagnostics });
+    const evidenced = applySourceEvidence(limited, transcript.segments);
+    if (
+      evidenced.diagnostics.invalidSourceSegmentReferences > 0 ||
+      evidenced.diagnostics.exactQuotesRejected > 0
+    ) {
+      logEvent(log, '[creator-notes]', 'source evidence diagnostics', { ...evidenced.diagnostics });
     }
 
     const createdAt = now().toISOString();
     const notes: CreatorAtomicNote[] = toAtomicNotes({
-      notes: quoted.notes,
+      notes: evidenced.notes,
       sourceItemId: transcript.sourceItemId,
       creatorId: transcript.creatorId,
       extractionRunId: runId,
@@ -286,7 +294,8 @@ export async function runCreatorNoteExtraction(
       kindCounts: countNoteKinds(notes),
       validationRejected,
       duplicatesRemoved: deduped.duplicatesRemoved,
-      quoteDiagnostics: quoted.diagnostics,
+      evidenceDiagnostics: evidenced.diagnostics,
+      quoteDiagnostics: quoteDiagnosticsFromEvidence(evidenced.diagnostics),
       persistence: {
         dryRun,
         priorEquivalentRunId: dryRun ? null : equivalent?.id ?? null,

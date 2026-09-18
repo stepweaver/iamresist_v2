@@ -54,6 +54,7 @@ export interface RawCreatorNote {
   text: string;
   attribution: string | null;
   eventFeatures: CreatorNoteEventFeatures | null;
+  sourceExcerpt: string | null;
   exactQuote: string | null;
   sourceSegmentIndexes: number[];
 }
@@ -68,6 +69,7 @@ export interface CreatorAtomicNote {
   text: string;
   attribution: string | null;
   eventFeatures: CreatorNoteEventFeatures | null;
+  sourceExcerpt: string | null;
   exactQuote: string | null;
   sourceSegmentIndexes: number[];
   verificationStatus: VerificationStatus;
@@ -102,6 +104,15 @@ export interface CreatorNoteQuoteDiagnostics {
   rejected: number;
 }
 
+export interface CreatorNoteEvidenceDiagnostics {
+  notesWithSourceEvidence: number;
+  notesWithoutSourceEvidence: number;
+  invalidSourceSegmentReferences: number;
+  exactQuotesRequested: number;
+  exactQuotesVerified: number;
+  exactQuotesRejected: number;
+}
+
 export interface CreatorNotesRunResult {
   source: {
     sourceItemId: string;
@@ -125,6 +136,7 @@ export interface CreatorNotesRunResult {
   kindCounts: CreatorNoteKindCounts;
   validationRejected: number;
   duplicatesRemoved: number;
+  evidenceDiagnostics: CreatorNoteEvidenceDiagnostics;
   quoteDiagnostics: CreatorNoteQuoteDiagnostics;
   persistence: {
     dryRun: boolean;
@@ -142,6 +154,9 @@ export interface CreatorNotesExtractArgs {
   force: boolean;
   limitNotes: number | null;
   json: boolean;
+  creatorName: string | null;
+  sourceTitle: string | null;
+  sourceUrl: string | null;
 }
 
 export interface CreatorNotesChunkExtractResult {

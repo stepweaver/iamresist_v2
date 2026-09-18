@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 
 import { formatCreatorNotesReport, parseCreatorNotesExtractArgs } from '@/lib/creatorNotes/format';
 import { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
-import { loadCreatorSourceMetadata } from '@/lib/creatorNotes/source';
+import { loadCreatorSourceMetadata, shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
 import { loadTranscriptFile, mergeTranscriptMetadata } from '@/lib/creatorNotes/transcript';
 
 async function main() {
@@ -10,15 +10,23 @@ async function main() {
   const transcriptPath = resolve(process.cwd(), args.transcriptFile);
   let transcript = loadTranscriptFile(transcriptPath, args.sourceItemId);
 
-  try {
-    const sourceMeta = await loadCreatorSourceMetadata(args.sourceItemId);
-    transcript = mergeTranscriptMetadata(transcript, sourceMeta);
-  } catch (error) {
-    console.warn(
-      '[creator-notes] source metadata lookup failed',
-      error instanceof Error ? error.message : error,
-    );
+  if (shouldLookupCreatorSourceMetadata(args.dryRun)) {
+    try {
+      const sourceMeta = await loadCreatorSourceMetadata(args.sourceItemId);
+      transcript = mergeTranscriptMetadata(transcript, sourceMeta);
+    } catch (error) {
+      console.warn(
+        '[creator-notes] source metadata lookup failed',
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
+
+  transcript = mergeTranscriptMetadata(transcript, {
+    creatorName: args.creatorName,
+    sourceTitle: args.sourceTitle,
+    sourceUrl: args.sourceUrl,
+  });
 
   const result = await runCreatorNoteExtraction({
     transcript,
