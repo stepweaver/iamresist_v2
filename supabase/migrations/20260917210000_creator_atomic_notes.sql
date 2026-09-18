@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS intel.creator_atomic_notes (
   event_features jsonb,
   verification_status text NOT NULL,
   note_fingerprint text NOT NULL,
+  exact_quote text,
+  source_segment_indexes integer[] NOT NULL DEFAULT '{}'::integer[],
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT creator_atomic_notes_kind_check CHECK (
     kind IN (
@@ -86,6 +88,19 @@ CREATE TABLE IF NOT EXISTS intel.creator_atomic_notes (
   CONSTRAINT creator_atomic_notes_seconds_nonnegative_check CHECK (
     (start_seconds IS NULL OR start_seconds >= 0)
     AND (end_seconds IS NULL OR end_seconds >= 0)
+  ),
+  CONSTRAINT creator_atomic_notes_exact_quote_length_check CHECK (
+    exact_quote IS NULL
+    OR (
+      char_length(exact_quote) > 0
+      AND char_length(exact_quote) <= 500
+    )
+  ),
+  CONSTRAINT creator_atomic_notes_source_segment_indexes_len_check CHECK (
+    cardinality(source_segment_indexes) <= 8
+  ),
+  CONSTRAINT creator_atomic_notes_source_segment_indexes_values_check CHECK (
+    0 <= ALL (source_segment_indexes)
   ),
   CONSTRAINT creator_atomic_notes_fingerprint_unique UNIQUE (note_fingerprint)
 );
@@ -122,6 +137,12 @@ COMMENT ON COLUMN intel.creator_atomic_notes.event_features IS
 
 COMMENT ON COLUMN intel.creator_atomic_notes.note_fingerprint IS
   'Deterministic sha256 of source item + kind + normalized text + start timestamp.';
+
+COMMENT ON COLUMN intel.creator_atomic_notes.exact_quote IS
+  'Verified verbatim transcript excerpt supporting the notebook paraphrase. Null if missing or unverifiable. Never a reconstructed quotation.';
+
+COMMENT ON COLUMN intel.creator_atomic_notes.source_segment_indexes IS
+  'Original transcript segment indexes cited for provenance. Quote verification concatenates these segments in transcript order.';
 
 COMMENT ON COLUMN intel.creator_note_runs.transcript_hash IS
   'SHA-256 of normalized transcript segments. Used with extraction_version and model identity for rerun idempotency.';

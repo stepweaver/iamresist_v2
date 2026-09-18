@@ -5,6 +5,24 @@ import {
 import { normalizeWhitespace } from '@/lib/creatorNotes/identity';
 import type { CreatorTranscriptChunk, CreatorTranscriptSegment } from '@/lib/creatorNotes/types';
 
+function uniqueSegmentIndexes(segments: CreatorTranscriptSegment[]): number[] {
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const segment of segments) {
+    if (!Number.isInteger(segment.index) || seen.has(segment.index)) continue;
+    seen.add(segment.index);
+    out.push(segment.index);
+  }
+  return out;
+}
+
+function withOriginalIndexes(segments: CreatorTranscriptSegment[]): CreatorTranscriptSegment[] {
+  return segments.map((segment, index) => ({
+    ...segment,
+    index: Number.isInteger(segment.index) && segment.index >= 0 ? segment.index : index,
+  }));
+}
+
 function segmentChars(segment: CreatorTranscriptSegment): number {
   return String(segment.text || '').length;
 }
@@ -55,6 +73,7 @@ function splitOversizedSegment(segment: CreatorTranscriptSegment, maxChars: numb
     const slice = text.slice(cursor, end).trim();
     if (slice) {
       parts.push({
+        index: segment.index,
         startSeconds: segment.startSeconds,
         endSeconds: segment.endSeconds,
         text: slice,
@@ -84,7 +103,7 @@ export function chunkCreatorTranscript(
   const maxChars = opts.chunkChars ?? creatorNotesChunkChars();
   const overlapChars = opts.overlapChars ?? CREATOR_NOTES_CHUNK_OVERLAP_CHARS;
   const flattened: CreatorTranscriptSegment[] = [];
-  for (const segment of segments) {
+  for (const segment of withOriginalIndexes(segments)) {
     flattened.push(...splitOversizedSegment(segment, maxChars));
   }
 
@@ -113,6 +132,7 @@ export function chunkCreatorTranscript(
       startSeconds: range.startSeconds,
       endSeconds: range.endSeconds,
       segments: chunkSegments,
+      segmentIndexes: uniqueSegmentIndexes(chunkSegments),
       text,
       charCount: text.length,
     };

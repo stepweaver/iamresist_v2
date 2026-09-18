@@ -16,6 +16,7 @@ export interface CreatorNoteEventFeatures {
 }
 
 export interface CreatorTranscriptSegment {
+  index: number;
   startSeconds: number | null;
   endSeconds: number | null;
   text: string;
@@ -37,6 +38,7 @@ export interface CreatorTranscriptChunk {
   startSeconds: number | null;
   endSeconds: number | null;
   segments: CreatorTranscriptSegment[];
+  segmentIndexes: number[];
   text: string;
   charCount: number;
 }
@@ -52,6 +54,8 @@ export interface RawCreatorNote {
   text: string;
   attribution: string | null;
   eventFeatures: CreatorNoteEventFeatures | null;
+  exactQuote: string | null;
+  sourceSegmentIndexes: number[];
 }
 
 export interface CreatorAtomicNote {
@@ -64,6 +68,8 @@ export interface CreatorAtomicNote {
   text: string;
   attribution: string | null;
   eventFeatures: CreatorNoteEventFeatures | null;
+  exactQuote: string | null;
+  sourceSegmentIndexes: number[];
   verificationStatus: VerificationStatus;
   extractionRunId: string;
   noteFingerprint: string;
@@ -90,6 +96,12 @@ export interface CreatorNoteRun {
 
 export type CreatorNoteKindCounts = Record<CreatorNoteKind, number>;
 
+export interface CreatorNoteQuoteDiagnostics {
+  requested: number;
+  verified: number;
+  rejected: number;
+}
+
 export interface CreatorNotesRunResult {
   source: {
     sourceItemId: string;
@@ -113,6 +125,7 @@ export interface CreatorNotesRunResult {
   kindCounts: CreatorNoteKindCounts;
   validationRejected: number;
   duplicatesRemoved: number;
+  quoteDiagnostics: CreatorNoteQuoteDiagnostics;
   persistence: {
     dryRun: boolean;
     priorEquivalentRunId: string | null;

@@ -70,5 +70,6 @@ export async function extractCreatorNotesChunk(input: {
 
   return parseCreatorNotesOutput(content, {
     knownCreatorName: input.transcript.creatorName,
+    segmentCount: input.transcript.segments.length,
   });
 }

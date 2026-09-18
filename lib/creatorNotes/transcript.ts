@@ -33,7 +33,7 @@ function parseSegment(value: unknown, index: number): CreatorTranscriptSegment {
   if (!text) {
     throw new Error(`transcript segment ${index} text is empty`);
   }
-  return { startSeconds, endSeconds, text };
+  return { startSeconds, endSeconds, text, index };
 }
 
 export function parseTranscriptFilePayload(

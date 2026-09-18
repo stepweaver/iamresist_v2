@@ -32,6 +32,34 @@ export function normalizeAttribution(value: string | null | undefined): string |
   return cleaned || null;
 }
 
+export function isGenericSpeakerAttribution(value: string | null | undefined): boolean {
+  const cleaned = normalizeAttribution(value);
+  if (!cleaned) return false;
+  return /^(the\s+)?speaker$/i.test(cleaned);
+}
+
+export function resolveNoteAttribution(
+  value: string | null | undefined,
+  knownCreatorName?: string | null,
+): string | null {
+  const known = normalizeAttribution(knownCreatorName);
+  const cleaned = normalizeAttribution(value);
+  if (known && (!cleaned || isGenericSpeakerAttribution(cleaned))) {
+    return known;
+  }
+  return cleaned;
+}
+
+export function applyKnownCreatorAttribution<T extends { attribution: string | null }>(
+  notes: T[],
+  knownCreatorName?: string | null,
+): T[] {
+  return notes.map((note) => ({
+    ...note,
+    attribution: resolveNoteAttribution(note.attribution, knownCreatorName),
+  }));
+}
+
 function timestampKey(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '';
   return String(value);

@@ -44,6 +44,8 @@ function noteToRow(note: CreatorAtomicNote) {
     text: note.text,
     attribution: note.attribution,
     event_features: note.eventFeatures,
+    exact_quote: note.exactQuote,
+    source_segment_indexes: note.sourceSegmentIndexes || [],
     verification_status: note.verificationStatus,
     note_fingerprint: note.noteFingerprint,
     created_at: note.createdAt,

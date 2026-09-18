@@ -3,10 +3,12 @@ import {
   CREATOR_NOTES_ACTION_MAX,
   CREATOR_NOTES_ATTRIBUTION_MAX,
   CREATOR_NOTES_EVENT_FEATURE_STRING_MAX,
+  CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS,
   CREATOR_NOTES_MAX_ACTORS,
   CREATOR_NOTES_MAX_INSTITUTIONS,
   CREATOR_NOTES_MAX_LOCATIONS,
   CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS,
+  CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES,
   CREATOR_NOTES_OBJECT_MAX,
   CREATOR_NOTES_TEXT_MAX_CHARS,
   CREATOR_NOTES_TEXT_MIN_CHARS,
@@ -35,6 +37,12 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
             maxLength: CREATOR_NOTES_TEXT_MAX_CHARS,
           },
           attribution: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
+          exactQuote: { type: 'string', maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
+          sourceSegmentIndexes: {
+            type: 'array',
+            maxItems: CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES,
+            items: { type: 'integer', minimum: 0 },
+          },
           eventFeatures: {
             type: 'object',
             properties: {

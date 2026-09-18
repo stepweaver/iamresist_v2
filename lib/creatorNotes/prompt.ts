@@ -1,15 +1,18 @@
 import {
   CREATOR_NOTE_KINDS,
   CREATOR_NOTE_PROMPT_VERSION,
+  CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS,
   CREATOR_NOTES_MAX_ACTORS,
   CREATOR_NOTES_MAX_INSTITUTIONS,
   CREATOR_NOTES_MAX_LOCATIONS,
   CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS,
+  CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES,
   CREATOR_NOTES_TEXT_MAX_CHARS,
   CREATOR_NOTES_TEXT_MIN_CHARS,
+  GENERIC_SPEAKER_ATTRIBUTION,
   creatorNotesMaxNotesPerChunk,
 } from '@/lib/creatorNotes/constants';
-import type { CreatorTranscriptChunk, CreatorTranscriptInput } from '@/lib/creatorNotes/types';
+import type { CreatorTranscriptChunk, CreatorTranscriptInput, CreatorTranscriptSegment } from '@/lib/creatorNotes/types';
 
 function clip(text: string | null | undefined, max: number): string {
   const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
@@ -17,13 +20,9 @@ function clip(text: string | null | undefined, max: number): string {
   return `${cleaned.slice(0, max - 1).trimEnd()}…`;
 }
 
-function formatSeconds(value: number | null): string {
-  if (value == null || !Number.isFinite(value) || value < 0) return '--:--:--';
-  const total = Math.floor(value);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+function formatSegmentBound(value: number | null): string {
+  if (value == null || !Number.isFinite(value) || value < 0) return '--';
+  return String(Math.floor(value));
 }
 
 export const CREATOR_NOTE_SYSTEM_PROMPT = [
@@ -46,8 +45,16 @@ export const CREATOR_NOTE_SYSTEM_PROMPT = [
   'Keep analysis attributed to the speaker.',
   'Keep factual claims attributed unless independently verified elsewhere.',
   'Each note must contain one primary idea.',
-  'Prefer concise paraphrases over quotation.',
+  'Keep notebook text as a concise paraphrase of what the excerpt means.',
+  'When possible, also copy a short exactQuote verbatim from the referenced transcript segments.',
+  'Do not invent or reconstruct quotations.',
   'Preserve source timestamps.',
+  '',
+  'When the transcript explicitly provides concrete names or identifiers, preserve them in the notebook note.',
+  'Prefer named people, named institutions, court/case names, legislation, executive orders, reports, filings, agencies, locations, dates, amounts, percentages, and concrete actions.',
+  "Do not unnecessarily generalize: do not replace a named person with 'the politician', a named court with 'the court', a named agency with 'the agency', or a named case with 'the case'.",
+  "If the transcript only says 'the case', do not invent a case name.",
+  'Specificity must come from the supplied transcript, not outside knowledge.',
   '',
   'Skip:',
   '- introductions',
@@ -81,14 +88,53 @@ const KIND_INSTRUCTIONS = [
   'Do not generate partisan framing. Preserve attribution rather than deciding a political conclusion.',
 ].join('\n');
 
+const SPECIFICITY_INSTRUCTIONS = [
+  'Preserve specificity from the transcript.',
+  'When the transcript explicitly provides concrete names or identifiers, keep them in text and eventFeatures.',
+  'Prefer:',
+  '- named people',
+  '- named institutions',
+  '- court/case names',
+  '- legislation',
+  '- executive orders',
+  '- reports',
+  '- filings',
+  '- agencies',
+  '- locations',
+  '- dates',
+  '- amounts',
+  '- percentages',
+  '- concrete actions',
+  'Do not unnecessarily generalize named entities into generic nouns.',
+  'If a specific name is not in the transcript, do not invent one.',
+].join('\n');
+
+export function renderTranscriptSegment(segment: CreatorTranscriptSegment): string {
+  const start = formatSegmentBound(segment.startSeconds);
+  const end = formatSegmentBound(segment.endSeconds);
+  return `[SEGMENT ${segment.index} | ${start}-${end}]\n${segment.text}`;
+}
+
 function renderSegments(chunk: CreatorTranscriptChunk): string {
-  return chunk.segments
-    .map((segment) => {
-      const start = formatSeconds(segment.startSeconds);
-      const end = formatSeconds(segment.endSeconds);
-      return `[${start}–${end}] ${segment.text}`;
-    })
-    .join('\n');
+  return chunk.segments.map(renderTranscriptSegment).join('\n\n');
+}
+
+function attributionInstruction(knownCreator: string): string {
+  if (knownCreator) {
+    return [
+      `attribution is required for claim, creator_analysis, and why_it_matters. Use "${knownCreator}" unless the transcript clearly names another speaker.`,
+      `Do not write "${GENERIC_SPEAKER_ATTRIBUTION}" when the creator name is known.`,
+      `Do not infer a government title or role from the word "speaker". "${GENERIC_SPEAKER_ATTRIBUTION}" means only an unidentified person speaking in the transcript.`,
+      'Do not invent speaker identities.',
+    ].join(' ');
+  }
+  return [
+    `attribution is required for claim, creator_analysis, and why_it_matters.`,
+    `If the speaker is not identified, "${GENERIC_SPEAKER_ATTRIBUTION}" is acceptable.`,
+    `Do not infer a government title or role from the word "speaker".`,
+    'If the transcript explicitly identifies a guest, you may use that named attribution.',
+    'Do not invent speaker identities.',
+  ].join(' ');
 }
 
 export function buildCreatorNoteMessages(input: {
@@ -97,22 +143,26 @@ export function buildCreatorNoteMessages(input: {
   chunkCount: number;
 }): Array<{ role: 'system' | 'user'; content: string }> {
   const maxNotes = creatorNotesMaxNotesPerChunk();
-  const knownCreator = clip(input.transcript.creatorName, 80) || clip(input.transcript.creatorId, 80) || '';
+  const knownCreator = clip(input.transcript.creatorName, 80);
   const user = [
     KIND_INSTRUCTIONS,
     '',
-    `Return JSON: {"notes":[{"kind":"...","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":string|null,"eventFeatures":{"actors":[],"action":string|null,"object":string|null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}`,
+    SPECIFICITY_INSTRUCTIONS,
+    '',
+    `Return JSON: {"notes":[{"kind":"...","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":string|null,"exactQuote":string|null,"sourceSegmentIndexes":[0],"eventFeatures":{"actors":[],"action":string|null,"object":string|null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}`,
     `notes must be an array of at most ${maxNotes} objects.`,
     `kind must be one of: ${CREATOR_NOTE_KINDS.join(', ')}.`,
-    `text must be one concise paraphrase between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters.`,
+    `text must be one concise notebook paraphrase between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters. Preserve concrete names and identifiers from the transcript.`,
+    `exactQuote is an optional verbatim transcript excerpt supporting the note. Copy it from the referenced SEGMENT texts. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters. Do not paraphrase inside exactQuote. Do not invent quotation marks around a paraphrase. If you cannot copy a short supporting excerpt, set exactQuote to null.`,
+    `sourceSegmentIndexes must be the integer SEGMENT indexes shown in the transcript headers, in transcript order, at most ${CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES} unique indexes. They must exist in this transcript.`,
     'startSeconds and endSeconds are seconds from the supplied transcript timestamps. Use null if unknown. endSeconds must not be less than startSeconds.',
-    `attribution is required for claim, creator_analysis, and why_it_matters.${knownCreator ? ` Prefer "${knownCreator}" unless the transcript clearly names another speaker.` : ' Do not invent speaker identities.'}`,
+    attributionInstruction(knownCreator),
     `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
     'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
     'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',
     '',
     '<source>',
-    `creator: ${clip(input.transcript.creatorName, 80) || '(unknown)'}`,
+    `creator: ${knownCreator || '(unknown)'}`,
     `title (not event identity): ${clip(input.transcript.sourceTitle, 180) || '(none)'}`,
     `url: ${clip(input.transcript.sourceUrl, 240) || '(none)'}`,
     `chunk: ${input.chunk.index + 1}/${input.chunkCount}`,

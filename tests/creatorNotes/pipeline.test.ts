@@ -9,7 +9,7 @@ import {
   CREATOR_NOTE_EXTRACTION_VERSION,
 } from '@/lib/creatorNotes/constants';
 import { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
-import { formatCreatorNotesReport, parseCreatorNotesExtractArgs } from '@/lib/creatorNotes/format';
+import { formatCreatorNotesReport, formatNotePreview, parseCreatorNotesExtractArgs } from '@/lib/creatorNotes/format';
 import {
   creatorNoteFingerprint,
   hashCreatorTranscript,
@@ -23,7 +23,7 @@ import { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
 import { parseTranscriptFilePayload } from '@/lib/creatorNotes/transcript';
 import type { CreatorNoteRun, RawCreatorNote } from '@/lib/creatorNotes/types';
 import { parseCreatorNotesOutput, parseEventFeatures, validateRawCreatorNote } from '@/lib/creatorNotes/validate';
-import { loadSyntheticTranscript, mockExtractChunk, SYNTHETIC_NOTES } from './helpers';
+import { loadSpecificTranscript, loadSyntheticTranscript, mockExtractChunk, SPECIFIC_NOTES, SYNTHETIC_NOTES } from './helpers';
 
 const TEST_AI = {
   provider: 'test',
@@ -140,6 +140,30 @@ describe('Atomic Creator Notes validation', () => {
     ).toThrow(/attribution_required/);
   });
 
+  it('replaces generic speaker attribution with the known creator name', () => {
+    const note = validateRawCreatorNote(
+      {
+        kind: 'why_it_matters',
+        text: 'Pakman says a lifted stay could let other cities face the same playbook.',
+        attribution: 'The speaker',
+      },
+      { knownCreatorName: 'David Pakman', segmentCount: 9 },
+    );
+    expect(note.attribution).toBe('David Pakman');
+  });
+
+  it('keeps a named guest attribution even when a creator name is known', () => {
+    const note = validateRawCreatorNote(
+      {
+        kind: 'claim',
+        text: 'Jordan Hale says the Westmere filing lists a $2.6 million Harborline contract.',
+        attribution: 'Jordan Hale',
+      },
+      { knownCreatorName: 'David Pakman', segmentCount: 9 },
+    );
+    expect(note.attribution).toBe('Jordan Hale');
+  });
+
   it('rejects an invalid kind', () => {
     expect(() =>
       validateRawCreatorNote({
@@ -213,6 +237,63 @@ describe('Atomic Creator Notes validation', () => {
     expect(notes.find((note) => note.kind === 'creator_analysis')?.verificationStatus).toBe('not_applicable');
     expect(notes.find((note) => note.kind === 'why_it_matters')?.verificationStatus).toBe('not_applicable');
     expect(notes.every((note) => note.verificationStatus !== 'supported')).toBe(true);
+    expect(notes.find((note) => note.kind === 'event')?.exactQuote).toContain('National Guard');
+    expect(notes.find((note) => note.kind === 'event')?.sourceSegmentIndexes).toEqual([1]);
+  });
+
+  it('rejects invalid source segment indexes', () => {
+    expect(() =>
+      validateRawCreatorNote(
+        {
+          kind: 'event',
+          text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+          sourceSegmentIndexes: [99],
+        },
+        { segmentCount: 9 },
+      ),
+    ).toThrow(/source_segment_index_out_of_bounds/);
+    expect(() =>
+      validateRawCreatorNote(
+        {
+          kind: 'event',
+          text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+          sourceSegmentIndexes: [-1],
+        },
+        { segmentCount: 9 },
+      ),
+    ).toThrow(/source_segment_index_negative/);
+    const parsed = parseCreatorNotesOutput(
+      JSON.stringify({
+        notes: [
+          {
+            kind: 'event',
+            text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            sourceSegmentIndexes: [1.5],
+          },
+        ],
+      }),
+      { segmentCount: 9 },
+    );
+    expect(parsed.notes).toHaveLength(0);
+    expect(parsed.rejected).toBe(1);
+  });
+
+  it('does not reject a note because exactQuote is still unverified at parse time', () => {
+    const parsed = parseCreatorNotesOutput(
+      JSON.stringify({
+        notes: [
+          {
+            kind: 'event',
+            text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            exactQuote: 'This fabricated sentence is not in the transcript.',
+            sourceSegmentIndexes: [1],
+          },
+        ],
+      }),
+      { segmentCount: 9, knownCreatorName: 'Riley Quinn' },
+    );
+    expect(parsed.notes).toHaveLength(1);
+    expect(parsed.notes[0].exactQuote).toBe('This fabricated sentence is not in the transcript.');
   });
 });
 
@@ -226,6 +307,8 @@ describe('Atomic Creator Notes postprocess', () => {
         text: 'A federal appeals court issued a stay blocking the deployment order in Chicago.',
         attribution: null,
         eventFeatures: null,
+        exactQuote: null,
+        sourceSegmentIndexes: [1],
       },
       {
         kind: 'event',
@@ -234,6 +317,8 @@ describe('Atomic Creator Notes postprocess', () => {
         text: 'A federal appeals court issued a stay blocking the deployment order in Chicago.',
         attribution: null,
         eventFeatures: null,
+        exactQuote: null,
+        sourceSegmentIndexes: [1],
       },
       {
         kind: 'claim',
@@ -242,6 +327,8 @@ describe('Atomic Creator Notes postprocess', () => {
         text: 'The speaker says two thousand troops would have been federalized this weekend.',
         attribution: 'David Pakman',
         eventFeatures: null,
+        exactQuote: null,
+        sourceSegmentIndexes: [2],
       },
     ];
     const result = dedupeRawCreatorNotes(overlap);
@@ -260,6 +347,27 @@ describe('Atomic Creator Notes chunking', () => {
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks[1].segments.some((segment) => chunks[0].segments.includes(segment) || chunks[0].segments.some((prior) => prior.text === segment.text))).toBe(true);
     expect(chunks.every((chunk) => chunk.segments.every((segment) => segment.text.length > 0))).toBe(true);
+  });
+
+  it('preserves original transcript segment indexes across overlapping chunks', () => {
+    const segments = Array.from({ length: 12 }, (_, index) => ({
+      index,
+      startSeconds: index * 10,
+      endSeconds: index * 10 + 8,
+      text: `Original segment ${index} discusses the Westmere filing without being split.`,
+    }));
+    const chunks = chunkCreatorTranscript(segments, { chunkChars: 220, overlapChars: 80 });
+    expect(chunks.length).toBeGreaterThan(1);
+    const firstIndexes = chunks[0].segments.map((segment) => segment.index);
+    const overlapIndexes = chunks[1].segments.map((segment) => segment.index).filter((index) => firstIndexes.includes(index));
+    expect(overlapIndexes.length).toBeGreaterThan(0);
+    expect(chunks[0].segmentIndexes.every((index) => firstIndexes.includes(index))).toBe(true);
+    for (const chunk of chunks) {
+      for (const segment of chunk.segments) {
+        expect(segment.index).toBe(segments[segment.index].index);
+        expect(segment.text).toBe(segments[segment.index].text);
+      }
+    }
   });
 });
 
@@ -283,7 +391,15 @@ describe('Atomic Creator Notes prompt contract', () => {
       chunkCount: 1,
     });
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not infer event identity solely from the episode title');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not invent or reconstruct quotations');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not unnecessarily generalize');
     expect(messages[1].content).toContain('creator_analysis != fact');
+    expect(messages[1].content).toContain('exactQuote');
+    expect(messages[1].content).toContain('sourceSegmentIndexes');
+    expect(messages[1].content).toContain('[SEGMENT 1 | 12-28]');
+    expect(messages[1].content).toContain('named people');
+    expect(messages[1].content).toContain('Do not unnecessarily generalize');
+    expect(messages[1].content).toContain('David Pakman');
     for (const kind of CREATOR_NOTE_KINDS) {
       expect(messages[1].content).toContain(kind);
     }
@@ -312,6 +428,55 @@ describe('Atomic Creator Notes CLI args', () => {
       limitNotes: 8,
       json: true,
     });
+  });
+
+  it('formats quote, note, and source segments without null event arrays', () => {
+    const withQuote = formatNotePreview({
+      id: 'n1',
+      sourceItemId: 's1',
+      creatorId: 'riley-quinn',
+      startSeconds: 877,
+      endSeconds: 890,
+      kind: 'why_it_matters',
+      text: 'Quinn says if the court grants that motion, residents will not see the Harborline water-rate numbers before the April 12 vote.',
+      attribution: 'Riley Quinn',
+      eventFeatures: null,
+      exactQuote:
+        'This matters because if the court grants that motion, residents will not see the Harborline water-rate numbers before the April 12 vote.',
+      sourceSegmentIndexes: [17, 18],
+      verificationStatus: 'not_applicable',
+      extractionRunId: 'run-1',
+      noteFingerprint: 'fp',
+      createdAt: '2026-09-17T20:00:00.000Z',
+    });
+    expect(withQuote).toContain('[00:14:37] WHY IT MATTERS — Riley Quinn');
+    expect(withQuote).toContain('Quote:');
+    expect(withQuote).toContain(
+      '"This matters because if the court grants that motion, residents will not see the Harborline water-rate numbers before the April 12 vote."',
+    );
+    expect(withQuote).toContain('Note:');
+    expect(withQuote).toContain('Source segments: 17, 18');
+    expect(withQuote).not.toContain('eventFeatures');
+
+    const withoutQuote = formatNotePreview({
+      id: 'n2',
+      sourceItemId: 's1',
+      creatorId: null,
+      startSeconds: 0,
+      endSeconds: 10,
+      kind: 'event',
+      text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+      attribution: 'Riley Quinn',
+      eventFeatures: null,
+      exactQuote: null,
+      sourceSegmentIndexes: [],
+      verificationStatus: 'unverified',
+      extractionRunId: 'run-1',
+      noteFingerprint: 'fp2',
+      createdAt: '2026-09-17T20:00:00.000Z',
+    });
+    expect(withoutQuote).toContain('Quote: (not available)');
+    expect(withoutQuote).toContain('Source segments: (none)');
   });
 });
 
@@ -402,6 +567,13 @@ describe('Atomic Creator Notes run', () => {
     expect(report).toContain('prior equivalent run: skipped (dry-run)');
     expect(report).toContain('run id: (none)');
     expect(report).toContain('notes written: 0');
+    expect(report).toContain('quotes requested:');
+    expect(report).toContain('quotes verified:');
+    expect(report).toContain('quotes rejected:');
+    expect(report).toContain('Quote:');
+    expect(report).toContain('Note:');
+    expect(report).toContain('Source segments:');
+    expect(report).not.toContain('eventFeatures: null');
   });
 
   it('dry-runs without a creator-notes store when tables do not exist', async () => {
@@ -448,12 +620,126 @@ describe('Atomic Creator Notes run', () => {
       expect(src).not.toMatch(/from\('themes'\)/);
     }
   });
+
+  it('normalizes known creator attribution instead of generic The speaker', async () => {
+    const transcript = {
+      ...loadSyntheticTranscript(),
+      creatorName: 'David Pakman',
+    };
+    const speakerNotes = SYNTHETIC_NOTES.map((item) => ({
+      ...item,
+      attribution: 'The speaker',
+      sourceSegmentIndexes: [...item.sourceSegmentIndexes],
+    }));
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      { extractChunk: mockExtractChunk(speakerNotes), aiConfig: TEST_AI, id: ids('attr-known'), log: () => {} },
+    );
+    const attributed = result.notes.filter((note) =>
+      note.kind === 'claim' || note.kind === 'creator_analysis' || note.kind === 'why_it_matters',
+    );
+    expect(attributed.length).toBeGreaterThan(0);
+    expect(attributed.every((note) => note.attribution === 'David Pakman')).toBe(true);
+    expect(result.notes.every((note) => note.attribution !== 'The speaker')).toBe(true);
+  });
+
+  it('keeps generic The speaker when the creator is unknown', async () => {
+    const transcript = {
+      ...loadSyntheticTranscript(),
+      creatorId: null,
+      creatorName: null,
+    };
+    const speakerNotes = SYNTHETIC_NOTES.map((item) => ({
+      ...item,
+      attribution:
+        item.kind === 'claim' || item.kind === 'creator_analysis' || item.kind === 'why_it_matters'
+          ? 'The speaker'
+          : item.attribution,
+      sourceSegmentIndexes: [...item.sourceSegmentIndexes],
+    }));
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      { extractChunk: mockExtractChunk(speakerNotes), aiConfig: TEST_AI, id: ids('attr-unknown'), log: () => {} },
+    );
+    expect(result.notes.find((note) => note.kind === 'why_it_matters')?.attribution).toBe('The speaker');
+    expect(result.notes.find((note) => note.kind === 'claim')?.attribution).toBe('The speaker');
+  });
+
+  it('does not generalize named entities from a mocked specific extraction', async () => {
+    const transcript = loadSpecificTranscript();
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      { extractChunk: mockExtractChunk(SPECIFIC_NOTES), aiConfig: TEST_AI, id: ids('specific'), log: () => {} },
+    );
+    const joined = result.notes.map((note) => note.text).join(' ');
+    expect(joined).toContain('Riley Quinn');
+    expect(joined).toContain('Westmere County Court');
+    expect(joined).toContain('Calder v. Westmere Civic Board');
+    expect(joined).toContain('Supplemental Declaration of Records Custodian Ellis Voss');
+    expect(joined).toContain('$2.6 million');
+    expect(joined).toContain('March 3, 2026');
+    expect(joined).toContain('April 12');
+    expect(joined).not.toMatch(/\bthe politician\b/i);
+    expect(joined).not.toMatch(/\bthe agency\b/i);
+    expect(result.notes.find((note) => note.kind === 'why_it_matters')?.attribution).toBe('Riley Quinn');
+  });
+
+  it('persists verified quotes and source segment indexes', async () => {
+    const store = createMemoryCreatorNotesStore();
+    const result = await runCreatorNoteExtraction(
+      { transcript: loadSyntheticTranscript() },
+      { store, extractChunk: mockExtractChunk(), aiConfig: TEST_AI, id: ids('persist-quote'), log: () => {} },
+    );
+    expect(result.persistence.notesWritten).toBeGreaterThan(0);
+    const persisted = store.notes.find((note) => note.kind === 'event');
+    expect(persisted?.exactQuote).toContain("administration's National Guard deployment order in Chicago");
+    expect(persisted?.sourceSegmentIndexes).toEqual([1]);
+    expect(result.quoteDiagnostics.verified).toBeGreaterThan(0);
+    expect(result.quoteDiagnostics.requested).toBeGreaterThanOrEqual(result.quoteDiagnostics.verified);
+  });
+
+  it('records quote diagnostics for mixed verified and rejected quotes', async () => {
+    const transcript = loadSpecificTranscript();
+    const mixed = [
+      {
+        ...SPECIFIC_NOTES[0],
+        exactQuote: SPECIFIC_NOTES[0].exactQuote,
+        sourceSegmentIndexes: [1],
+      },
+      {
+        ...SPECIFIC_NOTES[5],
+        exactQuote: 'Residents will immediately seize the Westmere Civic Board offices tomorrow.',
+        sourceSegmentIndexes: [6],
+      },
+      {
+        ...SPECIFIC_NOTES[6],
+        exactQuote: null,
+        sourceSegmentIndexes: [1],
+      },
+    ];
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      { extractChunk: mockExtractChunk(mixed), aiConfig: TEST_AI, id: ids('quote-diag'), log: () => {} },
+    );
+    expect(result.quoteDiagnostics).toEqual({ requested: 2, verified: 1, rejected: 1 });
+    expect(result.notes.find((note) => note.kind === 'event')?.exactQuote).toContain('Westmere County Court');
+    expect(result.notes.find((note) => note.kind === 'why_it_matters')?.exactQuote).toBeNull();
+    expect(result.notes).toHaveLength(3);
+  });
 });
 
 describe('Atomic Creator Notes transcript file', () => {
   it('requires a segments array', () => {
     expect(() => parseTranscriptFilePayload({ segments: [] }, 'abc')).toThrow(/empty/);
     expect(() => parseTranscriptFilePayload({ notes: [] }, 'abc')).toThrow(/segments array/);
+  });
+
+  it('assigns stable original segment indexes', () => {
+    const transcript = loadSpecificTranscript();
+    expect(transcript.segments.map((segment) => segment.index)).toEqual(
+      transcript.segments.map((_, index) => index),
+    );
+    expect(transcript.segments[1].text).toContain('Westmere County Court');
   });
 });
 

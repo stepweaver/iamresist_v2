@@ -9,8 +9,9 @@ import {
   resolveCreatorNotesAiConfig,
   type CreatorNotesAiConfig,
 } from '@/lib/creatorNotes/extract';
-import { hashCreatorTranscript, transcriptCharCount } from '@/lib/creatorNotes/identity';
+import { applyKnownCreatorAttribution, hashCreatorTranscript, transcriptCharCount } from '@/lib/creatorNotes/identity';
 import { countNoteKinds, dedupeRawCreatorNotes, emptyKindCounts, toAtomicNotes } from '@/lib/creatorNotes/postprocess';
+import { applyQuoteVerification, emptyQuoteDiagnostics } from '@/lib/creatorNotes/quotes';
 import type {
   CreatorAtomicNote,
   CreatorNoteRun,
@@ -135,6 +136,7 @@ export async function runCreatorNoteExtraction(
       kindCounts: emptyKindCounts(),
       validationRejected: 0,
       duplicatesRemoved: 0,
+      quoteDiagnostics: emptyQuoteDiagnostics(),
       persistence: {
         dryRun: false,
         priorEquivalentRunId: equivalent.id,
@@ -221,14 +223,19 @@ export async function runCreatorNoteExtraction(
       logEvent(log, '[creator-notes]', 'dedupe count', { removed: deduped.duplicatesRemoved });
     }
 
-    let limited = deduped.notes;
+    let limited = applyKnownCreatorAttribution(deduped.notes, transcript.creatorName);
     if (input.limitNotes != null && Number.isFinite(input.limitNotes) && input.limitNotes >= 0) {
       limited = limited.slice(0, input.limitNotes);
     }
 
+    const quoted = applyQuoteVerification(limited, transcript.segments);
+    if (quoted.diagnostics.rejected > 0) {
+      logEvent(log, '[creator-notes]', 'quote verification rejected', { ...quoted.diagnostics });
+    }
+
     const createdAt = now().toISOString();
     const notes: CreatorAtomicNote[] = toAtomicNotes({
-      notes: limited,
+      notes: quoted.notes,
       sourceItemId: transcript.sourceItemId,
       creatorId: transcript.creatorId,
       extractionRunId: runId,
@@ -279,6 +286,7 @@ export async function runCreatorNoteExtraction(
       kindCounts: countNoteKinds(notes),
       validationRejected,
       duplicatesRemoved: deduped.duplicatesRemoved,
+      quoteDiagnostics: quoted.diagnostics,
       persistence: {
         dryRun,
         priorEquivalentRunId: dryRun ? null : equivalent?.id ?? null,

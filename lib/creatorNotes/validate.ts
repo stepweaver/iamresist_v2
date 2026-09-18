@@ -8,6 +8,7 @@ import {
   CREATOR_NOTES_MAX_INSTITUTIONS,
   CREATOR_NOTES_MAX_LOCATIONS,
   CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS,
+  CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES,
   CREATOR_NOTES_OBJECT_MAX,
   CREATOR_NOTES_TEXT_MAX_CHARS,
   CREATOR_NOTES_TEXT_MIN_CHARS,
@@ -15,7 +16,7 @@ import {
   type AttributionRequiredKind,
   type CreatorNoteKind,
 } from '@/lib/creatorNotes/constants';
-import { dedupeStringsCaseInsensitive, normalizeAttribution, normalizeNoteText } from '@/lib/creatorNotes/identity';
+import { dedupeStringsCaseInsensitive, normalizeNoteText, resolveNoteAttribution } from '@/lib/creatorNotes/identity';
 import type { CreatorNoteEventFeatures, RawCreatorNote } from '@/lib/creatorNotes/types';
 import { extractJsonObject } from '@/lib/themeMemory/ai/validate';
 
@@ -87,6 +88,44 @@ function parseStringArray(value: unknown, field: string, maxItems: number): stri
   return dedupeStringsCaseInsensitive(strings, maxItems);
 }
 
+function parseExactQuote(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== 'string') {
+    throw new CreatorNotesValidationError('exact_quote_not_string');
+  }
+  const cleaned = value.trim();
+  return cleaned || null;
+}
+
+function parseSourceSegmentIndexes(value: unknown, segmentCount?: number): number[] {
+  if (value == null) return [];
+  if (!Array.isArray(value)) {
+    throw new CreatorNotesValidationError('source_segment_indexes_not_array');
+  }
+  if (value.length > CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES) {
+    throw new CreatorNotesValidationError('source_segment_indexes_too_many');
+  }
+
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const entry of value) {
+    if (typeof entry !== 'number' || !Number.isInteger(entry)) {
+      throw new CreatorNotesValidationError('source_segment_index_not_integer');
+    }
+    if (entry < 0) {
+      throw new CreatorNotesValidationError('source_segment_index_negative');
+    }
+    if (segmentCount == null || entry >= segmentCount) {
+      throw new CreatorNotesValidationError('source_segment_index_out_of_bounds');
+    }
+    if (seen.has(entry)) continue;
+    seen.add(entry);
+    out.push(entry);
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+
 export function emptyEventFeatures(): CreatorNoteEventFeatures {
   return {
     actors: [],
@@ -131,7 +170,7 @@ export function parseEventFeatures(value: unknown): CreatorNoteEventFeatures | n
 
 export function validateRawCreatorNote(
   value: unknown,
-  opts: { knownCreatorName?: string | null } = {},
+  opts: { knownCreatorName?: string | null; segmentCount?: number } = {},
 ): RawCreatorNote {
   if (!isPlainObject(value)) {
     throw new CreatorNotesValidationError('note_not_object');
@@ -162,16 +201,18 @@ export function validateRawCreatorNote(
     throw new CreatorNotesValidationError('end_before_start');
   }
 
-  let attribution = normalizeAttribution(
+  const attribution = resolveNoteAttribution(
     boundedOptionalString(value.attribution, 'attribution', CREATOR_NOTES_ATTRIBUTION_MAX),
+    opts.knownCreatorName,
   );
-  const knownCreator = normalizeAttribution(opts.knownCreatorName);
-  if (!attribution && knownCreator) {
-    attribution = knownCreator;
-  }
   if (isAttributionRequired(value.kind) && !attribution) {
     throw new CreatorNotesValidationError('attribution_required');
   }
+
+  const sourceSegmentIndexes = parseSourceSegmentIndexes(
+    value.sourceSegmentIndexes ?? value.source_segment_indexes,
+    opts.segmentCount,
+  );
 
   return {
     kind: value.kind,
@@ -180,12 +221,14 @@ export function validateRawCreatorNote(
     text,
     attribution,
     eventFeatures: parseEventFeatures(value.eventFeatures ?? value.event_features),
+    exactQuote: parseExactQuote(value.exactQuote ?? value.exact_quote),
+    sourceSegmentIndexes,
   };
 }
 
 export function parseCreatorNotesOutput(
   text: string,
-  opts: { knownCreatorName?: string | null; maxNotes?: number } = {},
+  opts: { knownCreatorName?: string | null; maxNotes?: number; segmentCount?: number } = {},
 ): { notes: RawCreatorNote[]; rejected: number } {
   const parsed = extractJsonObject(text);
   if (!isPlainObject(parsed)) {
@@ -203,7 +246,12 @@ export function parseCreatorNotesOutput(
 
   for (const entry of parsed.notes.slice(0, maxNotes)) {
     try {
-      notes.push(validateRawCreatorNote(entry, { knownCreatorName: opts.knownCreatorName }));
+      notes.push(
+        validateRawCreatorNote(entry, {
+          knownCreatorName: opts.knownCreatorName,
+          segmentCount: opts.segmentCount,
+        }),
+      );
     } catch (error) {
       if (error instanceof CreatorNotesValidationError) {
         rejected += 1;

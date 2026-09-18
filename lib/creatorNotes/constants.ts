@@ -3,8 +3,8 @@
  * Bump CREATOR_NOTE_EXTRACTION_VERSION when prompt or validation semantics change.
  */
 
-export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1';
-export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1';
+export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.1';
+export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.1';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 
 export const CREATOR_NOTE_KINDS = [
@@ -37,9 +37,12 @@ export type AttributionRequiredKind = (typeof ATTRIBUTION_REQUIRED_KINDS)[number
 
 export const CREATOR_NOTES_TEXT_MIN_CHARS = 20;
 export const CREATOR_NOTES_TEXT_MAX_CHARS = 800;
+export const CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS = 500;
+export const CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES = 8;
 export const CREATOR_NOTES_MAX_NOTES_PER_CHUNK_DEFAULT = 30;
 export const CREATOR_NOTES_CHUNK_CHARS_DEFAULT = 12000;
 export const CREATOR_NOTES_CHUNK_OVERLAP_CHARS = 800;
+export const GENERIC_SPEAKER_ATTRIBUTION = 'The speaker';
 
 export const CREATOR_NOTES_MAX_ACTORS = 12;
 export const CREATOR_NOTES_MAX_INSTITUTIONS = 12;

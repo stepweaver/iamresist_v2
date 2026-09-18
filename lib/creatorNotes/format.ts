@@ -62,20 +62,37 @@ function featureList(values: string[]): string {
   return values.length ? values.join(', ') : '—';
 }
 
+function formatSourceSegments(indexes: number[] | undefined): string {
+  if (!indexes || indexes.length === 0) return '(none)';
+  return indexes.join(', ');
+}
+
 export function formatNotePreview(note: CreatorAtomicNote): string {
   const who = note.attribution || '—';
-  const lines = [`${formatNoteTimestamp(note.startSeconds)} ${kindLabel(note.kind)} — ${who}`, note.text];
+  const lines = [
+    `${formatNoteTimestamp(note.startSeconds)} ${kindLabel(note.kind)} — ${who}`,
+    '',
+  ];
+  if (note.exactQuote) {
+    lines.push('Quote:', `"${note.exactQuote}"`, '');
+  } else {
+    lines.push('Quote: (not available)', '');
+  }
+  lines.push('Note:', note.text, '', `Source segments: ${formatSourceSegments(note.sourceSegmentIndexes)}`);
   if (note.eventFeatures) {
-    lines.push('');
-    if (note.eventFeatures.actors.length) lines.push(`  actors: ${featureList(note.eventFeatures.actors)}`);
-    if (note.eventFeatures.action) lines.push(`  action: ${note.eventFeatures.action}`);
-    if (note.eventFeatures.object) lines.push(`  object: ${note.eventFeatures.object}`);
+    const extra: string[] = [];
+    if (note.eventFeatures.actors.length) extra.push(`  actors: ${featureList(note.eventFeatures.actors)}`);
+    if (note.eventFeatures.action) extra.push(`  action: ${note.eventFeatures.action}`);
+    if (note.eventFeatures.object) extra.push(`  object: ${note.eventFeatures.object}`);
     if (note.eventFeatures.institutions.length) {
-      lines.push(`  institutions: ${featureList(note.eventFeatures.institutions)}`);
+      extra.push(`  institutions: ${featureList(note.eventFeatures.institutions)}`);
     }
-    if (note.eventFeatures.locations.length) lines.push(`  locations: ${featureList(note.eventFeatures.locations)}`);
+    if (note.eventFeatures.locations.length) extra.push(`  locations: ${featureList(note.eventFeatures.locations)}`);
     if (note.eventFeatures.referencedDocuments.length) {
-      lines.push(`  documents: ${featureList(note.eventFeatures.referencedDocuments)}`);
+      extra.push(`  documents: ${featureList(note.eventFeatures.referencedDocuments)}`);
+    }
+    if (extra.length) {
+      lines.push('', ...extra);
     }
   }
   return lines.join('\n');
@@ -114,6 +131,9 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  why_it_matters: ${result.kindCounts.why_it_matters}`,
     `  validation rejected: ${result.validationRejected}`,
     `  duplicates removed: ${result.duplicatesRemoved}`,
+    `  quotes requested: ${result.quoteDiagnostics.requested}`,
+    `  quotes verified: ${result.quoteDiagnostics.verified}`,
+    `  quotes rejected: ${result.quoteDiagnostics.rejected}`,
     '',
     'Persistence:',
     `  dry run: ${result.persistence.dryRun ? 'yes' : 'no'}`,

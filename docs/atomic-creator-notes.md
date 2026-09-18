@@ -84,7 +84,11 @@ Attribution is required for:
 - `creator_analysis`
 - `why_it_matters`
 
-When the source has one known creator/speaker, that name is used. If the transcript clearly identifies another speaker, that identity is preserved. Speaker identities are never invented.
+When the source has one known `creatorName`, that name is used as attribution instead of generic **"The speaker"**. If the transcript clearly identifies a guest or another speaker, that identity is preserved. Speaker identities are never invented.
+
+"The speaker" means only an unidentified person in the transcript. The extractor does **not** infer a government title or role from the word speaker.
+
+If `creatorName` is unavailable, generic speaker attribution is acceptable.
 
 If attribution is required and still missing after filling the known creator name, the note is rejected.
 
@@ -104,6 +108,24 @@ Milestone 1 defaults (application-assigned, **not** LLM-assigned):
 The model is not allowed to mark something `supported`, `disputed`, or `contradicted` from world knowledge. Those states exist for a future verification workflow.
 
 There is no automated external fact-checking in this milestone.
+
+## Notebook text vs exact quote vs event features
+
+These fields are intentionally distinct:
+
+| Field | Meaning |
+|-------|---------|
+| `exactQuote` | Verified **verbatim transcript evidence**. Copied from the supplied transcript after deterministic matching. Null if missing or unverifiable. |
+| `text` | Concise **notebook-style paraphrase** of what that excerpt means. This is the listener's note, not a quotation. |
+| `eventFeatures` | Unverified structured extraction **candidates** (actors/action/object/institutions/locations/documents). Not theme identity and not auto-linked. |
+
+The model may return quotation marks. That is not enough. Transcript quotes are verified locally against the referenced segment texts. If the excerpt cannot be found after normalizing only whitespace, line breaks, and smart/straight quotes, `exactQuote` is set to `null`. The note itself is kept if otherwise valid. Unverifiable quotes are never rewritten into something that looks verbatim.
+
+`sourceSegmentIndexes` are the original transcript segment indexes shown to the model as `[SEGMENT n | start-end]`. Chunk overlap keeps those original indexes. Quote verification concatenates the referenced segments in transcript order and checks that `exactQuote` occurs in that source text.
+
+Exact quotes are bounded (typically one or two sentences, max 500 characters). An oversized quote is omitted rather than truncated into misleading wording.
+
+The notebook paraphrase should preserve concrete names and identifiers that actually appear in the transcript (people, courts, cases, filings, dates, amounts). It must not invent them from outside knowledge, and it should not replace them with generic nouns.
 
 ## Event features
 
@@ -156,12 +178,25 @@ Flags:
 
 Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
-First real calibration (do not persist). `--source-item` may be a stable calibration string; it does not have to be an intel UUID:
+Human preview (not `--json`) shows timestamp, kind, attribution, verified quote or `(not available)`, notebook paraphrase, and source segment indexes. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `quotes requested`, `quotes verified`, and `quotes rejected`.
+
+First real calibration (do not persist). `--source-item` may be a stable calibration string; it does not have to be an intel UUID.
+
+Richer fixture (named court, case, filing, date, amount):
+
+```bash
+npm run creator-notes:extract -- \
+  --source-item calibration-specific-2026-09-17 \
+  --transcript-file ./tests/creatorNotes/fixtures/specific-transcript.json \
+  --dry-run
+```
+
+Earlier synthetic fixture (still valid for smoke tests):
 
 ```bash
 npm run creator-notes:extract -- \
   --source-item calibration-david-pakman-2026-09-17 \
-  --transcript-file ./tmp/creator-notes-calibration.json \
+  --transcript-file ./tests/creatorNotes/fixtures/synthetic-transcript.json \
   --dry-run
 ```
 
@@ -169,7 +204,7 @@ When you persist, pass the real `source_items.id` UUID whenever it exists so pro
 
 ## Idempotency
 
-Transcript hash: SHA-256 of normalized segments (line endings collapsed, trim, timestamps + text). Version: `creator-notes-v1`.
+Transcript hash: SHA-256 of normalized segments (line endings collapsed, trim, timestamps + text). Version: `creator-notes-v1.1`.
 
 A completed **success** run with the same:
 
@@ -193,7 +228,7 @@ Extraction execution metadata: model, version, transcript hash, status (`running
 
 ### `intel.creator_atomic_notes`
 
-One notebook idea per row: kind, paraphrase, optional timestamps, attribution, event features JSON, verification status, fingerprint.
+One notebook idea per row: kind, paraphrase (`text`), optional verified `exact_quote`, `source_segment_indexes`, optional timestamps, attribution, event features JSON, verification status, fingerprint.
 
 ## Why title text is not event identity
 
@@ -227,7 +262,9 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `CREATOR_NOTES_CHUNK_CHARS` | `12000` | Target chunk size |
 | `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` | `30` | Hard cap per chunk |
 
-Chunking is by transcript segments, with ~800 characters of overlap. Individual segments are split only if they exceed the chunk budget.
+Chunking is by transcript segments, with ~800 characters of overlap. Individual segments are split only if they exceed the chunk budget. Overlap preserves original segment indexes. Prompts label each segment as `[SEGMENT n | startSeconds-endSeconds]`.
+
+Exact quote max length is 500 characters (`CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS`). At most 8 source segment indexes per note.
 
 ## Milestone 1 scope boundaries
 
@@ -297,3 +334,6 @@ Before enabling this broadly, inspect a real transcript dry-run:
 - Are timestamps useful?
 - Is "why it matters" distinct from analysis?
 - Are event features useful without overreaching?
+- Did notebook notes keep named people, courts, cases, filings, dates, and amounts from the transcript?
+- Are `exactQuote` lines actual transcript excerpts, or did unverifiable quotes get dropped?
+- Is attribution the known creator name rather than generic "The speaker" when `creatorName` is present?
