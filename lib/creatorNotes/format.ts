@@ -1,5 +1,12 @@
 import { normalizeForQuoteMatch } from '@/lib/creatorNotes/quotes';
-import type { CreatorAtomicNote, CreatorNotesExtractArgs, CreatorNotesRunResult } from '@/lib/creatorNotes/types';
+import type {
+  CreatorAtomicNote,
+  CreatorNotesExtractArgs,
+  CreatorNotesRunResult,
+  CreatorNotesSourcesArgs,
+  ResolvedCreatorSource,
+  TranscriptAcquisitionDiagnostics,
+} from '@/lib/creatorNotes/types';
 
 function argValue(argv: string[], name: string): string | null {
   for (let i = 0; i < argv.length; i += 1) {
@@ -30,18 +37,22 @@ function parseOptionalFlag(argv: string[], name: string): string | null {
   return cleaned || null;
 }
 
+function hasFlag(argv: string[], name: string): boolean {
+  return argv.some((arg) => arg === name || arg.startsWith(`${name}=`));
+}
+
 export function parseCreatorNotesExtractArgs(argv: string[]): CreatorNotesExtractArgs {
   const sourceItemId = argValue(argv, '--source-item');
-  const transcriptFile = argValue(argv, '--transcript-file');
   if (!sourceItemId) {
     throw new Error('Missing --source-item <id>');
   }
-  if (!transcriptFile) {
+  const transcriptFileRaw = argValue(argv, '--transcript-file');
+  if (hasFlag(argv, '--transcript-file') && !transcriptFileRaw) {
     throw new Error('Missing --transcript-file <path>');
   }
   return {
     sourceItemId: sourceItemId.trim(),
-    transcriptFile: transcriptFile.trim(),
+    transcriptFile: transcriptFileRaw ? transcriptFileRaw.trim() : null,
     dryRun: argv.includes('--dry-run'),
     force: argv.includes('--force'),
     limitNotes: parseLimitNotes(argv),
@@ -50,6 +61,65 @@ export function parseCreatorNotesExtractArgs(argv: string[]): CreatorNotesExtrac
     sourceTitle: parseOptionalFlag(argv, '--source-title'),
     sourceUrl: parseOptionalFlag(argv, '--source-url'),
   };
+}
+
+export function parseCreatorNotesSourcesArgs(argv: string[]): CreatorNotesSourcesArgs {
+  const raw = argValue(argv, '--limit');
+  if (raw == null || raw === '') {
+    return { limit: 20 };
+  }
+  if (!/^\d+$/.test(raw) || Number(raw) < 1) {
+    throw new Error('--limit must be a positive integer');
+  }
+  return { limit: Number(raw) };
+}
+
+function formatDurationCovered(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—';
+  return `${Math.round(seconds)}s`;
+}
+
+export function formatTranscriptSection(acquisition: TranscriptAcquisitionDiagnostics): string {
+  return [
+    'Transcript:',
+    `  source: ${acquisition.source}`,
+    `  language: ${acquisition.language || 'unknown'}`,
+    `  generated: ${acquisition.generated}`,
+    `  raw segments: ${acquisition.rawSegments}`,
+    `  normalized segments: ${acquisition.normalizedSegments}`,
+    `  duration covered: ${formatDurationCovered(acquisition.durationCoveredSeconds)}`,
+    `  characters: ${acquisition.characters}`,
+  ].join('\n');
+}
+
+function clip(value: string | null, max: number): string {
+  const text = value || '—';
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
+export function formatCreatorSourcesList(items: ResolvedCreatorSource[]): string {
+  if (!items.length) {
+    return 'No creator items found.';
+  }
+  const lines = [
+    'Creator source items',
+    '====================',
+    '',
+    'ID\tcreator\ttitle\tpublished\tprovider',
+  ];
+  for (const item of items) {
+    lines.push(
+      [
+        item.sourceItemId,
+        clip(item.creatorName || item.creatorId, 40),
+        clip(item.title, 80),
+        item.publishedAt || '—',
+        item.provider,
+      ].join('\t'),
+    );
+  }
+  return lines.join('\n');
 }
 
 function padTime(value: number): string {
@@ -123,6 +193,11 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     'Atomic Creator Notes',
     '====================',
     '',
+  ];
+  if (result.transcriptAcquisition) {
+    lines.push(formatTranscriptSection(result.transcriptAcquisition), '');
+  }
+  lines.push(
     'Source:',
     `  source item: ${result.source.sourceItemId}`,
     `  creator: ${result.source.creatorName || result.source.creatorId || '—'}`,
@@ -168,7 +243,7 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  run id: ${result.persistence.dryRun ? '(none)' : result.persistence.runId || '—'}`,
     `  notes written: ${result.persistence.notesWritten}`,
     `  status: ${result.persistence.status}`,
-  ];
+  );
 
   if (result.notes.length) {
     lines.push('', 'Preview:');

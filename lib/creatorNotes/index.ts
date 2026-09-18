@@ -6,9 +6,14 @@ export { defaultVerificationStatus, dedupeRawCreatorNotes } from '@/lib/creatorN
 export { applyQuoteVerification } from '@/lib/creatorNotes/quotes';
 export { applySourceEvidence } from '@/lib/creatorNotes/sourceEvidence';
 export { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
-export { parseCreatorNotesExtractArgs, formatCreatorNotesReport } from '@/lib/creatorNotes/format';
+export { parseCreatorNotesExtractArgs, parseCreatorNotesSourcesArgs, formatCreatorNotesReport } from '@/lib/creatorNotes/format';
 export { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
 export { shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
+export { resolveCreatorSource, listCreatorSources } from '@/lib/creatorNotes/resolveSource';
+export { parseYouTubeVideoId, classifyCreatorSourceProvider } from '@/lib/creatorNotes/youtubeIdentity';
+export { normalizeCaptionCues } from '@/lib/creatorNotes/normalizeCaptions';
+export { YouTubeTranscriptProvider } from '@/lib/creatorNotes/youtubeTranscript';
+export { prepareCreatorNotesTranscript } from '@/lib/creatorNotes/prepare';
 
 export type {
   CreatorAtomicNote,
@@ -17,5 +22,7 @@ export type {
   CreatorNoteQuoteDiagnostics,
   CreatorTranscriptInput,
   CreatorNotesRunResult,
+  ResolvedCreatorSource,
+  TranscriptAcquisitionDiagnostics,
   VerificationStatus,
 } from '@/lib/creatorNotes/types';

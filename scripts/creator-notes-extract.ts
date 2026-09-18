@@ -1,39 +1,18 @@
-import { resolve } from 'node:path';
-
 import { formatCreatorNotesReport, parseCreatorNotesExtractArgs } from '@/lib/creatorNotes/format';
+import { prepareCreatorNotesTranscript } from '@/lib/creatorNotes/prepare';
 import { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
-import { loadCreatorSourceMetadata, shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
-import { loadTranscriptFile, mergeTranscriptMetadata } from '@/lib/creatorNotes/transcript';
 
 async function main() {
   const args = parseCreatorNotesExtractArgs(process.argv.slice(2));
-  const transcriptPath = resolve(process.cwd(), args.transcriptFile);
-  let transcript = loadTranscriptFile(transcriptPath, args.sourceItemId);
-
-  if (shouldLookupCreatorSourceMetadata(args.dryRun)) {
-    try {
-      const sourceMeta = await loadCreatorSourceMetadata(args.sourceItemId);
-      transcript = mergeTranscriptMetadata(transcript, sourceMeta);
-    } catch (error) {
-      console.warn(
-        '[creator-notes] source metadata lookup failed',
-        error instanceof Error ? error.message : error,
-      );
-    }
-  }
-
-  transcript = mergeTranscriptMetadata(transcript, {
-    creatorName: args.creatorName,
-    sourceTitle: args.sourceTitle,
-    sourceUrl: args.sourceUrl,
-  });
+  const prepared = await prepareCreatorNotesTranscript(args);
 
   const result = await runCreatorNoteExtraction({
-    transcript,
+    transcript: prepared.transcript,
     dryRun: args.dryRun,
     force: args.force,
     limitNotes: args.limitNotes,
   });
+  result.transcriptAcquisition = prepared.acquisition;
 
   if (args.json) {
     console.log(JSON.stringify(result, null, 2));

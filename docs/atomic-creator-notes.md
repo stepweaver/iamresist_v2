@@ -30,7 +30,9 @@ Transcript content is authoritative. Title text is metadata only.
 ```
 creator source item
         ↓
-transcript/content (CLI file in v1)
+transcript/content
+  A. supplied JSON file, or
+  B. YouTube captions for a supported source item
         ↓
 deterministic chunking
         ↓
@@ -149,9 +151,15 @@ actors[], action, object, institutions[], locations[], referencedDocuments[]
 
 These are extraction candidates. They are **not** Theme Memory identity. They do not create memberships, mutate themes, or count as verified entities. Duplicate strings are removed case-insensitively. Original human-readable names are kept.
 
-## Transcript input format
+## Transcript input
 
-CLI v1 reads a JSON file. YouTube / Pocket Casts fetching is out of scope.
+Milestone currently supports automatic transcript retrieval **only for YouTube items with available caption tracks**. Pocket Casts, Apple Podcasts, Spotify, TikTok, RSS audio, Whisper, and general web scraping are out of scope.
+
+Two CLI modes:
+
+### A. Supplied transcript file
+
+CLI reads a JSON file. No remote caption fetch is performed.
 
 ```json
 {
@@ -171,9 +179,28 @@ Optional file fields fill creator/title/URL when the database row is missing or 
 
 During calibration, source metadata may be absent unless the transcript file or CLI flags supply it. Extraction still proceeds. Do not invent metadata.
 
+### B. Automatic transcript retrieval from a supported source item
+
+When `--transcript-file` is omitted, the CLI resolves a **real existing** creator/Voice item, fetches its YouTube caption track, normalizes cues into `CreatorTranscriptSegment[]`, and continues through the same extraction pipeline.
+
+Voice items are **not** assumed to be intel UUIDs. Public Voices items are constructed from the Notion voice registry plus RSS. Their stable identity is the feed guid (`yt:video:VIDEO_ID` for YouTube), not `intel.source_items.id`. Theme Memory consumes the same Voice RSS items as observations (`identity_key` `yt:VIDEOID` or `url:…`) but creator-notes retrieval does not write Theme Memory tables.
+
+Resolution order:
+
+1. If `--source-item` is an intel UUID, look up `intel.source_items`
+2. Otherwise match a live Voice RSS item by guid, `yt:video:` / `yt:` identity, or stored YouTube URL / video id
+
+Supported YouTube shapes: `youtube.com/watch?v=…`, `youtu.be/…`, and stored Voice identities such as `yt:video:VIDEO_ID`.
+
+Caption preference: manual/public creator captions, then auto-generated captions. The CLI does not synthesize a transcript with an LLM and does not substitute title/description text.
+
+If `--transcript-file` is present, it always wins and remote retrieval is skipped.
+
 The episode title may be stored and shown. It is **not** treated as event identity. The prompt states this explicitly.
 
 ## CLI usage
+
+Supplied transcript:
 
 ```bash
 npm run creator-notes:extract -- \
@@ -181,21 +208,53 @@ npm run creator-notes:extract -- \
   --transcript-file ./tmp/test-transcript.json
 ```
 
+Automatic YouTube captions from an existing Voice/source item:
+
+```bash
+npm run creator-notes:extract -- \
+  --source-item <real-existing-item-id> \
+  --dry-run
+```
+
+List recent creator/Voice items (read-only) to obtain a real id:
+
+```bash
+npm run creator-notes:sources -- --limit 10
+```
+
+The listing prints `ID`, creator, title, published time, and provider. Typical Voice ids look like `yt:video:VIDEO_ID`, not intel UUIDs.
+
 Flags:
 
 | Flag | Effect |
 |------|--------|
-| `--dry-run` | Extract + validate + print. Zero DB writes. Does **not** query or write `intel.creator_note_runs` / `intel.creator_atomic_notes`, and does **not** require the creator-notes migration or a `source_items` lookup. |
+| `--dry-run` | Extract + validate + print. Zero creator-note DB writes. Does **not** query or write `intel.creator_note_runs` / `intel.creator_atomic_notes`, and does **not** require the creator-notes migration. File mode also skips `source_items` lookup. Remote mode still **reads** the existing source item (intel UUID or Voice RSS) so captions can be fetched. |
 | `--force` | Bypass equivalent-run skip; still fingerprint-dedupes notes. |
 | `--limit-notes <n>` | Keep at most n notes after dedupe. |
 | `--json` | Machine-readable result instead of the human report. |
-| `--creator-name <name>` | Fill missing creator attribution metadata. Used for dry-run calibration when DB metadata is absent. |
-| `--source-title <title>` | Fill missing source title. Not persisted as invented source metadata. |
-| `--source-url <url>` | Fill missing source URL. Not persisted as invented source metadata. |
+| `--creator-name <name>` | Fill missing creator attribution metadata. On remote dry-run, may override resolved creator name. Not persisted as invented source metadata. |
+| `--source-title <title>` | Fill missing source title. On remote dry-run, may override resolved title. |
+| `--source-url <url>` | Fill missing source URL. On remote dry-run, may override resolved URL. |
 
 Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
-Human preview (not `--json`) shows timestamp, kind, attribution, `Transcript:` evidence from `sourceExcerpt` or `(not available)`, notebook paraphrase, and source segment indexes. A narrower verified `exactQuote` is shown only when it is not essentially identical to the transcript excerpt. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `notes with source evidence`, `notes without source evidence`, `invalid source segment references`, `exact quotes requested`, `exact quotes verified`, and `exact quotes rejected`.
+Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters), then the existing Atomic Notes report. Note previews show timestamp, kind, attribution, `Transcript:` evidence from `sourceExcerpt` or `(not available)`, notebook paraphrase, and source segment indexes. A narrower verified `exactQuote` is shown only when it is not essentially identical to the transcript excerpt. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `notes with source evidence`, `notes without source evidence`, `invalid source segment references`, `exact quotes requested`, `exact quotes verified`, and `exact quotes rejected`.
+
+First real YouTube dry-run (do not persist):
+
+```bash
+npm run creator-notes:sources -- --limit 10
+```
+
+Pick a `youtube` row, then:
+
+```bash
+THEME_AI_PROVIDER=ollama \
+OLLAMA_MODEL=gemma3:4b \
+npm run creator-notes:extract -- \
+  --source-item <ACTUAL_ID> \
+  --dry-run
+```
 
 First real calibration (do not persist). `--source-item` may be a stable calibration string; it does not have to be an intel UUID. CLI metadata does not require a DB lookup:
 
@@ -294,7 +353,7 @@ Source excerpts are copied from original segments (`CREATOR_NOTES_SOURCE_EXCERPT
 
 ## Milestone 1 scope boundaries
 
-**In scope:** one-source CLI extraction, validation, persistence, idempotency, tests, docs.
+**In scope:** one-source CLI extraction, validation, persistence, idempotency, tests, docs, YouTube caption retrieval for a single existing source item.
 
 **Out of scope:**
 
@@ -348,7 +407,9 @@ Creator commentary remains attributed perspective. It still is not corroboration
 
 ## Calibration
 
-Dry-run calibration does not require the creator-notes migration or a `source_items` lookup. Pass `--creator-name` when attribution should use a known creator. Source metadata may still be unavailable when the id is a calibration string rather than an intel UUID; that is expected and does not block extraction.
+File-mode dry-run calibration does not require the creator-notes migration or a `source_items` lookup. Pass `--creator-name` when attribution should use a known creator. Source metadata may still be unavailable when the id is a calibration string rather than a real Voice/intel id; that is expected and does not block extraction.
+
+Remote-mode dry-run (`--source-item` without `--transcript-file`) resolves a real existing item and fetches YouTube captions, then extracts + validates + prints. It still performs **zero** creator-note database writes and does not require the pending creator-notes migration.
 
 Before enabling this broadly, inspect a real transcript dry-run:
 

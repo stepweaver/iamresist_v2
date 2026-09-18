@@ -145,11 +145,37 @@ export interface CreatorNotesRunResult {
     notesWritten: number;
     status: CreatorNoteRunStatus | 'skipped';
   };
+  transcriptAcquisition?: TranscriptAcquisitionDiagnostics | null;
+}
+
+export type CreatorTranscriptProviderName = 'youtube' | 'unknown';
+
+export interface ResolvedCreatorSource {
+  sourceItemId: string;
+  creatorId: string | null;
+  creatorName: string | null;
+  title: string | null;
+  url: string;
+  publishedAt: string | null;
+  provider: CreatorTranscriptProviderName;
+  externalId: string | null;
+}
+
+export type TranscriptGeneratedFlag = 'yes' | 'no' | 'unknown';
+
+export interface TranscriptAcquisitionDiagnostics {
+  source: 'file' | 'youtube-captions';
+  language: string | null;
+  generated: TranscriptGeneratedFlag;
+  rawSegments: number;
+  normalizedSegments: number;
+  durationCoveredSeconds: number | null;
+  characters: number;
 }
 
 export interface CreatorNotesExtractArgs {
   sourceItemId: string;
-  transcriptFile: string;
+  transcriptFile: string | null;
   dryRun: boolean;
   force: boolean;
   limitNotes: number | null;
@@ -157,6 +183,10 @@ export interface CreatorNotesExtractArgs {
   creatorName: string | null;
   sourceTitle: string | null;
   sourceUrl: string | null;
+}
+
+export interface CreatorNotesSourcesArgs {
+  limit: number;
 }
 
 export interface CreatorNotesChunkExtractResult {
