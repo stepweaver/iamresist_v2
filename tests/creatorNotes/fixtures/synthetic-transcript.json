@@ -1,0 +1,54 @@
+{
+  "creatorId": "david-pakman",
+  "creatorName": "David Pakman",
+  "sourceTitle": "DEAR GOD: This is OFF THE RAILS",
+  "sourceUrl": "https://www.youtube.com/watch?v=example",
+  "publishedAt": "2026-09-17T16:00:00.000Z",
+  "segments": [
+    {
+      "startSeconds": 0,
+      "endSeconds": 12,
+      "text": "Hey everybody, welcome back to the show. Smash subscribe and hit the bell so you never miss an episode."
+    },
+    {
+      "startSeconds": 12,
+      "endSeconds": 28,
+      "text": "A federal appeals court issued a stay late Tuesday blocking the administration's National Guard deployment order in Chicago."
+    },
+    {
+      "startSeconds": 28,
+      "endSeconds": 46,
+      "text": "The speaker says the order would have placed 2,000 troops under federal control inside the city by the weekend."
+    },
+    {
+      "startSeconds": 46,
+      "endSeconds": 68,
+      "text": "For background, a district judge had already temporarily restrained the same deployment last month after local officials sued."
+    },
+    {
+      "startSeconds": 68,
+      "endSeconds": 92,
+      "text": "Pakman points to a Congressional Research Service report on the Insurrection Act and to the Seventh Circuit docket entry from Tuesday night."
+    },
+    {
+      "startSeconds": 92,
+      "endSeconds": 118,
+      "text": "In my view, this is the administration testing how far it can push domestic military deployments before the courts slam the door."
+    },
+    {
+      "startSeconds": 118,
+      "endSeconds": 142,
+      "text": "This matters because if the stay is lifted, other cities could see the same federalization playbook within days."
+    },
+    {
+      "startSeconds": 142,
+      "endSeconds": 160,
+      "text": "Again, a federal appeals court issued a stay late Tuesday blocking that National Guard deployment order in Chicago."
+    },
+    {
+      "startSeconds": 160,
+      "endSeconds": 180,
+      "text": "Today's sponsor is a VPN that wants you to think privacy is a checkout coupon. Use code PAKMAN for a discount and let's get back to the news."
+    }
+  ]
+}

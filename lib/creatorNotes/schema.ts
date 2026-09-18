@@ -1,0 +1,74 @@
+import {
+  CREATOR_NOTE_KINDS,
+  CREATOR_NOTES_ACTION_MAX,
+  CREATOR_NOTES_ATTRIBUTION_MAX,
+  CREATOR_NOTES_EVENT_FEATURE_STRING_MAX,
+  CREATOR_NOTES_MAX_ACTORS,
+  CREATOR_NOTES_MAX_INSTITUTIONS,
+  CREATOR_NOTES_MAX_LOCATIONS,
+  CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS,
+  CREATOR_NOTES_OBJECT_MAX,
+  CREATOR_NOTES_TEXT_MAX_CHARS,
+  CREATOR_NOTES_TEXT_MIN_CHARS,
+  CREATOR_NOTES_MAX_NOTES_PER_CHUNK_DEFAULT,
+} from '@/lib/creatorNotes/constants';
+
+/**
+ * Ollama `format` JSON Schema for atomic note extraction.
+ * Application-side parseCreatorNotesOutput() remains the source of truth.
+ */
+export const CREATOR_NOTES_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    notes: {
+      type: 'array',
+      maxItems: CREATOR_NOTES_MAX_NOTES_PER_CHUNK_DEFAULT,
+      items: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: [...CREATOR_NOTE_KINDS] },
+          startSeconds: { type: 'number', minimum: 0 },
+          endSeconds: { type: 'number', minimum: 0 },
+          text: {
+            type: 'string',
+            minLength: CREATOR_NOTES_TEXT_MIN_CHARS,
+            maxLength: CREATOR_NOTES_TEXT_MAX_CHARS,
+          },
+          attribution: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
+          eventFeatures: {
+            type: 'object',
+            properties: {
+              actors: {
+                type: 'array',
+                maxItems: CREATOR_NOTES_MAX_ACTORS,
+                items: { type: 'string', maxLength: CREATOR_NOTES_EVENT_FEATURE_STRING_MAX },
+              },
+              action: { type: 'string', maxLength: CREATOR_NOTES_ACTION_MAX },
+              object: { type: 'string', maxLength: CREATOR_NOTES_OBJECT_MAX },
+              institutions: {
+                type: 'array',
+                maxItems: CREATOR_NOTES_MAX_INSTITUTIONS,
+                items: { type: 'string', maxLength: CREATOR_NOTES_EVENT_FEATURE_STRING_MAX },
+              },
+              locations: {
+                type: 'array',
+                maxItems: CREATOR_NOTES_MAX_LOCATIONS,
+                items: { type: 'string', maxLength: CREATOR_NOTES_EVENT_FEATURE_STRING_MAX },
+              },
+              referencedDocuments: {
+                type: 'array',
+                maxItems: CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS,
+                items: { type: 'string', maxLength: CREATOR_NOTES_EVENT_FEATURE_STRING_MAX },
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+        required: ['kind', 'text'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['notes'],
+  additionalProperties: false,
+} as const;

@@ -106,7 +106,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 
 **OSINT intel desk**
 
-- Apply intel SQL migrations in timestamp order (through `20260915140000_theme_memory_themes.sql` so Theme Memory persistent theme tables exist, and through `20260427143000_congress_gov_agenda_pulse.sql` so `fetch_kind`, `source_family`, and `state_change_type` constraints allow Congress.gov/Agenda Pulse rows). Earlier files include `20260412120000_intel_milestone1.sql`, `20260412140000_intel_live_desk_snapshot.sql`, `20260412150000_intel_milestone1_5_governance.sql`, `20260412160000_intel_milestone1_75_relevance.sql`, `20260412170000_intel_source_lanes_content_use.sql`, `20260418120000_intel_source_family_desk_lanes.sql`, and `20260418201000_intel_source_items_desk_lane_extend.sql`. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
+- Apply intel SQL migrations in timestamp order (through `20260917210000_creator_atomic_notes.sql` so Atomic Creator Notes tables exist, through `20260915140000_theme_memory_themes.sql` so Theme Memory persistent theme tables exist, and through `20260427143000_congress_gov_agenda_pulse.sql` so `fetch_kind`, `source_family`, and `state_change_type` constraints allow Congress.gov/Agenda Pulse rows). Earlier files include `20260412120000_intel_milestone1.sql`, `20260412140000_intel_live_desk_snapshot.sql`, `20260412150000_intel_milestone1_5_governance.sql`, `20260412160000_intel_milestone1_75_relevance.sql`, `20260412170000_intel_source_lanes_content_use.sql`, `20260418120000_intel_source_family_desk_lanes.sql`, and `20260418201000_intel_source_items_desk_lane_extend.sql`. Source registry and content-use policy: [`docs/intel/public-sources.md`](docs/intel/public-sources.md).
 - **Required:** Supabase **Project Settings → API → Exposed schemas** must include **`intel`** (not only `public`). Without this, the API returns `Invalid schema: intel` and `/intel/osint` cannot load.
 - Optional wire feeds (omit both if blocked — ingest skips them; no silent downgrade): `INTEL_REUTERS_RSS_URL`, `INTEL_AP_RSS_URL`
 - Optional Congress.gov structured primary-source ingestion: `CONGRESS_GOV_API_KEY`. When unset, Congress.gov source rows are present but disabled/skipped fail-closed; the key is appended only inside the fetch helper and is redacted from ingest metadata.
@@ -135,6 +135,15 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - Internal calibration: `GET /api/internal/theme-ranking-diagnostics` in development or with `INTERNAL_THEME_RANKING_DEBUG=1` / `INTERNAL_INTEL_DESK_DEBUG=1`
 - Apply intel SQL migrations through `20260915140000_theme_memory_themes.sql` in addition to the OSINT desk migrations above
 - See [`docs/theme-memory.md`](docs/theme-memory.md)
+
+**Atomic Creator Notes** (`lib/creatorNotes/`)
+
+- Milestone 1 structured notebook notes from **one** creator transcript. Not a public UI and not Theme Memory linking.
+- Reuses Theme AI / Ollama env (`THEME_AI_PROVIDER=ollama`, `OLLAMA_MODEL`, `THEME_AI_TIMEOUT_MS`). Live extraction has no deterministic fallback.
+- Optional: `CREATOR_NOTES_CHUNK_CHARS` (default `12000`), `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` (default `30`)
+- Apply intel SQL migrations through `20260917210000_creator_atomic_notes.sql`
+- CLI: `npm run creator-notes:extract -- --source-item <id> --transcript-file ./tmp/transcript.json --dry-run`
+- See [`docs/atomic-creator-notes.md`](docs/atomic-creator-notes.md)
 
 **Stripe / Printify / email** (`lib/env/shop.js`, `lib/env/site.js`)
 
@@ -173,6 +182,7 @@ Open [http://localhost:3000](http://localhost:3000). Turbopack is enabled in the
 | `npm run test:watch` | Vitest watch |
 | `npm run theme-memory:daily` | VPS/local Theme Memory ingest + process (direct services, not HTTP) |
 | `npm run theme-memory:ai-check` | Ollama reachability + membership schema smoke test (no Theme Memory writes) |
+| `npm run creator-notes:extract` | Extract atomic creator notes from one transcript file (use `--dry-run` first) |
 
 ---
 

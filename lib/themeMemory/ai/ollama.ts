@@ -43,13 +43,14 @@ function probeErrorMessage(error: unknown): string {
   return String(error);
 }
 
-async function ollamaChat(input: {
+export async function ollamaChatJson(input: {
   messages: Array<{ role: string; content: string }>;
-  format: typeof THEME_MEMBERSHIP_JSON_SCHEMA | typeof THEME_LABEL_JSON_SCHEMA;
+  format: unknown;
   timeoutMs: number;
   baseUrl: string;
   model: string;
   retries: number;
+  logLabel?: string;
 }): Promise<{ content: string; model: string }> {
   const url = `${input.baseUrl.replace(/\/$/, '')}/api/chat`;
   let lastError: unknown;
@@ -99,7 +100,7 @@ async function ollamaChat(input: {
       if (!String(content).trim()) {
         throw new ThemeAIValidationError('empty_model_output');
       }
-      console.info('[theme-memory-ai] ollama ok', {
+      console.info(input.logLabel || '[theme-memory-ai]', 'ollama ok', {
         model: json.model || input.model,
         chars: String(content).length,
         attempt,
@@ -266,7 +267,7 @@ export function createOllamaThemeAIProvider(opts: {
     name: 'ollama',
     model,
     async classifyMembership(input: ThemeMembershipClassifyInput) {
-      const { content } = await ollamaChat({
+      const { content } = await ollamaChatJson({
         messages: buildMembershipMessages(input),
         format: THEME_MEMBERSHIP_JSON_SCHEMA,
         timeoutMs,
@@ -277,7 +278,7 @@ export function createOllamaThemeAIProvider(opts: {
       return parseMembershipOutput(content);
     },
     async generateThemeLabel(input: ThemeLabelGenerateInput) {
-      const { content } = await ollamaChat({
+      const { content } = await ollamaChatJson({
         messages: buildLabelMessages(input),
         format: THEME_LABEL_JSON_SCHEMA,
         timeoutMs,
