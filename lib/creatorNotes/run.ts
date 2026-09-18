@@ -74,7 +74,6 @@ export async function runCreatorNoteExtraction(
   const nextId = deps.id || (() => randomUUID());
   const aiConfig = deps.aiConfig || resolveCreatorNotesAiConfig();
   const extractChunk = deps.extractChunk || extractCreatorNotesChunk;
-  const store = deps.store || createSupabaseCreatorNotesStore();
   const log = deps.log;
 
   const transcriptHash = hashCreatorTranscript(transcript.segments);
@@ -113,15 +112,21 @@ export async function runCreatorNoteExtraction(
     throw new Error('Supabase not configured');
   }
 
-  const equivalent = await store.findEquivalentSuccessRun({
-    sourceItemId: transcript.sourceItemId,
-    transcriptHash,
-    extractionVersion: CREATOR_NOTE_EXTRACTION_VERSION,
-    modelProvider: aiConfig.provider,
-    modelName: aiConfig.model,
-  });
+  // Dry-run never touches creator-notes tables, including equivalent-run lookup.
+  const store = dryRun ? deps.store || null : deps.store || createSupabaseCreatorNotesStore();
 
-  if (equivalent && !force && !dryRun) {
+  let equivalent: CreatorNoteRun | null = null;
+  if (!dryRun && store) {
+    equivalent = await store.findEquivalentSuccessRun({
+      sourceItemId: transcript.sourceItemId,
+      transcriptHash,
+      extractionVersion: CREATOR_NOTE_EXTRACTION_VERSION,
+      modelProvider: aiConfig.provider,
+      modelName: aiConfig.model,
+    });
+  }
+
+  if (equivalent && !force) {
     logEvent(log, '[creator-notes]', 'prior-run skip', { runId: equivalent.id });
     return {
       source,
@@ -164,7 +169,7 @@ export async function runCreatorNoteExtraction(
     createdAt: startedAt,
   };
 
-  if (!dryRun) {
+  if (!dryRun && store) {
     await store.insertRun(runRow);
   }
 
@@ -245,7 +250,7 @@ export async function runCreatorNoteExtraction(
           ? chunkErrors[0] || 'partial_validation'
           : null;
 
-    if (!dryRun) {
+    if (!dryRun && store) {
       const inserted = await store.insertNotes(notes);
       notesWritten = inserted.written;
       await store.updateRun(runId, {
@@ -276,14 +281,14 @@ export async function runCreatorNoteExtraction(
       duplicatesRemoved: deduped.duplicatesRemoved,
       persistence: {
         dryRun,
-        priorEquivalentRunId: equivalent?.id ?? null,
+        priorEquivalentRunId: dryRun ? null : equivalent?.id ?? null,
         runId: dryRun ? null : runId,
         notesWritten: dryRun ? 0 : notesWritten,
         status,
       },
     };
   } catch (error) {
-    if (!dryRun) {
+    if (!dryRun && store) {
       await store.updateRun(runId, {
         status: 'failed',
         notesCreated: 0,

@@ -131,7 +131,9 @@ CLI v1 reads a JSON file. YouTube / Pocket Casts fetching is out of scope.
 }
 ```
 
-`--source-item` is the provenance id (intel `source_items.id` when available, or any stable test id). Optional file fields fill creator/title/URL when the database row is missing.
+`--source-item` is the provenance id. Real persisted runs should use the intel `source_items.id` UUID whenever possible. Calibration and local dry-runs may use any stable string (for example `calibration-david-pakman-2026-09-17`). Source metadata lookup only queries `source_items` when that id is a UUID; non-UUID ids skip the lookup rather than sending invalid input to Postgres.
+
+Optional file fields fill creator/title/URL when the database row is missing or unavailable. During calibration, source metadata may be absent (`creatorId`, `creatorName`, `sourceTitle`, `sourceUrl`, `publishedAt` stay null unless the transcript file supplies them). Extraction still proceeds. Do not invent metadata.
 
 The episode title may be stored and shown. It is **not** treated as event identity. The prompt states this explicitly.
 
@@ -147,21 +149,23 @@ Flags:
 
 | Flag | Effect |
 |------|--------|
-| `--dry-run` | Extract + validate + print. Zero DB writes. |
+| `--dry-run` | Extract + validate + print. Zero DB writes. Does **not** query or write `intel.creator_note_runs` / `intel.creator_atomic_notes`, and does **not** require the creator-notes migration. |
 | `--force` | Bypass equivalent-run skip; still fingerprint-dedupes notes. |
 | `--limit-notes <n>` | Keep at most n notes after dedupe. |
 | `--json` | Machine-readable result instead of the human report. |
 
 Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
-First real calibration (do not persist):
+First real calibration (do not persist). `--source-item` may be a stable calibration string; it does not have to be an intel UUID:
 
 ```bash
 npm run creator-notes:extract -- \
-  --source-item <REAL_SOURCE_ITEM_ID> \
+  --source-item calibration-david-pakman-2026-09-17 \
   --transcript-file ./tmp/creator-notes-calibration.json \
   --dry-run
 ```
+
+When you persist, pass the real `source_items.id` UUID whenever it exists so provenance stays attached.
 
 ## Idempotency
 
@@ -171,7 +175,7 @@ A completed **success** run with the same:
 
 `sourceItemId + transcriptHash + extractionVersion + model provider/name`
 
-is skipped unless `--force`.
+is skipped unless `--force`. `--dry-run` does not perform this equivalent-run lookup.
 
 Note fingerprint:
 
@@ -280,6 +284,8 @@ TIME — EVENT
 Creator commentary remains attributed perspective. It still is not corroboration.
 
 ## Calibration
+
+Dry-run calibration does not require the creator-notes migration. Source metadata may be unavailable when the id is a calibration string rather than an intel UUID; that is expected and does not block extraction.
 
 Before enabling this broadly, inspect a real transcript dry-run:
 

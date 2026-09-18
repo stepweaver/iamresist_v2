@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { chunkCreatorTranscript } from '@/lib/creatorNotes/chunk';
 import {
@@ -9,12 +9,14 @@ import {
   CREATOR_NOTE_EXTRACTION_VERSION,
 } from '@/lib/creatorNotes/constants';
 import { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
-import { parseCreatorNotesExtractArgs } from '@/lib/creatorNotes/format';
+import { formatCreatorNotesReport, parseCreatorNotesExtractArgs } from '@/lib/creatorNotes/format';
 import {
   creatorNoteFingerprint,
   hashCreatorTranscript,
+  isUuid,
   serializeTranscriptForHash,
 } from '@/lib/creatorNotes/identity';
+import { loadCreatorSourceMetadata } from '@/lib/creatorNotes/source';
 import { defaultVerificationStatus, dedupeRawCreatorNotes, toAtomicNotes } from '@/lib/creatorNotes/postprocess';
 import { buildCreatorNoteMessages, CREATOR_NOTE_SYSTEM_PROMPT } from '@/lib/creatorNotes/prompt';
 import { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
@@ -34,6 +36,26 @@ const TEST_AI = {
 function ids(prefix: string) {
   let n = 0;
   return () => `${prefix}-${++n}`;
+}
+
+const CALIBRATION_SOURCE_ID = 'calibration-david-pakman-2026-09-17';
+const INTEL_SOURCE_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+
+function missingCreatorNotesStore() {
+  return {
+    findEquivalentSuccessRun: vi.fn(async () => {
+      throw new Error("Could not find the table 'intel.creator_note_runs' in the schema cache");
+    }),
+    insertRun: vi.fn(async () => {
+      throw new Error("Could not find the table 'intel.creator_note_runs' in the schema cache");
+    }),
+    updateRun: vi.fn(async () => {
+      throw new Error("Could not find the table 'intel.creator_note_runs' in the schema cache");
+    }),
+    insertNotes: vi.fn(async () => {
+      throw new Error("Could not find the table 'intel.creator_atomic_notes' in the schema cache");
+    }),
+  };
 }
 
 describe('Atomic Creator Notes identity', () => {
@@ -59,6 +81,14 @@ describe('Atomic Creator Notes identity', () => {
       { ...transcript.segments[transcript.segments.length - 1], text: 'A meaningfully different closing line about the case.' },
     ]);
     expect(changed).not.toBe(original);
+  });
+
+  it('treats only RFC-style UUID strings as UUIDs', () => {
+    expect(isUuid(INTEL_SOURCE_UUID)).toBe(true);
+    expect(isUuid('  550e8400-e29b-41d4-a716-446655440000  ')).toBe(true);
+    expect(isUuid(CALIBRATION_SOURCE_ID)).toBe(false);
+    expect(isUuid('source-item-1')).toBe(false);
+    expect(isUuid('')).toBe(false);
   });
 
   it('fingerprints the same note identically', () => {
@@ -306,10 +336,12 @@ describe('Atomic Creator Notes run', () => {
       createdAt: '2026-09-17T19:00:00.000Z',
     };
     const store = createMemoryCreatorNotesStore({ runs: [prior] });
+    const findEquivalent = vi.spyOn(store, 'findEquivalentSuccessRun');
     const result = await runCreatorNoteExtraction(
       { transcript },
       { store, extractChunk: mockExtractChunk(), aiConfig: TEST_AI, id: ids('id'), log: () => {} },
     );
+    expect(findEquivalent).toHaveBeenCalledTimes(1);
     expect(result.persistence.status).toBe('skipped');
     expect(result.persistence.notesWritten).toBe(0);
     expect(store.writeCount()).toBe(0);
@@ -336,10 +368,12 @@ describe('Atomic Creator Notes run', () => {
       createdAt: '2026-09-17T19:00:00.000Z',
     };
     const store = createMemoryCreatorNotesStore({ runs: [prior] });
+    const findEquivalent = vi.spyOn(store, 'findEquivalentSuccessRun');
     const result = await runCreatorNoteExtraction(
       { transcript, force: true },
       { store, extractChunk: mockExtractChunk(), aiConfig: TEST_AI, id: ids('force'), log: () => {} },
     );
+    expect(findEquivalent).toHaveBeenCalledTimes(1);
     expect(result.persistence.status).toBe('success');
     expect(result.persistence.priorEquivalentRunId).toBe('run-prior');
     expect(result.persistence.runId).not.toBe('run-prior');
@@ -347,19 +381,50 @@ describe('Atomic Creator Notes run', () => {
     expect(store.notes.length).toBeGreaterThan(0);
   });
 
-  it('performs zero database writes on dry-run', async () => {
-    const store = createMemoryCreatorNotesStore();
+  it('performs zero creator-notes queries on dry-run', async () => {
+    const store = missingCreatorNotesStore();
     const result = await runCreatorNoteExtraction(
-      { transcript: loadSyntheticTranscript(), dryRun: true },
+      { transcript: loadSyntheticTranscript(CALIBRATION_SOURCE_ID), dryRun: true },
       { store, extractChunk: mockExtractChunk(), aiConfig: TEST_AI, id: ids('dry'), log: () => {} },
     );
+    expect(store.findEquivalentSuccessRun).not.toHaveBeenCalled();
+    expect(store.insertRun).not.toHaveBeenCalled();
+    expect(store.updateRun).not.toHaveBeenCalled();
+    expect(store.insertNotes).not.toHaveBeenCalled();
     expect(result.persistence.dryRun).toBe(true);
+    expect(result.persistence.priorEquivalentRunId).toBeNull();
     expect(result.persistence.notesWritten).toBe(0);
     expect(result.persistence.runId).toBeNull();
+    expect(result.source.sourceItemId).toBe(CALIBRATION_SOURCE_ID);
     expect(result.notes.length).toBeGreaterThan(0);
-    expect(store.writeCount()).toBe(0);
-    expect(store.runs).toHaveLength(0);
-    expect(store.notes).toHaveLength(0);
+
+    const report = formatCreatorNotesReport(result);
+    expect(report).toContain('prior equivalent run: skipped (dry-run)');
+    expect(report).toContain('run id: (none)');
+    expect(report).toContain('notes written: 0');
+  });
+
+  it('dry-runs without a creator-notes store when tables do not exist', async () => {
+    const result = await runCreatorNoteExtraction(
+      { transcript: loadSyntheticTranscript(CALIBRATION_SOURCE_ID), dryRun: true },
+      { extractChunk: mockExtractChunk(), aiConfig: TEST_AI, id: ids('dry-nostore'), log: () => {} },
+    );
+    expect(result.persistence.dryRun).toBe(true);
+    expect(result.persistence.runId).toBeNull();
+    expect(result.persistence.notesWritten).toBe(0);
+    expect(result.notes.length).toBeGreaterThan(0);
+  });
+
+  it('still requires creator-notes persistence infrastructure for persisted runs', async () => {
+    const store = missingCreatorNotesStore();
+    await expect(
+      runCreatorNoteExtraction(
+        { transcript: loadSyntheticTranscript() },
+        { store, extractChunk: mockExtractChunk(), aiConfig: TEST_AI, id: ids('need-db'), log: () => {} },
+      ),
+    ).rejects.toThrow(/creator_note_runs/);
+    expect(store.findEquivalentSuccessRun).toHaveBeenCalledTimes(1);
+    expect(store.insertNotes).not.toHaveBeenCalled();
   });
 
   it('does not write Theme Memory tables from the extraction path', async () => {
@@ -389,5 +454,59 @@ describe('Atomic Creator Notes transcript file', () => {
   it('requires a segments array', () => {
     expect(() => parseTranscriptFilePayload({ segments: [] }, 'abc')).toThrow(/empty/);
     expect(() => parseTranscriptFilePayload({ notes: [] }, 'abc')).toThrow(/segments array/);
+  });
+});
+
+describe('Atomic Creator Notes source metadata', () => {
+  it('does not query a UUID column for calibration source ids', async () => {
+    const fetchById = vi.fn(async () => {
+      throw new Error('source_items by id select: invalid input syntax for type uuid');
+    });
+    const result = await loadCreatorSourceMetadata(CALIBRATION_SOURCE_ID, {
+      dbConfigured: () => true,
+      fetchById,
+    });
+    expect(result).toBeNull();
+    expect(fetchById).not.toHaveBeenCalled();
+  });
+
+  it('looks up metadata when the source id is a UUID', async () => {
+    const fetchById = vi.fn(async (id: string) => ({
+      id,
+      desk_lane: 'voices',
+      title: 'DEAR GOD: This is OFF THE RAILS',
+      canonical_url: 'https://www.youtube.com/watch?v=example',
+      published_at: '2026-09-17T00:00:00.000Z',
+      sources: {
+        desk_lane: 'voices',
+        name: 'David Pakman',
+        slug: 'david-pakman',
+      },
+    }));
+    const result = await loadCreatorSourceMetadata(INTEL_SOURCE_UUID, {
+      dbConfigured: () => true,
+      fetchById,
+    });
+    expect(fetchById).toHaveBeenCalledTimes(1);
+    expect(fetchById).toHaveBeenCalledWith(INTEL_SOURCE_UUID);
+    expect(result).toEqual({
+      sourceItemId: INTEL_SOURCE_UUID,
+      creatorId: 'david-pakman',
+      creatorName: 'David Pakman',
+      sourceTitle: 'DEAR GOD: This is OFF THE RAILS',
+      sourceUrl: 'https://www.youtube.com/watch?v=example',
+      publishedAt: '2026-09-17T00:00:00.000Z',
+      sourceIdentityKey: 'https://www.youtube.com/watch?v=example',
+    });
+  });
+
+  it('does not invent metadata when a UUID row is missing', async () => {
+    const fetchById = vi.fn(async () => null);
+    const result = await loadCreatorSourceMetadata(INTEL_SOURCE_UUID, {
+      dbConfigured: () => true,
+      fetchById,
+    });
+    expect(fetchById).toHaveBeenCalledTimes(1);
+    expect(result).toBeNull();
   });
 });

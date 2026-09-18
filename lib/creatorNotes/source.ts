@@ -1,15 +1,41 @@
 import 'server-only';
 
-import { intelDbConfigured, fetchSourceItemById } from '@/lib/intel/db';
+import { isUuid } from '@/lib/creatorNotes/identity';
 import type { CreatorTranscriptInput } from '@/lib/creatorNotes/types';
+import { intelDbConfigured, fetchSourceItemById } from '@/lib/intel/db';
+
+type SourceItemMetadataRow = {
+  id: string;
+  title?: string | null;
+  canonical_url?: string | null;
+  published_at?: string | null;
+  desk_lane?: string | null;
+  sources?: {
+    name?: string | null;
+    slug?: string | null;
+    desk_lane?: string | null;
+  } | null;
+};
+
+export type LoadCreatorSourceMetadataDeps = {
+  dbConfigured?: () => boolean;
+  fetchById?: (id: string) => Promise<SourceItemMetadataRow | null>;
+};
 
 export async function loadCreatorSourceMetadata(
   sourceItemId: string,
+  deps: LoadCreatorSourceMetadataDeps = {},
 ): Promise<Partial<CreatorTranscriptInput> | null> {
   const id = String(sourceItemId || '').trim();
-  if (!id || !intelDbConfigured()) return null;
+  if (!id) return null;
+  // Calibration IDs are stable strings, not intel UUIDs. Skip UUID-column lookup.
+  if (!isUuid(id)) return null;
 
-  const row = await fetchSourceItemById(id);
+  const configured = deps.dbConfigured ? deps.dbConfigured() : intelDbConfigured();
+  if (!configured) return null;
+
+  const fetchById = deps.fetchById || fetchSourceItemById;
+  const row = await fetchById(id);
   if (!row) return null;
 
   const isVoice = row.desk_lane === 'voices' || row.sources?.desk_lane === 'voices';

@@ -117,8 +117,12 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     '',
     'Persistence:',
     `  dry run: ${result.persistence.dryRun ? 'yes' : 'no'}`,
-    `  prior equivalent run: ${result.persistence.priorEquivalentRunId || '—'}`,
-    `  run id: ${result.persistence.runId || '—'}`,
+    `  prior equivalent run: ${
+      result.persistence.dryRun
+        ? 'skipped (dry-run)'
+        : result.persistence.priorEquivalentRunId || '—'
+    }`,
+    `  run id: ${result.persistence.dryRun ? '(none)' : result.persistence.runId || '—'}`,
     `  notes written: ${result.persistence.notesWritten}`,
     `  status: ${result.persistence.status}`,
   ];
