@@ -1,7 +1,20 @@
 import { normalizeForQuoteMatch } from '@/lib/creatorNotes/quotes';
+import {
+  CREATOR_NOTE_KINDS,
+  CREATOR_NOTES_BATCH_DEFAULT_LIMIT,
+  CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS,
+  CREATOR_NOTES_REVIEW_DEFAULT_LIMIT,
+  CREATOR_NOTES_REVIEW_HARD_MAX,
+} from '@/lib/creatorNotes/constants';
+import { clampCreatorNotesBatchLimit, clampCreatorNotesSinceHours } from '@/lib/creatorNotes/select';
 import type {
   CreatorAtomicNote,
+  CreatorNoteKind,
+  CreatorNotesBatchArgs,
+  CreatorNotesBatchResult,
   CreatorNotesExtractArgs,
+  CreatorNotesReviewArgs,
+  CreatorNotesReviewResult,
   CreatorNotesRunResult,
   CreatorNotesSourcesArgs,
   ResolvedCreatorSource,
@@ -41,6 +54,24 @@ function hasFlag(argv: string[], name: string): boolean {
   return argv.some((arg) => arg === name || arg.startsWith(`${name}=`));
 }
 
+function parsePositiveInt(raw: string | null, flag: string): number | null {
+  if (raw == null) return null;
+  if (raw === '' || !/^\d+$/.test(raw) || Number(raw) < 1) {
+    throw new Error(`${flag} must be a positive integer`);
+  }
+  return Number(raw);
+}
+
+function parseKindFlag(raw: string | null): CreatorNoteKind | null {
+  if (raw == null) return null;
+  const kind = raw.trim();
+  if (!kind) throw new Error('Missing --kind <kind>');
+  if (!CREATOR_NOTE_KINDS.includes(kind as CreatorNoteKind)) {
+    throw new Error(`--kind must be one of: ${CREATOR_NOTE_KINDS.join(', ')}`);
+  }
+  return kind as CreatorNoteKind;
+}
+
 export function parseCreatorNotesExtractArgs(argv: string[]): CreatorNotesExtractArgs {
   const sourceItemId = argValue(argv, '--source-item');
   if (!sourceItemId) {
@@ -72,6 +103,33 @@ export function parseCreatorNotesSourcesArgs(argv: string[]): CreatorNotesSource
     throw new Error('--limit must be a positive integer');
   }
   return { limit: Number(raw) };
+}
+
+export function parseCreatorNotesBatchArgs(argv: string[]): CreatorNotesBatchArgs {
+  const limitRaw = parsePositiveInt(argValue(argv, '--limit'), '--limit');
+  const sinceRaw = parsePositiveInt(argValue(argv, '--since-hours'), '--since-hours');
+  return {
+    limit: clampCreatorNotesBatchLimit(limitRaw ?? CREATOR_NOTES_BATCH_DEFAULT_LIMIT),
+    dryRun: argv.includes('--dry-run'),
+    force: argv.includes('--force'),
+    creator: parseOptionalFlag(argv, '--creator'),
+    sinceHours: clampCreatorNotesSinceHours(sinceRaw ?? CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS),
+    json: argv.includes('--json'),
+  };
+}
+
+export function parseCreatorNotesReviewArgs(argv: string[]): CreatorNotesReviewArgs {
+  const limitRaw = parsePositiveInt(argValue(argv, '--limit'), '--limit');
+  const sinceRaw = parsePositiveInt(argValue(argv, '--since-hours'), '--since-hours');
+  const limit = limitRaw ?? CREATOR_NOTES_REVIEW_DEFAULT_LIMIT;
+  return {
+    limit: Math.max(1, Math.min(CREATOR_NOTES_REVIEW_HARD_MAX, limit)),
+    creator: parseOptionalFlag(argv, '--creator'),
+    kind: parseKindFlag(argValue(argv, '--kind')),
+    sinceHours: sinceRaw,
+    sourceItemId: parseOptionalFlag(argv, '--source-item'),
+    json: argv.includes('--json'),
+  };
 }
 
 function formatDurationCovered(seconds: number | null): string {
@@ -252,5 +310,124 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     }
   }
 
+  return lines.join('\n');
+}
+
+function formatDurationMs(ms: number | null): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`;
+}
+
+export function formatCreatorNotesBatchReport(result: CreatorNotesBatchResult): string {
+  if (result.lockBusy) {
+    return `creator-notes batch already running\n${result.skipReason || ''}`.trim();
+  }
+  if (result.skipReason && result.items.length === 0) {
+    return `Atomic Creator Notes Batch\n==========================\n\nSkipped: ${result.skipReason}`;
+  }
+
+  const s = result.summary;
+  const lines = [
+    'Atomic Creator Notes Batch',
+    '==========================',
+    '',
+    `Candidate Voice items: ${s.candidateVoiceItems}`,
+    `Processed: ${s.processed}`,
+    `Already processed: ${s.alreadyProcessed}`,
+    `No captions: ${s.noCaptions}`,
+    `Failed: ${s.failed}`,
+    '',
+    'Caption failures:',
+    `  no captions: ${s.captionFailures.no_captions}`,
+    `  fetch error: ${s.captionFailures.fetch_error}`,
+    `  malformed captions: ${s.captionFailures.malformed_captions}`,
+    `  empty transcript: ${s.captionFailures.empty_transcript}`,
+    '',
+    'Transcripts:',
+    `  caption tracks fetched: ${s.transcripts.captionTracksFetched}`,
+    `  characters processed: ${s.transcripts.charactersProcessed}`,
+    `  chunks: ${s.transcripts.chunks}`,
+    '',
+    'Notes:',
+    `  total: ${s.notes.total}`,
+    `  event: ${s.notes.event}`,
+    `  claim: ${s.notes.claim}`,
+    `  new_development: ${s.notes.new_development}`,
+    `  context: ${s.notes.context}`,
+    `  evidence_reference: ${s.notes.evidence_reference}`,
+    `  creator_analysis: ${s.notes.creator_analysis}`,
+    `  why_it_matters: ${s.notes.why_it_matters}`,
+    '',
+    'Evidence:',
+    `  notes with source evidence: ${s.evidence.notesWithSourceEvidence}`,
+    `  notes without source evidence: ${s.evidence.notesWithoutSourceEvidence}`,
+    `  exact quotes verified: ${s.evidence.exactQuotesVerified}`,
+    `  exact quotes rejected: ${s.evidence.exactQuotesRejected}`,
+    '',
+    'Persistence:',
+    `  runs created: ${s.persistence.dryRun ? 0 : s.persistence.runsCreated}`,
+    `  notes written: ${s.persistence.dryRun ? 0 : s.persistence.notesWritten}`,
+    '',
+    'Duration:',
+    `  total: ${formatDurationMs(s.duration.totalMs)}`,
+    `  average/item: ${formatDurationMs(s.duration.averagePerItemMs)}`,
+  ];
+
+  if (s.creators.length) {
+    lines.push('', 'Creators:');
+    for (const row of s.creators) {
+      const name = String(row.creatorName || row.creatorId || 'unknown');
+      const padded = name.length >= 20 ? `${name.slice(0, 19)}…` : name.padEnd(20);
+      lines.push(`  ${padded} items ${row.items}   notes ${row.notes}`);
+    }
+  }
+
+  if (result.summary.persistence.dryRun) {
+    lines.push('', 'Dry run: yes (zero creator-note writes)');
+  }
+
+  return lines.join('\n');
+}
+
+export function formatCreatorNotesReview(result: CreatorNotesReviewResult): string {
+  if (!result.groups.length) {
+    return 'No creator notes found.';
+  }
+  const blocks: string[] = [];
+  for (const group of result.groups) {
+    const header = [
+      '==================================================',
+      group.creatorName || group.creatorId || 'Unknown creator',
+      group.title || group.sourceItemId,
+      `published: ${group.publishedAt || '—'}`,
+      `source: ${group.sourceUrl || group.sourceItemId}`,
+      `run: ${group.runId || '—'}`,
+      `notes: ${group.notes.length}`,
+      '==================================================',
+    ];
+    const body = group.notes.map((note) => formatReviewNote(note)).join('\n\n');
+    blocks.push([...header, '', body].join('\n'));
+  }
+  return blocks.join('\n\n');
+}
+
+function formatReviewNote(note: CreatorAtomicNote): string {
+  const lines = [`${formatNoteTimestamp(note.startSeconds)} ${kindLabel(note.kind)}`, ''];
+  if (note.sourceExcerpt) {
+    lines.push('Transcript:', `"${note.sourceExcerpt}"`, '');
+  } else {
+    lines.push('Transcript: (not available)', '');
+  }
+  lines.push('Note:', note.text);
+  if (note.exactQuote && !essentiallyIdenticalText(note.exactQuote, note.sourceExcerpt)) {
+    lines.push('', 'Exact quote:', `"${note.exactQuote}"`);
+  }
   return lines.join('\n');
 }

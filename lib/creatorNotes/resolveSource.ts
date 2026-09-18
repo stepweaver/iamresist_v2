@@ -132,6 +132,84 @@ export function matchesVoiceIdentity(
   return false;
 }
 
+export function canonicalVoiceIdentityKey(item: {
+  sourceItemId: string;
+  sourceId?: string | null;
+  url?: string | null;
+}): string {
+  const yt = parseYouTubeVideoId(item.url, item.sourceId || item.sourceItemId);
+  if (yt) return `yt:${yt.toLowerCase()}`;
+  const url = optionalText(item.url);
+  if (url) return `url:${url.toLowerCase()}`;
+  return `id:${String(item.sourceItemId || '').trim().toLowerCase()}`;
+}
+
+function publishedMs(item: { publishedAt?: string | null }): number {
+  if (!item.publishedAt) return Number.NEGATIVE_INFINITY;
+  const parsed = Date.parse(item.publishedAt);
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+export function compareVoiceItemsNewestFirst(
+  a: { sourceItemId: string; creatorId?: string | null; publishedAt?: string | null },
+  b: { sourceItemId: string; creatorId?: string | null; publishedAt?: string | null },
+): number {
+  const byTime = publishedMs(b) - publishedMs(a);
+  if (byTime !== 0) return byTime;
+  const byId = String(a.sourceItemId).localeCompare(String(b.sourceItemId));
+  if (byId !== 0) return byId;
+  return String(a.creatorId || '').localeCompare(String(b.creatorId || ''));
+}
+
+export function sortVoiceItemsNewestFirst<T extends {
+  sourceItemId: string;
+  creatorId?: string | null;
+  publishedAt?: string | null;
+}>(items: T[]): T[] {
+  return [...items].sort(compareVoiceItemsNewestFirst);
+}
+
+export function dedupeVoiceIdentities<T extends {
+  sourceItemId: string;
+  sourceId?: string | null;
+  url?: string | null;
+}>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of items) {
+    const key = canonicalVoiceIdentityKey(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+export function isNonContentVoiceArtifact(item: {
+  sourceItemId: string;
+  sourceId?: string | null;
+  url?: string | null;
+}): boolean {
+  const identity = String(item.sourceId || item.sourceItemId || '');
+  if (/^yt:(playlist|channel|user|community):/i.test(identity)) return true;
+  const yt = parseYouTubeVideoId(item.url, item.sourceId || item.sourceItemId);
+  if (yt) return false;
+  const url = String(item.url || '').toLowerCase();
+  return /youtube\.com\/(playlist|channel|user|@)/i.test(url);
+}
+
+export function isEligibleYouTubeVoiceItem(item: CreatorVoiceCatalogItem): boolean {
+  if (!optionalText(item.url) || !optionalText(item.sourceItemId)) return false;
+  if (isNonContentVoiceArtifact(item)) return false;
+  const yt = parseYouTubeVideoId(item.url, item.sourceId || item.sourceItemId);
+  if (!yt) return false;
+  return classifyCreatorSourceProvider(item.url, item.sourceId || item.sourceItemId) === 'youtube';
+}
+
+export function resolvedCreatorSourceFromVoiceItem(item: CreatorVoiceCatalogItem): ResolvedCreatorSource {
+  return resolvedFromVoiceItem(item);
+}
+
 function resolvedFromVoiceItem(item: CreatorVoiceCatalogItem): ResolvedCreatorSource {
   const url = item.url;
   const externalId =
@@ -202,21 +280,7 @@ export async function loadVoiceCatalogItems(): Promise<CreatorVoiceCatalogItem[]
     ),
   );
 
-  const seen = new Set<string>();
-  const out: CreatorVoiceCatalogItem[] = [];
-  for (const item of groups.flat()) {
-    const key = voiceIdentityAliases(item).map((value) => value.toLowerCase()).join('|') || item.sourceItemId;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
-  }
-
-  out.sort((a, b) => {
-    const aTime = a.publishedAt ? Date.parse(a.publishedAt) : 0;
-    const bTime = b.publishedAt ? Date.parse(b.publishedAt) : 0;
-    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
-  });
-  return out;
+  return dedupeVoiceIdentities(sortVoiceItemsNewestFirst(groups.flat()));
 }
 
 async function loadIntelRow(

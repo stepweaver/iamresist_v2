@@ -10,7 +10,7 @@ import type {
   CreatorTranscriptInput,
 } from '@/lib/creatorNotes/types';
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
-import { ollamaChatJson } from '@/lib/themeMemory/ai/ollama';
+import { ollamaChatJson, probeOllama } from '@/lib/themeMemory/ai/ollama';
 import { ThemeAIUnavailableError } from '@/lib/themeMemory/ai/types';
 
 export type CreatorNotesAiConfig = {
@@ -42,6 +42,23 @@ export function assertCreatorNotesAiConfigured(config: CreatorNotesAiConfig = re
   }
   if (!config.model) {
     throw new ThemeAIUnavailableError('OLLAMA_MODEL is not configured', 'model_not_configured');
+  }
+}
+
+export async function warmupCreatorNotesAi(
+  config: CreatorNotesAiConfig = resolveCreatorNotesAiConfig(),
+): Promise<void> {
+  assertCreatorNotesAiConfigured(config);
+  const probe = await probeOllama({
+    baseUrl: config.baseUrl,
+    model: config.model,
+    timeoutMs: config.timeoutMs,
+  });
+  if (!probe.ok) {
+    throw new ThemeAIUnavailableError(
+      `Ollama is not ready: ${probe.error || 'unknown error'}`,
+      'ollama_not_ready',
+    );
   }
 }
 

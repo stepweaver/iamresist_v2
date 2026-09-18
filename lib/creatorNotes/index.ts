@@ -6,14 +6,18 @@ export { defaultVerificationStatus, dedupeRawCreatorNotes } from '@/lib/creatorN
 export { applyQuoteVerification } from '@/lib/creatorNotes/quotes';
 export { applySourceEvidence } from '@/lib/creatorNotes/sourceEvidence';
 export { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
-export { parseCreatorNotesExtractArgs, parseCreatorNotesSourcesArgs, formatCreatorNotesReport } from '@/lib/creatorNotes/format';
-export { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
+export { parseCreatorNotesExtractArgs, parseCreatorNotesSourcesArgs, parseCreatorNotesBatchArgs, parseCreatorNotesReviewArgs, formatCreatorNotesReport, formatCreatorNotesBatchReport, formatCreatorNotesReview } from '@/lib/creatorNotes/format';
+export { createMemoryCreatorNotesStore, loadPersistedCreatorNotesReview } from '@/lib/creatorNotes/db';
 export { shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
 export { resolveCreatorSource, listCreatorSources } from '@/lib/creatorNotes/resolveSource';
 export { parseYouTubeVideoId, classifyCreatorSourceProvider } from '@/lib/creatorNotes/youtubeIdentity';
 export { normalizeCaptionCues } from '@/lib/creatorNotes/normalizeCaptions';
 export { YouTubeTranscriptProvider } from '@/lib/creatorNotes/youtubeTranscript';
 export { prepareCreatorNotesTranscript } from '@/lib/creatorNotes/prepare';
+export { runCreatorNotesBatch } from '@/lib/creatorNotes/batch';
+export { reviewCreatorNotes } from '@/lib/creatorNotes/review';
+export { selectEligibleCreatorNotesItems } from '@/lib/creatorNotes/select';
+export { acquireCreatorNotesRunLock, CreatorNotesLockBusyError } from '@/lib/creatorNotes/runLock';
 
 export type {
   CreatorAtomicNote,

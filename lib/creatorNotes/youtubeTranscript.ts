@@ -3,6 +3,7 @@ import {
   captionRequestFailedError,
   emptyNormalizedTranscriptError,
   emptyTranscriptError,
+  malformedCaptionsError,
   noCaptionTracksError,
 } from '@/lib/creatorNotes/errors';
 import { transcriptCharCount } from '@/lib/creatorNotes/identity';
@@ -275,6 +276,26 @@ export function parseXmlCaptions(payload: string): CaptionCue[] {
   return cues;
 }
 
+function looksLikeHtml(text: string): boolean {
+  const trimmed = text.trim().toLowerCase();
+  return trimmed.startsWith('<!doctype') || trimmed.startsWith('<html');
+}
+
+export function isMalformedCaptionPayload(payload: string): boolean {
+  const trimmed = String(payload || '').trim();
+  if (!trimmed) return false;
+  if (looksLikeHtml(trimmed)) return true;
+  if (trimmed.startsWith('{')) {
+    try {
+      JSON.parse(trimmed);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+  return !/<text\b/i.test(trimmed) && !/<transcript\b/i.test(trimmed);
+}
+
 function parseCaptionPayload(payload: string): CaptionCue[] {
   const trimmed = String(payload || '').trim();
   if (!trimmed) return [];
@@ -345,6 +366,7 @@ export class YouTubeTranscriptProvider implements TranscriptProvider {
     const captionUrls = [captionUrlWithFmt(selected.baseUrl, 'json3'), selected.baseUrl];
     let cues: CaptionCue[] = [];
     let captionFailed = false;
+    let lastPayload = '';
 
     for (const captionUrl of captionUrls) {
       let res: { ok: boolean; status: number; text: string };
@@ -358,6 +380,7 @@ export class YouTubeTranscriptProvider implements TranscriptProvider {
         captionFailed = true;
         continue;
       }
+      lastPayload = res.text || '';
       cues = parseCaptionPayload(res.text);
       if (cues.length) {
         captionFailed = false;
@@ -366,7 +389,9 @@ export class YouTubeTranscriptProvider implements TranscriptProvider {
     }
 
     if (!cues.length) {
-      throw captionFailed ? captionRequestFailedError() : emptyTranscriptError();
+      if (captionFailed) throw captionRequestFailedError();
+      if (lastPayload && isMalformedCaptionPayload(lastPayload)) throw malformedCaptionsError();
+      throw emptyTranscriptError();
     }
 
     const transcript = transcriptFromSource(source, cues);

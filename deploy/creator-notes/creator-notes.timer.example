@@ -1,0 +1,14 @@
+[Unit]
+Description=Atomic Creator Notes batch timer (4x daily)
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+OnCalendar=*-*-* 09:20:00
+OnCalendar=*-*-* 15:20:00
+OnCalendar=*-*-* 21:20:00
+Persistent=true
+RandomizedDelaySec=180
+Unit=creator-notes.service
+
+[Install]
+WantedBy=timers.target

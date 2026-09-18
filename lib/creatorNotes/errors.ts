@@ -36,3 +36,7 @@ export function emptyTranscriptError(): CreatorTranscriptError {
 export function emptyNormalizedTranscriptError(): CreatorTranscriptError {
   return new CreatorTranscriptError('transcript normalization produced no usable segments');
 }
+
+export function malformedCaptionsError(): CreatorTranscriptError {
+  return new CreatorTranscriptError('malformed captions');
+}

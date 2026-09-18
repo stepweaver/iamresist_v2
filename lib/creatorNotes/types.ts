@@ -189,6 +189,121 @@ export interface CreatorNotesSourcesArgs {
   limit: number;
 }
 
+export interface CreatorNotesBatchArgs {
+  limit: number;
+  dryRun: boolean;
+  force: boolean;
+  creator: string | null;
+  sinceHours: number;
+  json: boolean;
+}
+
+export interface CreatorNotesReviewArgs {
+  limit: number;
+  creator: string | null;
+  kind: CreatorNoteKind | null;
+  sinceHours: number | null;
+  sourceItemId: string | null;
+  json: boolean;
+}
+
+export type CreatorNotesCaptionFailureReason =
+  | 'no_captions'
+  | 'fetch_error'
+  | 'malformed_captions'
+  | 'empty_transcript';
+
+export type CreatorNotesBatchItemOutcome =
+  | 'processed'
+  | 'already_processed'
+  | 'no_captions'
+  | 'failed';
+
+export interface CreatorNotesBatchItemResult {
+  sourceItemId: string;
+  creatorId: string | null;
+  creatorName: string | null;
+  title: string | null;
+  url: string | null;
+  publishedAt: string | null;
+  outcome: CreatorNotesBatchItemOutcome;
+  captionFailure: CreatorNotesCaptionFailureReason | null;
+  error: string | null;
+  notes: number;
+  notesWritten: number;
+  runId: string | null;
+  transcriptChars: number;
+  chunks: number;
+  captionTracksFetched: number;
+  evidenceDiagnostics: CreatorNoteEvidenceDiagnostics | null;
+  quoteDiagnostics: CreatorNoteQuoteDiagnostics | null;
+  sequential: true;
+}
+
+export interface CreatorNotesCreatorDistributionRow {
+  creatorId: string | null;
+  creatorName: string | null;
+  items: number;
+  notes: number;
+}
+
+export interface CreatorNotesBatchSummary {
+  candidateVoiceItems: number;
+  processed: number;
+  alreadyProcessed: number;
+  noCaptions: number;
+  failed: number;
+  captionFailures: Record<CreatorNotesCaptionFailureReason, number>;
+  transcripts: {
+    captionTracksFetched: number;
+    charactersProcessed: number;
+    chunks: number;
+  };
+  notes: CreatorNoteKindCounts & { total: number };
+  evidence: {
+    notesWithSourceEvidence: number;
+    notesWithoutSourceEvidence: number;
+    exactQuotesVerified: number;
+    exactQuotesRejected: number;
+  };
+  persistence: {
+    dryRun: boolean;
+    runsCreated: number;
+    notesWritten: number;
+  };
+  creators: CreatorNotesCreatorDistributionRow[];
+  duration: {
+    totalMs: number;
+    averagePerItemMs: number | null;
+  };
+}
+
+export interface CreatorNotesBatchResult {
+  ok: boolean;
+  overallStatus: 'success' | 'partial' | 'failed' | 'skipped';
+  lockBusy: boolean;
+  skipReason: string | null;
+  summary: CreatorNotesBatchSummary;
+  items: CreatorNotesBatchItemResult[];
+}
+
+export interface CreatorNotesReviewGroup {
+  sourceItemId: string;
+  creatorId: string | null;
+  creatorName: string | null;
+  title: string | null;
+  publishedAt: string | null;
+  sourceUrl: string | null;
+  runId: string | null;
+  notes: CreatorAtomicNote[];
+}
+
+export interface CreatorNotesReviewResult {
+  groups: CreatorNotesReviewGroup[];
+  noteCount: number;
+  readOnly: true;
+}
+
 export interface CreatorNotesChunkExtractResult {
   notes: RawCreatorNote[];
   rejected: number;

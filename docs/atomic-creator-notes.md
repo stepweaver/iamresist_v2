@@ -1,8 +1,17 @@
 # Atomic Creator Notes
 
-Milestone 1: a deterministic, inspectable pipeline that turns **one** creator transcript into structured notebook-style notes.
+A deterministic, inspectable pipeline that turns creator transcripts into structured notebook-style notes.
 
 This is **not** a Theme Memory rewrite. Theme Memory stays intact. Ranking mode is unchanged (`THEME_RANKING_MODE=shadow` in current ops). Creator notes do **not** create theme memberships, theme identities, daily signals, or ranking writes.
+
+Atomic Creator Notes are currently an **editorial/research dataset**.
+
+They are **not** yet:
+
+- public
+- Theme Memory evidence
+- ranking input
+- fact-checked output
 
 The first success criterion is not article generation. It is:
 
@@ -25,10 +34,14 @@ The extractor behaves like a careful listener with a notebook:
 
 Transcript content is authoritative. Title text is metadata only.
 
-## Architecture (Milestone 1)
+## Architecture
 
 ```
-creator source item
+Notion Voices
+        ↓
+existing Voice RSS discovery
+        ↓
+eligible new YouTube Voice items
         ↓
 transcript/content
   A. supplied JSON file, or
@@ -36,7 +49,7 @@ transcript/content
         ↓
 deterministic chunking
         ↓
-local Ollama / gemma3:4b
+local Ollama / gemma3:4b  (sequential)
         ↓
 strictly validated JSON
         ↓
@@ -45,8 +58,10 @@ atomic creator notes
 Supabase intel.creator_note_runs
         + intel.creator_atomic_notes
         ↓
-CLI diagnostic output
+CLI diagnostic output / review command
 ```
+
+Single-item mode still exists for calibration. Bounded batch mode discovers eligible Voice items automatically. Neither path writes Theme Memory or ranking state.
 
 Reuse:
 
@@ -200,6 +215,8 @@ The episode title may be stored and shown. It is **not** treated as event identi
 
 ## CLI usage
 
+### Single-item extraction
+
 Supplied transcript:
 
 ```bash
@@ -224,7 +241,59 @@ npm run creator-notes:sources -- --limit 10
 
 The listing prints `ID`, creator, title, published time, and provider. Typical Voice ids look like `yt:video:VIDEO_ID`, not intel UUIDs.
 
-Flags:
+### Bounded batch ingest
+
+Automatically discover eligible YouTube Voice items and persist notes. This is the production worker path. It is **not** unbounded and it does **not** backfill the historical Voice corpus.
+
+```bash
+npm run creator-notes:batch -- --limit 10
+```
+
+Optional:
+
+```bash
+npm run creator-notes:batch -- --limit 10 --dry-run
+npm run creator-notes:batch -- --limit 10 --creator david-pakman
+npm run creator-notes:batch -- --limit 10 --since-hours 24
+npm run creator-notes:batch -- --limit 10 --force
+```
+
+Defaults:
+
+| Flag | Default |
+|------|---------|
+| `--limit` | `10` (hard maximum `50`) |
+| `--since-hours` | `48` (hard maximum `168`) |
+
+Eligibility (creator/Voice only):
+
+- real Voice RSS item
+- YouTube provider with a resolvable video id
+- published within the recency window
+- caption retrieval is supported
+- not a duplicate Voice identity
+- not already completed for the same source identity + transcript hash + extraction version + model/provider
+- not an obvious non-content feed artifact (`yt:playlist:` / `yt:channel:` style identities)
+
+Batch processing is **newest first**, with stable `sourceItemId` / `creatorId` tie-breaks. One item failure does not abort the batch. Caption failures (`no captions`, fetch error, malformed captions, empty transcript) are operational skips, not a broken creator feed.
+
+Requests to Ollama are **sequential**. A process lock (`tmp/creator-notes-batch.lock`, overridable with `CREATOR_NOTES_LOCK_FILE`) prevents overlapping batches. If a batch is already running, the second invocation exits cleanly.
+
+Normal batch mode **writes** `intel.creator_note_runs` and `intel.creator_atomic_notes`. `--dry-run` extracts and prints with zero creator-note writes.
+
+### Review
+
+Read-only operator inspection of persisted notes, grouped by source item:
+
+```bash
+npm run creator-notes:review -- --limit 50
+```
+
+Default `--limit` is `25` source items. Useful filters: `--creator <slug>`, `--kind <kind>`, `--since-hours <n>`, `--source-item <id>`, `--json`.
+
+The review command only SELECTs creator-notes tables. It does not write Theme Memory, ranking, or creator-notes rows.
+
+Flags (single-item extract):
 
 | Flag | Effect |
 |------|--------|
@@ -297,6 +366,8 @@ A completed **success** run with the same:
 
 is skipped unless `--force`. `--dry-run` does not perform this equivalent-run lookup.
 
+The scheduled batch may see the same Voice item many times. Failed or partial prior runs **may retry**. Successful equivalent runs are skipped and reported as `Already processed`.
+
 Note fingerprint:
 
 `sha256(sourceItemId | kind | normalizedText | startSeconds)`
@@ -344,6 +415,7 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `OLLAMA_MODEL` | `gemma3:4b` if unset for this CLI | Chat model |
 | `THEME_AI_TIMEOUT_MS` | `45000` | Per-chunk timeout |
 | `THEME_AI_MAX_RETRIES` | `2` | Retry transient Ollama failures |
+| `CREATOR_NOTES_LOCK_FILE` | `tmp/creator-notes-batch.lock` | Exclusive batch lock; separate from Theme Memory |
 | `CREATOR_NOTES_CHUNK_CHARS` | `12000` | Target chunk size |
 | `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` | `30` | Hard cap per chunk |
 
@@ -353,21 +425,53 @@ Source excerpts are copied from original segments (`CREATOR_NOTES_SOURCE_EXCERPT
 
 ## Milestone 1 scope boundaries
 
-**In scope:** one-source CLI extraction, validation, persistence, idempotency, tests, docs, YouTube caption retrieval for a single existing source item.
+**In scope:** one-source CLI extraction, supplied transcript files, automatic YouTube captions, bounded Voice batch ingest, read-only review, validation, persistence, idempotency, recency window, caption-failure handling, overlap lock, systemd unit files (manual install), tests, docs.
 
 **Out of scope:**
 
 - public UI / chronological journal page
 - homepage ranking changes
-- Theme Memory scoring or matching changes
-- automatic theme memberships or theme mutations
-- publishing or finished articles
+- Theme Memory scoring, matching, memberships, or mutations
+- event clustering from notes
+- automated publication
+- editor notes
 - treating creator opinions as facts
 - broad fact-checking / marking claims true because the model said so
+- historical backfill of the entire Voice corpus
 - vector DB / embeddings
 - paid external AI providers
-- new scraping service / full catalog ingest
+- merging this worker into Theme Memory
 - generalized agent framework
+
+## systemd
+
+Do **not** merge this into `theme-memory.service`. Install a separate unit after reviewing the implementation. Application code never enables the timer.
+
+See [deploy/creator-notes/README.md](../deploy/creator-notes/README.md).
+
+```bash
+sudo cp deploy/creator-notes/creator-notes.service.example /etc/systemd/system/creator-notes.service
+sudo cp deploy/creator-notes/creator-notes.timer.example /etc/systemd/system/creator-notes.timer
+# edit User=, WorkingDirectory=, EnvironmentFile=
+sudo systemctl daemon-reload
+sudo systemctl enable --now creator-notes.timer
+```
+
+Suggested cadence: 4 runs per day at 03:20 / 09:20 / 15:20 / 21:20, offset from Theme Memory. Each invocation is `npm run creator-notes:batch -- --limit 10`.
+
+## First persisted batch
+
+```bash
+THEME_AI_PROVIDER=ollama \
+OLLAMA_MODEL=gemma3:4b \
+npm run creator-notes:batch -- --limit 10
+```
+
+Then inspect:
+
+```bash
+npm run creator-notes:review -- --limit 50
+```
 
 ## Future architecture (documented only)
 
