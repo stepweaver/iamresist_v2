@@ -51,6 +51,7 @@ export async function ollamaChatJson(input: {
   model: string;
   retries: number;
   logLabel?: string;
+  options?: Record<string, unknown>;
 }): Promise<{ content: string; model: string }> {
   const url = `${input.baseUrl.replace(/\/$/, '')}/api/chat`;
   let lastError: unknown;
@@ -69,7 +70,7 @@ export async function ollamaChatJson(input: {
           messages: input.messages,
           stream: false,
           format: input.format,
-          options: { temperature: THEME_AI_STRUCTURED_TEMPERATURE },
+          options: { temperature: THEME_AI_STRUCTURED_TEMPERATURE, ...(input.options || {}) },
         }),
       });
 

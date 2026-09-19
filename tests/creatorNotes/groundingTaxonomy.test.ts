@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { chunkCreatorTranscript, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
-import { CREATOR_NOTE_KINDS, CREATOR_NOTES_TEXT_MAX_CHARS } from '@/lib/creatorNotes/constants';
+import { CREATOR_NOTE_EXTRACTION_VERSION, CREATOR_NOTE_KINDS, CREATOR_NOTES_TEXT_MAX_CHARS } from '@/lib/creatorNotes/constants';
 import { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
 import {
   creatorNotesRecoveryReason,
+  isCreatorNotesConnectionError,
   isCreatorNotesRecoverableInferenceError,
   isCreatorNotesTokenRepeatError,
 } from '@/lib/creatorNotes/extract';
@@ -48,6 +49,12 @@ function tokenRepeatError(): Error {
 function genericHttp500(): Error {
   const error = new Error('ollama_http_500:internal server error');
   (error as Error & { code: string }).code = 'ollama_http_500';
+  return error;
+}
+
+function fetchFailedError(): Error {
+  const error = new Error('fetch failed');
+  (error as Error & { code: string }).code = 'UND_ERR_SOCKET';
   return error;
 }
 
@@ -212,6 +219,41 @@ describe('Atomic Creator Notes taxonomy calibration', () => {
     expect(kindSchema.type).toBe('string');
     expect(JSON.stringify(CREATOR_NOTES_JSON_SCHEMA)).not.toMatch(/"enum":\["event"/);
     expect(CREATOR_NOTE_KINDS[0]).toBe('event');
+  });
+
+  it('rejects invented kinds like summary instead of defaulting them to event', () => {
+    const parsed = parseCreatorNotesOutput(
+      JSON.stringify({
+        notes: [
+          {
+            kind: 'summary',
+            text: 'Jiang recaps the official narrative as a performance of confidence.',
+            sourceSegmentIndexes: [1],
+          },
+          {
+            kind: 'key_takeaway',
+            text: 'Jiang says the steelman of the official narrative still fails.',
+            sourceSegmentIndexes: [2],
+          },
+        ],
+      }),
+    );
+    expect(parsed.notes).toHaveLength(0);
+    expect(parsed.kindDiagnostics.invalidKind).toBe(2);
+    expect(parsed.kindDiagnostics.coercions).toBe(0);
+    expect(parsed.kindDiagnostics.rawCounts.summary).toBe(1);
+    expect(parsed.kindDiagnostics.rawCounts.key_takeaway).toBe(1);
+    expect(parsed.kindDiagnostics.validatedCounts.event).toBe(0);
+  });
+
+  it('accepts case-normalized kind strings without counting them as coercions to event', () => {
+    const parsed = validateRawCreatorNote({
+      kind: 'CREATOR_ANALYSIS',
+      text: 'Jiang argues the steelman of the official narrative still fails.',
+      attribution: 'Professor Jiang',
+      sourceSegmentIndexes: [1],
+    });
+    expect(parsed.kind).toBe('creator_analysis');
   });
 });
 
@@ -416,6 +458,9 @@ describe('Atomic Creator Notes recoverable inference failures', () => {
     expect(isCreatorNotesRecoverableInferenceError(timeoutError())).toBe(true);
     expect(isCreatorNotesRecoverableInferenceError(genericHttp500())).toBe(false);
     expect(creatorNotesRecoveryReason(genericHttp500())).toBeNull();
+    expect(isCreatorNotesConnectionError(fetchFailedError())).toBe(true);
+    expect(isCreatorNotesRecoverableInferenceError(fetchFailedError())).toBe(true);
+    expect(creatorNotesRecoveryReason(fetchFailedError())).toBe('connection');
   });
 
   it('splits and retries once after a token-repeat failure', async () => {
@@ -478,6 +523,42 @@ describe('Atomic Creator Notes recoverable inference failures', () => {
     expect(calls).toBeLessThanOrEqual(1 + splitCreatorTranscriptChunk(chunkCreatorTranscript(segments)[0]).length);
     expect(result.persistence.status).toBe('failed');
     expect(result.notes).toHaveLength(0);
+  });
+
+  it('splits and retries once after a fetch-failed connection error', async () => {
+    const segments = makeSegments(16, 400);
+    const transcript = transcriptFromSegments(segments);
+    const events: Array<{ event: string; extra?: Record<string, unknown> }> = [];
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      {
+        aiConfig: TEST_AI,
+        id: ids('fetch-failed'),
+        log: (_prefix, event, extra) => events.push({ event, extra }),
+        extractChunk: async ({ chunk }) => {
+          if (chunk.charCount > 5000) throw fetchFailedError();
+          const index = chunk.segmentIndexes[0];
+          return {
+            notes: [
+              note({
+                text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+                exactQuote: `Seg ${String(index).padStart(3, '0')}`,
+                sourceQuote: `Seg ${String(index).padStart(3, '0')}`,
+                sourceSegmentIndexes: [index],
+                startSeconds: index * 10,
+                endSeconds: index * 10 + 8,
+              }),
+            ],
+            rejected: 0,
+          };
+        },
+      },
+    );
+    expect(events.some((row) => row.event === 'recoverable failure' && row.extra?.reason === 'connection')).toBe(true);
+    expect(events.some((row) => row.event === 'chunk split' && row.extra?.splitReason === 'connection')).toBe(true);
+    expect(result.ai.failedChunks).toBe(0);
+    expect(result.persistence.status).toBe('success');
+    expect(result.notes.length).toBeGreaterThan(0);
   });
 
   it('does not split on a generic HTTP 500', async () => {
@@ -561,6 +642,19 @@ describe('Atomic Creator Notes partial persistence and isolation', () => {
     expect(messages[1].content).toContain('sourceQuote is required');
     expect(messages[1].content).toContain('one primary proposition');
     expect(messages[1].content).toContain('Do not classify an interpretation as EVENT');
+    expect(messages[1].content).toContain('Do not invent kind names');
+    expect(messages[1].content).toContain('creator_analysis: "Jiang argues the steelman');
+    expect(messages[1].content.indexOf('</source>')).toBeLessThan(
+      messages[1].content.indexOf('kind is required and must be copied exactly'),
+    );
+    const repair = buildCreatorNoteMessages({
+      transcript,
+      chunk: chunkCreatorTranscript(transcript.segments)[0],
+      chunkCount: 1,
+      repair: true,
+      rejectedKinds: ['summary', 'key_takeaway'],
+    });
+    expect(repair[1].content).toContain('Previous invalid kind values, which are forbidden: summary, key_takeaway');
     const report = formatCreatorNotesReport({
       source: {
         sourceItemId: 's',
@@ -575,7 +669,7 @@ describe('Atomic Creator Notes partial persistence and isolation', () => {
       ai: {
         provider: 'test',
         model: 'test',
-        extractionVersion: 'creator-notes-v1.4',
+        extractionVersion: CREATOR_NOTE_EXTRACTION_VERSION,
         chunks: 1,
         successfulChunks: 1,
         failedChunks: 0,

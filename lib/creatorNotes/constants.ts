@@ -3,8 +3,8 @@
  * Bump CREATOR_NOTE_EXTRACTION_VERSION when prompt or validation semantics change.
  */
 
-export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.4';
-export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.4';
+export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.5';
+export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.5';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 
 export const CREATOR_NOTE_KINDS = [

@@ -19,7 +19,7 @@ import {
   emptyEvidenceDiagnostics,
   quoteDiagnosticsFromEvidence,
 } from '@/lib/creatorNotes/sourceEvidence';
-import { addKindDiagnostics, emptyKindDiagnostics } from '@/lib/creatorNotes/validate';
+import { addKindDiagnostics, emptyKindDiagnostics, invalidRawKindValues } from '@/lib/creatorNotes/validate';
 import type {
   CreatorAtomicNote,
   CreatorNoteEvidenceDiagnostics,
@@ -40,6 +40,7 @@ export type CreatorNotesExtractChunkFn = (input: {
   chunkCount: number;
   config?: CreatorNotesAiConfig;
   repair?: boolean;
+  rejectedKinds?: string[];
 }) => Promise<CreatorNotesChunkExtractResult>;
 
 export type CreatorNotesRunDeps = {
@@ -226,6 +227,7 @@ export async function runCreatorNoteExtraction(
   async function extractAndGround(
     chunk: CreatorTranscriptChunk,
     repair: boolean,
+    rejectedKinds?: string[],
   ): Promise<{
     notes: RawCreatorNote[];
     rejected: number;
@@ -239,6 +241,7 @@ export async function runCreatorNoteExtraction(
       chunkCount: chunks.length,
       config: aiConfig,
       repair,
+      rejectedKinds,
     });
     const grounded = acceptGroundedCreatorNotes(extracted.notes, transcript.segments, {
       allowedSegmentIndexes: chunk.segmentIndexes,
@@ -267,13 +270,15 @@ export async function runCreatorNoteExtraction(
     try {
       let result = await extractAndGround(chunk, false);
       if (result.notes.length === 0 && (result.proposed > 0 || result.rejected > 0)) {
+        const rejectedKinds = invalidRawKindValues(result.kindDiagnostics);
         logEvent(log, '[creator-notes]', 'chunk grounding repair started', {
           index: chunk.index,
           childOffset,
           proposed: result.proposed,
           rejected: result.rejected,
+          rejectedKinds,
         });
-        result = await extractAndGround(chunk, true);
+        result = await extractAndGround(chunk, true, rejectedKinds);
         logEvent(
           log,
           '[creator-notes]',

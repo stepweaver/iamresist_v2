@@ -17,9 +17,11 @@ import {
 /**
  * Ollama `format` JSON Schema for atomic note extraction.
  * Application-side parseCreatorNotesOutput() remains the source of truth.
- * `kind` is a free string here on purpose: JSON Schema enums bias constrained
- * decoding toward the first member (`event`). CREATOR_NOTE_KINDS is enforced
- * in application validation with no default/coercion.
+ * `kind` is a free string here on purpose: JSON Schema enums / left-to-right
+ * GBNF alternations bias constrained decoding toward the first member
+ * (`event`). CREATOR_NOTE_KINDS is enforced in application validation with
+ * no default/coercion. The prompt lists exact kind strings and few-shot
+ * examples instead.
  */
 export const CREATOR_NOTES_JSON_SCHEMA = {
   type: 'object',

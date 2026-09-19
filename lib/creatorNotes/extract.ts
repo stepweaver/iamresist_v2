@@ -50,11 +50,24 @@ export function isCreatorNotesTokenRepeatError(error: unknown): boolean {
   return /token repeat limit/i.test(message) || /prediction aborted/i.test(message);
 }
 
-export type CreatorNotesRecoveryReason = 'timeout' | 'token_repeat';
+export function isCreatorNotesConnectionError(error: unknown): boolean {
+  if (!error) return false;
+  const code =
+    typeof error === 'object' && error && 'code' in error ? String((error as { code: unknown }).code || '') : '';
+  const message = error instanceof Error ? error.message : String(error);
+  if (/ollama_http_/i.test(code) || /ollama_http_/i.test(message)) return false;
+  return (
+    /^fetch failed$/i.test(message.trim()) ||
+    /ECONNRESET|ECONNREFUSED|UND_ERR_SOCKET|socket hang up/i.test(message)
+  );
+}
+
+export type CreatorNotesRecoveryReason = 'timeout' | 'token_repeat' | 'connection';
 
 export function creatorNotesRecoveryReason(error: unknown): CreatorNotesRecoveryReason | null {
   if (isCreatorNotesTokenRepeatError(error)) return 'token_repeat';
   if (isCreatorNotesOllamaTimeout(error)) return 'timeout';
+  if (isCreatorNotesConnectionError(error)) return 'connection';
   return null;
 }
 
@@ -96,6 +109,7 @@ export async function extractCreatorNotesChunk(input: {
   chunkCount: number;
   config?: CreatorNotesAiConfig;
   repair?: boolean;
+  rejectedKinds?: string[];
 }): Promise<CreatorNotesChunkExtractResult> {
   const config = input.config || resolveCreatorNotesAiConfig();
   assertCreatorNotesAiConfigured(config);
@@ -106,6 +120,7 @@ export async function extractCreatorNotesChunk(input: {
       chunk: input.chunk,
       chunkCount: input.chunkCount,
       repair: Boolean(input.repair),
+      rejectedKinds: input.rejectedKinds,
     }),
     format: CREATOR_NOTES_JSON_SCHEMA,
     timeoutMs: config.timeoutMs,

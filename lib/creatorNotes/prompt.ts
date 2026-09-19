@@ -62,6 +62,8 @@ export const CREATOR_NOTE_SYSTEM_PROMPT = [
   'Do not cite one tiny segment while summarizing several minutes of material.',
   'The application will retrieve the verbatim transcript itself.',
   'Do not convert analysis into EVENT merely because it concerns an event.',
+  `kind must be copied exactly from: ${CREATOR_NOTE_KINDS.join(', ')}.`,
+  'Do not invent kind names such as summary, event_summary, key_takeaway, key_takeaways, critical_assessment, or call_to_action.',
   'sourceQuote must be copied exactly as written in the supplied transcript. Do not clean up grammar, punctuation, wording, or speaker phrasing.',
   'Do not invent or reconstruct quotations.',
   'Preserve source timestamps.',
@@ -106,6 +108,16 @@ const KIND_INSTRUCTIONS = [
   'Do not collapse these categories together.',
   'Do not force category diversity. Choose the kind that matches the note.',
   'Do not generate partisan framing. Preserve attribution rather than deciding a political conclusion.',
+  '',
+  'Copy the kind string exactly. Examples:',
+  '- event: "Iran announced a new maritime exclusion zone."',
+  '- claim: "Jiang says Iran has overstated military results before."',
+  '- new_development: "Jiang says the exclusion zone is wider than last week."',
+  '- context: "Jiang notes this is the second expansion since the carrier strike."',
+  '- evidence_reference: "Jiang cites an interception-rate figure from a named report."',
+  '- creator_analysis: "Jiang argues the steelman of the official narrative still fails."',
+  '- why_it_matters: "Jiang says the zone change raises the cost of a wider war."',
+  'Do not use summary, key_takeaway, event_summary, or similar invented labels.',
 ].join('\n');
 
 const GROUNDING_INSTRUCTIONS = [
@@ -119,18 +131,27 @@ const GROUNDING_INSTRUCTIONS = [
   'Do not use outside or world knowledge to fill missing facts.',
 ].join('\n');
 
-const REPAIR_INSTRUCTIONS = [
-  'GROUNDING REPAIR: the previous extraction for this transcript chunk produced notes without valid source grounding.',
-  'Every note must cite one or more supplied segment indexes.',
-  'Every note must include sourceQuote copied verbatim from those cited segments.',
-  'kind is required and must be one of the allowed kinds. Do not default missing or unknown kinds to event.',
-  'Each note must be one primary proposition, usually 1-2 sentences.',
-  'Do not emit a note that cannot be supported by the supplied transcript.',
-  'Do not invent a quote.',
-  'Preserve attribution.',
-  'Distinguish factual statements from creator analysis.',
-  'Do not convert analysis into EVENT merely because it concerns an event.',
-].join('\n');
+function repairInstructions(rejectedKinds?: string[]): string {
+  const invalid = (rejectedKinds || []).map((kind) => kind.trim()).filter(Boolean);
+  const uniqueInvalid = [...new Set(invalid)];
+  return [
+    'GROUNDING REPAIR: the previous extraction for this transcript chunk produced notes without valid source grounding or valid kinds.',
+    'Every note must cite one or more supplied segment indexes.',
+    'Every note must include sourceQuote copied verbatim from those cited segments.',
+    `kind is required and must be copied exactly from: ${CREATOR_NOTE_KINDS.join(', ')}.`,
+    'Do not default missing or unknown kinds to event.',
+    uniqueInvalid.length
+      ? `Previous invalid kind values, which are forbidden: ${uniqueInvalid.join(', ')}.`
+      : 'Do not invent kind names.',
+    'Do not use summary, event_summary, key_takeaway, key_takeaways, critical_assessment, or call_to_action.',
+    'Each note must be one primary proposition, usually 1-2 sentences.',
+    'Do not emit a note that cannot be supported by the supplied transcript.',
+    'Do not invent a quote.',
+    'Preserve attribution.',
+    'Distinguish factual statements from creator analysis.',
+    'Do not convert analysis into EVENT merely because it concerns an event.',
+  ].join('\n');
+}
 
 const SPECIFICITY_INSTRUCTIONS = [
   'Preserve specificity from the transcript.',
@@ -186,29 +207,11 @@ export function buildCreatorNoteMessages(input: {
   chunk: CreatorTranscriptChunk;
   chunkCount: number;
   repair?: boolean;
+  rejectedKinds?: string[];
 }): Array<{ role: 'system' | 'user'; content: string }> {
   const maxNotes = creatorNotesMaxNotesPerChunk();
   const knownCreator = clip(input.transcript.creatorName, 80);
   const user = [
-    KIND_INSTRUCTIONS,
-    '',
-    GROUNDING_INSTRUCTIONS,
-    '',
-    SPECIFICITY_INSTRUCTIONS,
-    '',
-    ...(input.repair ? [REPAIR_INSTRUCTIONS, ''] : []),
-    `Return JSON: {"notes":[{"kind":"...","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":string|null,"sourceQuote":"...","sourceSegmentIndexes":[0],"eventFeatures":{"actors":[],"action":string|null,"object":string|null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}`,
-    `notes must be an array of at most ${maxNotes} objects.`,
-    `kind is required and must be one of: ${CREATOR_NOTE_KINDS.join(', ')}. Do not omit kind. Do not default to event.`,
-    `text must be one concise notebook paraphrase of one primary proposition, usually 1-2 sentences, between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters. Preserve concrete names and identifiers from the transcript. Split independently useful numbers, events, or claims into separate notes.`,
-    `sourceSegmentIndexes is required for every note. Select the smallest set of integer SEGMENT indexes shown in the transcript headers that directly support the note, in transcript order, at most ${CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES} unique indexes. Prefer a contiguous range of at most 3 segments. They must exist in this chunk. Do not paraphrase evidence as a quotation. The application will retrieve the verbatim transcript itself.`,
-    `sourceQuote is required. Copy a contiguous substring exactly as written in the cited segments. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters. Do not invent quotation marks around a paraphrase. If you cannot copy a short supporting excerpt exactly, omit the note.`,
-    'startSeconds and endSeconds are seconds from the supplied transcript timestamps. Use null if unknown. endSeconds must not be less than startSeconds.',
-    attributionInstruction(knownCreator),
-    `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
-    'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
-    'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',
-    '',
     '<source>',
     `creator: ${knownCreator || '(unknown)'}`,
     `title (not event identity): ${clip(input.transcript.sourceTitle, 180) || '(none)'}`,
@@ -219,6 +222,25 @@ export function buildCreatorNoteMessages(input: {
     renderSegments(input.chunk),
     '</transcript>',
     '</source>',
+    '',
+    KIND_INSTRUCTIONS,
+    '',
+    GROUNDING_INSTRUCTIONS,
+    '',
+    SPECIFICITY_INSTRUCTIONS,
+    '',
+    ...(input.repair ? [repairInstructions(input.rejectedKinds), ''] : []),
+    `Return JSON: {"notes":[{"kind":"event","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":string|null,"sourceQuote":"...","sourceSegmentIndexes":[0],"eventFeatures":{"actors":[],"action":string|null,"object":string|null,"institutions":[],"locations":[],"referencedDocuments":[]}},{"kind":"creator_analysis","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":"${knownCreator || 'The speaker'}","sourceQuote":"...","sourceSegmentIndexes":[1],"eventFeatures":{"actors":[],"action":null,"object":null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}`,
+    `notes must be an array of at most ${maxNotes} objects.`,
+    `kind is required and must be copied exactly from: ${CREATOR_NOTE_KINDS.join(', ')}. Do not omit kind. Do not invent kind names. Do not default to event.`,
+    `text must be one concise notebook paraphrase of one primary proposition, usually 1-2 sentences, between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters. Preserve concrete names and identifiers from the transcript. Split independently useful numbers, events, or claims into separate notes.`,
+    `sourceSegmentIndexes is required for every note. Select the smallest set of integer SEGMENT indexes shown in the transcript headers that directly support the note, in transcript order, at most ${CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES} unique indexes. Prefer a contiguous range of at most 3 segments. They must exist in this chunk. Do not paraphrase evidence as a quotation. The application will retrieve the verbatim transcript itself.`,
+    `sourceQuote is required. Copy a contiguous substring exactly as written in the cited segments. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters. Do not invent quotation marks around a paraphrase. If you cannot copy a short supporting excerpt exactly, omit the note.`,
+    'startSeconds and endSeconds are seconds from the supplied transcript timestamps. Use null if unknown. endSeconds must not be less than startSeconds.',
+    attributionInstruction(knownCreator),
+    `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
+    'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
+    'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',
   ].join('\n');
 
   return [

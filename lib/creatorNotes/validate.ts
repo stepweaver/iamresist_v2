@@ -42,6 +42,18 @@ function isCreatorNoteKind(value: string): value is CreatorNoteKind {
   return (CREATOR_NOTE_KINDS as readonly string[]).includes(value);
 }
 
+export function canonicalCreatorNoteKind(value: string): CreatorNoteKind | null {
+  const cleaned = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, '_');
+  return isCreatorNoteKind(cleaned) ? cleaned : null;
+}
+
+export function invalidRawKindValues(diagnostics: CreatorNoteKindDiagnostics): string[] {
+  return Object.keys(diagnostics.rawCounts).filter((kind) => kind && kind !== '(missing)' && !isCreatorNoteKind(kind));
+}
+
 function isAttributionRequired(kind: CreatorNoteKind): kind is AttributionRequiredKind {
   return (ATTRIBUTION_REQUIRED_KINDS as readonly string[]).includes(kind);
 }
@@ -161,7 +173,7 @@ export function inspectRawNoteKind(
     return;
   }
   diagnostics.rawCounts[kind] = (diagnostics.rawCounts[kind] || 0) + 1;
-  if (!isCreatorNoteKind(kind)) diagnostics.invalidKind += 1;
+  if (!canonicalCreatorNoteKind(kind)) diagnostics.invalidKind += 1;
 }
 
 function parseSourceSegmentIndexes(value: unknown, segmentCount?: number): number[] {
@@ -248,11 +260,12 @@ export function validateRawCreatorNote(
   if (typeof value.kind !== 'string') {
     throw new CreatorNotesValidationError('kind_not_string');
   }
-  const kind = value.kind.trim();
-  if (!kind) {
+  const rawKind = value.kind.trim();
+  if (!rawKind) {
     throw new CreatorNotesValidationError('kind_missing');
   }
-  if (!isCreatorNoteKind(kind)) {
+  const kind = canonicalCreatorNoteKind(rawKind);
+  if (!kind) {
     throw new CreatorNotesValidationError('kind_invalid');
   }
   if (typeof value.text !== 'string') {

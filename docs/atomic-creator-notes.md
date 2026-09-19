@@ -417,7 +417,7 @@ Flags (single-item extract):
 
 Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
-Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters), then the existing Atomic Notes report. Note previews show start/end timestamp, kind, creator attribution, `Transcript:` evidence from deterministic `sourceExcerpt`, notebook paraphrase, source segment indexes, and a narrower verified `exactQuote` only when it is not essentially identical to the transcript excerpt. Accepted transcript-derived notes are grounded; `Transcript: (not available)` should not appear for them. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `notes with source evidence`, `notes without source evidence`, `invalid source segment references`, `exact quotes requested`, `exact quotes verified`, and `exact quotes rejected`.
+Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters, cache hit/miss for local audio), then the existing Atomic Notes report. Note previews show timestamp, kind, creator, notebook paraphrase, mechanically verified `sourceQuote`, `Transcript:` excerpt, source segment indexes, and evidence duration. The report prints raw vs validated kind counts, kind missing/invalid/coercions, duplicates removed, grounding rejects, and quote verification rejects. Unknown/missing kinds are never defaulted to `event`. JSON Schema does not enum-constrain `kind`, because that biased gemma3 toward the first member.
 
 First real podcast dry-run (do not persist):
 
