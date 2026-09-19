@@ -6,16 +6,27 @@ import { sourceItemNotFoundError } from '@/lib/creatorNotes/errors';
 import { isDavidPakmanOfficialHost } from '@/lib/creatorNotes/adapters/davidPakman';
 import { extraPodcastFeedUrlsForVoice } from '@/lib/creatorNotes/podcastAdapters';
 import {
+  canonicalPodcastFeedUrlKey,
   dedupePodcastEpisodes,
   isPodcastVoiceFeedUrl,
+  looksLikePodcastPlatform,
   matchesPodcastIdentity,
   optionalText,
+  selectPodcastSourceEpisodes,
   slugifyCreatorName,
   sortPodcastEpisodesNewestFirst,
 } from '@/lib/creatorNotes/podcastIdentity';
-import { parsePodcastFeedXml } from '@/lib/creatorNotes/podcastRss';
-import type { PodcastEpisodeSource, PodcastSourceListRow } from '@/lib/creatorNotes/types';
-import { getAllVoices } from '@/lib/notion/voices.repo';
+import { looksLikeHtmlDocument, parsePodcastFeedXml } from '@/lib/creatorNotes/podcastRss';
+import type {
+  PodcastEpisodeSource,
+  PodcastFeedDiagnosticRow,
+  PodcastFeedOrigin,
+  PodcastFeedProbe,
+  PodcastFeedsDiagnosticReport,
+  PodcastSourceListRow,
+} from '@/lib/creatorNotes/types';
+import { classifyCreatorSourceProvider } from '@/lib/creatorNotes/youtubeIdentity';
+import { getAllVoices, getEnabledVoices } from '@/lib/notion/voices.repo';
 
 const FEED_CONCURRENCY = 6;
 const ITEMS_PER_FEED = 30;
@@ -25,8 +36,20 @@ export type VoicePodcastRow = {
   title?: string | null;
   slug?: string | null;
   feedUrl?: string | null;
+  podcastFeedUrl?: string | null;
   homeUrl?: string | null;
   platform?: string | null;
+};
+
+export type PodcastFeedCandidate = {
+  feedUrl: string;
+  origin: PodcastFeedOrigin;
+};
+
+const FEED_ORIGIN_PRIORITY: Record<PodcastFeedOrigin, number> = {
+  notion_podcast_feed: 0,
+  notion_feed: 1,
+  legacy_adapter: 2,
 };
 
 export type PodcastCatalogDeps = {
@@ -58,16 +81,176 @@ function creatorIdFor(voice: VoicePodcastRow): string | null {
   return optionalText(voice.slug)?.toLowerCase() || slugifyCreatorName(voice.title);
 }
 
-function feedUrlsForVoice(voice: VoicePodcastRow): string[] {
-  const urls: string[] = [];
-  if (isPodcastVoiceFeedUrl(voice.feedUrl) && voice.feedUrl) urls.push(voice.feedUrl);
-  urls.push(...extraPodcastFeedUrlsForVoice(voice));
-  return [...new Set(urls.map((url) => url.trim()).filter(Boolean))];
+export function podcastFeedsForVoice(voice: VoicePodcastRow): PodcastFeedCandidate[] {
+  const byKey = new Map<string, PodcastFeedCandidate>();
+
+  const add = (raw: string | null | undefined, origin: PodcastFeedOrigin) => {
+    const feedUrl = optionalText(raw);
+    if (!feedUrl || !isPodcastVoiceFeedUrl(feedUrl)) return;
+    const key = canonicalPodcastFeedUrlKey(feedUrl);
+    if (!key) return;
+    const existing = byKey.get(key);
+    if (existing && FEED_ORIGIN_PRIORITY[existing.origin] <= FEED_ORIGIN_PRIORITY[origin]) return;
+    byKey.set(key, { feedUrl, origin });
+  };
+
+  add(voice.podcastFeedUrl, 'notion_podcast_feed');
+  add(voice.feedUrl, 'notion_feed');
+  for (const url of extraPodcastFeedUrlsForVoice(voice)) {
+    add(url, 'legacy_adapter');
+  }
+  return [...byKey.values()];
+}
+
+export function feedUrlsForVoice(voice: VoicePodcastRow): string[] {
+  return podcastFeedsForVoice(voice).map((feed) => feed.feedUrl);
+}
+
+export function voiceSourceProviderType(voice: VoicePodcastRow): 'youtube' | 'podcast' | 'unknown' {
+  if (feedUrlsForVoice(voice).length > 0) return 'podcast';
+  if (voice.feedUrl && !isPodcastVoiceFeedUrl(voice.feedUrl)) return 'youtube';
+  return classifyCreatorSourceProvider(voice.homeUrl || voice.feedUrl);
+}
+
+export function voiceLooksPodcastCapable(voice: VoicePodcastRow): boolean {
+  if (feedUrlsForVoice(voice).length > 0) return true;
+  if (looksLikePodcastPlatform(voice.platform)) return true;
+  return voiceSourceProviderType(voice) === 'podcast';
+}
+
+function probeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const name = error.name || '';
+    const message = error.message || 'fetch_failed';
+    if (name === 'AbortError' || /aborted/i.test(message)) return 'timeout';
+    return message;
+  }
+  return String(error || 'fetch_failed');
+}
+
+function probeParsedFeed(xml: string, feedUrl: string): Omit<PodcastFeedProbe, 'feedUrl' | 'origin'> {
+  if (looksLikeHtmlDocument(xml) || (!xml.includes('<rss') && !xml.includes('<feed'))) {
+    return {
+      fetched: true,
+      status: 'parse_error',
+      entryCount: 0,
+      audioEnclosureCount: 0,
+      podcastTranscriptCount: 0,
+      error: looksLikeHtmlDocument(xml) ? 'html_not_rss' : 'not_rss_or_atom',
+    };
+  }
+  const episodes = parsePodcastFeedXml(
+    xml,
+    { feedUrl, creatorId: null, creatorName: null },
+    { limit: ITEMS_PER_FEED },
+  );
+  if (!episodes.length) {
+    return {
+      fetched: true,
+      status: 'empty',
+      entryCount: 0,
+      audioEnclosureCount: 0,
+      podcastTranscriptCount: 0,
+      error: null,
+    };
+  }
+  return {
+    fetched: true,
+    status: 'ok',
+    entryCount: episodes.length,
+    audioEnclosureCount: episodes.filter((episode) => Boolean(episode.audioUrl)).length,
+    podcastTranscriptCount: episodes.filter((episode) =>
+      episode.transcriptCandidates.some((candidate) => candidate.source === 'podcast_namespace'),
+    ).length,
+    error: null,
+  };
+}
+
+async function probeFeedUrl(
+  feedUrl: string,
+  origin: PodcastFeedOrigin,
+  fetchFeedXml: (url: string) => Promise<string>,
+): Promise<PodcastFeedProbe> {
+  try {
+    const xml = await fetchFeedXml(feedUrl);
+    return { feedUrl, origin, ...probeParsedFeed(xml, feedUrl) };
+  } catch (error) {
+    return {
+      feedUrl,
+      origin,
+      fetched: false,
+      status: 'fetch_error',
+      entryCount: 0,
+      audioEnclosureCount: 0,
+      podcastTranscriptCount: 0,
+      error: probeErrorMessage(error),
+    };
+  }
+}
+
+function diagnosticSkipReason(voice: VoicePodcastRow): PodcastFeedDiagnosticRow['skipReason'] {
+  const feeds = feedUrlsForVoice(voice);
+  if (feeds.length) return null;
+  if (voice.feedUrl && !isPodcastVoiceFeedUrl(voice.feedUrl)) return 'youtube_only';
+  return 'missing_podcast_feed';
+}
+
+export async function diagnosePodcastFeeds(
+  deps: PodcastCatalogDeps = {},
+): Promise<PodcastFeedsDiagnosticReport> {
+  const listVoices = deps.listVoices || (() => getEnabledVoices() as Promise<VoicePodcastRow[]>);
+  const fetchFeedXml = deps.fetchFeedXml || defaultFetchFeedXml;
+  const voices = await listVoices();
+  const limiter = pLimit(FEED_CONCURRENCY);
+
+  const rows = await Promise.all(
+    (Array.isArray(voices) ? voices : []).map((voice) =>
+      limiter(async () => {
+        const feeds = podcastFeedsForVoice(voice);
+        const probes = await Promise.all(
+          feeds.map((feed) => probeFeedUrl(feed.feedUrl, feed.origin, fetchFeedXml)),
+        );
+        const row: PodcastFeedDiagnosticRow = {
+          creatorName: optionalText(voice.title),
+          creatorId: creatorIdFor(voice),
+          configuredFeedUrl: optionalText(voice.feedUrl),
+          configuredPodcastFeedUrl: optionalText(voice.podcastFeedUrl),
+          websiteUrl: optionalText(voice.homeUrl),
+          platform: optionalText(voice.platform),
+          providerType: voiceSourceProviderType(voice),
+          podcastCapable: voiceLooksPodcastCapable(voice),
+          skipReason: diagnosticSkipReason(voice),
+          feeds: probes,
+        };
+        return row;
+      }),
+    ),
+  );
+
+  const podcastCapable = rows.filter((row) => row.podcastCapable);
+  const youtubeOnly = rows.filter((row) => row.skipReason === 'youtube_only');
+  const attemptedFeeds = rows.flatMap((row) => row.feeds);
+  const fetchedOk = attemptedFeeds.filter((feed) => feed.status === 'ok');
+  const missingOrFailed =
+    attemptedFeeds.filter((feed) => feed.status !== 'ok').length +
+    podcastCapable.filter((row) => !row.feeds.length).length;
+
+  return {
+    voicesInRegistry: rows.length,
+    podcastCapableCount: podcastCapable.length,
+    youtubeOnlyCount: youtubeOnly.length,
+    feedsAttempted: attemptedFeeds.length,
+    feedsFetchedOk: fetchedOk.length,
+    feedsMissingOrFailed: missingOrFailed,
+    sources: rows.sort((a, b) =>
+      String(a.creatorName || a.creatorId || '').localeCompare(String(b.creatorName || b.creatorId || '')),
+    ),
+  };
 }
 
 export async function loadPodcastCatalog(deps: PodcastCatalogDeps = {}): Promise<PodcastEpisodeSource[]> {
   if (deps.listEpisodes) return deps.listEpisodes();
-  const listVoices = deps.listVoices || (() => getAllVoices() as Promise<VoicePodcastRow[]>);
+  const listVoices = deps.listVoices || (() => getEnabledVoices() as Promise<VoicePodcastRow[]>);
   const fetchFeedXml = deps.fetchFeedXml || defaultFetchFeedXml;
   const voices = await listVoices();
   if (!Array.isArray(voices) || voices.length === 0) return [];
@@ -146,7 +329,7 @@ export async function listPodcastSources(
 ): Promise<PodcastSourceListRow[]> {
   const limitRaw = opts.limit == null ? 20 : Number(opts.limit);
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(100, Math.round(limitRaw))) : 20;
-  const episodes = (await loadPodcastCatalog(deps)).slice(0, limit);
+  const episodes = selectPodcastSourceEpisodes(await loadPodcastCatalog(deps), limit);
   const rows: PodcastSourceListRow[] = [];
 
   for (const episode of episodes) {

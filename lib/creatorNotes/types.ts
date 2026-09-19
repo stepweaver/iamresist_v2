@@ -424,6 +424,44 @@ export interface PodcastSourceListRow {
   audioUrl: string | null;
 }
 
+export type PodcastFeedOrigin = 'notion_podcast_feed' | 'notion_feed' | 'legacy_adapter';
+
+export type PodcastFeedProbeStatus = 'ok' | 'fetch_error' | 'parse_error' | 'empty';
+
+export interface PodcastFeedProbe {
+  feedUrl: string;
+  origin: PodcastFeedOrigin;
+  fetched: boolean;
+  status: PodcastFeedProbeStatus;
+  entryCount: number;
+  audioEnclosureCount: number;
+  podcastTranscriptCount: number;
+  error: string | null;
+}
+
+export interface PodcastFeedDiagnosticRow {
+  creatorName: string | null;
+  creatorId: string | null;
+  configuredFeedUrl: string | null;
+  configuredPodcastFeedUrl: string | null;
+  websiteUrl: string | null;
+  platform: string | null;
+  providerType: CreatorTranscriptProviderName;
+  podcastCapable: boolean;
+  skipReason: 'youtube_only' | 'missing_podcast_feed' | null;
+  feeds: PodcastFeedProbe[];
+}
+
+export interface PodcastFeedsDiagnosticReport {
+  voicesInRegistry: number;
+  podcastCapableCount: number;
+  youtubeOnlyCount: number;
+  feedsAttempted: number;
+  feedsFetchedOk: number;
+  feedsMissingOrFailed: number;
+  sources: PodcastFeedDiagnosticRow[];
+}
+
 export interface CreatorNotesReviewGroup {
   sourceItemId: string;
   creatorId: string | null;

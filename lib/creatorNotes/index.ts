@@ -6,7 +6,7 @@ export { defaultVerificationStatus, dedupeRawCreatorNotes } from '@/lib/creatorN
 export { applyQuoteVerification } from '@/lib/creatorNotes/quotes';
 export { applySourceEvidence } from '@/lib/creatorNotes/sourceEvidence';
 export { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
-export { parseCreatorNotesExtractArgs, parseCreatorNotesSourcesArgs, parseCreatorNotesPodcastSourcesArgs, parseCreatorNotesPodcastExtractArgs, parseCreatorNotesBatchArgs, parseCreatorNotesReviewArgs, formatCreatorNotesReport, formatCreatorNotesBatchReport, formatCreatorNotesPodcastBatchReport, formatCreatorNotesReview, formatPodcastSourcesList } from '@/lib/creatorNotes/format';
+export { parseCreatorNotesExtractArgs, parseCreatorNotesSourcesArgs, parseCreatorNotesPodcastSourcesArgs, parseCreatorNotesPodcastExtractArgs, parseCreatorNotesBatchArgs, parseCreatorNotesReviewArgs, formatCreatorNotesReport, formatCreatorNotesBatchReport, formatCreatorNotesPodcastBatchReport, formatCreatorNotesReview, formatPodcastSourcesList, formatPodcastFeedsReport } from '@/lib/creatorNotes/format';
 export { createMemoryCreatorNotesStore, loadPersistedCreatorNotesReview } from '@/lib/creatorNotes/db';
 export { shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
 export { resolveCreatorSource, listCreatorSources } from '@/lib/creatorNotes/resolveSource';
@@ -20,7 +20,7 @@ export { reviewCreatorNotes } from '@/lib/creatorNotes/review';
 export { selectEligibleCreatorNotesItems } from '@/lib/creatorNotes/select';
 export { acquireCreatorNotesRunLock, CreatorNotesLockBusyError } from '@/lib/creatorNotes/runLock';
 export { preparePodcastCreatorNotesTranscript } from '@/lib/creatorNotes/podcastPrepare';
-export { listPodcastSources, resolvePodcastEpisode, loadPodcastCatalog } from '@/lib/creatorNotes/podcastCatalog';
+export { listPodcastSources, resolvePodcastEpisode, loadPodcastCatalog, diagnosePodcastFeeds } from '@/lib/creatorNotes/podcastCatalog';
 export { parsePodcastFeedXml } from '@/lib/creatorNotes/podcastRss';
 export { parseVttTranscript, parseSrtTranscript, normalizeTranscriptCues } from '@/lib/creatorNotes/podcastFormats';
 export { resolvePodcastTranscript } from '@/lib/creatorNotes/podcastTranscript';

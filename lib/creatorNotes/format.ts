@@ -20,6 +20,7 @@ import type {
   CreatorNotesSourcesArgs,
   CreatorNotesPodcastSourcesArgs,
   PodcastSourceListRow,
+  PodcastFeedsDiagnosticReport,
   CreatorNotesPodcastBatchResult,
   ResolvedCreatorSource,
   TranscriptAcquisitionDiagnostics,
@@ -234,6 +235,77 @@ export function formatPodcastSourcesList(items: PodcastSourceListRow[]): string 
       ].join('\t'),
     );
   }
+  return lines.join('\n');
+}
+
+export function formatPodcastFeedsReport(report: PodcastFeedsDiagnosticReport): string {
+  const lines = [
+    'Podcast feed discovery',
+    '======================',
+    '',
+    `Enabled voices in registry: ${report.voicesInRegistry}`,
+    `Podcast-capable sources: ${report.podcastCapableCount}`,
+    `YouTube-only voices: ${report.youtubeOnlyCount}`,
+    `Feeds attempted: ${report.feedsAttempted}`,
+    `Feeds fetched successfully: ${report.feedsFetchedOk}`,
+    `Feeds missing or failing: ${report.feedsMissingOrFailed}`,
+  ];
+
+  const capable = report.sources.filter((row) => row.podcastCapable);
+  const skipped = report.sources.filter((row) => !row.podcastCapable);
+
+  if (capable.length) {
+    lines.push('', 'Podcast-capable sources', '-----------------------');
+    for (const row of capable) {
+      lines.push('');
+      lines.push(`creator: ${row.creatorName || row.creatorId || '—'}`);
+      lines.push(`slug: ${row.creatorId || '—'}`);
+      lines.push(`platform: ${row.platform || '—'}`);
+      lines.push(`provider: ${row.providerType}`);
+      lines.push(`website: ${row.websiteUrl || '—'}`);
+      lines.push(`configured feed: ${row.configuredFeedUrl || '—'}`);
+      lines.push(`podcast feed: ${row.configuredPodcastFeedUrl || '—'}`);
+      if (!row.feeds.length) {
+        lines.push(`feeds: none (${row.skipReason || 'missing_podcast_feed'})`);
+        continue;
+      }
+      for (const feed of row.feeds) {
+        lines.push(
+          [
+            'feed:',
+            feed.feedUrl,
+            `origin=${feed.origin}`,
+            `fetched=${feed.fetched ? 'yes' : 'no'}`,
+            `status=${feed.status}`,
+            `entries=${feed.entryCount}`,
+            `audio=${feed.audioEnclosureCount}`,
+            `podcast:transcript=${feed.podcastTranscriptCount}`,
+            `error=${feed.error || '—'}`,
+          ].join(' '),
+        );
+      }
+    }
+  } else {
+    lines.push('', 'No podcast-capable sources found in the Voice registry.');
+  }
+
+  if (skipped.length) {
+    lines.push('', 'Other enabled voices (not podcast-capable)', '------------------------------------------');
+    for (const row of skipped) {
+      lines.push(
+        [
+          row.creatorName || row.creatorId || '—',
+          `platform=${row.platform || '—'}`,
+          `provider=${row.providerType}`,
+          `feed=${row.configuredFeedUrl || '—'}`,
+          `podcast=${row.configuredPodcastFeedUrl || '—'}`,
+          `website=${row.websiteUrl || '—'}`,
+          row.skipReason || 'skipped',
+        ].join(' | '),
+      );
+    }
+  }
+
   return lines.join('\n');
 }
 
