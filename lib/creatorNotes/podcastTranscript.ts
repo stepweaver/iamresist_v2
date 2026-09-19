@@ -1,9 +1,16 @@
 import {
+  acquisitionFromLocalTranscription,
+  applyEpisodeIdentityToTranscript,
+  asAudioTranscriptionResult,
+  type AudioTranscriptionProvider,
+} from '@/lib/creatorNotes/audioTranscription';
+import {
   podcastTranscriptEmptyError,
   podcastTranscriptFetchFailedError,
   podcastTranscriptFormatUnsupportedError,
   podcastTranscriptParseFailedError,
   podcastTranscriptUnavailableError,
+  transcriptionEmptyError,
   PodcastTranscriptError,
 } from '@/lib/creatorNotes/errors';
 import { transcriptCharCount } from '@/lib/creatorNotes/identity';
@@ -165,11 +172,74 @@ async function fetchCandidate(
   };
 }
 
+async function transcribePodcastAudioFallback(
+  episode: PodcastEpisodeSource,
+  provider: AudioTranscriptionProvider,
+  language?: string,
+): Promise<ResolvedPodcastTranscript> {
+  const audioUrl = String(episode.audioUrl || '').trim();
+  if (!audioUrl) {
+    const unavailable = podcastTranscriptUnavailableError();
+    return {
+      status: 'TRANSCRIPT_UNAVAILABLE',
+      transcript: null,
+      acquisition: null,
+      candidate: null,
+      error: unavailable.message,
+    };
+  }
+
+  try {
+    const transcribed = asAudioTranscriptionResult(
+      await provider.transcribe({
+        audioUrl,
+        language,
+        sourceItemId: episode.sourceItemId,
+      }),
+    );
+    const transcript = applyEpisodeIdentityToTranscript(transcribed, episode);
+    if (!transcript.segments.length) throw transcriptionEmptyError();
+    return {
+      status: 'TRANSCRIPT_AVAILABLE',
+      transcript,
+      acquisition: acquisitionFromLocalTranscription(transcript, {
+        rawSegments: transcribed.segments.length,
+        cacheHit: transcribed.cacheHit ?? null,
+        audioDownloadMs: transcribed.audioDownloadMs ?? null,
+        transcriptionMs: transcribed.transcriptionMs ?? null,
+      }),
+      candidate: null,
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof PodcastTranscriptError) {
+      return {
+        status: error.status,
+        transcript: null,
+        acquisition: null,
+        candidate: null,
+        error: error.message,
+      };
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      status: 'TRANSCRIPTION_FAILED',
+      transcript: null,
+      acquisition: null,
+      candidate: null,
+      error: `TRANSCRIPTION_FAILED: ${message}`,
+    };
+  }
+}
+
 export async function resolvePodcastTranscript(
   episode: PodcastEpisodeSource,
   deps: {
     get?: PodcastHttpGet;
     adapters?: OfficialTranscriptAdapter[];
+    transcribeAudio?: boolean;
+    audioTranscription?: AudioTranscriptionProvider;
+    transcriptionLanguage?: string;
   } = {},
 ): Promise<ResolvedPodcastTranscript> {
   const get = deps.get || defaultGet;
@@ -265,7 +335,7 @@ export async function resolvePodcastTranscript(
       }
     } catch (error) {
       lastError = classifyThrown(error);
-      if (lastError.status === 'TRANSCRIPT_FETCH_FAILED') {
+      if (lastError.status === 'TRANSCRIPT_FETCH_FAILED' && !deps.transcribeAudio) {
         return {
           status: 'TRANSCRIPT_FETCH_FAILED',
           transcript: null,
@@ -275,6 +345,19 @@ export async function resolvePodcastTranscript(
         };
       }
     }
+  }
+
+  if (deps.transcribeAudio) {
+    if (!deps.audioTranscription) {
+      return {
+        status: 'TRANSCRIPTION_FAILED',
+        transcript: null,
+        acquisition: null,
+        candidate: null,
+        error: 'TRANSCRIPTION_FAILED: audio transcription requested without a provider',
+      };
+    }
+    return transcribePodcastAudioFallback(episode, deps.audioTranscription, deps.transcriptionLanguage);
   }
 
   if (lastError && lastError.status !== 'TRANSCRIPT_UNAVAILABLE') {

@@ -48,7 +48,8 @@ transcript/content
   A. supplied JSON file, or
   B. Podcasting 2.0 / explicit RSS transcript, or
   C. official creator transcript page (configured adapter), or
-  D. YouTube captions (experimental, not used by automatic batch)
+  D. local faster-whisper audio fallback (`--transcribe-audio` only), or
+  E. YouTube captions (experimental, not used by automatic batch)
         ↓
 deterministic chunking
         ↓
@@ -179,10 +180,11 @@ Preferred source hierarchy:
 Podcast episode
   → Podcasting 2.0 <podcast:transcript>
   → official creator transcript page (configured adapter)
+  → local audio transcription fallback (single-episode CLI, --transcribe-audio only)
   → unavailable
 ```
 
-Automatic **audio transcription / speech-to-text is intentionally deferred**. If no public transcript exists, the status is `TRANSCRIPT_UNAVAILABLE`. The pipeline does not transcribe MP3/M4A, call Whisper, or invent transcript text from titles or show notes.
+If no public transcript exists, the status is `TRANSCRIPT_UNAVAILABLE` unless `--transcribe-audio` is passed on `creator-notes:extract-podcast` and the episode has an RSS audio enclosure. That opt-in path downloads the enclosure to a temporary directory, transcodes to 16 kHz mono speech with ffmpeg, transcribes locally with faster-whisper (CPU), and feeds timestamped segments into the existing Atomic Notes pipeline. Publisher transcripts still win. Batch ingest does not transcribe audio. Paid transcription APIs are not used. Whole podcast audio is never stored in Supabase; only a local transcript cache under `tmp/creator-notes-audio-transcripts/` is reused.
 
 YouTube caption retrieval remains in the codebase as **experimental / non-default**. `creator-notes:batch` no longer selects YouTube items automatically. Single-item `creator-notes:extract --source-item <youtube-id>` can still fetch captions when you ask it to.
 
@@ -209,22 +211,29 @@ Every accepted note keeps:
 
 External podcast apps are **not** required to support timestamp deep links. A later UI can seek an embedded HTML5 audio player to `startSeconds` on the episode's audio URL.
 
-Transcript acquisition also records `transcriptSource` (`podcast_namespace` | `official_creator_page`), `transcriptUrl`, `transcriptMimeType`, and `transcriptLanguage` so a later UI can show:
+Transcript acquisition also records `transcriptSource` (`podcast_namespace` | `official_creator_page` | `local_audio_transcription`), `transcriptUrl`, `transcriptMimeType`, and `transcriptLanguage` so a later UI can show:
 
 ```
 Podcast episode → Transcript → timestamp → note
 ```
 
+Local audio transcription also records the original enclosure URL plus `transcriptionProvider`, `transcriptionModel`, and `transcriptionVersion`.
+
 Statuses are explicit and are not collapsed:
 
 | Status | Meaning |
 |--------|---------|
-| `TRANSCRIPT_AVAILABLE` | A public transcript was fetched and normalized |
-| `TRANSCRIPT_UNAVAILABLE` | No public transcript candidate and no official page body |
+| `TRANSCRIPT_AVAILABLE` | A public transcript was fetched and normalized, or local audio transcription produced segments |
+| `TRANSCRIPT_UNAVAILABLE` | No public transcript candidate, no official page body, and audio fallback was not enabled or had no enclosure |
 | `TRANSCRIPT_FETCH_FAILED` | Network / HTTP failure. **Not** "no transcript" |
 | `TRANSCRIPT_FORMAT_UNSUPPORTED` | Payload type is not a supported transcript format |
 | `TRANSCRIPT_PARSE_FAILED` | Supported type, but the file could not be parsed |
 | `TRANSCRIPT_EMPTY` | Parsed, but produced no usable segments |
+| `AUDIO_DOWNLOAD_FAILED` | RSS enclosure download failed |
+| `AUDIO_TOO_LARGE` | Enclosure exceeded the bounded download size |
+| `AUDIO_TRANSCODE_FAILED` | ffmpeg normalization failed |
+| `TRANSCRIPTION_FAILED` | Local Whisper failed |
+| `TRANSCRIPTION_EMPTY` | Whisper ran, but produced no usable segments |
 
 Two CLI families:
 
@@ -268,7 +277,22 @@ npm run creator-notes:extract-podcast -- \
   --dry-run
 ```
 
-Flow: resolve episode from Voices RSS / official adapter feed → resolve transcript → normalize → **existing** Atomic Notes extraction → preview. This does not duplicate the AI pipeline.
+Local audio transcription fallback (publisher transcript still wins; required flag; dry-run still writes only a local transcript cache, never creator-notes rows):
+
+```bash
+python3 -m pip install -r scripts/audio-transcription/requirements.txt
+
+THEME_AI_PROVIDER=ollama \
+OLLAMA_MODEL=gemma3:4b \
+npm run creator-notes:extract-podcast -- \
+  --source-item <PODCAST_EPISODE_ID> \
+  --transcribe-audio \
+  --dry-run
+```
+
+Requires `ffmpeg` and faster-whisper on the host. Cache: `tmp/creator-notes-audio-transcripts/`. Do not enable a systemd timer for this path yet.
+
+Flow: resolve episode from Voices RSS / official adapter feed → resolve transcript (publisher first; optional `--transcribe-audio` fallback) → normalize → **existing** Atomic Notes extraction → preview. This does not duplicate the AI pipeline. Transcription always finishes before Ollama extraction starts. Elapsed times are reported separately for audio download, transcription, Atomic Notes extraction, and total.
 
 ### Bounded podcast batch
 
@@ -386,6 +410,7 @@ Flags (single-item extract):
 | `--creator-name <name>` | Fill missing creator attribution metadata. On remote dry-run, may override resolved creator name. Not persisted as invented source metadata. |
 | `--source-title <title>` | Fill missing source title. On remote dry-run, may override resolved title. |
 | `--source-url <url>` | Fill missing source URL. On remote dry-run, may override resolved URL. |
+| `--transcribe-audio` | Podcast extract only. If no publisher transcript exists and an RSS audio enclosure is present, run local faster-whisper fallback. Required explicitly; audio is never transcribed silently. |
 
 Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
@@ -500,6 +525,9 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `CREATOR_NOTES_LOCK_FILE` | `tmp/creator-notes-batch.lock` | Exclusive batch lock; separate from Theme Memory |
 | `CREATOR_NOTES_CHUNK_CHARS` | `12000` | Target chunk size |
 | `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` | `30` | Hard cap per chunk |
+| `CREATOR_NOTES_WHISPER_MODEL` | `small` | faster-whisper model for `--transcribe-audio` |
+| `CREATOR_NOTES_PYTHON` | `python3` | Python used to run local Whisper |
+| `CREATOR_NOTES_FFMPEG` | `ffmpeg` | ffmpeg binary for 16 kHz mono speech |
 
 Chunking is by transcript segments, with ~800 characters of overlap. Individual segments are split only if they exceed the chunk budget. Overlap preserves original segment indexes. Prompts label each segment as `[SEGMENT n | startSeconds-endSeconds]`.
 
@@ -507,7 +535,7 @@ Source excerpts are copied from original segments (`CREATOR_NOTES_SOURCE_EXCERPT
 
 ## Milestone 1 scope boundaries
 
-**In scope:** one-source CLI extraction, supplied transcript files, podcast RSS transcript intake (Podcasting 2.0 + one official-page adapter), bounded podcast batch ingest, experimental YouTube captions (non-default), read-only review, validation, persistence, idempotency, recency window, transcript-failure handling, overlap lock, systemd unit files (manual install), tests, docs.
+**In scope:** one-source CLI extraction, supplied transcript files, podcast RSS transcript intake (Podcasting 2.0 + one official-page adapter), opt-in local audio transcription fallback on single-episode extract, bounded podcast batch ingest, experimental YouTube captions (non-default), read-only review, validation, persistence, idempotency, recency window, transcript-failure handling, overlap lock, systemd unit files (manual install), tests, docs.
 
 **Out of scope:**
 
@@ -515,7 +543,8 @@ Source excerpts are copied from original segments (`CREATOR_NOTES_SOURCE_EXCERPT
 - homepage ranking changes
 - Theme Memory scoring, matching, memberships, or mutations
 - event clustering / Event Threads from notes
-- automatic speech-to-text / Whisper / audio transcription
+- batch / scheduled audio transcription
+- paid transcription APIs
 - generic web scraping of third-party transcript mirrors
 - automated publication
 - editor notes

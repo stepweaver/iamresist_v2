@@ -47,7 +47,12 @@ export type PodcastTranscriptStatus =
   | 'TRANSCRIPT_FETCH_FAILED'
   | 'TRANSCRIPT_FORMAT_UNSUPPORTED'
   | 'TRANSCRIPT_PARSE_FAILED'
-  | 'TRANSCRIPT_EMPTY';
+  | 'TRANSCRIPT_EMPTY'
+  | 'AUDIO_DOWNLOAD_FAILED'
+  | 'AUDIO_TOO_LARGE'
+  | 'AUDIO_TRANSCODE_FAILED'
+  | 'TRANSCRIPTION_FAILED'
+  | 'TRANSCRIPTION_EMPTY';
 
 export class PodcastTranscriptError extends CreatorTranscriptError {
   readonly status: Exclude<PodcastTranscriptStatus, 'TRANSCRIPT_AVAILABLE'>;
@@ -86,4 +91,36 @@ export function podcastTranscriptParseFailedError(detail?: string): PodcastTrans
 
 export function podcastTranscriptEmptyError(): PodcastTranscriptError {
   return new PodcastTranscriptError('TRANSCRIPT_EMPTY', 'TRANSCRIPT_EMPTY');
+}
+
+export function audioDownloadFailedError(detail?: string): PodcastTranscriptError {
+  return new PodcastTranscriptError(
+    'AUDIO_DOWNLOAD_FAILED',
+    detail ? `AUDIO_DOWNLOAD_FAILED: ${detail}` : 'AUDIO_DOWNLOAD_FAILED',
+  );
+}
+
+export function audioTooLargeError(detail?: string): PodcastTranscriptError {
+  return new PodcastTranscriptError(
+    'AUDIO_TOO_LARGE',
+    detail ? `AUDIO_TOO_LARGE: ${detail}` : 'AUDIO_TOO_LARGE',
+  );
+}
+
+export function audioTranscodeFailedError(detail?: string): PodcastTranscriptError {
+  return new PodcastTranscriptError(
+    'AUDIO_TRANSCODE_FAILED',
+    detail ? `AUDIO_TRANSCODE_FAILED: ${detail}` : 'AUDIO_TRANSCODE_FAILED',
+  );
+}
+
+export function transcriptionFailedError(detail?: string): PodcastTranscriptError {
+  return new PodcastTranscriptError(
+    'TRANSCRIPTION_FAILED',
+    detail ? `TRANSCRIPTION_FAILED: ${detail}` : 'TRANSCRIPTION_FAILED',
+  );
+}
+
+export function transcriptionEmptyError(): PodcastTranscriptError {
+  return new PodcastTranscriptError('TRANSCRIPTION_EMPTY', 'TRANSCRIPTION_EMPTY');
 }

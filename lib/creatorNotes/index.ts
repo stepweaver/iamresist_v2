@@ -24,6 +24,11 @@ export { listPodcastSources, resolvePodcastEpisode, loadPodcastCatalog, diagnose
 export { parsePodcastFeedXml } from '@/lib/creatorNotes/podcastRss';
 export { parseVttTranscript, parseSrtTranscript, normalizeTranscriptCues } from '@/lib/creatorNotes/podcastFormats';
 export { resolvePodcastTranscript } from '@/lib/creatorNotes/podcastTranscript';
+export {
+  normalizeWhisperSegments,
+  type AudioTranscriptionProvider,
+} from '@/lib/creatorNotes/audioTranscription';
+export { createFasterWhisperTranscriptionProvider } from '@/lib/creatorNotes/whisperProvider';
 
 export type {
   CreatorAtomicNote,

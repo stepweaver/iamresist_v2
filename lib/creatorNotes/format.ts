@@ -128,6 +128,7 @@ export function parseCreatorNotesPodcastExtractArgs(argv: string[]): CreatorNote
     creatorName: parseOptionalFlag(argv, '--creator-name'),
     sourceTitle: parseOptionalFlag(argv, '--source-title'),
     sourceUrl: parseOptionalFlag(argv, '--source-url'),
+    transcribeAudio: argv.includes('--transcribe-audio'),
   };
 }
 
@@ -163,6 +164,18 @@ function formatDurationCovered(seconds: number | null): string {
   return `${Math.round(seconds)}s`;
 }
 
+function formatDurationMs(ms: number | null): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`;
+}
+
 export function formatTranscriptSection(acquisition: TranscriptAcquisitionDiagnostics): string {
   const lines = [
     'Transcript:',
@@ -178,6 +191,24 @@ export function formatTranscriptSection(acquisition: TranscriptAcquisitionDiagno
   if (acquisition.transcriptMimeType) lines.push(`  transcript mime: ${acquisition.transcriptMimeType}`);
   if (acquisition.transcriptLanguage && acquisition.transcriptLanguage !== acquisition.language) {
     lines.push(`  transcript language: ${acquisition.transcriptLanguage}`);
+  }
+  if (acquisition.audioUrl) lines.push(`  audio URL: ${acquisition.audioUrl}`);
+  if (acquisition.transcriptionProvider) {
+    lines.push(`  transcription provider: ${acquisition.transcriptionProvider}`);
+  }
+  if (acquisition.transcriptionModel) lines.push(`  transcription model: ${acquisition.transcriptionModel}`);
+  if (acquisition.transcriptionVersion) {
+    lines.push(`  transcription version: ${acquisition.transcriptionVersion}`);
+  }
+  if (acquisition.source === 'local_audio_transcription') {
+    if (acquisition.cacheHit) lines.push('  cache: hit');
+    else if (acquisition.cacheHit === false) lines.push('  cache: miss');
+  }
+  if (acquisition.timings) {
+    lines.push(`  audio download: ${formatDurationMs(acquisition.timings.audioDownloadMs)}`);
+    lines.push(`  transcription: ${formatDurationMs(acquisition.timings.transcriptionMs)}`);
+    lines.push(`  Atomic Notes extraction: ${formatDurationMs(acquisition.timings.extractionMs)}`);
+    lines.push(`  total: ${formatDurationMs(acquisition.timings.totalMs)}`);
   }
   return lines.join('\n');
 }
@@ -442,18 +473,6 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
   return lines.join('\n');
 }
 
-function formatDurationMs(ms: number | null): string {
-  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
-  const totalSeconds = Math.round(ms / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes < 60) return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const remMinutes = minutes % 60;
-  return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`;
-}
-
 export function formatCreatorNotesBatchReport(result: CreatorNotesBatchResult): string {
   if (result.lockBusy) {
     return `creator-notes batch already running\n${result.skipReason || ''}`.trim();
@@ -550,6 +569,11 @@ export function formatCreatorNotesPodcastBatchReport(result: CreatorNotesPodcast
     `  TRANSCRIPT_FORMAT_UNSUPPORTED: ${s.transcriptStatuses.TRANSCRIPT_FORMAT_UNSUPPORTED}`,
     `  TRANSCRIPT_PARSE_FAILED: ${s.transcriptStatuses.TRANSCRIPT_PARSE_FAILED}`,
     `  TRANSCRIPT_EMPTY: ${s.transcriptStatuses.TRANSCRIPT_EMPTY}`,
+    `  AUDIO_DOWNLOAD_FAILED: ${s.transcriptStatuses.AUDIO_DOWNLOAD_FAILED}`,
+    `  AUDIO_TOO_LARGE: ${s.transcriptStatuses.AUDIO_TOO_LARGE}`,
+    `  AUDIO_TRANSCODE_FAILED: ${s.transcriptStatuses.AUDIO_TRANSCODE_FAILED}`,
+    `  TRANSCRIPTION_FAILED: ${s.transcriptStatuses.TRANSCRIPTION_FAILED}`,
+    `  TRANSCRIPTION_EMPTY: ${s.transcriptStatuses.TRANSCRIPTION_EMPTY}`,
     '',
     'Persistence:',
     `  runs created: ${s.persistence.dryRun ? 0 : s.persistence.runsCreated}`,

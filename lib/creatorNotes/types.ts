@@ -36,6 +36,9 @@ export interface CreatorTranscriptInput {
   transcriptUrl?: string | null;
   transcriptMimeType?: string | null;
   transcriptLanguage?: string | null;
+  transcriptionProvider?: string | null;
+  transcriptionModel?: string | null;
+  transcriptionVersion?: string | null;
 }
 
 export interface CreatorTranscriptChunk {
@@ -184,9 +187,17 @@ export type PodcastTranscriptStatus =
   | 'TRANSCRIPT_FETCH_FAILED'
   | 'TRANSCRIPT_FORMAT_UNSUPPORTED'
   | 'TRANSCRIPT_PARSE_FAILED'
-  | 'TRANSCRIPT_EMPTY';
+  | 'TRANSCRIPT_EMPTY'
+  | 'AUDIO_DOWNLOAD_FAILED'
+  | 'AUDIO_TOO_LARGE'
+  | 'AUDIO_TRANSCODE_FAILED'
+  | 'TRANSCRIPTION_FAILED'
+  | 'TRANSCRIPTION_EMPTY';
 
-export type PodcastTranscriptSourceName = 'podcast_namespace' | 'official_creator_page';
+export type PodcastTranscriptSourceName =
+  | 'podcast_namespace'
+  | 'official_creator_page'
+  | 'local_audio_transcription';
 
 export interface ResolvedCreatorSource {
   sourceItemId: string;
@@ -201,8 +212,21 @@ export interface ResolvedCreatorSource {
 
 export type TranscriptGeneratedFlag = 'yes' | 'no' | 'unknown';
 
+export interface CreatorNotesTimingDiagnostics {
+  audioDownloadMs: number | null;
+  transcriptionMs: number | null;
+  extractionMs: number | null;
+  totalMs: number | null;
+  cacheHit: boolean | null;
+}
+
 export interface TranscriptAcquisitionDiagnostics {
-  source: 'file' | 'youtube-captions' | 'podcast_namespace' | 'official_creator_page';
+  source:
+    | 'file'
+    | 'youtube-captions'
+    | 'podcast_namespace'
+    | 'official_creator_page'
+    | 'local_audio_transcription';
   language: string | null;
   generated: TranscriptGeneratedFlag;
   rawSegments: number;
@@ -212,6 +236,12 @@ export interface TranscriptAcquisitionDiagnostics {
   transcriptUrl?: string | null;
   transcriptMimeType?: string | null;
   transcriptLanguage?: string | null;
+  audioUrl?: string | null;
+  transcriptionProvider?: string | null;
+  transcriptionModel?: string | null;
+  transcriptionVersion?: string | null;
+  cacheHit?: boolean | null;
+  timings?: CreatorNotesTimingDiagnostics | null;
 }
 
 export interface CreatorNotesExtractArgs {
@@ -243,6 +273,7 @@ export interface CreatorNotesPodcastExtractArgs {
   creatorName: string | null;
   sourceTitle: string | null;
   sourceUrl: string | null;
+  transcribeAudio: boolean;
 }
 
 export interface CreatorNotesBatchArgs {

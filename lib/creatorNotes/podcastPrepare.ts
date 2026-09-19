@@ -3,6 +3,7 @@ import { resolvePodcastEpisode, type PodcastCatalogDeps } from '@/lib/creatorNot
 import { resolvePodcastTranscript, type PodcastHttpGet } from '@/lib/creatorNotes/podcastTranscript';
 import { PodcastTranscriptError } from '@/lib/creatorNotes/errors';
 import type { OfficialTranscriptAdapter } from '@/lib/creatorNotes/podcastAdapters';
+import type { AudioTranscriptionProvider } from '@/lib/creatorNotes/audioTranscription';
 import type {
   CreatorNotesPodcastExtractArgs,
   CreatorTranscriptInput,
@@ -13,6 +14,7 @@ export type PreparePodcastNotesDeps = PodcastCatalogDeps & {
   resolveTranscript?: typeof resolvePodcastTranscript;
   adapters?: OfficialTranscriptAdapter[];
   get?: PodcastHttpGet;
+  audioTranscription?: AudioTranscriptionProvider;
 };
 
 function applyCliMetadata(
@@ -43,7 +45,17 @@ export async function preparePodcastCreatorNotesTranscript(
 }> {
   const episode = await resolvePodcastEpisode(args.sourceItemId, deps);
   const resolveTranscript = deps.resolveTranscript || resolvePodcastTranscript;
-  const resolved = await resolveTranscript(episode, { get: deps.get, adapters: deps.adapters });
+  let audioTranscription = deps.audioTranscription;
+  if (args.transcribeAudio && !audioTranscription) {
+    const { createFasterWhisperTranscriptionProvider } = await import('@/lib/creatorNotes/whisperProvider');
+    audioTranscription = createFasterWhisperTranscriptionProvider();
+  }
+  const resolved = await resolveTranscript(episode, {
+    get: deps.get,
+    adapters: deps.adapters,
+    transcribeAudio: args.transcribeAudio,
+    audioTranscription,
+  });
   if (resolved.status !== 'TRANSCRIPT_AVAILABLE' || !resolved.transcript || !resolved.acquisition) {
     const status = resolved.status === 'TRANSCRIPT_AVAILABLE' ? 'TRANSCRIPT_UNAVAILABLE' : resolved.status;
     throw new PodcastTranscriptError(status, resolved.error || status);

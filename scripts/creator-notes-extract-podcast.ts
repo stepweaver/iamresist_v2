@@ -3,8 +3,10 @@ import { preparePodcastCreatorNotesTranscript } from '@/lib/creatorNotes/podcast
 import { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
 
 async function main() {
+  const startedAt = Date.now();
   const args = parseCreatorNotesPodcastExtractArgs(process.argv.slice(2));
   const prepared = await preparePodcastCreatorNotesTranscript(args);
+  const extractionStartedAt = Date.now();
 
   const result = await runCreatorNoteExtraction({
     transcript: prepared.transcript,
@@ -12,7 +14,17 @@ async function main() {
     force: args.force,
     limitNotes: args.limitNotes,
   });
-  result.transcriptAcquisition = prepared.acquisition;
+  const finishedAt = Date.now();
+  result.transcriptAcquisition = {
+    ...prepared.acquisition,
+    timings: {
+      audioDownloadMs: prepared.acquisition.timings?.audioDownloadMs ?? null,
+      transcriptionMs: prepared.acquisition.timings?.transcriptionMs ?? null,
+      extractionMs: finishedAt - extractionStartedAt,
+      totalMs: finishedAt - startedAt,
+      cacheHit: prepared.acquisition.timings?.cacheHit ?? prepared.acquisition.cacheHit ?? null,
+    },
+  };
 
   if (args.json) {
     console.log(JSON.stringify(result, null, 2));

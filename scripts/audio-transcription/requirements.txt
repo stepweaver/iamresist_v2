@@ -1,0 +1,5 @@
+# CPU-only faster-whisper for local podcast audio transcription fallback.
+# Install on the VPS (do not use a paid transcription API):
+#   python3 -m pip install -r scripts/audio-transcription/requirements.txt
+# Also requires ffmpeg on PATH.
+faster-whisper>=1.1.0

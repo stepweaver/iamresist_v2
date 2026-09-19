@@ -412,6 +412,10 @@ describe('Theme Memory isolation for podcast intake', () => {
       'podcastCatalog.ts',
       'podcastPrepare.ts',
       'podcastBatch.ts',
+      'audioTranscription.ts',
+      'audioDownload.ts',
+      'audioTranscriptCache.ts',
+      'whisperProvider.ts',
       'adapters/davidPakman.ts',
     ];
     for (const file of files) {
