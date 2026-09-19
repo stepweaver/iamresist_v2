@@ -131,6 +131,7 @@ async function runBatch(
       skipWarmup: true,
       log: () => {},
       ...extra,
+      youtubeBatchEnabled: extra.youtubeBatchEnabled !== false,
       store: memoryStore,
     },
   );
@@ -157,7 +158,7 @@ describe('Atomic Creator Notes batch selection', () => {
       publishedAt: hoursAgo(1),
       title: 'Newer A',
     });
-    const selected = selectEligibleCreatorNotesItems([older, newerB, newerA], { now: NOW, limit: 10 });
+    const selected = selectEligibleCreatorNotesItems([older, newerB, newerA], { now: NOW, limit: 10, youtubeBatchEnabled: true });
     expect(selected.map((item) => item.sourceItemId)).toEqual([
       'yt:video:aaaaaaaaaab',
       'yt:video:bbbbbbbbbbb',
@@ -168,7 +169,7 @@ describe('Atomic Creator Notes batch selection', () => {
   it('uses a default 48-hour recency window', () => {
     const inside = voiceItem({ sourceItemId: 'yt:video:inside00001', url: 'https://www.youtube.com/watch?v=inside00001', publishedAt: hoursAgo(47) });
     const outside = voiceItem({ sourceItemId: 'yt:video:outside0001', url: 'https://www.youtube.com/watch?v=outside0001', publishedAt: hoursAgo(49) });
-    const selected = selectEligibleCreatorNotesItems([inside, outside], { now: NOW });
+    const selected = selectEligibleCreatorNotesItems([inside, outside], { now: NOW, youtubeBatchEnabled: true });
     expect(selected.map((item) => item.sourceItemId)).toEqual(['yt:video:inside00001']);
     expect(CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS).toBe(48);
   });
@@ -179,8 +180,8 @@ describe('Atomic Creator Notes batch selection', () => {
       url: 'https://www.youtube.com/watch?v=dayold00001',
       publishedAt: hoursAgo(72),
     });
-    expect(selectEligibleCreatorNotesItems([dayOld], { now: NOW, sinceHours: 24 })).toEqual([]);
-    expect(selectEligibleCreatorNotesItems([dayOld], { now: NOW, sinceHours: 96 }).map((item) => item.sourceItemId)).toEqual([
+    expect(selectEligibleCreatorNotesItems([dayOld], { now: NOW, sinceHours: 24, youtubeBatchEnabled: true })).toEqual([]);
+    expect(selectEligibleCreatorNotesItems([dayOld], { now: NOW, sinceHours: 96, youtubeBatchEnabled: true }).map((item) => item.sourceItemId)).toEqual([
       'yt:video:dayold00001',
     ]);
     expect(clampCreatorNotesSinceHours(999)).toBe(CREATOR_NOTES_BATCH_MAX_SINCE_HOURS);
@@ -196,8 +197,8 @@ describe('Atomic Creator Notes batch selection', () => {
         publishedAt: hoursAgo(index * 0.2),
       });
     });
-    expect(selectEligibleCreatorNotesItems(items, { now: NOW, limit: 3 })).toHaveLength(3);
-    expect(selectEligibleCreatorNotesItems(items, { now: NOW, limit: 999 })).toHaveLength(CREATOR_NOTES_BATCH_HARD_MAX);
+    expect(selectEligibleCreatorNotesItems(items, { now: NOW, limit: 3, youtubeBatchEnabled: true })).toHaveLength(3);
+    expect(selectEligibleCreatorNotesItems(items, { now: NOW, limit: 999, youtubeBatchEnabled: true })).toHaveLength(CREATOR_NOTES_BATCH_HARD_MAX);
     expect(clampCreatorNotesBatchLimit(999)).toBe(50);
     expect(parseCreatorNotesBatchArgs(['--limit', '999']).limit).toBe(50);
     expect(parseCreatorNotesBatchArgs([]).limit).toBe(CREATOR_NOTES_BATCH_DEFAULT_LIMIT);
@@ -211,7 +212,7 @@ describe('Atomic Creator Notes batch selection', () => {
       url: 'https://pca.st/episode/abc',
       title: 'Pocket Casts episode',
     });
-    const selected = selectEligibleCreatorNotesItems([youtube, podcast], { now: NOW });
+    const selected = selectEligibleCreatorNotesItems([youtube, podcast], { now: NOW, youtubeBatchEnabled: true });
     expect(selected).toEqual([youtube]);
   });
 
@@ -228,7 +229,7 @@ describe('Atomic Creator Notes batch selection', () => {
       publishedAt: hoursAgo(2),
       title: 'Newer copy',
     });
-    const selected = selectEligibleCreatorNotesItems([older, newer], { now: NOW });
+    const selected = selectEligibleCreatorNotesItems([older, newer], { now: NOW, youtubeBatchEnabled: true });
     expect(selected).toHaveLength(1);
     expect(selected[0].title).toBe('Newer copy');
   });

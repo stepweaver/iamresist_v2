@@ -52,6 +52,12 @@ export const CREATOR_NOTES_BATCH_DEFAULT_LIMIT = 10;
 export const CREATOR_NOTES_BATCH_HARD_MAX = 50;
 export const CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS = 48;
 export const CREATOR_NOTES_BATCH_MAX_SINCE_HOURS = 168;
+
+/**
+ * Automatic YouTube caption ingest is preserved in code but disabled from
+ * default batch selection. Podcast transcript intake is the current path.
+ */
+export const CREATOR_NOTES_YOUTUBE_BATCH_ENABLED = false;
 export const CREATOR_NOTES_REVIEW_DEFAULT_LIMIT = 25;
 export const CREATOR_NOTES_REVIEW_HARD_MAX = 200;
 

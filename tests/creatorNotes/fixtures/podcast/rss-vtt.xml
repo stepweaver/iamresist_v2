@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>Test Show</title>
+    <item>
+      <title>Episode With VTT</title>
+      <guid>guid-ep-vtt</guid>
+      <link>https://creator.example/episodes/vtt</link>
+      <pubDate>Thu, 17 Sep 2026 12:00:00 GMT</pubDate>
+      <enclosure url="https://creator.example/audio/vtt.mp3" type="audio/mpeg" length="1000"/>
+      <podcast:transcript url="https://creator.example/transcripts/ep.vtt" type="text/vtt" language="en" rel="captions" />
+    </item>
+  </channel>
+</rss>

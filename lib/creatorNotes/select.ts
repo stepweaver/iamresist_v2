@@ -3,6 +3,7 @@ import {
   CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS,
   CREATOR_NOTES_BATCH_HARD_MAX,
   CREATOR_NOTES_BATCH_MAX_SINCE_HOURS,
+  CREATOR_NOTES_YOUTUBE_BATCH_ENABLED,
 } from '@/lib/creatorNotes/constants';
 import {
   dedupeVoiceIdentities,
@@ -17,6 +18,7 @@ export type CreatorNotesSelectOpts = {
   creator?: string | null;
   sinceHours?: number;
   now?: Date | string;
+  youtubeBatchEnabled?: boolean;
 };
 
 export type CreatorNotesSelectDeps = {
@@ -66,11 +68,13 @@ export function selectEligibleCreatorNotesItems(
     opts.limit == null ? CREATOR_NOTES_BATCH_DEFAULT_LIMIT : Number(opts.limit),
   );
 
+  const youtubeBatchEnabled = opts.youtubeBatchEnabled ?? CREATOR_NOTES_YOUTUBE_BATCH_ENABLED;
+
   const selected = dedupeVoiceIdentities(
     sortVoiceItemsNewestFirst(
       items.filter(
         (item) =>
-          isEligibleYouTubeVoiceItem(item) &&
+          (youtubeBatchEnabled ? isEligibleYouTubeVoiceItem(item) : false) &&
           matchesCreatorSlug(item, opts.creator) &&
           voiceItemInRecencyWindow(item, sinceHours, now),
       ),

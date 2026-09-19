@@ -13,10 +13,14 @@ import type {
   CreatorNotesBatchArgs,
   CreatorNotesBatchResult,
   CreatorNotesExtractArgs,
+  CreatorNotesPodcastExtractArgs,
   CreatorNotesReviewArgs,
   CreatorNotesReviewResult,
   CreatorNotesRunResult,
   CreatorNotesSourcesArgs,
+  CreatorNotesPodcastSourcesArgs,
+  PodcastSourceListRow,
+  CreatorNotesPodcastBatchResult,
   ResolvedCreatorSource,
   TranscriptAcquisitionDiagnostics,
 } from '@/lib/creatorNotes/types';
@@ -105,6 +109,27 @@ export function parseCreatorNotesSourcesArgs(argv: string[]): CreatorNotesSource
   return { limit: Number(raw) };
 }
 
+export function parseCreatorNotesPodcastSourcesArgs(argv: string[]): CreatorNotesPodcastSourcesArgs {
+  return parseCreatorNotesSourcesArgs(argv);
+}
+
+export function parseCreatorNotesPodcastExtractArgs(argv: string[]): CreatorNotesPodcastExtractArgs {
+  const sourceItemId = argValue(argv, '--source-item');
+  if (!sourceItemId) {
+    throw new Error('Missing --source-item <id>');
+  }
+  return {
+    sourceItemId: sourceItemId.trim(),
+    dryRun: argv.includes('--dry-run'),
+    force: argv.includes('--force'),
+    limitNotes: parseLimitNotes(argv),
+    json: argv.includes('--json'),
+    creatorName: parseOptionalFlag(argv, '--creator-name'),
+    sourceTitle: parseOptionalFlag(argv, '--source-title'),
+    sourceUrl: parseOptionalFlag(argv, '--source-url'),
+  };
+}
+
 export function parseCreatorNotesBatchArgs(argv: string[]): CreatorNotesBatchArgs {
   const limitRaw = parsePositiveInt(argValue(argv, '--limit'), '--limit');
   const sinceRaw = parsePositiveInt(argValue(argv, '--since-hours'), '--since-hours');
@@ -138,7 +163,7 @@ function formatDurationCovered(seconds: number | null): string {
 }
 
 export function formatTranscriptSection(acquisition: TranscriptAcquisitionDiagnostics): string {
-  return [
+  const lines = [
     'Transcript:',
     `  source: ${acquisition.source}`,
     `  language: ${acquisition.language || 'unknown'}`,
@@ -147,7 +172,13 @@ export function formatTranscriptSection(acquisition: TranscriptAcquisitionDiagno
     `  normalized segments: ${acquisition.normalizedSegments}`,
     `  duration covered: ${formatDurationCovered(acquisition.durationCoveredSeconds)}`,
     `  characters: ${acquisition.characters}`,
-  ].join('\n');
+  ];
+  if (acquisition.transcriptUrl) lines.push(`  transcript URL: ${acquisition.transcriptUrl}`);
+  if (acquisition.transcriptMimeType) lines.push(`  transcript mime: ${acquisition.transcriptMimeType}`);
+  if (acquisition.transcriptLanguage && acquisition.transcriptLanguage !== acquisition.language) {
+    lines.push(`  transcript language: ${acquisition.transcriptLanguage}`);
+  }
+  return lines.join('\n');
 }
 
 function clip(value: string | null, max: number): string {
@@ -174,6 +205,32 @@ export function formatCreatorSourcesList(items: ResolvedCreatorSource[]): string
         clip(item.title, 80),
         item.publishedAt || '—',
         item.provider,
+      ].join('\t'),
+    );
+  }
+  return lines.join('\n');
+}
+
+export function formatPodcastSourcesList(items: PodcastSourceListRow[]): string {
+  if (!items.length) {
+    return 'No podcast episodes found.';
+  }
+  const lines = [
+    'Podcast source items',
+    '====================',
+    '',
+    'ID\tcreator\tepisode title\tpublished\ttranscript discovered\ttranscript source\taudio URL',
+  ];
+  for (const item of items) {
+    lines.push(
+      [
+        item.sourceItemId,
+        clip(item.creatorName || item.creatorId, 40),
+        clip(item.title, 80),
+        item.publishedAt || '—',
+        item.transcriptDiscovered ? 'yes' : 'no',
+        item.transcriptSource || '—',
+        item.audioUrlPresent ? 'yes' : 'no',
       ].join('\t'),
     );
   }
@@ -393,6 +450,40 @@ export function formatCreatorNotesBatchReport(result: CreatorNotesBatchResult): 
     lines.push('', 'Dry run: yes (zero creator-note writes)');
   }
 
+  return lines.join('\n');
+}
+
+export function formatCreatorNotesPodcastBatchReport(result: CreatorNotesPodcastBatchResult): string {
+  if (result.lockBusy) {
+    return `creator-notes podcast batch already running\n${result.skipReason || ''}`.trim();
+  }
+  if (result.skipReason && result.items.length === 0) {
+    return `Atomic Creator Notes Podcast Batch\n==================================\n\nSkipped: ${result.skipReason}`;
+  }
+  const s = result.summary;
+  const lines = [
+    'Atomic Creator Notes Podcast Batch',
+    '==================================',
+    '',
+    `Candidate episodes: ${s.candidateEpisodes}`,
+    `Processed: ${s.processed}`,
+    `Already processed: ${s.alreadyProcessed}`,
+    `Transcript unavailable: ${s.transcriptUnavailable}`,
+    `Failed: ${s.failed}`,
+    '',
+    'Transcript statuses:',
+    `  TRANSCRIPT_AVAILABLE: ${s.transcriptStatuses.TRANSCRIPT_AVAILABLE}`,
+    `  TRANSCRIPT_UNAVAILABLE: ${s.transcriptStatuses.TRANSCRIPT_UNAVAILABLE}`,
+    `  TRANSCRIPT_FETCH_FAILED: ${s.transcriptStatuses.TRANSCRIPT_FETCH_FAILED}`,
+    `  TRANSCRIPT_FORMAT_UNSUPPORTED: ${s.transcriptStatuses.TRANSCRIPT_FORMAT_UNSUPPORTED}`,
+    `  TRANSCRIPT_PARSE_FAILED: ${s.transcriptStatuses.TRANSCRIPT_PARSE_FAILED}`,
+    `  TRANSCRIPT_EMPTY: ${s.transcriptStatuses.TRANSCRIPT_EMPTY}`,
+    '',
+    'Persistence:',
+    `  runs created: ${s.persistence.dryRun ? 0 : s.persistence.runsCreated}`,
+    `  notes written: ${s.persistence.dryRun ? 0 : s.persistence.notesWritten}`,
+  ];
+  if (s.persistence.dryRun) lines.push('', 'Dry run: yes (zero creator-note writes)');
   return lines.join('\n');
 }
 

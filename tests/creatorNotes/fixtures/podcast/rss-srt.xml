@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Test Show</title>
+    <item>
+      <title>Episode With SRT</title>
+      <guid>guid-ep-srt</guid>
+      <link>https://creator.example/episodes/srt</link>
+      <pubDate>Wed, 16 Sep 2026 12:00:00 GMT</pubDate>
+      <enclosure url="https://creator.example/audio/srt.mp3" type="audio/mpeg" length="1000"/>
+      <podcast:transcript url="https://creator.example/transcripts/ep.srt" type="application/x-subrip" language="en" />
+    </item>
+  </channel>
+</rss>

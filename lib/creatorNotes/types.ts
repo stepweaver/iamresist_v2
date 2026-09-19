@@ -31,6 +31,11 @@ export interface CreatorTranscriptInput {
   publishedAt: string | null;
   sourceIdentityKey: string | null;
   segments: CreatorTranscriptSegment[];
+  audioUrl?: string | null;
+  transcriptSource?: PodcastTranscriptSourceName | 'youtube-captions' | 'file' | null;
+  transcriptUrl?: string | null;
+  transcriptMimeType?: string | null;
+  transcriptLanguage?: string | null;
 }
 
 export interface CreatorTranscriptChunk {
@@ -148,7 +153,40 @@ export interface CreatorNotesRunResult {
   transcriptAcquisition?: TranscriptAcquisitionDiagnostics | null;
 }
 
-export type CreatorTranscriptProviderName = 'youtube' | 'unknown';
+export type CreatorTranscriptProviderName = 'youtube' | 'podcast' | 'unknown';
+
+export type PodcastTranscriptCandidateSource = 'podcast_namespace' | 'rss_explicit' | 'official_page';
+
+export type PodcastTranscriptCandidate = {
+  url: string;
+  mimeType: string | null;
+  language: string | null;
+  rel: string | null;
+  source: PodcastTranscriptCandidateSource;
+};
+
+export interface PodcastEpisodeSource {
+  sourceItemId: string;
+  creatorId: string | null;
+  creatorName: string | null;
+  feedUrl: string;
+  guid: string | null;
+  title: string;
+  episodeUrl: string | null;
+  audioUrl: string | null;
+  publishedAt: string | null;
+  transcriptCandidates: PodcastTranscriptCandidate[];
+}
+
+export type PodcastTranscriptStatus =
+  | 'TRANSCRIPT_AVAILABLE'
+  | 'TRANSCRIPT_UNAVAILABLE'
+  | 'TRANSCRIPT_FETCH_FAILED'
+  | 'TRANSCRIPT_FORMAT_UNSUPPORTED'
+  | 'TRANSCRIPT_PARSE_FAILED'
+  | 'TRANSCRIPT_EMPTY';
+
+export type PodcastTranscriptSourceName = 'podcast_namespace' | 'official_creator_page';
 
 export interface ResolvedCreatorSource {
   sourceItemId: string;
@@ -164,13 +202,16 @@ export interface ResolvedCreatorSource {
 export type TranscriptGeneratedFlag = 'yes' | 'no' | 'unknown';
 
 export interface TranscriptAcquisitionDiagnostics {
-  source: 'file' | 'youtube-captions';
+  source: 'file' | 'youtube-captions' | 'podcast_namespace' | 'official_creator_page';
   language: string | null;
   generated: TranscriptGeneratedFlag;
   rawSegments: number;
   normalizedSegments: number;
   durationCoveredSeconds: number | null;
   characters: number;
+  transcriptUrl?: string | null;
+  transcriptMimeType?: string | null;
+  transcriptLanguage?: string | null;
 }
 
 export interface CreatorNotesExtractArgs {
@@ -187,6 +228,21 @@ export interface CreatorNotesExtractArgs {
 
 export interface CreatorNotesSourcesArgs {
   limit: number;
+}
+
+export interface CreatorNotesPodcastSourcesArgs {
+  limit: number;
+}
+
+export interface CreatorNotesPodcastExtractArgs {
+  sourceItemId: string;
+  dryRun: boolean;
+  force: boolean;
+  limitNotes: number | null;
+  json: boolean;
+  creatorName: string | null;
+  sourceTitle: string | null;
+  sourceUrl: string | null;
 }
 
 export interface CreatorNotesBatchArgs {
@@ -285,6 +341,87 @@ export interface CreatorNotesBatchResult {
   skipReason: string | null;
   summary: CreatorNotesBatchSummary;
   items: CreatorNotesBatchItemResult[];
+}
+
+export type CreatorNotesPodcastBatchItemOutcome =
+  | 'processed'
+  | 'already_processed'
+  | 'transcript_unavailable'
+  | 'failed';
+
+export interface CreatorNotesPodcastBatchItemResult {
+  sourceItemId: string;
+  creatorId: string | null;
+  creatorName: string | null;
+  title: string | null;
+  episodeUrl: string | null;
+  audioUrl: string | null;
+  publishedAt: string | null;
+  outcome: CreatorNotesPodcastBatchItemOutcome;
+  transcriptStatus: PodcastTranscriptStatus | null;
+  transcriptSource: PodcastTranscriptSourceName | null;
+  transcriptUrl: string | null;
+  error: string | null;
+  notes: number;
+  notesWritten: number;
+  runId: string | null;
+  transcriptChars: number;
+  chunks: number;
+  evidenceDiagnostics: CreatorNoteEvidenceDiagnostics | null;
+  quoteDiagnostics: CreatorNoteQuoteDiagnostics | null;
+  sequential: true;
+}
+
+export interface CreatorNotesPodcastBatchSummary {
+  candidateEpisodes: number;
+  processed: number;
+  alreadyProcessed: number;
+  transcriptUnavailable: number;
+  failed: number;
+  transcriptStatuses: Record<PodcastTranscriptStatus, number>;
+  transcripts: {
+    charactersProcessed: number;
+    chunks: number;
+  };
+  notes: CreatorNoteKindCounts & { total: number };
+  evidence: {
+    notesWithSourceEvidence: number;
+    notesWithoutSourceEvidence: number;
+    exactQuotesVerified: number;
+    exactQuotesRejected: number;
+  };
+  persistence: {
+    dryRun: boolean;
+    runsCreated: number;
+    notesWritten: number;
+  };
+  creators: CreatorNotesCreatorDistributionRow[];
+  duration: {
+    totalMs: number;
+    averagePerItemMs: number | null;
+  };
+}
+
+export interface CreatorNotesPodcastBatchResult {
+  ok: boolean;
+  overallStatus: 'success' | 'partial' | 'failed' | 'skipped';
+  lockBusy: boolean;
+  skipReason: string | null;
+  summary: CreatorNotesPodcastBatchSummary;
+  items: CreatorNotesPodcastBatchItemResult[];
+}
+
+export interface PodcastSourceListRow {
+  sourceItemId: string;
+  creatorName: string | null;
+  creatorId: string | null;
+  title: string;
+  publishedAt: string | null;
+  transcriptDiscovered: boolean;
+  transcriptSource: PodcastTranscriptCandidateSource | PodcastTranscriptSourceName | null;
+  audioUrlPresent: boolean;
+  episodeUrl: string | null;
+  audioUrl: string | null;
 }
 
 export interface CreatorNotesReviewGroup {

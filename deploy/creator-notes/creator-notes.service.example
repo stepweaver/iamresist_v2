@@ -10,12 +10,12 @@ User=CREATOR_NOTES_USER
 Group=CREATOR_NOTES_GROUP
 WorkingDirectory=/path/to/iamresist_v2
 EnvironmentFile=/path/to/iamresist_v2/.env.local
-ExecStart=/usr/bin/npm run creator-notes:batch -- --limit 10
+ExecStart=/usr/bin/npm run creator-notes:podcast-batch -- --limit 10
 Nice=10
 TimeoutStartSec=14400
 # Application lock in the CLI prevents overlapping npm runs.
 # Optional extra host lock:
-# ExecStart=/usr/bin/flock -n /run/creator-notes.lock /usr/bin/npm run creator-notes:batch -- --limit 10
+# ExecStart=/usr/bin/flock -n /run/creator-notes.lock /usr/bin/npm run creator-notes:podcast-batch -- --limit 10
 
 [Install]
 WantedBy=multi-user.target

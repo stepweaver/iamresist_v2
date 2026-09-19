@@ -40,3 +40,50 @@ export function emptyNormalizedTranscriptError(): CreatorTranscriptError {
 export function malformedCaptionsError(): CreatorTranscriptError {
   return new CreatorTranscriptError('malformed captions');
 }
+
+export type PodcastTranscriptStatus =
+  | 'TRANSCRIPT_AVAILABLE'
+  | 'TRANSCRIPT_UNAVAILABLE'
+  | 'TRANSCRIPT_FETCH_FAILED'
+  | 'TRANSCRIPT_FORMAT_UNSUPPORTED'
+  | 'TRANSCRIPT_PARSE_FAILED'
+  | 'TRANSCRIPT_EMPTY';
+
+export class PodcastTranscriptError extends CreatorTranscriptError {
+  readonly status: Exclude<PodcastTranscriptStatus, 'TRANSCRIPT_AVAILABLE'>;
+
+  constructor(status: Exclude<PodcastTranscriptStatus, 'TRANSCRIPT_AVAILABLE'>, message?: string) {
+    super(message || status);
+    this.name = 'PodcastTranscriptError';
+    this.status = status;
+  }
+}
+
+export function podcastTranscriptUnavailableError(): PodcastTranscriptError {
+  return new PodcastTranscriptError('TRANSCRIPT_UNAVAILABLE', 'TRANSCRIPT_UNAVAILABLE');
+}
+
+export function podcastTranscriptFetchFailedError(detail?: string): PodcastTranscriptError {
+  return new PodcastTranscriptError(
+    'TRANSCRIPT_FETCH_FAILED',
+    detail ? `TRANSCRIPT_FETCH_FAILED: ${detail}` : 'TRANSCRIPT_FETCH_FAILED',
+  );
+}
+
+export function podcastTranscriptFormatUnsupportedError(detail?: string): PodcastTranscriptError {
+  return new PodcastTranscriptError(
+    'TRANSCRIPT_FORMAT_UNSUPPORTED',
+    detail ? `TRANSCRIPT_FORMAT_UNSUPPORTED: ${detail}` : 'TRANSCRIPT_FORMAT_UNSUPPORTED',
+  );
+}
+
+export function podcastTranscriptParseFailedError(detail?: string): PodcastTranscriptError {
+  return new PodcastTranscriptError(
+    'TRANSCRIPT_PARSE_FAILED',
+    detail ? `TRANSCRIPT_PARSE_FAILED: ${detail}` : 'TRANSCRIPT_PARSE_FAILED',
+  );
+}
+
+export function podcastTranscriptEmptyError(): PodcastTranscriptError {
+  return new PodcastTranscriptError('TRANSCRIPT_EMPTY', 'TRANSCRIPT_EMPTY');
+}

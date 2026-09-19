@@ -10,16 +10,17 @@ This job only writes:
 It does **not** write Theme Memory tables or ranking state.
 
 ```
-Node process on this VPS
-        ↓
 Notion Voices + existing Voice RSS
+        + official podcast feeds for matched creators
         ↓
-eligible recent YouTube items (default 10, hard max 50)
+eligible recent podcast episodes with a public transcript
         ↓
 localhost:11434  (Ollama / gemma3:4b)
         ↓
 existing Supabase project  (creator-notes tables only)
 ```
+
+YouTube caption batch selection is disabled. Use `npm run creator-notes:podcast-batch`.
 
 Do **not** call the public website over HTTP.
 
@@ -28,14 +29,14 @@ Do **not** call the public website over HTTP.
 From the repository checkout:
 
 ```bash
-npm run creator-notes:batch -- --limit 10
+npm run creator-notes:podcast-batch -- --limit 10
 npm run creator-notes:review -- --limit 50
 ```
 
 Dry-run (extract + print, zero creator-note writes):
 
 ```bash
-npm run creator-notes:batch -- --limit 10 --dry-run
+npm run creator-notes:podcast-batch -- --limit 10 --dry-run
 ```
 
 ## Environment
@@ -65,7 +66,7 @@ This lock is **separate** from `theme-memory-daily.lock`. Failures in creator-no
 systemd `Type=oneshot` also avoids overlapping units. Optional extra wrapping:
 
 ```
-ExecStart=/usr/bin/flock -n /run/creator-notes.lock /usr/bin/npm run creator-notes:batch -- --limit 10
+ExecStart=/usr/bin/flock -n /run/creator-notes.lock /usr/bin/npm run creator-notes:podcast-batch -- --limit 10
 ```
 
 ## systemd

@@ -40,12 +40,15 @@ Transcript content is authoritative. Title text is metadata only.
 Notion Voices
         ↓
 existing Voice RSS discovery
+        + configured official podcast feeds for matched creators
         ↓
-eligible new YouTube Voice items
+eligible recent podcast episodes
         ↓
 transcript/content
   A. supplied JSON file, or
-  B. YouTube captions for a supported source item
+  B. Podcasting 2.0 / explicit RSS transcript, or
+  C. official creator transcript page (configured adapter), or
+  D. YouTube captions (experimental, not used by automatic batch)
         ↓
 deterministic chunking
         ↓
@@ -61,7 +64,7 @@ Supabase intel.creator_note_runs
 CLI diagnostic output / review command
 ```
 
-Single-item mode still exists for calibration. Bounded batch mode discovers eligible Voice items automatically. Neither path writes Theme Memory or ranking state.
+Single-item mode still exists for calibration. Bounded **podcast** batch mode discovers eligible Voice podcast episodes automatically. Automatic YouTube caption ingest is **disabled** from default batch selection; the YouTube retrieval code remains in the repo as experimental/non-default. Neither path writes Theme Memory or ranking state.
 
 Reuse:
 
@@ -168,9 +171,62 @@ These are extraction candidates. They are **not** Theme Memory identity. They do
 
 ## Transcript input
 
-Milestone currently supports automatic transcript retrieval **only for YouTube items with available caption tracks**. Pocket Casts, Apple Podcasts, Spotify, TikTok, RSS audio, Whisper, and general web scraping are out of scope.
+The preferred creator-content path is now **podcast episode transcripts**, not YouTube captions.
 
-Two CLI modes:
+Preferred source hierarchy:
+
+```
+Podcast episode
+  → Podcasting 2.0 <podcast:transcript>
+  → official creator transcript page (configured adapter)
+  → unavailable
+```
+
+Automatic **audio transcription / speech-to-text is intentionally deferred**. If no public transcript exists, the status is `TRANSCRIPT_UNAVAILABLE`. The pipeline does not transcribe MP3/M4A, call Whisper, or invent transcript text from titles or show notes.
+
+YouTube caption retrieval remains in the codebase as **experimental / non-default**. `creator-notes:batch` no longer selects YouTube items automatically. Single-item `creator-notes:extract --source-item <youtube-id>` can still fetch captions when you ask it to.
+
+Creator identity is reused from Notion Voices (`Title`, `Voice Slug`, `Platform`, `Feed URL`, `Main URL`). There is no second creator registry. Non-YouTube Voice feeds are treated as podcast feeds. A small official-adapter table may add a known creator's official podcast RSS (currently David Pakman) without replacing Voices.
+
+### Formats
+
+Public transcripts are normalized into `CreatorTranscriptInput` / `CreatorTranscriptSegment[]` without rewriting wording:
+
+- `text/vtt`
+- `application/x-subrip` / SRT
+- `application/json` when the structure is understood (Podcasting 2.0 `segments[]`, or `{startSeconds,endSeconds,text}`)
+- `text/plain`
+- `text/html` only when RSS/`podcast:transcript` explicitly identifies a transcript page, or a configured official adapter extracts a labeled transcript body
+
+VTT/SRT parsing is deterministic: preserve cue timestamps, strip formatting tags, drop empty cues, merge tiny adjacent cues toward 15–30 second segments, and do not merge across gaps larger than 3 seconds.
+
+### Provenance and playback
+
+Every accepted note keeps:
+
+- episode / audio identity (`sourceItemId`, `sourceUrl` / `audioUrl`)
+- `startSeconds` when the transcript supplied timestamps
+
+External podcast apps are **not** required to support timestamp deep links. A later UI can seek an embedded HTML5 audio player to `startSeconds` on the episode's audio URL.
+
+Transcript acquisition also records `transcriptSource` (`podcast_namespace` | `official_creator_page`), `transcriptUrl`, `transcriptMimeType`, and `transcriptLanguage` so a later UI can show:
+
+```
+Podcast episode → Transcript → timestamp → note
+```
+
+Statuses are explicit and are not collapsed:
+
+| Status | Meaning |
+|--------|---------|
+| `TRANSCRIPT_AVAILABLE` | A public transcript was fetched and normalized |
+| `TRANSCRIPT_UNAVAILABLE` | No public transcript candidate and no official page body |
+| `TRANSCRIPT_FETCH_FAILED` | Network / HTTP failure. **Not** "no transcript" |
+| `TRANSCRIPT_FORMAT_UNSUPPORTED` | Payload type is not a supported transcript format |
+| `TRANSCRIPT_PARSE_FAILED` | Supported type, but the file could not be parsed |
+| `TRANSCRIPT_EMPTY` | Parsed, but produced no usable segments |
+
+Two CLI families:
 
 ### A. Supplied transcript file
 
@@ -193,6 +249,34 @@ CLI reads a JSON file. No remote caption fetch is performed.
 Optional file fields fill creator/title/URL when the database row is missing or unavailable. Explicit CLI flags (`--creator-name`, `--source-title`, `--source-url`) fill remaining missing fields. They do not override stored source metadata on persisted runs, and they are not written back as invented `source_items` rows. Omitted flags stay null when metadata cannot be resolved. Known `creatorName` is used for required attribution.
 
 During calibration, source metadata may be absent unless the transcript file or CLI flags supply it. Extraction still proceeds. Do not invent metadata.
+
+### Podcast discovery (read-only)
+
+```bash
+npm run creator-notes:podcast-sources -- --limit 20
+```
+
+Prints `ID`, creator, episode title, published time, transcript discovered yes/no, transcript source, and whether an audio URL is present. Newest first.
+
+### Single podcast episode extraction
+
+```bash
+THEME_AI_PROVIDER=ollama \
+OLLAMA_MODEL=gemma3:4b \
+npm run creator-notes:extract-podcast -- \
+  --source-item <PODCAST_EPISODE_ID> \
+  --dry-run
+```
+
+Flow: resolve episode from Voices RSS / official adapter feed → resolve transcript → normalize → **existing** Atomic Notes extraction → preview. This does not duplicate the AI pipeline.
+
+### Bounded podcast batch
+
+```bash
+npm run creator-notes:podcast-batch -- --limit 10
+```
+
+Defaults: limit 10 (hard max 50), 48-hour recency window, newest first. Only episodes with a usable public transcript are extracted. Missing transcripts are `TRANSCRIPT_UNAVAILABLE`. Audio is never transcribed.
 
 ### B. Automatic transcript retrieval from a supported source item
 
@@ -241,9 +325,7 @@ npm run creator-notes:sources -- --limit 10
 
 The listing prints `ID`, creator, title, published time, and provider. Typical Voice ids look like `yt:video:VIDEO_ID`, not intel UUIDs.
 
-### Bounded batch ingest
-
-Automatically discover eligible YouTube Voice items and persist notes. This is the production worker path. It is **not** unbounded and it does **not** backfill the historical Voice corpus.
+Bounded **YouTube** batch ingest is preserved in code but **not selected by default**. Use `creator-notes:podcast-batch` for automatic production ingest.
 
 ```bash
 npm run creator-notes:batch -- --limit 10
@@ -309,18 +391,18 @@ Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
 Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters), then the existing Atomic Notes report. Note previews show timestamp, kind, attribution, `Transcript:` evidence from `sourceExcerpt` or `(not available)`, notebook paraphrase, and source segment indexes. A narrower verified `exactQuote` is shown only when it is not essentially identical to the transcript excerpt. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `notes with source evidence`, `notes without source evidence`, `invalid source segment references`, `exact quotes requested`, `exact quotes verified`, and `exact quotes rejected`.
 
-First real YouTube dry-run (do not persist):
+First real podcast dry-run (do not persist):
 
 ```bash
-npm run creator-notes:sources -- --limit 10
+npm run creator-notes:podcast-sources -- --limit 20
 ```
 
-Pick a `youtube` row, then:
+Pick a row with `transcript discovered` = `yes`, then:
 
 ```bash
 THEME_AI_PROVIDER=ollama \
 OLLAMA_MODEL=gemma3:4b \
-npm run creator-notes:extract -- \
+npm run creator-notes:extract-podcast -- \
   --source-item <ACTUAL_ID> \
   --dry-run
 ```
@@ -425,14 +507,16 @@ Source excerpts are copied from original segments (`CREATOR_NOTES_SOURCE_EXCERPT
 
 ## Milestone 1 scope boundaries
 
-**In scope:** one-source CLI extraction, supplied transcript files, automatic YouTube captions, bounded Voice batch ingest, read-only review, validation, persistence, idempotency, recency window, caption-failure handling, overlap lock, systemd unit files (manual install), tests, docs.
+**In scope:** one-source CLI extraction, supplied transcript files, podcast RSS transcript intake (Podcasting 2.0 + one official-page adapter), bounded podcast batch ingest, experimental YouTube captions (non-default), read-only review, validation, persistence, idempotency, recency window, transcript-failure handling, overlap lock, systemd unit files (manual install), tests, docs.
 
 **Out of scope:**
 
 - public UI / chronological journal page
 - homepage ranking changes
 - Theme Memory scoring, matching, memberships, or mutations
-- event clustering from notes
+- event clustering / Event Threads from notes
+- automatic speech-to-text / Whisper / audio transcription
+- generic web scraping of third-party transcript mirrors
 - automated publication
 - editor notes
 - treating creator opinions as facts
@@ -457,14 +541,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now creator-notes.timer
 ```
 
-Suggested cadence: 4 runs per day at 03:20 / 09:20 / 15:20 / 21:20, offset from Theme Memory. Each invocation is `npm run creator-notes:batch -- --limit 10`.
+Suggested cadence: 4 runs per day at 03:20 / 09:20 / 15:20 / 21:20, offset from Theme Memory. Each invocation is `npm run creator-notes:podcast-batch -- --limit 10`.
 
 ## First persisted batch
 
 ```bash
 THEME_AI_PROVIDER=ollama \
 OLLAMA_MODEL=gemma3:4b \
-npm run creator-notes:batch -- --limit 10
+npm run creator-notes:podcast-batch -- --limit 10
 ```
 
 Then inspect:
@@ -513,7 +597,7 @@ Creator commentary remains attributed perspective. It still is not corroboration
 
 File-mode dry-run calibration does not require the creator-notes migration or a `source_items` lookup. Pass `--creator-name` when attribution should use a known creator. Source metadata may still be unavailable when the id is a calibration string rather than a real Voice/intel id; that is expected and does not block extraction.
 
-Remote-mode dry-run (`--source-item` without `--transcript-file`) resolves a real existing item and fetches YouTube captions, then extracts + validates + prints. It still performs **zero** creator-note database writes and does not require the pending creator-notes migration.
+Remote-mode podcast dry-run (`creator-notes:extract-podcast --source-item` without a file) resolves a real podcast episode, fetches a public transcript, then extracts + validates + prints. It still performs **zero** creator-note database writes. YouTube remote extract remains available as an experimental non-default path.
 
 Before enabling this broadly, inspect a real transcript dry-run:
 

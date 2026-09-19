@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Test Show</title>
+    <item>
+      <title>Episode Without Transcript</title>
+      <guid>guid-ep-none</guid>
+      <link>https://creator.example/episodes/none</link>
+      <pubDate>Tue, 15 Sep 2026 12:00:00 GMT</pubDate>
+      <enclosure url="https://creator.example/audio/none.mp3" type="audio/mpeg" length="1000"/>
+    </item>
+  </channel>
+</rss>

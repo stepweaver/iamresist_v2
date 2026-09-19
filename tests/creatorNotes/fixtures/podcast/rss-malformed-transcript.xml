@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Test Show</title>
+    <item>
+      <title>Episode With Bad Transcript URL</title>
+      <guid>guid-ep-bad</guid>
+      <link>https://creator.example/episodes/bad</link>
+      <pubDate>Mon, 14 Sep 2026 12:00:00 GMT</pubDate>
+      <enclosure url="https://creator.example/audio/bad.mp3" type="audio/mpeg" length="1000"/>
+      <podcast:transcript url="not-a-valid-url" type="text/vtt" language="en" />
+    </item>
+  </channel>
+</rss>

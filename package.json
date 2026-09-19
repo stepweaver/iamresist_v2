@@ -17,7 +17,10 @@
     "creator-notes:extract": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-extract.ts",
     "creator-notes:sources": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-sources.ts",
     "creator-notes:batch": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-batch.ts",
-    "creator-notes:review": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-review.ts"
+    "creator-notes:review": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-review.ts",
+    "creator-notes:podcast-sources": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-podcast-sources.ts",
+    "creator-notes:extract-podcast": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-extract-podcast.ts",
+    "creator-notes:podcast-batch": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-podcast-batch.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",

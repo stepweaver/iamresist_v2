@@ -102,10 +102,10 @@ describe('YouTube video-id parsing', () => {
     expect(parseYouTubeVideoId(null, `yt:${VIDEO_ID}`)).toBe(VIDEO_ID);
   });
 
-  it('rejects unsupported URLs', () => {
+  it('rejects non-YouTube watch URLs that are not YouTube videos', () => {
     expect(parseYouTubeVideoId('https://pca.st/episode/abc')).toBeNull();
-    expect(classifyCreatorSourceProvider('https://pca.st/episode/abc')).toBe('unknown');
-    expect(classifyCreatorSourceProvider('https://podcasts.apple.com/us/podcast/x/id123')).toBe('unknown');
+    expect(classifyCreatorSourceProvider('https://pca.st/episode/abc')).toBe('podcast');
+    expect(classifyCreatorSourceProvider('https://podcasts.apple.com/us/podcast/x/id123')).toBe('podcast');
   });
 });
 

@@ -54,6 +54,17 @@ export function classifyCreatorSourceProvider(
   storedId: string | null | undefined = null,
 ): CreatorTranscriptProviderName {
   if (parseYouTubeVideoId(url, storedId) || isYouTubeUrl(url)) return 'youtube';
+  const raw = String(url || storedId || '').toLowerCase();
+  if (
+    raw.includes('megaphone.fm') ||
+    raw.includes('podcasts.apple.com') ||
+    raw.includes('pca.st') ||
+    raw.includes('/feed') ||
+    raw.includes('podcast') ||
+    raw.includes('substack.com')
+  ) {
+    return 'podcast';
+  }
   return 'unknown';
 }
 

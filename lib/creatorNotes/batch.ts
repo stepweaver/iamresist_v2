@@ -47,6 +47,7 @@ export type CreatorNotesBatchDeps = {
   skipLock?: boolean;
   skipWarmup?: boolean;
   warmup?: () => Promise<void>;
+  youtubeBatchEnabled?: boolean;
 };
 
 function clipError(error: unknown): string {
@@ -363,6 +364,7 @@ export async function runCreatorNotesBatch(
         creator: args.creator,
         sinceHours: args.sinceHours ?? CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS,
         now: deps.now ? deps.now() : undefined,
+        youtubeBatchEnabled: deps.youtubeBatchEnabled,
       },
       { listVoiceItems: deps.listVoiceItems },
     );
