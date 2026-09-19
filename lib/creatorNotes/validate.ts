@@ -115,7 +115,7 @@ function parseSourceSegmentIndexes(value: unknown, segmentCount?: number): numbe
     if (entry < 0) {
       throw new CreatorNotesValidationError('source_segment_index_negative');
     }
-    if (segmentCount == null || entry >= segmentCount) {
+    if (segmentCount != null && entry >= segmentCount) {
       throw new CreatorNotesValidationError('source_segment_index_out_of_bounds');
     }
     if (seen.has(entry)) continue;

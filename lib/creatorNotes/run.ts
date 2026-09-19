@@ -1,23 +1,26 @@
 import { randomUUID } from 'node:crypto';
 
-import { chunkCreatorTranscript } from '@/lib/creatorNotes/chunk';
-import { CREATOR_NOTE_EXTRACTION_VERSION } from '@/lib/creatorNotes/constants';
+import { chunkCreatorTranscript, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
+import { CREATOR_NOTE_EXTRACTION_VERSION, type CreatorNoteRunStatus } from '@/lib/creatorNotes/constants';
 import { createSupabaseCreatorNotesStore } from '@/lib/creatorNotes/db';
 import {
   assertCreatorNotesAiConfigured,
   extractCreatorNotesChunk,
+  isCreatorNotesOllamaTimeout,
   resolveCreatorNotesAiConfig,
   type CreatorNotesAiConfig,
 } from '@/lib/creatorNotes/extract';
 import { applyKnownCreatorAttribution, hashCreatorTranscript, transcriptCharCount } from '@/lib/creatorNotes/identity';
 import { countNoteKinds, dedupeRawCreatorNotes, emptyKindCounts, toAtomicNotes } from '@/lib/creatorNotes/postprocess';
 import {
-  applySourceEvidence,
+  acceptGroundedCreatorNotes,
+  addEvidenceDiagnostics,
   emptyEvidenceDiagnostics,
   quoteDiagnosticsFromEvidence,
 } from '@/lib/creatorNotes/sourceEvidence';
 import type {
   CreatorAtomicNote,
+  CreatorNoteEvidenceDiagnostics,
   CreatorNoteRun,
   CreatorNotesChunkExtractResult,
   CreatorNotesRunResult,
@@ -33,6 +36,7 @@ export type CreatorNotesExtractChunkFn = (input: {
   chunk: CreatorTranscriptChunk;
   chunkCount: number;
   config?: CreatorNotesAiConfig;
+  repair?: boolean;
 }) => Promise<CreatorNotesChunkExtractResult>;
 
 export type CreatorNotesRunDeps = {
@@ -42,6 +46,14 @@ export type CreatorNotesRunDeps = {
   id?: () => string;
   aiConfig?: CreatorNotesAiConfig;
   log?: (prefix: string, event: string, extra?: Record<string, unknown>) => void;
+};
+
+type ChunkProcessResult = {
+  notes: RawCreatorNote[];
+  rejected: number;
+  diagnostics: CreatorNoteEvidenceDiagnostics;
+  ok: boolean;
+  error: string | null;
 };
 
 function logEvent(
@@ -61,6 +73,15 @@ function logEvent(
 function clipError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message.slice(0, 240);
+}
+
+export function creatorNotesRunStatus(input: {
+  failedChunks: number;
+  noteCount: number;
+}): CreatorNoteRunStatus {
+  if (input.failedChunks > 0 && input.noteCount > 0) return 'partial';
+  if (input.failedChunks === 0 && input.noteCount > 0) return 'success';
+  return 'failed';
 }
 
 export async function runCreatorNoteExtraction(
@@ -111,6 +132,7 @@ export async function runCreatorNoteExtraction(
     chunks: chunks.length,
     dryRun,
     force,
+    timeoutMs: aiConfig.timeoutMs,
   });
 
   if (!dryRun && !intelDbConfigured() && !deps.store) {
@@ -182,44 +204,137 @@ export async function runCreatorNoteExtraction(
 
   const collected: RawCreatorNote[] = [];
   let validationRejected = 0;
+  const evidenceDiagnostics = emptyEvidenceDiagnostics();
   const chunkErrors: string[] = [];
+
+  async function extractAndGround(
+    chunk: CreatorTranscriptChunk,
+    repair: boolean,
+  ): Promise<{ notes: RawCreatorNote[]; rejected: number; diagnostics: CreatorNoteEvidenceDiagnostics; proposed: number }> {
+    const extracted = await extractChunk({
+      transcript,
+      chunk,
+      chunkCount: chunks.length,
+      config: aiConfig,
+      repair,
+    });
+    const grounded = acceptGroundedCreatorNotes(extracted.notes, transcript.segments, {
+      allowedSegmentIndexes: chunk.segmentIndexes,
+    });
+    return {
+      notes: grounded.notes,
+      rejected: extracted.rejected + grounded.rejected,
+      diagnostics: grounded.diagnostics,
+      proposed: extracted.notes.length,
+    };
+  }
+
+  async function processChunk(
+    chunk: CreatorTranscriptChunk,
+    isRetry: boolean,
+    childOffset: number | null,
+  ): Promise<ChunkProcessResult> {
+    logEvent(log, '[creator-notes]', isRetry ? 'retry child chunk started' : 'chunk started', {
+      index: chunk.index,
+      childOffset,
+      chars: chunk.charCount,
+      startSeconds: chunk.startSeconds,
+      endSeconds: chunk.endSeconds,
+    });
+    try {
+      let result = await extractAndGround(chunk, false);
+      if (result.proposed > 0 && result.notes.length === 0) {
+        logEvent(log, '[creator-notes]', 'chunk grounding repair started', {
+          index: chunk.index,
+          childOffset,
+          proposed: result.proposed,
+        });
+        result = await extractAndGround(chunk, true);
+        logEvent(
+          log,
+          '[creator-notes]',
+          result.notes.length ? 'chunk grounding repair completed' : 'chunk grounding repair failed',
+          { index: chunk.index, childOffset, notes: result.notes.length, rejected: result.rejected },
+        );
+      }
+      if (result.rejected > 0) {
+        logEvent(log, '[creator-notes]', 'validation rejected count', {
+          index: chunk.index,
+          childOffset,
+          rejected: result.rejected,
+        });
+      }
+      logEvent(log, '[creator-notes]', isRetry ? 'retry child chunk completed' : 'chunk succeeded', {
+        index: chunk.index,
+        childOffset,
+        notes: result.notes.length,
+        rejected: result.rejected,
+      });
+      return {
+        notes: result.notes,
+        rejected: result.rejected,
+        diagnostics: result.diagnostics,
+        ok: true,
+        error: null,
+      };
+    } catch (error) {
+      if (isCreatorNotesOllamaTimeout(error) && !isRetry) {
+        logEvent(log, '[creator-notes]', 'chunk timeout', {
+          index: chunk.index,
+          chars: chunk.charCount,
+          error: clipError(error),
+        });
+        const children = splitCreatorTranscriptChunk(chunk);
+        logEvent(log, '[creator-notes]', 'chunk split', {
+          index: chunk.index,
+          children: children.length,
+          childChars: children.map((child) => child.charCount),
+        });
+        const merged: ChunkProcessResult = {
+          notes: [],
+          rejected: 0,
+          diagnostics: emptyEvidenceDiagnostics(),
+          ok: true,
+          error: null,
+        };
+        for (let i = 0; i < children.length; i += 1) {
+          const childResult = await processChunk(children[i], true, i);
+          merged.notes.push(...childResult.notes);
+          merged.rejected += childResult.rejected;
+          addEvidenceDiagnostics(merged.diagnostics, childResult.diagnostics);
+          if (!childResult.ok) {
+            merged.ok = false;
+            merged.error = merged.error || childResult.error;
+          }
+        }
+        return merged;
+      }
+      const message = clipError(error);
+      logEvent(log, '[creator-notes]', isRetry ? 'retry child chunk failed' : 'chunk failed', {
+        index: chunk.index,
+        childOffset,
+        error: message,
+      });
+      return {
+        notes: [],
+        rejected: 0,
+        diagnostics: emptyEvidenceDiagnostics(),
+        ok: false,
+        error: message,
+      };
+    }
+  }
 
   try {
     for (const chunk of chunks) {
-      logEvent(log, '[creator-notes]', 'chunk started', {
-        index: chunk.index,
-        chars: chunk.charCount,
-        startSeconds: chunk.startSeconds,
-        endSeconds: chunk.endSeconds,
-      });
-      try {
-        const extracted = await extractChunk({
-          transcript,
-          chunk,
-          chunkCount: chunks.length,
-          config: aiConfig,
-        });
-        collected.push(...extracted.notes);
-        validationRejected += extracted.rejected;
-        ai.successfulChunks += 1;
-        logEvent(log, '[creator-notes]', 'chunk succeeded', {
-          index: chunk.index,
-          notes: extracted.notes.length,
-          rejected: extracted.rejected,
-        });
-        if (extracted.rejected > 0) {
-          logEvent(log, '[creator-notes]', 'validation rejected count', {
-            index: chunk.index,
-            rejected: extracted.rejected,
-          });
-        }
-      } catch (error) {
+      const processed = await processChunk(chunk, false, null);
+      collected.push(...processed.notes);
+      validationRejected += processed.rejected;
+      addEvidenceDiagnostics(evidenceDiagnostics, processed.diagnostics);
+      if (processed.ok) ai.successfulChunks += 1;
+      else {
         ai.failedChunks += 1;
-        chunkErrors.push(clipError(error));
-        logEvent(log, '[creator-notes]', 'chunk failed', {
-          index: chunk.index,
-          error: clipError(error),
-        });
+        if (processed.error) chunkErrors.push(processed.error);
       }
     }
 
@@ -233,17 +348,9 @@ export async function runCreatorNoteExtraction(
       limited = limited.slice(0, input.limitNotes);
     }
 
-    const evidenced = applySourceEvidence(limited, transcript.segments);
-    if (
-      evidenced.diagnostics.invalidSourceSegmentReferences > 0 ||
-      evidenced.diagnostics.exactQuotesRejected > 0
-    ) {
-      logEvent(log, '[creator-notes]', 'source evidence diagnostics', { ...evidenced.diagnostics });
-    }
-
     const createdAt = now().toISOString();
     const notes: CreatorAtomicNote[] = toAtomicNotes({
-      notes: evidenced.notes,
+      notes: limited,
       sourceItemId: transcript.sourceItemId,
       creatorId: transcript.creatorId,
       extractionRunId: runId,
@@ -251,30 +358,41 @@ export async function runCreatorNoteExtraction(
       idFactory: nextId,
     });
 
-    let notesWritten = 0;
-    let status: CreatorNotesRunResult['persistence']['status'] = 'success';
-    if (ai.failedChunks > 0 && notes.length === 0) status = 'failed';
-    else if (ai.failedChunks > 0 || validationRejected > 0) status = 'partial';
-    else if (notes.length === 0) status = 'failed';
+    const finalEvidence = {
+      notesWithSourceEvidence: notes.filter(
+        (note) => Boolean(note.sourceExcerpt) && note.sourceSegmentIndexes.length > 0,
+      ).length,
+      notesWithoutSourceEvidence: notes.filter(
+        (note) => !note.sourceExcerpt || note.sourceSegmentIndexes.length === 0,
+      ).length,
+      invalidSourceSegmentReferences: evidenceDiagnostics.invalidSourceSegmentReferences,
+      exactQuotesRequested: evidenceDiagnostics.exactQuotesRequested,
+      exactQuotesVerified: evidenceDiagnostics.exactQuotesVerified,
+      exactQuotesRejected: evidenceDiagnostics.exactQuotesRejected,
+    };
+    const status = creatorNotesRunStatus({ failedChunks: ai.failedChunks, noteCount: notes.length });
 
     const completedAt = now().toISOString();
     const errorMessage =
       status === 'failed'
         ? chunkErrors[0] || 'no_useful_extraction'
         : status === 'partial'
-          ? chunkErrors[0] || 'partial_validation'
+          ? chunkErrors[0] || 'partial_extraction'
           : null;
 
+    let notesWritten = 0;
     if (!dryRun && store) {
-      const inserted = await store.insertNotes(notes);
-      notesWritten = inserted.written;
+      if (status === 'success') {
+        const inserted = await store.insertNotes(notes);
+        notesWritten = inserted.written;
+      }
       await store.updateRun(runId, {
         status,
         notesCreated: notesWritten,
         completedAt,
         errorMessage,
       });
-      logEvent(log, '[creator-notes]', 'persistence success', {
+      logEvent(log, '[creator-notes]', status === 'success' ? 'persistence success' : 'persistence skipped', {
         runId,
         notesWritten,
         status,
@@ -283,7 +401,7 @@ export async function runCreatorNoteExtraction(
 
     logEvent(log, '[creator-notes]', 'run complete', {
       runId: dryRun ? null : runId,
-      status: dryRun ? 'success' : status,
+      status,
       notes: notes.length,
     });
 
@@ -294,8 +412,8 @@ export async function runCreatorNoteExtraction(
       kindCounts: countNoteKinds(notes),
       validationRejected,
       duplicatesRemoved: deduped.duplicatesRemoved,
-      evidenceDiagnostics: evidenced.diagnostics,
-      quoteDiagnostics: quoteDiagnosticsFromEvidence(evidenced.diagnostics),
+      evidenceDiagnostics: finalEvidence,
+      quoteDiagnostics: quoteDiagnosticsFromEvidence(finalEvidence),
       persistence: {
         dryRun,
         priorEquivalentRunId: dryRun ? null : equivalent?.id ?? null,

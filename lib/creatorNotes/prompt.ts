@@ -47,8 +47,11 @@ export const CREATOR_NOTE_SYSTEM_PROMPT = [
   'Each note must contain one primary idea.',
   'Keep notebook text as a concise paraphrase of what the excerpt means.',
   'Do not paraphrase evidence as a quotation.',
+  'Every note must cite one or more supplied transcript segment indexes.',
+  'Do not emit a note that cannot be supported by the supplied transcript.',
   'Select the smallest set of transcript segment indexes that directly support the note.',
   'The application will retrieve the verbatim transcript itself.',
+  'Do not convert analysis into EVENT merely because it concerns an event.',
   'If you supply exactQuote, copy a contiguous substring exactly as written in the supplied transcript. Do not clean up grammar, punctuation, wording, or speaker phrasing.',
   'Do not invent or reconstruct quotations.',
   'Preserve source timestamps.',
@@ -78,17 +81,34 @@ export const CREATOR_NOTE_SYSTEM_PROMPT = [
 
 const KIND_INSTRUCTIONS = [
   'Note kinds:',
-  'event: The creator describes an occurrence/action/development. Example: "A federal court issued a new order in the case."',
-  'claim: The creator makes a concrete assertion which could in principle be checked against evidence. A claim is not automatically true.',
-  'new_development: The creator explicitly presents something as new information or a change in an ongoing event.',
-  'context: Background or prior events necessary to understand the current item.',
-  'evidence_reference: A document, filing, article, report, dataset, quote, video, court decision, government source, or other evidence the speaker explicitly references.',
-  'creator_analysis: The creator is interpreting, judging, explaining, inferring, or offering an opinion. This is not a fact.',
-  'why_it_matters: The creator explicitly connects an event to significance, consequences, stakes, or downstream effects. This is not a fact.',
+  'event: An observable occurrence or development described in the transcript. Example: "A federal court issued a new order in the case."',
+  'claim: A factual assertion made by the creator which could in principle be checked against evidence. A claim is not automatically true.',
+  'context: Explanatory or background information needed to understand the current item.',
+  "creator_analysis: The creator's interpretation or inference. This is not a fact and is not an event.",
+  "why_it_matters: The creator's explanation of significance, consequence, stakes, or downstream effects. This is not a fact.",
+  'evidence_reference: A document, statistic, report, filing, article, dataset, court decision, or other source the creator explicitly invokes.',
+  'new_development: A newly described change within an ongoing event. Use this only when the transcript presents a change, not merely because the topic is an event.',
   '',
-  'creator_analysis != fact. why_it_matters != fact. claim != verified fact.',
+  'creator_analysis != fact. why_it_matters != fact. claim != verified fact. creator_analysis != event.',
+  'Do not convert analysis into EVENT merely because it concerns an event.',
   'Do not collapse these categories together.',
+  'Do not force category diversity. Choose the kind that matches the note.',
   'Do not generate partisan framing. Preserve attribution rather than deciding a political conclusion.',
+].join('\n');
+
+const GROUNDING_INSTRUCTIONS = [
+  'Every note MUST cite one or more integer SEGMENT indexes from the supplied transcript headers.',
+  'sourceSegmentIndexes is required. Do not emit a note that cannot be supported by the supplied transcript.',
+  'Use only SEGMENT indexes shown in this chunk. Do not guess, invent, or omit them.',
+].join('\n');
+
+const REPAIR_INSTRUCTIONS = [
+  'GROUNDING REPAIR: the previous extraction for this transcript chunk produced notes without valid source segment indexes.',
+  'Every note must cite one or more supplied segment indexes.',
+  'Do not emit a note that cannot be supported by the supplied transcript.',
+  'Preserve attribution.',
+  'Distinguish factual statements from creator analysis.',
+  'Do not convert analysis into EVENT merely because it concerns an event.',
 ].join('\n');
 
 const SPECIFICITY_INSTRUCTIONS = [
@@ -144,19 +164,23 @@ export function buildCreatorNoteMessages(input: {
   transcript: CreatorTranscriptInput;
   chunk: CreatorTranscriptChunk;
   chunkCount: number;
+  repair?: boolean;
 }): Array<{ role: 'system' | 'user'; content: string }> {
   const maxNotes = creatorNotesMaxNotesPerChunk();
   const knownCreator = clip(input.transcript.creatorName, 80);
   const user = [
     KIND_INSTRUCTIONS,
     '',
+    GROUNDING_INSTRUCTIONS,
+    '',
     SPECIFICITY_INSTRUCTIONS,
     '',
+    ...(input.repair ? [REPAIR_INSTRUCTIONS, ''] : []),
     `Return JSON: {"notes":[{"kind":"...","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":string|null,"exactQuote":string|null,"sourceSegmentIndexes":[0],"eventFeatures":{"actors":[],"action":string|null,"object":string|null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}`,
     `notes must be an array of at most ${maxNotes} objects.`,
     `kind must be one of: ${CREATOR_NOTE_KINDS.join(', ')}.`,
     `text must be one concise notebook paraphrase between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters. Preserve concrete names and identifiers from the transcript.`,
-    `sourceSegmentIndexes is the primary provenance field. Select the smallest set of integer SEGMENT indexes shown in the transcript headers that directly support the note, in transcript order, at most ${CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES} unique indexes. Prefer a contiguous range of at most 3 segments. They must exist in this transcript. Do not paraphrase evidence as a quotation. The application will retrieve the verbatim transcript itself.`,
+    `sourceSegmentIndexes is required for every note. Select the smallest set of integer SEGMENT indexes shown in the transcript headers that directly support the note, in transcript order, at most ${CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES} unique indexes. Prefer a contiguous range of at most 3 segments. They must exist in this chunk. Do not paraphrase evidence as a quotation. The application will retrieve the verbatim transcript itself.`,
     `exactQuote is optional. If you supply exactQuote, copy a contiguous substring exactly as written in the supplied transcript. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters. Do not invent quotation marks around a paraphrase. If you cannot copy a short supporting excerpt exactly, set exactQuote to null.`,
     'startSeconds and endSeconds are seconds from the supplied transcript timestamps. Use null if unknown. endSeconds must not be less than startSeconds.',
     attributionInstruction(knownCreator),

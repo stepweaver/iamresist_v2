@@ -3,8 +3,8 @@
  * Bump CREATOR_NOTE_EXTRACTION_VERSION when prompt or validation semantics change.
  */
 
-export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.2';
-export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.2';
+export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.3';
+export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.3';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 
 export const CREATOR_NOTE_KINDS = [
@@ -43,8 +43,10 @@ export const CREATOR_NOTES_PREFERRED_SOURCE_SEGMENTS = 3;
 export const CREATOR_NOTES_SOURCE_INDEX_MAX_GAP = 1;
 export const CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES = 8;
 export const CREATOR_NOTES_MAX_NOTES_PER_CHUNK_DEFAULT = 30;
-export const CREATOR_NOTES_CHUNK_CHARS_DEFAULT = 12000;
+export const CREATOR_NOTES_CHUNK_CHARS_DEFAULT = 7500;
 export const CREATOR_NOTES_CHUNK_OVERLAP_CHARS = 800;
+export const CREATOR_NOTES_RETRY_CHUNK_CHARS_FLOOR = 3000;
+export const CREATOR_NOTES_AI_TIMEOUT_MS_DEFAULT = 300000;
 export const GENERIC_SPEAKER_ATTRIBUTION = 'The speaker';
 
 /** Bounded Voice ingest. Never allow an unbounded batch. */
@@ -83,4 +85,14 @@ export function creatorNotesChunkChars(): number {
 
 export function creatorNotesMaxNotesPerChunk(): number {
   return optInt('CREATOR_NOTES_MAX_NOTES_PER_CHUNK', CREATOR_NOTES_MAX_NOTES_PER_CHUNK_DEFAULT);
+}
+
+export function creatorNotesAiTimeoutMs(): number {
+  return optInt('CREATOR_NOTES_AI_TIMEOUT_MS', CREATOR_NOTES_AI_TIMEOUT_MS_DEFAULT);
+}
+
+export function creatorNotesRetryChunkChars(parentCharCount: number): number {
+  const parent = Number.isFinite(parentCharCount) && parentCharCount > 0 ? parentCharCount : creatorNotesChunkChars();
+  if (parent <= CREATOR_NOTES_RETRY_CHUNK_CHARS_FLOOR) return parent;
+  return Math.max(CREATOR_NOTES_RETRY_CHUNK_CHARS_FLOOR, Math.floor(parent / 2));
 }

@@ -70,7 +70,7 @@ Single-item mode still exists for calibration. Bounded **podcast** batch mode di
 Reuse:
 
 - `THEME_AI_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
-- `THEME_AI_TIMEOUT_MS`, `THEME_AI_MAX_RETRIES`
+- `CREATOR_NOTES_AI_TIMEOUT_MS` (Atomic Notes Ollama timeout; independent of Theme Memory)
 - existing Ollama chat helper (`ollamaChatJson`)
 - intel schema / Supabase service-role client
 - Theme Memory CLI preload (`.env` loading + `server-only` stub)
@@ -81,15 +81,15 @@ Creator notes **require** `THEME_AI_PROVIDER=ollama`. There is no deterministic 
 
 | Kind | Meaning |
 |------|---------|
-| `event` | A concise description of an occurrence/action/development the speaker is discussing. |
-| `claim` | A factual assertion made by the speaker. **Not automatically true.** |
-| `new_development` | Something the speaker explicitly presents as new information or a change. |
-| `context` | Background or prior events needed to understand the current item. |
-| `evidence_reference` | A document, filing, article, report, quote, court decision, or other evidence the speaker explicitly cites. |
-| `creator_analysis` | The speaker's interpretation, judgment, inference, explanation, or opinion. **Not a fact.** |
-| `why_it_matters` | An explicit speaker argument about significance, consequences, stakes, or downstream effects. **Not a fact.** |
+| `event` | An observable occurrence or development described in the transcript. |
+| `claim` | A factual assertion made by the creator. **Not automatically true.** |
+| `new_development` | A newly described change within an ongoing event. |
+| `context` | Explanatory or background information needed to understand the current item. |
+| `evidence_reference` | A document, statistic, report, filing, or other source the creator explicitly invokes. |
+| `creator_analysis` | The creator's interpretation or inference. **Not a fact. Not an event.** |
+| `why_it_matters` | The creator's explanation of significance or consequence. **Not a fact.** |
 
-Do not collapse these categories.
+Do not collapse these categories. Do not convert analysis into `event` merely because it concerns an event. Do not force category diversity.
 
 ```
 creator_analysis != fact
@@ -147,7 +147,7 @@ sourceExcerpt = exact text copied by code from the supplied transcript
 text          = concise AI-generated notebook note
 ```
 
-The model's primary provenance job is selecting `sourceSegmentIndexes`, not reproducing quote text. For every accepted note the application:
+The model's primary provenance job is selecting `sourceSegmentIndexes`, not reproducing quote text. Every accepted transcript-derived note must cite at least one index that exists in the supplied chunk. Missing or invalid indexes are rejected; the application never invents a replacement. For every accepted note the application:
 
 1. validates `sourceSegmentIndexes` (in-bounds, contiguous or nearly contiguous)
 2. retrieves those exact original transcript segments
@@ -414,7 +414,7 @@ Flags (single-item extract):
 
 Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
-Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters), then the existing Atomic Notes report. Note previews show timestamp, kind, attribution, `Transcript:` evidence from `sourceExcerpt` or `(not available)`, notebook paraphrase, and source segment indexes. A narrower verified `exactQuote` is shown only when it is not essentially identical to the transcript excerpt. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `notes with source evidence`, `notes without source evidence`, `invalid source segment references`, `exact quotes requested`, `exact quotes verified`, and `exact quotes rejected`.
+Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters), then the existing Atomic Notes report. Note previews show start/end timestamp, kind, creator attribution, `Transcript:` evidence from deterministic `sourceExcerpt`, notebook paraphrase, source segment indexes, and a narrower verified `exactQuote` only when it is not essentially identical to the transcript excerpt. Accepted transcript-derived notes are grounded; `Transcript: (not available)` should not appear for them. Empty/null event-feature arrays are omitted unless `--json` is supplied. The report also prints `notes with source evidence`, `notes without source evidence`, `invalid source segment references`, `exact quotes requested`, `exact quotes verified`, and `exact quotes rejected`.
 
 First real podcast dry-run (do not persist):
 
@@ -520,16 +520,19 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `THEME_AI_PROVIDER` | `none` | Must be `ollama` for live extraction |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local Ollama |
 | `OLLAMA_MODEL` | `gemma3:4b` if unset for this CLI | Chat model |
-| `THEME_AI_TIMEOUT_MS` | `45000` | Per-chunk timeout |
-| `THEME_AI_MAX_RETRIES` | `2` | Retry transient Ollama failures |
+| `THEME_AI_TIMEOUT_MS` | `45000` | Theme Memory classification timeout (unchanged) |
+| `THEME_AI_MAX_RETRIES` | `2` | Theme Memory retry of transient Ollama failures |
+| `CREATOR_NOTES_AI_TIMEOUT_MS` | `300000` | Atomic Notes per-chunk Ollama timeout |
 | `CREATOR_NOTES_LOCK_FILE` | `tmp/creator-notes-batch.lock` | Exclusive batch lock; separate from Theme Memory |
-| `CREATOR_NOTES_CHUNK_CHARS` | `12000` | Target chunk size |
+| `CREATOR_NOTES_CHUNK_CHARS` | `7500` | Target chunk size |
 | `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` | `30` | Hard cap per chunk |
 | `CREATOR_NOTES_WHISPER_MODEL` | `small` | faster-whisper model for `--transcribe-audio` |
 | `CREATOR_NOTES_PYTHON` | `python3` | Python used to run local Whisper |
 | `CREATOR_NOTES_FFMPEG` | `ffmpeg` | ffmpeg binary for 16 kHz mono speech |
 
-Chunking is by transcript segments, with ~800 characters of overlap. Individual segments are split only if they exceed the chunk budget. Overlap preserves original segment indexes. Prompts label each segment as `[SEGMENT n | startSeconds-endSeconds]`.
+Chunking is by whole transcript segments, with ~800 characters of overlap. Individual segments are not split. Overlap preserves original segment indexes. Prompts label each segment as `[SEGMENT n | startSeconds-endSeconds]`. Target size is ~7,500 characters. If a chunk times out, it is split once into smaller segment-boundary children and those children are processed sequentially. Child timeouts are not retried again.
+
+Every accepted note must cite at least one `sourceSegmentIndexes` value that exists in the supplied chunk. Missing or invalid indexes are rejected and counted as validation rejections. The application copies `sourceExcerpt` from those original transcript segments; model prose never becomes evidence. If a chunk returns notes but none survive grounding, extraction retries that chunk once with a repair prompt. A `partial` run (some final chunks failed, some notes extracted) does not persist Atomic Notes.
 
 Source excerpts are copied from original segments (`CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS`, 800). Normally at most 3 referenced segments. Optional exact quotes are max 500 characters (`CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS`). Parse allows at most 8 source segment indexes per note; evidence construction bounds the stored range.
 

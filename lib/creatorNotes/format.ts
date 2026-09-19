@@ -344,13 +344,23 @@ function padTime(value: number): string {
   return String(value).padStart(2, '0');
 }
 
-export function formatNoteTimestamp(seconds: number | null): string {
-  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '[--:--:--]';
+function formatClock(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '--:--:--';
   const total = Math.floor(seconds);
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  return `[${padTime(h)}:${padTime(m)}:${padTime(s)}]`;
+  return `${padTime(h)}:${padTime(m)}:${padTime(s)}`;
+}
+
+export function formatNoteTimestamp(seconds: number | null): string {
+  return `[${formatClock(seconds)}]`;
+}
+
+export function formatNoteTimestampRange(startSeconds: number | null, endSeconds: number | null): string {
+  if (startSeconds == null && endSeconds == null) return formatNoteTimestamp(null);
+  if (endSeconds == null || endSeconds === startSeconds) return formatNoteTimestamp(startSeconds);
+  return `[${formatClock(startSeconds)}–${formatClock(endSeconds)}]`;
 }
 
 function kindLabel(kind: string): string {
@@ -374,7 +384,7 @@ function essentiallyIdenticalText(a: string | null | undefined, b: string | null
 export function formatNotePreview(note: CreatorAtomicNote): string {
   const who = note.attribution || '—';
   const lines = [
-    `${formatNoteTimestamp(note.startSeconds)} ${kindLabel(note.kind)} — ${who}`,
+    `${formatNoteTimestampRange(note.startSeconds, note.endSeconds)} ${kindLabel(note.kind)} — ${who}`,
     '',
   ];
   if (note.sourceExcerpt) {
@@ -606,7 +616,10 @@ export function formatCreatorNotesReview(result: CreatorNotesReviewResult): stri
 }
 
 function formatReviewNote(note: CreatorAtomicNote): string {
-  const lines = [`${formatNoteTimestamp(note.startSeconds)} ${kindLabel(note.kind)}`, ''];
+  const lines = [
+    `${formatNoteTimestampRange(note.startSeconds, note.endSeconds)} ${kindLabel(note.kind)}`,
+    '',
+  ];
   if (note.sourceExcerpt) {
     lines.push('Transcript:', `"${note.sourceExcerpt}"`, '');
   } else {

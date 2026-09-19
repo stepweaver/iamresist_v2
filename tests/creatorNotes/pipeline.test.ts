@@ -398,7 +398,10 @@ describe('Atomic Creator Notes prompt contract', () => {
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('The application will retrieve the verbatim transcript itself');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not invent or reconstruct quotations');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not unnecessarily generalize');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not convert analysis into EVENT merely because it concerns an event');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Every note must cite one or more supplied transcript segment indexes');
     expect(messages[1].content).toContain('creator_analysis != fact');
+    expect(messages[1].content).toContain('Do not convert analysis into EVENT merely because it concerns an event');
     expect(messages[1].content).toContain('exactQuote');
     expect(messages[1].content).toContain('sourceSegmentIndexes');
     expect(messages[1].content).toContain('Do not paraphrase evidence as a quotation');
@@ -488,7 +491,7 @@ describe('Atomic Creator Notes CLI args', () => {
       noteFingerprint: 'fp',
       createdAt: '2026-09-17T20:00:00.000Z',
     });
-    expect(withExcerpt).toContain('[00:01:30] CREATOR ANALYSIS — David Pakman');
+    expect(withExcerpt).toContain('[00:01:30–00:01:58] CREATOR ANALYSIS — David Pakman');
     expect(withExcerpt).toContain('Transcript:');
     expect(withExcerpt).toContain(
       '"The speaker argues that the development is politically significant, while making clear that this is their interpretation of the consequences."',

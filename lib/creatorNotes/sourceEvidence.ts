@@ -204,6 +204,87 @@ function verifyExactQuote(rawQuote: string | null, sourceText: string): string |
   return verbatim;
 }
 
+function timeRangeFromIndexes(
+  segments: CreatorTranscriptSegment[],
+  indexes: number[],
+): { startSeconds: number | null; endSeconds: number | null } {
+  let start: number | null = null;
+  let end: number | null = null;
+  for (const index of uniqueSortedIndexes(indexes)) {
+    const segment = segments[index];
+    if (!segment) continue;
+    if (segment.startSeconds != null && Number.isFinite(segment.startSeconds)) {
+      start = start == null ? segment.startSeconds : Math.min(start, segment.startSeconds);
+    }
+    if (segment.endSeconds != null && Number.isFinite(segment.endSeconds)) {
+      end = end == null ? segment.endSeconds : Math.max(end, segment.endSeconds);
+    } else if (segment.startSeconds != null && Number.isFinite(segment.startSeconds)) {
+      end = end == null ? segment.startSeconds : Math.max(end, segment.startSeconds);
+    }
+  }
+  return { startSeconds: start, endSeconds: end };
+}
+
+export function addEvidenceDiagnostics(
+  target: CreatorNoteEvidenceDiagnostics,
+  extra: CreatorNoteEvidenceDiagnostics,
+): CreatorNoteEvidenceDiagnostics {
+  target.notesWithSourceEvidence += extra.notesWithSourceEvidence;
+  target.notesWithoutSourceEvidence += extra.notesWithoutSourceEvidence;
+  target.invalidSourceSegmentReferences += extra.invalidSourceSegmentReferences;
+  target.exactQuotesRequested += extra.exactQuotesRequested;
+  target.exactQuotesVerified += extra.exactQuotesVerified;
+  target.exactQuotesRejected += extra.exactQuotesRejected;
+  return target;
+}
+
+export function acceptGroundedCreatorNotes(
+  notes: RawCreatorNote[],
+  segments: CreatorTranscriptSegment[],
+  opts: { allowedSegmentIndexes?: number[] } = {},
+): { notes: RawCreatorNote[]; rejected: number; diagnostics: CreatorNoteEvidenceDiagnostics } {
+  const allowed = opts.allowedSegmentIndexes ? new Set(opts.allowedSegmentIndexes) : null;
+  let clearedInvalid = 0;
+  const prepared = notes.map((note) => {
+    const requested = uniqueSortedIndexes(Array.isArray(note.sourceSegmentIndexes) ? note.sourceSegmentIndexes : []);
+    if (!requested.length) {
+      return { ...note, sourceSegmentIndexes: [] };
+    }
+    if (allowed && requested.some((index) => !allowed.has(index))) {
+      clearedInvalid += 1;
+      return { ...note, sourceSegmentIndexes: [] };
+    }
+    return { ...note, sourceSegmentIndexes: requested };
+  });
+
+  const evidenced = applySourceEvidence(prepared, segments);
+  const accepted: RawCreatorNote[] = [];
+  let rejected = 0;
+  const diagnostics = emptyEvidenceDiagnostics();
+  diagnostics.invalidSourceSegmentReferences =
+    clearedInvalid + evidenced.diagnostics.invalidSourceSegmentReferences;
+  diagnostics.exactQuotesRequested = evidenced.diagnostics.exactQuotesRequested;
+  diagnostics.exactQuotesVerified = evidenced.diagnostics.exactQuotesVerified;
+  diagnostics.exactQuotesRejected = evidenced.diagnostics.exactQuotesRejected;
+
+  for (const note of evidenced.notes) {
+    if (!note.sourceExcerpt || !note.sourceSegmentIndexes.length) {
+      rejected += 1;
+      diagnostics.notesWithoutSourceEvidence += 1;
+      continue;
+    }
+    const bounds = timeRangeFromIndexes(segments, note.sourceSegmentIndexes);
+    accepted.push({
+      ...note,
+      startSeconds: note.startSeconds ?? bounds.startSeconds,
+      endSeconds: note.endSeconds ?? bounds.endSeconds,
+    });
+    diagnostics.notesWithSourceEvidence += 1;
+  }
+
+  return { notes: accepted, rejected, diagnostics };
+}
+
 export function applySourceEvidence(
   notes: RawCreatorNote[],
   segments: CreatorTranscriptSegment[],

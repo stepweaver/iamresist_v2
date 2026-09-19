@@ -40,6 +40,7 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
           exactQuote: { type: 'string', maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
           sourceSegmentIndexes: {
             type: 'array',
+            minItems: 1,
             maxItems: CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES,
             items: { type: 'integer', minimum: 0 },
           },
@@ -72,7 +73,7 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
             additionalProperties: false,
           },
         },
-        required: ['kind', 'text'],
+        required: ['kind', 'text', 'sourceSegmentIndexes'],
         additionalProperties: false,
       },
     },

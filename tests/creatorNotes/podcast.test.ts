@@ -298,7 +298,7 @@ describe('podcast extract and batch', () => {
       { transcript: prepared.transcript, dryRun: true },
       {
         store,
-        extractChunk: mockExtractChunk(SPECIFIC_NOTES.slice(0, 1)),
+        extractChunk: mockExtractChunk([{ ...SPECIFIC_NOTES[0], sourceSegmentIndexes: [0] }]),
         aiConfig: TEST_AI,
         id: () => 'podcast-dry',
         log: () => {},
@@ -334,7 +334,7 @@ describe('podcast extract and batch', () => {
       { transcript, dryRun: false },
       {
         store,
-        extractChunk: mockExtractChunk(SPECIFIC_NOTES.slice(0, 1)),
+        extractChunk: mockExtractChunk([{ ...SPECIFIC_NOTES[0], sourceSegmentIndexes: [0] }]),
         aiConfig: TEST_AI,
         id: () => 'podcast-write-1',
         log: () => {},
@@ -345,7 +345,7 @@ describe('podcast extract and batch', () => {
       { transcript, dryRun: false },
       {
         store,
-        extractChunk: mockExtractChunk(SPECIFIC_NOTES.slice(0, 1)),
+        extractChunk: mockExtractChunk([{ ...SPECIFIC_NOTES[0], sourceSegmentIndexes: [0] }]),
         aiConfig: TEST_AI,
         id: () => 'podcast-write-2',
         log: () => {},

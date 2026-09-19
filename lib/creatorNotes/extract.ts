@@ -1,6 +1,9 @@
 import 'server-only';
 
-import { CREATOR_NOTES_DEFAULT_MODEL } from '@/lib/creatorNotes/constants';
+import {
+  CREATOR_NOTES_DEFAULT_MODEL,
+  creatorNotesAiTimeoutMs,
+} from '@/lib/creatorNotes/constants';
 import { buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
 import { CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
 import { parseCreatorNotesOutput } from '@/lib/creatorNotes/validate';
@@ -28,9 +31,17 @@ export function resolveCreatorNotesAiConfig(): CreatorNotesAiConfig {
     provider,
     model,
     baseUrl: themeMemoryEnv.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
-    timeoutMs: themeMemoryEnv.THEME_AI_TIMEOUT_MS ?? 45000,
-    retries: themeMemoryEnv.THEME_AI_MAX_RETRIES ?? 2,
+    timeoutMs: creatorNotesAiTimeoutMs(),
+    retries: 0,
   };
+}
+
+export function isCreatorNotesOllamaTimeout(error: unknown): boolean {
+  if (!error) return false;
+  const code =
+    typeof error === 'object' && error && 'code' in error ? String((error as { code: unknown }).code || '') : '';
+  const message = error instanceof Error ? error.message : String(error);
+  return code === 'ollama_timeout' || message === 'ollama_timeout' || /ollama_timeout/i.test(message);
 }
 
 export function assertCreatorNotesAiConfigured(config: CreatorNotesAiConfig = resolveCreatorNotesAiConfig()): void {
@@ -52,7 +63,6 @@ export async function warmupCreatorNotesAi(
   const probe = await probeOllama({
     baseUrl: config.baseUrl,
     model: config.model,
-    timeoutMs: config.timeoutMs,
   });
   if (!probe.ok) {
     throw new ThemeAIUnavailableError(
@@ -67,6 +77,7 @@ export async function extractCreatorNotesChunk(input: {
   chunk: CreatorTranscriptChunk;
   chunkCount: number;
   config?: CreatorNotesAiConfig;
+  repair?: boolean;
 }): Promise<CreatorNotesChunkExtractResult> {
   const config = input.config || resolveCreatorNotesAiConfig();
   assertCreatorNotesAiConfigured(config);
@@ -76,6 +87,7 @@ export async function extractCreatorNotesChunk(input: {
       transcript: input.transcript,
       chunk: input.chunk,
       chunkCount: input.chunkCount,
+      repair: Boolean(input.repair),
     }),
     format: CREATOR_NOTES_JSON_SCHEMA,
     timeoutMs: config.timeoutMs,

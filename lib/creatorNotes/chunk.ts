@@ -1,6 +1,7 @@
 import {
   CREATOR_NOTES_CHUNK_OVERLAP_CHARS,
   creatorNotesChunkChars,
+  creatorNotesRetryChunkChars,
 } from '@/lib/creatorNotes/constants';
 import { normalizeWhitespace } from '@/lib/creatorNotes/identity';
 import type { CreatorTranscriptChunk, CreatorTranscriptSegment } from '@/lib/creatorNotes/types';
@@ -53,37 +54,6 @@ function timeRange(segments: CreatorTranscriptSegment[]): {
   return { startSeconds: start, endSeconds: end };
 }
 
-function splitOversizedSegment(segment: CreatorTranscriptSegment, maxChars: number): CreatorTranscriptSegment[] {
-  const text = String(segment.text || '');
-  if (text.length <= maxChars) return [segment];
-
-  const parts: CreatorTranscriptSegment[] = [];
-  let cursor = 0;
-  while (cursor < text.length) {
-    const remaining = text.length - cursor;
-    const take = Math.min(maxChars, remaining);
-    let end = cursor + take;
-    if (end < text.length) {
-      const window = text.slice(cursor, end);
-      const breakAt = Math.max(window.lastIndexOf('. '), window.lastIndexOf('\n'), window.lastIndexOf(' '));
-      if (breakAt >= Math.floor(maxChars * 0.5)) {
-        end = cursor + breakAt + 1;
-      }
-    }
-    const slice = text.slice(cursor, end).trim();
-    if (slice) {
-      parts.push({
-        index: segment.index,
-        startSeconds: segment.startSeconds,
-        endSeconds: segment.endSeconds,
-        text: slice,
-      });
-    }
-    cursor = end;
-  }
-  return parts.length ? parts : [segment];
-}
-
 function overlapSegments(segments: CreatorTranscriptSegment[], overlapChars: number): CreatorTranscriptSegment[] {
   if (overlapChars <= 0 || segments.length === 0) return [];
   const out: CreatorTranscriptSegment[] = [];
@@ -96,25 +66,36 @@ function overlapSegments(segments: CreatorTranscriptSegment[], overlapChars: num
   return out;
 }
 
+function toChunk(chunkSegments: CreatorTranscriptSegment[], index: number): CreatorTranscriptChunk {
+  const range = timeRange(chunkSegments);
+  const text = chunkText(chunkSegments);
+  return {
+    index,
+    startSeconds: range.startSeconds,
+    endSeconds: range.endSeconds,
+    segments: chunkSegments,
+    segmentIndexes: uniqueSegmentIndexes(chunkSegments),
+    text,
+    charCount: text.length,
+  };
+}
+
 export function chunkCreatorTranscript(
   segments: CreatorTranscriptSegment[],
   opts: { chunkChars?: number; overlapChars?: number } = {},
 ): CreatorTranscriptChunk[] {
   const maxChars = opts.chunkChars ?? creatorNotesChunkChars();
   const overlapChars = opts.overlapChars ?? CREATOR_NOTES_CHUNK_OVERLAP_CHARS;
-  const flattened: CreatorTranscriptSegment[] = [];
-  for (const segment of withOriginalIndexes(segments)) {
-    flattened.push(...splitOversizedSegment(segment, maxChars));
-  }
+  const indexed = withOriginalIndexes(segments);
 
-  const chunks: CreatorTranscriptSegment[][] = [];
+  const groups: CreatorTranscriptSegment[][] = [];
   let current: CreatorTranscriptSegment[] = [];
   let currentChars = 0;
 
-  for (const segment of flattened) {
+  for (const segment of indexed) {
     const size = segmentChars(segment);
     if (current.length > 0 && currentChars + size > maxChars) {
-      chunks.push(current);
+      groups.push(current);
       const overlap = overlapSegments(current, overlapChars);
       current = [...overlap];
       currentChars = current.reduce((sum, item) => sum + segmentChars(item), 0);
@@ -122,19 +103,23 @@ export function chunkCreatorTranscript(
     current.push(segment);
     currentChars += size;
   }
-  if (current.length) chunks.push(current);
+  if (current.length) groups.push(current);
 
-  return chunks.map((chunkSegments, index) => {
-    const range = timeRange(chunkSegments);
-    const text = chunkText(chunkSegments);
-    return {
-      index,
-      startSeconds: range.startSeconds,
-      endSeconds: range.endSeconds,
-      segments: chunkSegments,
-      segmentIndexes: uniqueSegmentIndexes(chunkSegments),
-      text,
-      charCount: text.length,
-    };
+  return groups.map((chunkSegments, index) => toChunk(chunkSegments, index));
+}
+
+export function splitCreatorTranscriptChunk(
+  chunk: CreatorTranscriptChunk,
+  opts: { chunkChars?: number; overlapChars?: number } = {},
+): CreatorTranscriptChunk[] {
+  const chunkChars = opts.chunkChars ?? creatorNotesRetryChunkChars(chunk.charCount);
+  const children = chunkCreatorTranscript(chunk.segments, {
+    chunkChars,
+    overlapChars: opts.overlapChars ?? CREATOR_NOTES_CHUNK_OVERLAP_CHARS,
   });
+  if (!children.length) return [chunk];
+  return children.map((child) => ({
+    ...child,
+    index: chunk.index,
+  }));
 }

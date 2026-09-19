@@ -52,6 +52,7 @@ Required:
 - `OLLAMA_MODEL=gemma3:4b`
 - `THEME_AI_TIMEOUT_MS=45000`
 - `THEME_AI_STARTUP_TIMEOUT_MS=180000` for the Ollama readiness warm-up only
+- `CREATOR_NOTES_AI_TIMEOUT_MS=300000` for Atomic Notes extraction (independent of Theme Memory)
 
 Optional:
 
