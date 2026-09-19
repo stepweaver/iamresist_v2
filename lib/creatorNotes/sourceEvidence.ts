@@ -1,8 +1,13 @@
 import {
+  CREATOR_NOTES_COMPOUND_NUMERIC_LIMIT,
+  CREATOR_NOTES_COMPOUND_SENTENCE_LIMIT,
+  CREATOR_NOTES_EVIDENCE_DURATION_FLAG_SECONDS,
+  CREATOR_NOTES_EVIDENCE_DURATION_MAX_SECONDS,
   CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS,
   CREATOR_NOTES_PREFERRED_SOURCE_SEGMENTS,
   CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS,
   CREATOR_NOTES_SOURCE_INDEX_MAX_GAP,
+  CREATOR_NOTES_TEXT_MAX_CHARS,
 } from '@/lib/creatorNotes/constants';
 import {
   concatenateTranscriptSegments,
@@ -24,6 +29,11 @@ export function emptyEvidenceDiagnostics(): CreatorNoteEvidenceDiagnostics {
     exactQuotesRequested: 0,
     exactQuotesVerified: 0,
     exactQuotesRejected: 0,
+    quoteVerificationRejected: 0,
+    groundingRejected: 0,
+    unsupportedNumberRejected: 0,
+    compoundRejected: 0,
+    wideEvidenceWindows: 0,
   };
 }
 
@@ -188,11 +198,17 @@ export function resolveSourceSegmentEvidence(
   }
 
   const filled = fillIndexRange(inBounds).filter((index) => index < segments.length);
-  const built = buildSourceExcerpt(segments, filled);
-  if (!built?.excerpt) {
+  const excerptText = concatenateTranscriptSegments(segments, filled);
+  if (!excerptText) {
     return { ok: false, excerpt: null, indexes: [], invalid: true };
   }
-  return { ok: true, excerpt: built.excerpt, indexes: built.indexes, invalid: false };
+  const built = buildSourceExcerpt(segments, filled);
+  return {
+    ok: true,
+    excerpt: built?.excerpt || excerptText,
+    indexes: filled,
+    invalid: false,
+  };
 }
 
 function verifyExactQuote(rawQuote: string | null, sourceText: string): string | null {
@@ -202,6 +218,100 @@ function verifyExactQuote(rawQuote: string | null, sourceText: string): string |
   const verbatim = extractVerifiedQuote(candidate, sourceText);
   if (!verbatim || quoteCandidateLength(verbatim) > CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS) return null;
   return verbatim;
+}
+
+export function proposedSourceQuote(note: RawCreatorNote): string | null {
+  const raw = note.sourceQuote || note.exactQuote;
+  if (typeof raw !== 'string') return null;
+  const candidate = unwrapOuterQuotes(raw) || raw.trim();
+  return candidate || null;
+}
+
+export function smallestIndexesContainingQuote(
+  segments: CreatorTranscriptSegment[],
+  indexes: number[],
+  quote: string,
+): number[] | null {
+  const sorted = uniqueSortedIndexes(indexes).filter((index) => index < segments.length);
+  if (!sorted.length) return null;
+  const sourceText = concatenateTranscriptSegments(segments, sorted);
+  const verbatim = verifyExactQuote(quote, sourceText);
+  if (!verbatim) return null;
+
+  let best: number[] | null = null;
+  for (let start = 0; start < sorted.length; start += 1) {
+    for (let end = start; end < sorted.length; end += 1) {
+      const window = sorted.slice(start, end + 1);
+      if (!sourceIndexesAreNearlyContiguous(window)) continue;
+      if (!verifyExactQuote(verbatim, concatenateTranscriptSegments(segments, window))) continue;
+      if (
+        !best ||
+        window.length < best.length ||
+        (window.length === best.length && window[0] < best[0])
+      ) {
+        best = window;
+      }
+    }
+  }
+  return best;
+}
+
+function normalizeNumericHaystack(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/,/g, '')
+    .replace(/\$/g, ' ')
+    .replace(/%/g, ' percent ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function extractNumericTokens(text: string): string[] {
+  const source = String(text || '');
+  const matches = source.match(/\$?\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|\d+\s*%|\b\d{4}\b|\b\d{2,}\b/g) || [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const match of matches) {
+    const normalized = match.replace(/,/g, '').replace(/\$/g, '').replace(/\s+/g, '').toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+export function unsupportedNumericTokens(noteText: string, evidenceText: string): string[] {
+  const haystack = normalizeNumericHaystack(evidenceText);
+  return extractNumericTokens(noteText).filter((token) => {
+    const bare = token.replace(/%/g, '');
+    return !haystack.includes(bare);
+  });
+}
+
+export function countNotebookSentences(text: string): number {
+  return String(text || '')
+    .split(/[.!?]+\s+|\n+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 20).length;
+}
+
+export function compoundNoteReason(text: string): 'text_too_long' | 'text_not_atomic' | null {
+  const cleaned = String(text || '').trim();
+  if (cleaned.length > CREATOR_NOTES_TEXT_MAX_CHARS) return 'text_too_long';
+  const sentences = countNotebookSentences(cleaned);
+  const numbers = extractNumericTokens(cleaned);
+  if (sentences > CREATOR_NOTES_COMPOUND_SENTENCE_LIMIT) return 'text_not_atomic';
+  if (numbers.length >= CREATOR_NOTES_COMPOUND_NUMERIC_LIMIT) return 'text_not_atomic';
+  if (sentences >= 2 && numbers.length >= 3) return 'text_not_atomic';
+  return null;
+}
+
+function evidenceDurationSeconds(
+  range: { startSeconds: number | null; endSeconds: number | null },
+): number | null {
+  if (range.startSeconds == null || range.endSeconds == null) return null;
+  if (!Number.isFinite(range.startSeconds) || !Number.isFinite(range.endSeconds)) return null;
+  return Math.max(0, range.endSeconds - range.startSeconds);
 }
 
 function timeRangeFromIndexes(
@@ -235,6 +345,11 @@ export function addEvidenceDiagnostics(
   target.exactQuotesRequested += extra.exactQuotesRequested;
   target.exactQuotesVerified += extra.exactQuotesVerified;
   target.exactQuotesRejected += extra.exactQuotesRejected;
+  target.quoteVerificationRejected += extra.quoteVerificationRejected;
+  target.groundingRejected += extra.groundingRejected;
+  target.unsupportedNumberRejected += extra.unsupportedNumberRejected;
+  target.compoundRejected += extra.compoundRejected;
+  target.wideEvidenceWindows += extra.wideEvidenceWindows;
   return target;
 }
 
@@ -268,16 +383,54 @@ export function acceptGroundedCreatorNotes(
   diagnostics.exactQuotesRejected = evidenced.diagnostics.exactQuotesRejected;
 
   for (const note of evidenced.notes) {
+    const bounds = timeRangeFromIndexes(segments, note.sourceSegmentIndexes);
+    const duration = evidenceDurationSeconds(bounds);
+    const citedText = concatenateTranscriptSegments(segments, note.sourceSegmentIndexes);
+    const quote = note.sourceQuote || note.exactQuote;
+
+    if (duration != null && duration >= CREATOR_NOTES_EVIDENCE_DURATION_FLAG_SECONDS) {
+      diagnostics.wideEvidenceWindows += 1;
+    }
+
     if (!note.sourceExcerpt || !note.sourceSegmentIndexes.length) {
       rejected += 1;
       diagnostics.notesWithoutSourceEvidence += 1;
+      diagnostics.groundingRejected += 1;
       continue;
     }
-    const bounds = timeRangeFromIndexes(segments, note.sourceSegmentIndexes);
+    if (!quote) {
+      rejected += 1;
+      diagnostics.quoteVerificationRejected += 1;
+      diagnostics.groundingRejected += 1;
+      continue;
+    }
+    if (duration != null && duration > CREATOR_NOTES_EVIDENCE_DURATION_MAX_SECONDS) {
+      rejected += 1;
+      diagnostics.groundingRejected += 1;
+      continue;
+    }
+    const compound = compoundNoteReason(note.text);
+    if (compound) {
+      rejected += 1;
+      diagnostics.compoundRejected += 1;
+      diagnostics.groundingRejected += 1;
+      continue;
+    }
+    const unsupported = unsupportedNumericTokens(note.text, citedText);
+    if (unsupported.length) {
+      rejected += 1;
+      diagnostics.unsupportedNumberRejected += 1;
+      diagnostics.groundingRejected += 1;
+      continue;
+    }
+
     accepted.push({
       ...note,
       startSeconds: note.startSeconds ?? bounds.startSeconds,
       endSeconds: note.endSeconds ?? bounds.endSeconds,
+      sourceQuote: quote,
+      exactQuote: quote,
+      evidenceDurationSeconds: duration,
     });
     diagnostics.notesWithSourceEvidence += 1;
   }
@@ -294,24 +447,35 @@ export function applySourceEvidence(
     const requestedIndexes = Array.isArray(note.sourceSegmentIndexes) ? note.sourceSegmentIndexes : [];
     const resolved = resolveSourceSegmentEvidence(requestedIndexes, segments);
     if (resolved.invalid) diagnostics.invalidSourceSegmentReferences += 1;
-    if (resolved.excerpt) diagnostics.notesWithSourceEvidence += 1;
-    else diagnostics.notesWithoutSourceEvidence += 1;
 
-    const rawQuote = typeof note.exactQuote === 'string' ? note.exactQuote : null;
-    const candidate = rawQuote ? unwrapOuterQuotes(rawQuote) || rawQuote.trim() : '';
-    let exactQuote: string | null = null;
-    if (candidate) {
+    const citedText = concatenateTranscriptSegments(segments, resolved.indexes);
+    const rawQuote = proposedSourceQuote(note);
+    let sourceQuote: string | null = null;
+    let indexes = resolved.indexes;
+    if (rawQuote) {
       diagnostics.exactQuotesRequested += 1;
-      exactQuote = verifyExactQuote(rawQuote, resolved.excerpt || '');
-      if (exactQuote) diagnostics.exactQuotesVerified += 1;
-      else diagnostics.exactQuotesRejected += 1;
+      sourceQuote = verifyExactQuote(rawQuote, citedText);
+      if (sourceQuote) {
+        diagnostics.exactQuotesVerified += 1;
+        const focused = smallestIndexesContainingQuote(segments, indexes, sourceQuote);
+        if (focused?.length) indexes = focused;
+      } else {
+        diagnostics.exactQuotesRejected += 1;
+      }
     }
+
+    const excerpt =
+      concatenateTranscriptSegments(segments, indexes) || resolved.excerpt;
+    const bounded = excerpt ? buildSourceExcerpt(segments, indexes) : null;
+    if (bounded?.excerpt) diagnostics.notesWithSourceEvidence += 1;
+    else diagnostics.notesWithoutSourceEvidence += 1;
 
     return {
       ...note,
-      sourceExcerpt: resolved.excerpt,
-      exactQuote,
-      sourceSegmentIndexes: resolved.indexes,
+      sourceExcerpt: bounded?.excerpt || excerpt || null,
+      sourceQuote,
+      exactQuote: sourceQuote,
+      sourceSegmentIndexes: indexes,
     };
   });
   return { notes: evidenced, diagnostics };

@@ -402,7 +402,7 @@ describe('Atomic Creator Notes prompt contract', () => {
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Every note must cite one or more supplied transcript segment indexes');
     expect(messages[1].content).toContain('creator_analysis != fact');
     expect(messages[1].content).toContain('Do not convert analysis into EVENT merely because it concerns an event');
-    expect(messages[1].content).toContain('exactQuote');
+    expect(messages[1].content).toContain('sourceQuote');
     expect(messages[1].content).toContain('sourceSegmentIndexes');
     expect(messages[1].content).toContain('Do not paraphrase evidence as a quotation');
     expect(messages[1].content).toContain('[SEGMENT 1 | 12-28]');
@@ -498,8 +498,9 @@ describe('Atomic Creator Notes CLI args', () => {
     );
     expect(withExcerpt).toContain('Note:');
     expect(withExcerpt).toContain('Source segments: 3');
-    expect(withExcerpt).not.toContain('Exact quote:');
-    expect(withExcerpt).not.toContain('Quote:');
+    expect(withExcerpt).toContain('Source quote:');
+    expect(withExcerpt).toContain('Source segments: 3');
+    expect(withExcerpt).toContain('Evidence duration:');
     expect(withExcerpt).not.toContain('eventFeatures');
 
     const withNarrowQuote = formatNotePreview({
@@ -523,7 +524,7 @@ describe('Atomic Creator Notes CLI args', () => {
       createdAt: '2026-09-17T20:00:00.000Z',
     });
     expect(withNarrowQuote).toContain('Transcript:');
-    expect(withNarrowQuote).toContain('Exact quote:');
+    expect(withNarrowQuote).toContain('Source quote:');
     expect(withNarrowQuote).toContain('Source segments: 17, 18');
 
     const withoutExcerpt = formatNotePreview({
@@ -801,18 +802,18 @@ describe('Atomic Creator Notes run', () => {
     );
     expect(result.quoteDiagnostics).toEqual({ requested: 2, verified: 1, rejected: 1 });
     expect(result.evidenceDiagnostics).toMatchObject({
-      notesWithSourceEvidence: 3,
+      notesWithSourceEvidence: 1,
       notesWithoutSourceEvidence: 0,
       invalidSourceSegmentReferences: 0,
       exactQuotesRequested: 2,
       exactQuotesVerified: 1,
       exactQuotesRejected: 1,
+      quoteVerificationRejected: 2,
     });
     expect(result.notes.find((note) => note.kind === 'event')?.exactQuote).toContain('Westmere County Court');
     expect(result.notes.find((note) => note.kind === 'event')?.sourceExcerpt).toBe(transcript.segments[1].text);
-    expect(result.notes.find((note) => note.kind === 'why_it_matters')?.exactQuote).toBeNull();
-    expect(result.notes.find((note) => note.kind === 'why_it_matters')?.sourceExcerpt).toBe(transcript.segments[6].text);
-    expect(result.notes).toHaveLength(3);
+    expect(result.notes.find((note) => note.kind === 'why_it_matters')).toBeUndefined();
+    expect(result.notes).toHaveLength(1);
   });
 });
 
@@ -989,7 +990,7 @@ describe('Atomic Creator Notes deterministic evidence', () => {
             attribution: null,
             eventFeatures: null,
             sourceExcerpt: 'MODEL PARAPHRASE FROM AN OVERLAPPING CHUNK',
-            exactQuote: null,
+            exactQuote: segments[overlapIndex].text,
             sourceSegmentIndexes: [overlapIndex],
           },
         ]),

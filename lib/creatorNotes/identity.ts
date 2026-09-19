@@ -97,6 +97,34 @@ export function overlapDedupeKey(input: { kind: string; text: string }): string 
   return `${String(input.kind || '').trim()}|${normalizeFingerprintText(input.text)}`;
 }
 
+export function normalizeComparableNoteText(value: string): string {
+  return normalizeFingerprintText(value).replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export function noteTextSimilarity(a: string, b: string): number {
+  const left = normalizeComparableNoteText(a);
+  const right = normalizeComparableNoteText(b);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  const leftTokens = new Set(left.split(' ').filter(Boolean));
+  const rightTokens = new Set(right.split(' ').filter(Boolean));
+  if (!leftTokens.size || !rightTokens.size) return 0;
+  let intersection = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) intersection += 1;
+  }
+  const union = leftTokens.size + rightTokens.size - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+export function sourceSegmentRangesOverlap(a: number[], b: number[]): boolean {
+  if (!a.length || !b.length) return false;
+  const left = [...new Set(a)].filter((index) => Number.isInteger(index)).sort((x, y) => x - y);
+  const right = [...new Set(b)].filter((index) => Number.isInteger(index)).sort((x, y) => x - y);
+  if (!left.length || !right.length) return false;
+  return left[0] <= right[right.length - 1] && right[0] <= left[left.length - 1];
+}
+
 export function transcriptCharCount(segments: CreatorTranscriptSegment[]): number {
   return segments.reduce((sum, segment) => sum + String(segment.text || '').length, 0);
 }

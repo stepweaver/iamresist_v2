@@ -1,5 +1,4 @@
 import {
-  CREATOR_NOTE_KINDS,
   CREATOR_NOTES_ACTION_MAX,
   CREATOR_NOTES_ATTRIBUTION_MAX,
   CREATOR_NOTES_EVENT_FEATURE_STRING_MAX,
@@ -18,6 +17,9 @@ import {
 /**
  * Ollama `format` JSON Schema for atomic note extraction.
  * Application-side parseCreatorNotesOutput() remains the source of truth.
+ * `kind` is a free string here on purpose: JSON Schema enums bias constrained
+ * decoding toward the first member (`event`). CREATOR_NOTE_KINDS is enforced
+ * in application validation with no default/coercion.
  */
 export const CREATOR_NOTES_JSON_SCHEMA = {
   type: 'object',
@@ -28,7 +30,7 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          kind: { type: 'string', enum: [...CREATOR_NOTE_KINDS] },
+          kind: { type: 'string', minLength: 1, maxLength: 64 },
           startSeconds: { type: 'number', minimum: 0 },
           endSeconds: { type: 'number', minimum: 0 },
           text: {
@@ -37,6 +39,7 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
             maxLength: CREATOR_NOTES_TEXT_MAX_CHARS,
           },
           attribution: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
+          sourceQuote: { type: 'string', minLength: 1, maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
           exactQuote: { type: 'string', maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
           sourceSegmentIndexes: {
             type: 'array',
@@ -73,7 +76,7 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
             additionalProperties: false,
           },
         },
-        required: ['kind', 'text', 'sourceSegmentIndexes'],
+        required: ['kind', 'text', 'sourceQuote', 'sourceSegmentIndexes'],
         additionalProperties: false,
       },
     },

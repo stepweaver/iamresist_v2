@@ -298,7 +298,14 @@ describe('podcast extract and batch', () => {
       { transcript: prepared.transcript, dryRun: true },
       {
         store,
-        extractChunk: mockExtractChunk([{ ...SPECIFIC_NOTES[0], sourceSegmentIndexes: [0] }]),
+        extractChunk: mockExtractChunk([
+          {
+            ...SPECIFIC_NOTES[0],
+            text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            exactQuote: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            sourceSegmentIndexes: [0],
+          },
+        ]),
         aiConfig: TEST_AI,
         id: () => 'podcast-dry',
         log: () => {},
@@ -334,7 +341,14 @@ describe('podcast extract and batch', () => {
       { transcript, dryRun: false },
       {
         store,
-        extractChunk: mockExtractChunk([{ ...SPECIFIC_NOTES[0], sourceSegmentIndexes: [0] }]),
+        extractChunk: mockExtractChunk([
+          {
+            ...SPECIFIC_NOTES[0],
+            text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            exactQuote: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            sourceSegmentIndexes: [0],
+          },
+        ]),
         aiConfig: TEST_AI,
         id: () => 'podcast-write-1',
         log: () => {},
@@ -345,7 +359,14 @@ describe('podcast extract and batch', () => {
       { transcript, dryRun: false },
       {
         store,
-        extractChunk: mockExtractChunk([{ ...SPECIFIC_NOTES[0], sourceSegmentIndexes: [0] }]),
+        extractChunk: mockExtractChunk([
+          {
+            ...SPECIFIC_NOTES[0],
+            text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            exactQuote: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
+            sourceSegmentIndexes: [0],
+          },
+        ]),
         aiConfig: TEST_AI,
         id: () => 'podcast-write-2',
         log: () => {},

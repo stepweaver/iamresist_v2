@@ -44,6 +44,24 @@ export function isCreatorNotesOllamaTimeout(error: unknown): boolean {
   return code === 'ollama_timeout' || message === 'ollama_timeout' || /ollama_timeout/i.test(message);
 }
 
+export function isCreatorNotesTokenRepeatError(error: unknown): boolean {
+  if (!error) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return /token repeat limit/i.test(message) || /prediction aborted/i.test(message);
+}
+
+export type CreatorNotesRecoveryReason = 'timeout' | 'token_repeat';
+
+export function creatorNotesRecoveryReason(error: unknown): CreatorNotesRecoveryReason | null {
+  if (isCreatorNotesTokenRepeatError(error)) return 'token_repeat';
+  if (isCreatorNotesOllamaTimeout(error)) return 'timeout';
+  return null;
+}
+
+export function isCreatorNotesRecoverableInferenceError(error: unknown): boolean {
+  return creatorNotesRecoveryReason(error) != null;
+}
+
 export function assertCreatorNotesAiConfigured(config: CreatorNotesAiConfig = resolveCreatorNotesAiConfig()): void {
   if (config.provider !== 'ollama') {
     throw new ThemeAIUnavailableError(

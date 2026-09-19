@@ -138,8 +138,9 @@ The model does **not** get to manufacture transcript evidence.
 |-------|---------|
 | Original transcript segments | Source of truth. Indexed as `[SEGMENT n \| start-end]`. Chunk overlap keeps those original indexes. |
 | `sourceExcerpt` | Deterministic **verbatim evidence**. Copied by application code from the referenced original segments. Never generated or rewritten by the model. |
-| `exactQuote` | Optional **narrower verbatim substring** requested by the model. Retained only if it occurs in `sourceExcerpt` after normalizing whitespace, line breaks, and smart/straight quotes. Null otherwise. |
-| `text` | Concise **AI-generated notebook paraphrase** of what that excerpt means. This is the listener's note, not a quotation. |
+| `sourceQuote` | Required **short verbatim span** from those cited segments. Mechanically verified by normalized literal substring match. Null/unverified quotes reject the note. Distinct from the paraphrased notebook `text`. |
+| `exactQuote` | Persistence alias for `sourceQuote` (`exact_quote` column). |
+| `text` | Concise **AI-generated notebook paraphrase** of one primary proposition. Usually 1-2 sentences. |
 | `eventFeatures` | Unverified structured extraction **candidates**. Not theme identity and not auto-linked. |
 
 ```
@@ -147,16 +148,18 @@ sourceExcerpt = exact text copied by code from the supplied transcript
 text          = concise AI-generated notebook note
 ```
 
-The model's primary provenance job is selecting `sourceSegmentIndexes`, not reproducing quote text. Every accepted transcript-derived note must cite at least one index that exists in the supplied chunk. Missing or invalid indexes are rejected; the application never invents a replacement. For every accepted note the application:
+The model's provenance job is selecting `sourceSegmentIndexes` and copying a short `sourceQuote` from those segments. Every accepted transcript-derived note must cite at least one index that exists in the supplied chunk, and the quote must occur in those cited segments. Missing or invalid indexes are rejected; unverifiable quotes are rejected; the application never invents a replacement. For every accepted note the application:
 
-1. validates `sourceSegmentIndexes` (in-bounds, contiguous or nearly contiguous)
-2. retrieves those exact original transcript segments
-3. constructs a deterministic `sourceExcerpt` from that original text
-4. optionally verifies `exactQuote` against that excerpt
+1. validates `kind` (required; unknown/missing kinds are rejected, never defaulted to `event`)
+2. validates `sourceSegmentIndexes` (in-bounds, contiguous or nearly contiguous)
+3. retrieves those exact original transcript segments
+4. verifies `sourceQuote` as a normalized literal substring of those segments
+5. constructs a deterministic `sourceExcerpt` from that original text
+6. rejects notes that introduce numbers/percentages/dates/currency amounts absent from the cited window, or that pack multiple independent propositions into one note
 
-Referenced segments are normally at most 3 and must be contiguous or nearly contiguous (at most one missing index between neighbors). The excerpt target is 800 characters. If the referenced text exceeds that bound, the application keeps the smallest complete referenced segment range that fits. It never truncates in the middle of a word and never inserts generated text into the excerpt.
+Referenced segments are normally at most 3 and must be contiguous or nearly contiguous (at most one missing index between neighbors). Unusually large evidence windows are flagged for review. The excerpt target is 800 characters. Notebook `text` is capped at 500 characters.
 
-A fabricated or paraphrased `exactQuote` becomes `null`. That is not a run failure when `sourceExcerpt` exists. Unverifiable quotes are never rewritten into something that looks verbatim.
+A fabricated or paraphrased `sourceQuote` rejects the note. Unverifiable quotes are never rewritten into something that looks verbatim. One bounded repair attempt may re-extract the chunk.
 
 The notebook paraphrase should preserve concrete names and identifiers that actually appear in the transcript (people, courts, cases, filings, dates, amounts). It must not invent them from outside knowledge, and it should not replace them with generic nouns.
 

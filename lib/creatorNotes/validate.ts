@@ -17,7 +17,12 @@ import {
   type CreatorNoteKind,
 } from '@/lib/creatorNotes/constants';
 import { dedupeStringsCaseInsensitive, normalizeNoteText, resolveNoteAttribution } from '@/lib/creatorNotes/identity';
-import type { CreatorNoteEventFeatures, RawCreatorNote } from '@/lib/creatorNotes/types';
+import type {
+  CreatorNoteKindCounts,
+  CreatorNoteKindDiagnostics,
+  CreatorNoteEventFeatures,
+  RawCreatorNote,
+} from '@/lib/creatorNotes/types';
 import { extractJsonObject } from '@/lib/themeMemory/ai/validate';
 
 export class CreatorNotesValidationError extends Error {
@@ -88,13 +93,75 @@ function parseStringArray(value: unknown, field: string, maxItems: number): stri
   return dedupeStringsCaseInsensitive(strings, maxItems);
 }
 
-function parseExactQuote(value: unknown): string | null {
+function parseExactQuote(value: unknown, field = 'exact_quote'): string | null {
   if (value == null) return null;
   if (typeof value !== 'string') {
-    throw new CreatorNotesValidationError('exact_quote_not_string');
+    throw new CreatorNotesValidationError(`${field}_not_string`);
   }
   const cleaned = value.trim();
   return cleaned || null;
+}
+
+function emptyValidatedKindCounts(): CreatorNoteKindCounts {
+  return {
+    event: 0,
+    claim: 0,
+    new_development: 0,
+    context: 0,
+    evidence_reference: 0,
+    creator_analysis: 0,
+    why_it_matters: 0,
+  };
+}
+
+export function emptyKindDiagnostics(): CreatorNoteKindDiagnostics {
+  return {
+    rawCounts: {},
+    validatedCounts: emptyValidatedKindCounts(),
+    missingKind: 0,
+    invalidKind: 0,
+    coercions: 0,
+  };
+}
+
+export function addKindDiagnostics(
+  target: CreatorNoteKindDiagnostics,
+  extra: CreatorNoteKindDiagnostics,
+): CreatorNoteKindDiagnostics {
+  for (const [kind, count] of Object.entries(extra.rawCounts)) {
+    target.rawCounts[kind] = (target.rawCounts[kind] || 0) + count;
+  }
+  for (const kind of CREATOR_NOTE_KINDS) {
+    target.validatedCounts[kind] += extra.validatedCounts[kind];
+  }
+  target.missingKind += extra.missingKind;
+  target.invalidKind += extra.invalidKind;
+  target.coercions += extra.coercions;
+  return target;
+}
+
+export function inspectRawNoteKind(
+  value: unknown,
+  diagnostics: CreatorNoteKindDiagnostics,
+): void {
+  if (!isPlainObject(value) || value.kind == null || value.kind === '') {
+    diagnostics.missingKind += 1;
+    diagnostics.rawCounts['(missing)'] = (diagnostics.rawCounts['(missing)'] || 0) + 1;
+    return;
+  }
+  if (typeof value.kind !== 'string') {
+    diagnostics.missingKind += 1;
+    diagnostics.rawCounts['(missing)'] = (diagnostics.rawCounts['(missing)'] || 0) + 1;
+    return;
+  }
+  const kind = value.kind.trim();
+  if (!kind) {
+    diagnostics.missingKind += 1;
+    diagnostics.rawCounts['(missing)'] = (diagnostics.rawCounts['(missing)'] || 0) + 1;
+    return;
+  }
+  diagnostics.rawCounts[kind] = (diagnostics.rawCounts[kind] || 0) + 1;
+  if (!isCreatorNoteKind(kind)) diagnostics.invalidKind += 1;
 }
 
 function parseSourceSegmentIndexes(value: unknown, segmentCount?: number): number[] {
@@ -175,10 +242,17 @@ export function validateRawCreatorNote(
   if (!isPlainObject(value)) {
     throw new CreatorNotesValidationError('note_not_object');
   }
+  if (value.kind == null || value.kind === '') {
+    throw new CreatorNotesValidationError('kind_missing');
+  }
   if (typeof value.kind !== 'string') {
     throw new CreatorNotesValidationError('kind_not_string');
   }
-  if (!isCreatorNoteKind(value.kind)) {
+  const kind = value.kind.trim();
+  if (!kind) {
+    throw new CreatorNotesValidationError('kind_missing');
+  }
+  if (!isCreatorNoteKind(kind)) {
     throw new CreatorNotesValidationError('kind_invalid');
   }
   if (typeof value.text !== 'string') {
@@ -205,7 +279,7 @@ export function validateRawCreatorNote(
     boundedOptionalString(value.attribution, 'attribution', CREATOR_NOTES_ATTRIBUTION_MAX),
     opts.knownCreatorName,
   );
-  if (isAttributionRequired(value.kind) && !attribution) {
+  if (isAttributionRequired(kind) && !attribution) {
     throw new CreatorNotesValidationError('attribution_required');
   }
 
@@ -213,16 +287,21 @@ export function validateRawCreatorNote(
     value.sourceSegmentIndexes ?? value.source_segment_indexes,
     opts.segmentCount,
   );
+  const sourceQuote = parseExactQuote(
+    value.sourceQuote ?? value.source_quote ?? value.exactQuote ?? value.exact_quote,
+    'source_quote',
+  );
 
   return {
-    kind: value.kind,
+    kind,
     startSeconds,
     endSeconds,
     text,
     attribution,
     eventFeatures: parseEventFeatures(value.eventFeatures ?? value.event_features),
     sourceExcerpt: null,
-    exactQuote: parseExactQuote(value.exactQuote ?? value.exact_quote),
+    sourceQuote,
+    exactQuote: sourceQuote,
     sourceSegmentIndexes,
   };
 }
@@ -230,7 +309,7 @@ export function validateRawCreatorNote(
 export function parseCreatorNotesOutput(
   text: string,
   opts: { knownCreatorName?: string | null; maxNotes?: number; segmentCount?: number } = {},
-): { notes: RawCreatorNote[]; rejected: number } {
+): { notes: RawCreatorNote[]; rejected: number; kindDiagnostics: CreatorNoteKindDiagnostics } {
   const parsed = extractJsonObject(text);
   if (!isPlainObject(parsed)) {
     throw new CreatorNotesValidationError('envelope_not_object');
@@ -244,15 +323,20 @@ export function parseCreatorNotesOutput(
   let rejected = 0;
   const extra = Math.max(0, parsed.notes.length - maxNotes);
   rejected += extra;
+  const kindDiagnostics = emptyKindDiagnostics();
+
+  for (const entry of parsed.notes) {
+    inspectRawNoteKind(entry, kindDiagnostics);
+  }
 
   for (const entry of parsed.notes.slice(0, maxNotes)) {
     try {
-      notes.push(
-        validateRawCreatorNote(entry, {
-          knownCreatorName: opts.knownCreatorName,
-          segmentCount: opts.segmentCount,
-        }),
-      );
+      const note = validateRawCreatorNote(entry, {
+        knownCreatorName: opts.knownCreatorName,
+        segmentCount: opts.segmentCount,
+      });
+      notes.push(note);
+      kindDiagnostics.validatedCounts[note.kind] += 1;
     } catch (error) {
       if (error instanceof CreatorNotesValidationError) {
         rejected += 1;
@@ -262,5 +346,5 @@ export function parseCreatorNotesOutput(
     }
   }
 
-  return { notes, rejected };
+  return { notes, rejected, kindDiagnostics };
 }

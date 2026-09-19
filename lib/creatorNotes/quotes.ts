@@ -115,27 +115,27 @@ export function applyQuoteVerification(
   const diagnostics = emptyQuoteDiagnostics();
   const verified = notes.map((note) => {
     const indexes = Array.isArray(note.sourceSegmentIndexes) ? note.sourceSegmentIndexes : [];
-    const rawQuote = typeof note.exactQuote === 'string' ? note.exactQuote : null;
+    const rawQuote = typeof note.sourceQuote === 'string' ? note.sourceQuote : note.exactQuote;
     const candidate = rawQuote ? unwrapOuterQuotes(rawQuote) || rawQuote.trim() : '';
     if (!candidate) {
-      return { ...note, exactQuote: null, sourceSegmentIndexes: indexes };
+      return { ...note, sourceQuote: null, exactQuote: null, sourceSegmentIndexes: indexes };
     }
 
     diagnostics.requested += 1;
     if (quoteCandidateLength(candidate) > CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS) {
       diagnostics.rejected += 1;
-      return { ...note, exactQuote: null, sourceSegmentIndexes: indexes };
+      return { ...note, sourceQuote: null, exactQuote: null, sourceSegmentIndexes: indexes };
     }
 
     const sourceText = concatenateTranscriptSegments(segments, indexes);
     const verbatim = extractVerifiedQuote(candidate, sourceText);
     if (!verbatim || quoteCandidateLength(verbatim) > CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS) {
       diagnostics.rejected += 1;
-      return { ...note, exactQuote: null, sourceSegmentIndexes: indexes };
+      return { ...note, sourceQuote: null, exactQuote: null, sourceSegmentIndexes: indexes };
     }
 
     diagnostics.verified += 1;
-    return { ...note, exactQuote: verbatim, sourceSegmentIndexes: indexes };
+    return { ...note, sourceQuote: verbatim, exactQuote: verbatim, sourceSegmentIndexes: indexes };
   });
   return { notes: verified, diagnostics };
 }

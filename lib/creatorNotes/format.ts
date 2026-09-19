@@ -1,4 +1,3 @@
-import { normalizeForQuoteMatch } from '@/lib/creatorNotes/quotes';
 import {
   CREATOR_NOTE_KINDS,
   CREATOR_NOTES_BATCH_DEFAULT_LIMIT,
@@ -376,27 +375,44 @@ function formatSourceSegments(indexes: number[] | undefined): string {
   return indexes.join(', ');
 }
 
-function essentiallyIdenticalText(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false;
-  return normalizeForQuoteMatch(a).normalized === normalizeForQuoteMatch(b).normalized;
+function formatKindCountMap(counts: Record<string, number>): string {
+  const keys = Object.keys(counts);
+  if (!keys.length) return '(none)';
+  return keys.map((key) => `${key}=${counts[key]}`).join(' ');
+}
+
+function formatEvidenceDuration(note: CreatorAtomicNote): string {
+  const duration =
+    note.evidenceDurationSeconds ??
+    (note.startSeconds != null && note.endSeconds != null && Number.isFinite(note.startSeconds) && Number.isFinite(note.endSeconds)
+      ? Math.max(0, note.endSeconds - note.startSeconds)
+      : null);
+  if (duration == null) return '—';
+  return `${Math.round(duration)}s`;
 }
 
 export function formatNotePreview(note: CreatorAtomicNote): string {
   const who = note.attribution || '—';
+  const quote = note.sourceQuote || note.exactQuote;
   const lines = [
     `${formatNoteTimestampRange(note.startSeconds, note.endSeconds)} ${kindLabel(note.kind)} — ${who}`,
     '',
+    'Note:',
+    note.text,
+    '',
   ];
+  if (quote) {
+    lines.push('Source quote:', `"${quote}"`, '');
+  } else {
+    lines.push('Source quote: (not available)', '');
+  }
   if (note.sourceExcerpt) {
     lines.push('Transcript:', `"${note.sourceExcerpt}"`, '');
   } else {
     lines.push('Transcript: (not available)', '');
   }
-  lines.push('Note:', note.text, '');
-  if (note.exactQuote && !essentiallyIdenticalText(note.exactQuote, note.sourceExcerpt)) {
-    lines.push('Exact quote:', `"${note.exactQuote}"`, '');
-  }
   lines.push(`Source segments: ${formatSourceSegments(note.sourceSegmentIndexes)}`);
+  lines.push(`Evidence duration: ${formatEvidenceDuration(note)}`);
   if (note.eventFeatures) {
     const extra: string[] = [];
     if (note.eventFeatures.actors.length) extra.push(`  actors: ${featureList(note.eventFeatures.actors)}`);
@@ -454,9 +470,19 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  why_it_matters: ${result.kindCounts.why_it_matters}`,
     `  validation rejected: ${result.validationRejected}`,
     `  duplicates removed: ${result.duplicatesRemoved}`,
+    `  raw kinds: ${formatKindCountMap(result.kindDiagnostics?.rawCounts || {})}`,
+    `  validated kinds: ${formatKindCountMap(result.kindDiagnostics?.validatedCounts || result.kindCounts)}`,
+    `  kind missing: ${result.kindDiagnostics?.missingKind ?? 0}`,
+    `  kind invalid: ${result.kindDiagnostics?.invalidKind ?? 0}`,
+    `  kind coercions: ${result.kindDiagnostics?.coercions ?? 0}`,
     `  notes with source evidence: ${result.evidenceDiagnostics.notesWithSourceEvidence}`,
     `  notes without source evidence: ${result.evidenceDiagnostics.notesWithoutSourceEvidence}`,
     `  invalid source segment references: ${result.evidenceDiagnostics.invalidSourceSegmentReferences}`,
+    `  grounding rejected: ${result.evidenceDiagnostics.groundingRejected ?? 0}`,
+    `  quote verification rejected: ${result.evidenceDiagnostics.quoteVerificationRejected ?? 0}`,
+    `  unsupported numbers rejected: ${result.evidenceDiagnostics.unsupportedNumberRejected ?? 0}`,
+    `  compound notes rejected: ${result.evidenceDiagnostics.compoundRejected ?? 0}`,
+    `  wide evidence windows: ${result.evidenceDiagnostics.wideEvidenceWindows ?? 0}`,
     `  exact quotes requested: ${result.evidenceDiagnostics.exactQuotesRequested}`,
     `  exact quotes verified: ${result.evidenceDiagnostics.exactQuotesVerified}`,
     `  exact quotes rejected: ${result.evidenceDiagnostics.exactQuotesRejected}`,
@@ -616,18 +642,23 @@ export function formatCreatorNotesReview(result: CreatorNotesReviewResult): stri
 }
 
 function formatReviewNote(note: CreatorAtomicNote): string {
+  const quote = note.sourceQuote || note.exactQuote;
   const lines = [
     `${formatNoteTimestampRange(note.startSeconds, note.endSeconds)} ${kindLabel(note.kind)}`,
     '',
+    'Note:',
+    note.text,
+    '',
   ];
+  if (quote) {
+    lines.push('Source quote:', `"${quote}"`, '');
+  }
   if (note.sourceExcerpt) {
-    lines.push('Transcript:', `"${note.sourceExcerpt}"`, '');
+    lines.push('Transcript:', `"${note.sourceExcerpt}"`);
   } else {
-    lines.push('Transcript: (not available)', '');
+    lines.push('Transcript: (not available)');
   }
-  lines.push('Note:', note.text);
-  if (note.exactQuote && !essentiallyIdenticalText(note.exactQuote, note.sourceExcerpt)) {
-    lines.push('', 'Exact quote:', `"${note.exactQuote}"`);
-  }
+  lines.push(`Source segments: ${formatSourceSegments(note.sourceSegmentIndexes)}`);
+  lines.push(`Evidence duration: ${formatEvidenceDuration(note)}`);
   return lines.join('\n');
 }

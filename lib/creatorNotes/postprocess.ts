@@ -1,5 +1,11 @@
 import type { CreatorNoteKind, VerificationStatus } from '@/lib/creatorNotes/constants';
-import { creatorNoteFingerprint, overlapDedupeKey } from '@/lib/creatorNotes/identity';
+import { CREATOR_NOTES_NEAR_DUPLICATE_SIMILARITY } from '@/lib/creatorNotes/constants';
+import {
+  creatorNoteFingerprint,
+  noteTextSimilarity,
+  overlapDedupeKey,
+  sourceSegmentRangesOverlap,
+} from '@/lib/creatorNotes/identity';
 import type { CreatorAtomicNote, CreatorNoteKindCounts, RawCreatorNote } from '@/lib/creatorNotes/types';
 import { eventFeaturesAreEmpty } from '@/lib/creatorNotes/validate';
 
@@ -61,12 +67,30 @@ export function dedupeRawCreatorNotes(notes: RawCreatorNote[]): {
     }
   }
 
-  const deduped = [...byOverlap.values()].sort(
-    (a, b) => timestampRank(a.startSeconds) - timestampRank(b.startSeconds),
-  );
+  const remaining = [...byOverlap.values()];
+  const kept: RawCreatorNote[] = [];
+  let sameSourceRemoved = 0;
+  for (const note of remaining) {
+    const duplicateAt = kept.findIndex(
+      (existing) =>
+        existing.kind === note.kind &&
+        sourceSegmentRangesOverlap(existing.sourceSegmentIndexes, note.sourceSegmentIndexes) &&
+        noteTextSimilarity(existing.text, note.text) >= CREATOR_NOTES_NEAR_DUPLICATE_SIMILARITY,
+    );
+    if (duplicateAt < 0) {
+      kept.push(note);
+      continue;
+    }
+    sameSourceRemoved += 1;
+    if (timestampRank(note.startSeconds) < timestampRank(kept[duplicateAt].startSeconds)) {
+      kept[duplicateAt] = note;
+    }
+  }
+
+  const deduped = kept.sort((a, b) => timestampRank(a.startSeconds) - timestampRank(b.startSeconds));
   return {
     notes: deduped,
-    duplicatesRemoved: exactRemoved + overlapRemoved,
+    duplicatesRemoved: exactRemoved + overlapRemoved + sameSourceRemoved,
   };
 }
 
@@ -90,8 +114,10 @@ export function toAtomicNotes(input: {
     attribution: note.attribution,
     eventFeatures: note.eventFeatures && !eventFeaturesAreEmpty(note.eventFeatures) ? note.eventFeatures : null,
     sourceExcerpt: note.sourceExcerpt || null,
-    exactQuote: note.exactQuote || null,
+    sourceQuote: note.sourceQuote || note.exactQuote || null,
+    exactQuote: note.sourceQuote || note.exactQuote || null,
     sourceSegmentIndexes: Array.isArray(note.sourceSegmentIndexes) ? note.sourceSegmentIndexes : [],
+    evidenceDurationSeconds: note.evidenceDurationSeconds ?? null,
     verificationStatus: defaultVerificationStatus(note.kind),
     extractionRunId: input.extractionRunId,
     noteFingerprint: creatorNoteFingerprint({

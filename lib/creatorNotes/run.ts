@@ -5,8 +5,9 @@ import { CREATOR_NOTE_EXTRACTION_VERSION, type CreatorNoteRunStatus } from '@/li
 import { createSupabaseCreatorNotesStore } from '@/lib/creatorNotes/db';
 import {
   assertCreatorNotesAiConfigured,
+  creatorNotesRecoveryReason,
   extractCreatorNotesChunk,
-  isCreatorNotesOllamaTimeout,
+  isCreatorNotesRecoverableInferenceError,
   resolveCreatorNotesAiConfig,
   type CreatorNotesAiConfig,
 } from '@/lib/creatorNotes/extract';
@@ -18,9 +19,11 @@ import {
   emptyEvidenceDiagnostics,
   quoteDiagnosticsFromEvidence,
 } from '@/lib/creatorNotes/sourceEvidence';
+import { addKindDiagnostics, emptyKindDiagnostics } from '@/lib/creatorNotes/validate';
 import type {
   CreatorAtomicNote,
   CreatorNoteEvidenceDiagnostics,
+  CreatorNoteKindDiagnostics,
   CreatorNoteRun,
   CreatorNotesChunkExtractResult,
   CreatorNotesRunResult,
@@ -52,6 +55,7 @@ type ChunkProcessResult = {
   notes: RawCreatorNote[];
   rejected: number;
   diagnostics: CreatorNoteEvidenceDiagnostics;
+  kindDiagnostics: CreatorNoteKindDiagnostics;
   ok: boolean;
   error: string | null;
 };
@@ -160,6 +164,7 @@ export async function runCreatorNoteExtraction(
       ai,
       notes: [],
       kindCounts: emptyKindCounts(),
+      kindDiagnostics: emptyKindDiagnostics(),
       validationRejected: 0,
       duplicatesRemoved: 0,
       evidenceDiagnostics: emptyEvidenceDiagnostics(),
@@ -205,12 +210,29 @@ export async function runCreatorNoteExtraction(
   const collected: RawCreatorNote[] = [];
   let validationRejected = 0;
   const evidenceDiagnostics = emptyEvidenceDiagnostics();
+  const kindDiagnostics = emptyKindDiagnostics();
   const chunkErrors: string[] = [];
+
+  function kindDiagnosticsFromExtracted(extracted: CreatorNotesChunkExtractResult): CreatorNoteKindDiagnostics {
+    if (extracted.kindDiagnostics) return extracted.kindDiagnostics;
+    const synthesized = emptyKindDiagnostics();
+    for (const note of extracted.notes) {
+      synthesized.rawCounts[note.kind] = (synthesized.rawCounts[note.kind] || 0) + 1;
+      synthesized.validatedCounts[note.kind] += 1;
+    }
+    return synthesized;
+  }
 
   async function extractAndGround(
     chunk: CreatorTranscriptChunk,
     repair: boolean,
-  ): Promise<{ notes: RawCreatorNote[]; rejected: number; diagnostics: CreatorNoteEvidenceDiagnostics; proposed: number }> {
+  ): Promise<{
+    notes: RawCreatorNote[];
+    rejected: number;
+    diagnostics: CreatorNoteEvidenceDiagnostics;
+    kindDiagnostics: CreatorNoteKindDiagnostics;
+    proposed: number;
+  }> {
     const extracted = await extractChunk({
       transcript,
       chunk,
@@ -225,6 +247,7 @@ export async function runCreatorNoteExtraction(
       notes: grounded.notes,
       rejected: extracted.rejected + grounded.rejected,
       diagnostics: grounded.diagnostics,
+      kindDiagnostics: kindDiagnosticsFromExtracted(extracted),
       proposed: extracted.notes.length,
     };
   }
@@ -243,11 +266,12 @@ export async function runCreatorNoteExtraction(
     });
     try {
       let result = await extractAndGround(chunk, false);
-      if (result.proposed > 0 && result.notes.length === 0) {
+      if (result.notes.length === 0 && (result.proposed > 0 || result.rejected > 0)) {
         logEvent(log, '[creator-notes]', 'chunk grounding repair started', {
           index: chunk.index,
           childOffset,
           proposed: result.proposed,
+          rejected: result.rejected,
         });
         result = await extractAndGround(chunk, true);
         logEvent(
@@ -269,31 +293,52 @@ export async function runCreatorNoteExtraction(
         childOffset,
         notes: result.notes.length,
         rejected: result.rejected,
+        ok: true,
       });
       return {
         notes: result.notes,
         rejected: result.rejected,
         diagnostics: result.diagnostics,
+        kindDiagnostics: result.kindDiagnostics,
         ok: true,
         error: null,
       };
     } catch (error) {
-      if (isCreatorNotesOllamaTimeout(error) && !isRetry) {
-        logEvent(log, '[creator-notes]', 'chunk timeout', {
+      const recovery = creatorNotesRecoveryReason(error);
+      if (isCreatorNotesRecoverableInferenceError(error) && !isRetry) {
+        logEvent(log, '[creator-notes]', 'recoverable failure', {
           index: chunk.index,
+          reason: recovery,
           chars: chunk.charCount,
           error: clipError(error),
         });
+        if (recovery === 'timeout') {
+          logEvent(log, '[creator-notes]', 'chunk timeout', {
+            index: chunk.index,
+            chars: chunk.charCount,
+            error: clipError(error),
+          });
+        }
         const children = splitCreatorTranscriptChunk(chunk);
+        const childRanges = children.map((child) => ({
+          startIndex: child.segmentIndexes[0] ?? null,
+          endIndex: child.segmentIndexes[child.segmentIndexes.length - 1] ?? null,
+          startSeconds: child.startSeconds,
+          endSeconds: child.endSeconds,
+          chars: child.charCount,
+        }));
         logEvent(log, '[creator-notes]', 'chunk split', {
           index: chunk.index,
+          splitReason: recovery,
           children: children.length,
           childChars: children.map((child) => child.charCount),
+          childRanges,
         });
         const merged: ChunkProcessResult = {
           notes: [],
           rejected: 0,
           diagnostics: emptyEvidenceDiagnostics(),
+          kindDiagnostics: emptyKindDiagnostics(),
           ok: true,
           error: null,
         };
@@ -302,6 +347,7 @@ export async function runCreatorNoteExtraction(
           merged.notes.push(...childResult.notes);
           merged.rejected += childResult.rejected;
           addEvidenceDiagnostics(merged.diagnostics, childResult.diagnostics);
+          addKindDiagnostics(merged.kindDiagnostics, childResult.kindDiagnostics);
           if (!childResult.ok) {
             merged.ok = false;
             merged.error = merged.error || childResult.error;
@@ -314,11 +360,13 @@ export async function runCreatorNoteExtraction(
         index: chunk.index,
         childOffset,
         error: message,
+        ok: false,
       });
       return {
         notes: [],
         rejected: 0,
         diagnostics: emptyEvidenceDiagnostics(),
+        kindDiagnostics: emptyKindDiagnostics(),
         ok: false,
         error: message,
       };
@@ -331,6 +379,7 @@ export async function runCreatorNoteExtraction(
       collected.push(...processed.notes);
       validationRejected += processed.rejected;
       addEvidenceDiagnostics(evidenceDiagnostics, processed.diagnostics);
+      addKindDiagnostics(kindDiagnostics, processed.kindDiagnostics);
       if (processed.ok) ai.successfulChunks += 1;
       else {
         ai.failedChunks += 1;
@@ -369,6 +418,11 @@ export async function runCreatorNoteExtraction(
       exactQuotesRequested: evidenceDiagnostics.exactQuotesRequested,
       exactQuotesVerified: evidenceDiagnostics.exactQuotesVerified,
       exactQuotesRejected: evidenceDiagnostics.exactQuotesRejected,
+      quoteVerificationRejected: evidenceDiagnostics.quoteVerificationRejected,
+      groundingRejected: evidenceDiagnostics.groundingRejected,
+      unsupportedNumberRejected: evidenceDiagnostics.unsupportedNumberRejected,
+      compoundRejected: evidenceDiagnostics.compoundRejected,
+      wideEvidenceWindows: evidenceDiagnostics.wideEvidenceWindows,
     };
     const status = creatorNotesRunStatus({ failedChunks: ai.failedChunks, noteCount: notes.length });
 
@@ -410,6 +464,7 @@ export async function runCreatorNoteExtraction(
       ai,
       notes,
       kindCounts: countNoteKinds(notes),
+      kindDiagnostics,
       validationRejected,
       duplicatesRemoved: deduped.duplicatesRemoved,
       evidenceDiagnostics: finalEvidence,

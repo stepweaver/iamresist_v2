@@ -63,8 +63,10 @@ export interface RawCreatorNote {
   attribution: string | null;
   eventFeatures: CreatorNoteEventFeatures | null;
   sourceExcerpt: string | null;
+  sourceQuote?: string | null;
   exactQuote: string | null;
   sourceSegmentIndexes: number[];
+  evidenceDurationSeconds?: number | null;
 }
 
 export interface CreatorAtomicNote {
@@ -78,8 +80,10 @@ export interface CreatorAtomicNote {
   attribution: string | null;
   eventFeatures: CreatorNoteEventFeatures | null;
   sourceExcerpt: string | null;
+  sourceQuote?: string | null;
   exactQuote: string | null;
   sourceSegmentIndexes: number[];
+  evidenceDurationSeconds?: number | null;
   verificationStatus: VerificationStatus;
   extractionRunId: string;
   noteFingerprint: string;
@@ -106,6 +110,14 @@ export interface CreatorNoteRun {
 
 export type CreatorNoteKindCounts = Record<CreatorNoteKind, number>;
 
+export interface CreatorNoteKindDiagnostics {
+  rawCounts: Record<string, number>;
+  validatedCounts: CreatorNoteKindCounts;
+  missingKind: number;
+  invalidKind: number;
+  coercions: number;
+}
+
 export interface CreatorNoteQuoteDiagnostics {
   requested: number;
   verified: number;
@@ -119,6 +131,11 @@ export interface CreatorNoteEvidenceDiagnostics {
   exactQuotesRequested: number;
   exactQuotesVerified: number;
   exactQuotesRejected: number;
+  quoteVerificationRejected: number;
+  groundingRejected: number;
+  unsupportedNumberRejected: number;
+  compoundRejected: number;
+  wideEvidenceWindows: number;
 }
 
 export interface CreatorNotesRunResult {
@@ -142,6 +159,7 @@ export interface CreatorNotesRunResult {
   };
   notes: CreatorAtomicNote[];
   kindCounts: CreatorNoteKindCounts;
+  kindDiagnostics: CreatorNoteKindDiagnostics;
   validationRejected: number;
   duplicatesRemoved: number;
   evidenceDiagnostics: CreatorNoteEvidenceDiagnostics;
@@ -513,6 +531,7 @@ export interface CreatorNotesReviewResult {
 export interface CreatorNotesChunkExtractResult {
   notes: RawCreatorNote[];
   rejected: number;
+  kindDiagnostics?: CreatorNoteKindDiagnostics;
 }
 
 export interface CreatorNotesStore {

@@ -71,6 +71,7 @@ function transcriptFromSegments(
 }
 
 function groundedNote(index: number, overrides: Partial<RawCreatorNote> = {}): RawCreatorNote {
+  const label = `Seg ${String(index).padStart(3, '0')}`;
   return {
     kind: 'event',
     startSeconds: index * 10,
@@ -79,7 +80,7 @@ function groundedNote(index: number, overrides: Partial<RawCreatorNote> = {}): R
     attribution: null,
     eventFeatures: null,
     sourceExcerpt: 'MODEL PARAPHRASE THAT MUST NOT BECOME EVIDENCE',
-    exactQuote: null,
+    exactQuote: label,
     sourceSegmentIndexes: [index],
     ...overrides,
   };
@@ -239,7 +240,12 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
     expect(outOfChunk.rejected).toBe(1);
 
     const ok = acceptGroundedCreatorNotes(
-      [groundedNote(1, { sourceExcerpt: 'MODEL PARAPHRASE THAT MUST NOT BECOME EVIDENCE' })],
+      [
+        groundedNote(1, {
+          sourceExcerpt: 'MODEL PARAPHRASE THAT MUST NOT BECOME EVIDENCE',
+          exactQuote: segments[1].text,
+        }),
+      ],
       segments,
       { allowedSegmentIndexes: chunkIndexes },
     );
@@ -283,7 +289,10 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
           if (!repair) {
             return { notes: [groundedNote(1, { sourceSegmentIndexes: [] })], rejected: 0 };
           }
-          return { notes: [groundedNote(1)], rejected: 0 };
+          return {
+            notes: [groundedNote(1, { exactQuote: transcript.segments[1].text })],
+            rejected: 0,
+          };
         },
       },
     );
@@ -326,6 +335,8 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
     expect(messages[1].content).toContain('Do not emit a note that cannot be supported by the supplied transcript');
     expect(messages[1].content).toContain('Preserve attribution');
     expect(messages[1].content).toContain('Distinguish factual statements from creator analysis');
+    expect(messages[1].content).toContain('Every note must include sourceQuote copied verbatim from those cited segments');
+    expect(messages[1].content).toContain('kind is required');
   });
 
   it('classifies success, partial, and failed run status', () => {
@@ -406,7 +417,10 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
     expect(preview).toContain('"Iran expands the exclusion zone after a navy warning."');
     expect(preview).toContain('Note:');
     expect(preview).toContain('Source segments: 4, 5');
-    expect(preview).toContain('Exact quote:');
+    expect(preview).toContain('Source quote:');
+    expect(preview).toContain('"Iran expands the exclusion zone."');
+    expect(preview).toContain('Source segments: 4, 5');
+    expect(preview).toContain('Evidence duration:');
     expect(preview).not.toContain('Transcript: (not available)');
   });
 
@@ -430,7 +444,7 @@ describe('Atomic Creator Notes dry-run isolation (hardening)', () => {
         aiConfig: TEST_AI,
         id: ids('dry-hard'),
         log: () => {},
-        extractChunk: async () => ({ notes: [groundedNote(1)], rejected: 0 }),
+        extractChunk: async () => ({ notes: [groundedNote(1, { exactQuote: transcript.segments[1].text })], rejected: 0 }),
       },
     );
     expect(result.persistence.dryRun).toBe(true);

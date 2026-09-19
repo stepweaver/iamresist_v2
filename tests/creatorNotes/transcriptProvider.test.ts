@@ -536,7 +536,14 @@ describe('atomic notes receive normalized remote transcripts', () => {
       { transcript: prepared.transcript, dryRun: true },
       {
         store,
-        extractChunk: mockExtractChunk(SPECIFIC_NOTES.slice(0, 1)),
+        extractChunk: mockExtractChunk([
+          {
+            ...SPECIFIC_NOTES[0],
+            text: transcriptText,
+            exactQuote: transcriptText,
+            sourceSegmentIndexes: [1],
+          },
+        ]),
         aiConfig: TEST_AI,
         id: () => 'run-remote-1',
         log: () => {},

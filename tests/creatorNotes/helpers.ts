@@ -114,7 +114,8 @@ export const SYNTHETIC_NOTES: RawCreatorNote[] = [
     text: 'The speaker presents the Tuesday-night stay as a new development in the ongoing deployment fight.',
     attribution: null,
     eventFeatures: null,
-    exactQuote: null,
+    exactQuote:
+      "A federal appeals court issued a stay late Tuesday blocking the administration's National Guard deployment order in Chicago.",
     sourceExcerpt: null,
     sourceSegmentIndexes: [1],
   },
@@ -220,7 +221,8 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
     text: 'Quinn presents the March 3, 2026 Westmere County Court filing in Calder v. Westmere Civic Board as a new development.',
     attribution: 'Riley Quinn',
     eventFeatures: null,
-    exactQuote: null,
+    exactQuote:
+      'On March 3, 2026, Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
     sourceExcerpt: null,
     sourceSegmentIndexes: [1],
   },
