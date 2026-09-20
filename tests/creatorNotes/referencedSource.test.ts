@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { formatNotePreview } from '@/lib/creatorNotes/format';
-import { resolveCreatorVersusReferencedSource } from '@/lib/creatorNotes/identity';
+import {
+  isEvidentiaryReferencedSource,
+  resolveCreatorVersusReferencedSource,
+} from '@/lib/creatorNotes/identity';
 import { runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
+import { acceptGroundedCreatorNotes } from '@/lib/creatorNotes/sourceEvidence';
 import { emptyKindDiagnostics, validateRawCreatorNote } from '@/lib/creatorNotes/validate';
 import type { CreatorTranscriptInput, RawCreatorNote } from '@/lib/creatorNotes/types';
 
@@ -164,6 +168,77 @@ describe('creator vs referencedSource', () => {
       { knownCreatorName: 'Professor Jiang' },
     );
     expect(note.referencedSource).toBeNull();
+    expect(note.kind).toBe('evidence_reference');
+  });
+
+  it('rejects evidence_reference when a country or actor masquerades as referencedSource', () => {
+    const segments = jiangTranscript().segments;
+    const accepted = acceptGroundedCreatorNotes(
+      [
+        {
+          kind: 'evidence_reference',
+          startSeconds: 12,
+          endSeconds: 48,
+          text: 'Jiang says Iran expanded the exclusion zone after the navy warning.',
+          attribution: 'Professor Jiang',
+          referencedSource: 'Iran',
+          eventFeatures: {
+            actors: ['Iran'],
+            action: 'expanded the exclusion zone',
+            object: 'exclusion zone',
+            institutions: ['Iran'],
+            locations: ['Iran'],
+            referencedDocuments: [],
+          },
+          sourceExcerpt: null,
+          sourceQuote: 'Iran expanded the exclusion zone after the navy warning',
+          exactQuote: 'Iran expanded the exclusion zone after the navy warning',
+          sourceSegmentIndexes: [0],
+        },
+      ],
+      segments,
+      { knownCreatorName: 'Professor Jiang' },
+    );
+    expect(accepted.notes).toHaveLength(0);
+    expect(accepted.rejected).toBe(1);
+    expect(accepted.notes.some((item) => item.kind !== 'evidence_reference')).toBe(false);
+  });
+
+  it('rejects evidence_reference when referencedSource does not occur in the evidence window', () => {
+    const segments = jiangTranscript().segments;
+    expect(
+      isEvidentiaryReferencedSource('Wall Street Journal', { actors: [], action: null, object: null, institutions: ['Wall Street Journal'], locations: [], referencedDocuments: [] }, segments[0].text),
+    ).toBe(false);
+    const accepted = acceptGroundedCreatorNotes(
+      [
+        {
+          kind: 'evidence_reference',
+          startSeconds: 12,
+          endSeconds: 48,
+          text: 'Jiang cites a Wall Street Journal report on the war-risk bulletin.',
+          attribution: 'Professor Jiang',
+          referencedSource: 'Wall Street Journal',
+          eventFeatures: {
+            actors: [],
+            action: 'cites',
+            object: 'war-risk bulletin',
+            institutions: ['Wall Street Journal'],
+            locations: [],
+            referencedDocuments: ['Wall Street Journal report'],
+          },
+          sourceExcerpt: null,
+          sourceQuote: 'Jiang cites Lloyds of London which published a war-risk bulletin',
+          exactQuote: 'Jiang cites Lloyds of London which published a war-risk bulletin',
+          sourceSegmentIndexes: [0],
+        },
+      ],
+      segments,
+      { knownCreatorName: 'Professor Jiang' },
+    );
+    expect(accepted.notes).toHaveLength(0);
+    expect(accepted.rejected).toBe(1);
+    expect(accepted.notes.map((item) => item.kind)).not.toContain('claim');
+    expect(accepted.notes.map((item) => item.kind)).not.toContain('event');
   });
 
   it('keeps a real publication or document as referencedSource', () => {
@@ -187,5 +262,45 @@ describe('creator vs referencedSource', () => {
     );
     expect(note.referencedSource).toBe('Wall Street Journal');
     expect(note.kind).toBe('evidence_reference');
+  });
+
+  it('accepts evidence_reference only when the named source occurs in the evidence window', () => {
+    const segments = [
+      {
+        index: 0,
+        startSeconds: 12,
+        endSeconds: 48,
+        text: 'Jiang cites a Wall Street Journal report on the war-risk bulletin after the exclusion zone expanded.',
+      },
+    ];
+    const accepted = acceptGroundedCreatorNotes(
+      [
+        {
+          kind: 'evidence_reference',
+          startSeconds: 12,
+          endSeconds: 48,
+          text: 'Jiang cites a Wall Street Journal report on the war-risk bulletin.',
+          attribution: 'Professor Jiang',
+          referencedSource: 'Wall Street Journal',
+          eventFeatures: {
+            actors: ['Iran'],
+            action: 'cites',
+            object: 'war-risk bulletin',
+            institutions: ['Wall Street Journal'],
+            locations: ['Iran'],
+            referencedDocuments: ['Wall Street Journal report'],
+          },
+          sourceExcerpt: null,
+          sourceQuote: 'Jiang cites a Wall Street Journal report on the war-risk bulletin',
+          exactQuote: 'Jiang cites a Wall Street Journal report on the war-risk bulletin',
+          sourceSegmentIndexes: [0],
+        },
+      ],
+      segments,
+      { knownCreatorName: 'Professor Jiang' },
+    );
+    expect(accepted.notes).toHaveLength(1);
+    expect(accepted.notes[0]?.kind).toBe('evidence_reference');
+    expect(accepted.notes[0]?.referencedSource).toBe('Wall Street Journal');
   });
 });

@@ -75,7 +75,15 @@ function featureHasName(list: string[] | undefined, value: string | null | undef
   return (list || []).some((entry) => attributionMatches(entry, value));
 }
 
-function referencedSourceIsSubjectNotEvidence(
+function normalizeSourceOccurrence(value: string | null | undefined): string {
+  return normalizeFingerprintText(String(value || ''))
+    .replace(/[\u2019']/g, '')
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function referencedSourceIsSubjectNotEvidence(
   value: string | null | undefined,
   eventFeatures?: CreatorNoteEventFeatures | null,
 ): boolean {
@@ -85,6 +93,27 @@ function referencedSourceIsSubjectNotEvidence(
   return (
     featureHasName(eventFeatures?.actors, cleaned) || featureHasName(eventFeatures?.locations, cleaned)
   );
+}
+
+export function referencedSourceOccursInEvidence(
+  value: string | null | undefined,
+  evidenceText: string,
+): boolean {
+  const needle = normalizeSourceOccurrence(value);
+  const haystack = normalizeSourceOccurrence(evidenceText);
+  if (!needle || !haystack) return false;
+  return haystack.includes(needle);
+}
+
+export function isEvidentiaryReferencedSource(
+  value: string | null | undefined,
+  eventFeatures: CreatorNoteEventFeatures | null | undefined,
+  evidenceText: string,
+): boolean {
+  const cleaned = normalizeAttribution(value);
+  if (!cleaned) return false;
+  if (referencedSourceIsSubjectNotEvidence(cleaned, eventFeatures)) return false;
+  return referencedSourceOccursInEvidence(cleaned, evidenceText);
 }
 
 function firstEvidentiaryReferencedSource(

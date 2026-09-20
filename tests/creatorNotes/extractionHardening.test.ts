@@ -3,12 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildEvidenceWindows, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
 import {
   CREATOR_NOTES_AI_TIMEOUT_MS_DEFAULT,
+  CREATOR_NOTES_DEFAULT_MODEL,
   CREATOR_NOTES_EVIDENCE_WINDOW_MAX_CHARS,
   CREATOR_NOTES_EVIDENCE_WINDOW_MAX_SECONDS,
   CREATOR_NOTES_EVIDENCE_WINDOW_OVERLAP_SECONDS,
   creatorNotesAiTimeoutMs,
+  creatorNotesModel,
 } from '@/lib/creatorNotes/constants';
 import { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
+import { resolveCreatorNotesAiConfig } from '@/lib/creatorNotes/extract';
 import { formatCreatorNotesReport, formatNotePreview } from '@/lib/creatorNotes/format';
 import { buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
 import { creatorNotesRunStatus, runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
@@ -87,7 +90,7 @@ function groundedNote(index: number, overrides: Partial<RawCreatorNote> = {}): R
 }
 
 describe('Atomic Creator Notes long-transcript hardening', () => {
-  const envKeys = ['CREATOR_NOTES_AI_TIMEOUT_MS'] as const;
+  const envKeys = ['CREATOR_NOTES_AI_TIMEOUT_MS', 'CREATOR_NOTES_MODEL'] as const;
   const previousEnv: Partial<Record<(typeof envKeys)[number], string | undefined>> = {};
 
   afterEach(() => {
@@ -166,6 +169,18 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
     expect('CREATOR_NOTES_AI_TIMEOUT_MS' in themeMemoryEnv).toBe(false);
     setEnv('CREATOR_NOTES_AI_TIMEOUT_MS', '180000');
     expect(creatorNotesAiTimeoutMs()).toBe(180000);
+  });
+
+  it('CREATOR_NOTES_MODEL overrides shared OLLAMA_MODEL', () => {
+    expect('CREATOR_NOTES_MODEL' in themeMemoryEnv).toBe(false);
+    expect(CREATOR_NOTES_DEFAULT_MODEL).toBe('gemma3:4b');
+    setEnv('CREATOR_NOTES_MODEL', 'gemma3:4b');
+    expect(creatorNotesModel('llama3:latest')).toBe('gemma3:4b');
+    expect(resolveCreatorNotesAiConfig().model).toBe('gemma3:4b');
+    setEnv('CREATOR_NOTES_MODEL', '');
+    expect(creatorNotesModel('llama3:latest')).toBe('llama3:latest');
+    expect(creatorNotesModel(null)).toBe('gemma3:4b');
+    expect(creatorNotesModel('')).toBe('gemma3:4b');
   });
 
   it('on timeout splits the window and retries children once sequentially', async () => {

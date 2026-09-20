@@ -394,6 +394,9 @@ describe('Atomic Creator Notes prompt contract', () => {
       chunkCount: 1,
     });
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not infer event identity solely from the episode title');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain(
+      'Do not use the episode title or other source metadata as Atomic Note content unless those words also occur in this evidence window.',
+    );
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not paraphrase evidence as a quotation');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not invent or reconstruct quotations');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not unnecessarily generalize');

@@ -1,9 +1,9 @@
 import 'server-only';
 
 import {
-  CREATOR_NOTES_DEFAULT_MODEL,
   CREATOR_NOTES_TRANSPORT_BACKOFF_MS,
   creatorNotesAiTimeoutMs,
+  creatorNotesModel,
 } from '@/lib/creatorNotes/constants';
 import { buildCreatorNoteBatchMessages, buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
 import { CREATOR_NOTES_BATCH_JSON_SCHEMA, CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
@@ -34,7 +34,7 @@ export type CreatorNotesHealthCheckResult = {
 
 export function resolveCreatorNotesAiConfig(): CreatorNotesAiConfig {
   const provider = String(themeMemoryEnv.THEME_AI_PROVIDER || 'none').toLowerCase();
-  const model = themeMemoryEnv.OLLAMA_MODEL || CREATOR_NOTES_DEFAULT_MODEL;
+  const model = creatorNotesModel(themeMemoryEnv.OLLAMA_MODEL);
   return {
     provider,
     model,
@@ -106,7 +106,10 @@ export function assertCreatorNotesAiConfigured(config: CreatorNotesAiConfig = re
     );
   }
   if (!config.model) {
-    throw new ThemeAIUnavailableError('OLLAMA_MODEL is not configured', 'model_not_configured');
+    throw new ThemeAIUnavailableError(
+      'CREATOR_NOTES_MODEL or OLLAMA_MODEL is not configured',
+      'model_not_configured',
+    );
   }
 }
 

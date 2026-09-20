@@ -49,7 +49,8 @@ Required:
 - Notion Voices (`NOTION_API_KEY`, `NOTION_VOICES_DB_ID`)
 - `THEME_AI_PROVIDER=ollama`
 - `OLLAMA_BASE_URL=http://127.0.0.1:11434`
-- `OLLAMA_MODEL=gemma3:4b`
+- `CREATOR_NOTES_MODEL=gemma3:4b` (intended production model; independent of Theme Memory)
+- `OLLAMA_MODEL=gemma3:4b` (fallback if `CREATOR_NOTES_MODEL` is unset)
 - `THEME_AI_TIMEOUT_MS=45000`
 - `THEME_AI_STARTUP_TIMEOUT_MS=180000` for the Ollama readiness warm-up only
 - `CREATOR_NOTES_AI_TIMEOUT_MS=300000` for Atomic Notes extraction (independent of Theme Memory)

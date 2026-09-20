@@ -10,6 +10,12 @@ import {
   CREATOR_NOTES_TEXT_MAX_CHARS,
 } from '@/lib/creatorNotes/constants';
 import {
+  isEvidentiaryReferencedSource,
+  noteTextSimilarity,
+  normalizeComparableNoteText,
+  resolveCreatorVersusReferencedSource,
+} from '@/lib/creatorNotes/identity';
+import {
   concatenateTranscriptSegments,
   extractVerifiedQuote,
   normalizeForQuoteMatch,
@@ -371,10 +377,66 @@ export function attachEvidenceWindowToNotes(
   }));
 }
 
+const METADATA_STOPWORDS = new Set([
+  'the',
+  'a',
+  'an',
+  'of',
+  'and',
+  'to',
+  'in',
+  'on',
+  'for',
+  'is',
+  'this',
+  'that',
+  'with',
+  'from',
+  'at',
+  'by',
+  'or',
+  'as',
+  'it',
+]);
+
+function metadataContentTokens(text: string): string[] {
+  return normalizeComparableNoteText(text)
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !METADATA_STOPWORDS.has(token));
+}
+
+export function noteTextLeaksSourceMetadata(
+  noteText: string,
+  evidenceText: string,
+  metadata: { sourceTitle?: string | null; sourceUrl?: string | null } = {},
+): boolean {
+  const evidenceTokens = new Set(metadataContentTokens(evidenceText));
+  const noteTokens = metadataContentTokens(noteText);
+  if (!noteTokens.length) return false;
+
+  const fields = [metadata.sourceTitle, metadata.sourceUrl].filter(Boolean) as string[];
+  for (const field of fields) {
+    const fieldTokens = metadataContentTokens(field);
+    if (!fieldTokens.length) continue;
+    const uniqueToMetadata = fieldTokens.filter((token) => !evidenceTokens.has(token));
+    if (!uniqueToMetadata.length) continue;
+    const leaked = uniqueToMetadata.filter((token) => noteTokens.includes(token));
+    if (leaked.length >= 2) return true;
+    if (uniqueToMetadata.length >= 2 && noteTextSimilarity(noteText, field) >= 0.7) return true;
+  }
+  return false;
+}
+
 export function acceptGroundedCreatorNotes(
   notes: RawCreatorNote[],
   segments: CreatorTranscriptSegment[],
-  opts: { allowedSegmentIndexes?: number[] } = {},
+  opts: {
+    allowedSegmentIndexes?: number[];
+    sourceTitle?: string | null;
+    sourceUrl?: string | null;
+    knownCreatorName?: string | null;
+  } = {},
 ): { notes: RawCreatorNote[]; rejected: number; diagnostics: CreatorNoteEvidenceDiagnostics } {
   const allowed = opts.allowedSegmentIndexes ? new Set(opts.allowedSegmentIndexes) : null;
   let clearedInvalid = 0;
@@ -400,7 +462,8 @@ export function acceptGroundedCreatorNotes(
   diagnostics.exactQuotesVerified = evidenced.diagnostics.exactQuotesVerified;
   diagnostics.exactQuotesRejected = evidenced.diagnostics.exactQuotesRejected;
 
-  for (const note of evidenced.notes) {
+  for (const rawNote of evidenced.notes) {
+    const note = resolveCreatorVersusReferencedSource(rawNote, opts.knownCreatorName);
     const bounds = timeRangeFromIndexes(segments, note.sourceSegmentIndexes);
     const duration = evidenceDurationSeconds(bounds);
     const citedText =
@@ -439,6 +502,23 @@ export function acceptGroundedCreatorNotes(
     if (unsupported.length) {
       rejected += 1;
       diagnostics.unsupportedNumberRejected += 1;
+      diagnostics.groundingRejected += 1;
+      continue;
+    }
+    if (note.kind === 'evidence_reference') {
+      if (!isEvidentiaryReferencedSource(note.referencedSource, note.eventFeatures, citedText)) {
+        rejected += 1;
+        diagnostics.groundingRejected += 1;
+        continue;
+      }
+    }
+    if (
+      noteTextLeaksSourceMetadata(note.text, citedText, {
+        sourceTitle: opts.sourceTitle,
+        sourceUrl: opts.sourceUrl,
+      })
+    ) {
+      rejected += 1;
       diagnostics.groundingRejected += 1;
       continue;
     }

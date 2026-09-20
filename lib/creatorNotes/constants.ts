@@ -3,12 +3,13 @@
  * Bump CREATOR_NOTE_EXTRACTION_VERSION when prompt or validation semantics change.
  */
 
-export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.6';
-export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.7';
+export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.7';
+export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.8';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 /** Version the canonical transcript normalizer. Bump when segment merge/text rules change. */
 export const CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION = 'transcript-norm-v1';
-export const CREATOR_NOTES_WINDOW_BATCH_SIZE_DEFAULT = 5;
+/** Production default: one evidence window per Ollama request. */
+export const CREATOR_NOTES_WINDOW_BATCH_SIZE_DEFAULT = 1;
 export const CREATOR_NOTES_WINDOW_BATCH_MAX_INPUT_CHARS_DEFAULT = 9000;
 
 export const CREATOR_NOTE_KINDS = [
@@ -96,6 +97,25 @@ function optInt(name: string, fallback: number): number {
   if (raw == null || String(raw).trim() === '') return fallback;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : fallback;
+}
+
+function optString(name: string): string {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === '') return '';
+  return String(raw).trim();
+}
+
+/**
+ * Creator Notes model is independent of Theme Memory.
+ * Production value: CREATOR_NOTES_MODEL=gemma3:4b
+ * Falls back to OLLAMA_MODEL, then gemma3:4b.
+ */
+export function creatorNotesModel(sharedOllamaModel?: string | null): string {
+  const dedicated = optString('CREATOR_NOTES_MODEL');
+  if (dedicated) return dedicated;
+  const shared = String(sharedOllamaModel || '').trim();
+  if (shared) return shared;
+  return CREATOR_NOTES_DEFAULT_MODEL;
 }
 
 export function creatorNotesChunkChars(): number {

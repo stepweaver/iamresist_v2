@@ -71,7 +71,8 @@ Single-item mode still exists for calibration. Bounded **podcast** batch mode di
 
 Reuse:
 
-- `THEME_AI_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
+- `THEME_AI_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` (fallback only)
+- `CREATOR_NOTES_MODEL` (production extraction model; intended value `gemma3:4b`)
 - `CREATOR_NOTES_AI_TIMEOUT_MS` (Atomic Notes Ollama timeout; independent of Theme Memory)
 - existing Ollama chat helper (`ollamaChatJson`)
 - intel schema / Supabase service-role client
@@ -87,7 +88,7 @@ Creator notes **require** `THEME_AI_PROVIDER=ollama`. There is no deterministic 
 | `claim` | A factual assertion made by the creator. **Not automatically true.** |
 | `new_development` | A newly described change within an ongoing event. |
 | `context` | Explanatory or background information needed to understand the current item. |
-| `evidence_reference` | A document, statistic, report, filing, or other source the creator explicitly invokes. |
+| `evidence_reference` | A named external evidentiary source the creator explicitly invokes (article, publication, report, official statement, filing, dataset). The name must occur in that evidence window. Subject countries/actors are not sources. Rejected `evidence_reference` notes are dropped, not converted to another kind. |
 | `creator_analysis` | The creator's interpretation or inference. **Not a fact. Not an event.** |
 | `why_it_matters` | The creator's explanation of significance or consequence. **Not a fact.** |
 
@@ -276,7 +277,7 @@ Prints `ID`, creator, episode title, published time, transcript discovered yes/n
 
 ```bash
 THEME_AI_PROVIDER=ollama \
-OLLAMA_MODEL=gemma3:4b \
+CREATOR_NOTES_MODEL=gemma3:4b \
 npm run creator-notes:extract-podcast -- \
   --source-item <PODCAST_EPISODE_ID> \
   --dry-run
@@ -288,7 +289,7 @@ Local audio transcription fallback (publisher transcript still wins; required fl
 python3 -m pip install -r scripts/audio-transcription/requirements.txt
 
 THEME_AI_PROVIDER=ollama \
-OLLAMA_MODEL=gemma3:4b \
+CREATOR_NOTES_MODEL=gemma3:4b \
 npm run creator-notes:extract-podcast -- \
   --source-item <PODCAST_EPISODE_ID> \
   --transcribe-audio \
@@ -324,7 +325,7 @@ Caption preference: manual/public creator captions, then auto-generated captions
 
 If `--transcript-file` is present, it always wins and remote retrieval is skipped.
 
-The episode title may be stored and shown. It is **not** treated as event identity. The prompt states this explicitly.
+The episode title may be stored and shown. It is **not** treated as event identity, and it is **not** usable as Atomic Note content unless those words also occur in the evidence transcript.
 
 ## CLI usage
 
@@ -419,7 +420,7 @@ Flags (single-item extract):
 | `--source-url <url>` | Fill missing source URL. On remote dry-run, may override resolved URL. |
 | `--transcribe-audio` | Podcast extract only. If no publisher transcript exists and an RSS audio enclosure is present, run local faster-whisper fallback. Required explicitly; audio is never transcribed silently. |
 
-Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
+Default local model remains `gemma3:4b` via `CREATOR_NOTES_MODEL` (falls back to `OLLAMA_MODEL`). Production value: `CREATOR_NOTES_MODEL=gemma3:4b`. One evidence window is sent per Ollama request; multi-window batching stays in code but is not the default (`CREATOR_NOTES_WINDOW_BATCH_SIZE=1`).
 
 Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters, cache hit/miss for local audio), then the existing Atomic Notes report. Note previews show timestamp, kind, creator, notebook paraphrase, mechanically verified `sourceQuote`, the full `Evidence:` window, source segment indexes, and evidence duration. The report prints raw vs validated kind counts, kind missing/invalid/coercions, duplicates removed, grounding rejects, and quote verification rejects. Unknown/missing kinds are never defaulted to `event`. JSON Schema does not enum-constrain `kind`, because that biased gemma3 toward the first member.
 
@@ -433,7 +434,7 @@ Pick a row with `transcript discovered` = `yes`, then:
 
 ```bash
 THEME_AI_PROVIDER=ollama \
-OLLAMA_MODEL=gemma3:4b \
+CREATOR_NOTES_MODEL=gemma3:4b \
 npm run creator-notes:extract-podcast -- \
   --source-item <ACTUAL_ID> \
   --dry-run
@@ -472,7 +473,7 @@ When you persist, pass the real `source_items.id` UUID whenever it exists so pro
 
 ## Idempotency
 
-Transcript hash: SHA-256 of normalized segments (line endings collapsed, trim, timestamps + text). Version: `creator-notes-v1.6`.
+Transcript hash: SHA-256 of normalized segments (line endings collapsed, trim, timestamps + text). Version: `creator-notes-v1.7`.
 
 A completed **success** run with the same:
 
@@ -502,7 +503,7 @@ One notebook idea per row: kind, paraphrase (`text`), deterministic `source_exce
 
 ## Why title text is not event identity
 
-Titles are often rhetoric. Inferring a court order, a bill, or a named incident from "This is OFF THE RAILS" would invent an event. The transcript is the only extraction authority in Milestone 1.
+Titles are often rhetoric. Inferring a court order, a bill, or a named incident from "This is OFF THE RAILS" would invent an event. The transcript is the only extraction authority in Milestone 1. Episode title and other source metadata cannot become Atomic Note content unless those words also occur in the evidence window. That specifically blocks notes such as "Iran expands exclusion zone?" when that proposition came from the title rather than the 45-second transcript window.
 
 ## Why creator convergence is not corroboration
 
@@ -526,10 +527,12 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 |----------|---------|------|
 | `THEME_AI_PROVIDER` | `none` | Must be `ollama` for live extraction |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local Ollama |
-| `OLLAMA_MODEL` | `gemma3:4b` if unset for this CLI | Chat model |
+| `CREATOR_NOTES_MODEL` | `gemma3:4b` | Atomic Notes chat model. Production value: `gemma3:4b`. Independent of Theme Memory. |
+| `OLLAMA_MODEL` | unset | Fallback chat model if `CREATOR_NOTES_MODEL` is unset |
 | `THEME_AI_TIMEOUT_MS` | `45000` | Theme Memory classification timeout (unchanged) |
 | `THEME_AI_MAX_RETRIES` | `2` | Theme Memory retry of transient Ollama failures |
 | `CREATOR_NOTES_AI_TIMEOUT_MS` | `300000` | Atomic Notes per-window Ollama timeout |
+| `CREATOR_NOTES_WINDOW_BATCH_SIZE` | `1` | Windows per Ollama request. Production default is one window. Multi-window batching remains available for experiments only. |
 | `CREATOR_NOTES_LOCK_FILE` | `tmp/creator-notes-batch.lock` | Exclusive batch lock; separate from Theme Memory |
 | `CREATOR_NOTES_CHUNK_CHARS` | `1500` | Max evidence-window / split size in characters |
 | `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` | `8` | Hard cap per evidence window |
@@ -537,9 +540,9 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `CREATOR_NOTES_PYTHON` | `python3` | Python used to run local Whisper |
 | `CREATOR_NOTES_FFMPEG` | `ffmpeg` | ffmpeg binary for 16 kHz mono speech |
 
-Evidence windows are built from whole transcript segments before the LLM is called. Timed transcripts target ~45 seconds (max 60) with ~12 seconds of overlap. Untimed transcripts use ~800-1500 characters. Individual segments are never split. The model sees one window of verbatim transcript and must not return global indexes. Timeout and token-repeat failures split that window once into smaller segment-boundary children. Transport failures (`fetch failed`, connection refused, server unavailable) health-check Ollama, back off briefly, and retry the **same** window once — they do not split the transcript. A window that yields zero notes is success.
+Evidence windows are built from whole transcript segments before the LLM is called. Timed transcripts target ~45 seconds (max 60) with ~12 seconds of overlap. Untimed transcripts use ~800-1500 characters. Individual segments are never split. Production extraction sends **one** evidence window per Ollama request. Timeout and token-repeat failures split that window once into smaller segment-boundary children. Transport failures (`fetch failed`, connection refused, server unavailable) health-check Ollama, back off briefly, and retry the **same** window once — they do not split the transcript. A window that yields zero notes is success.
 
-The application attaches the window's `sourceSegmentIndexes` and copies the full window as `sourceExcerpt`. `sourceQuote` must be a verbatim substring of that window. Numbers in the note are validated against the full window, not only the quote. If a window returns notes but none survive grounding, extraction retries that window once with a repair prompt. A complete run with zero unrecovered window failures is `success` even if no notes were notebook-worthy. A `partial` run does not persist Atomic Notes.
+The application attaches the window's `sourceSegmentIndexes` and copies the full window as `sourceExcerpt`. `sourceQuote` must be a verbatim substring of that window. Numbers in the note are validated against the full window, not only the quote. An `evidence_reference` is accepted only when `referencedSource` names an external evidentiary source that literally occurs in that window; a country or actor being discussed is not a source, and a rejected `evidence_reference` is dropped rather than converted to another kind. Note text may not copy episode-title or other source-metadata wording unless those words also occur in the window. If a window returns notes but none survive grounding, extraction retries that window once with a repair prompt. A complete run with zero unrecovered window failures is `success` even if no notes were notebook-worthy. A `partial` run does not persist Atomic Notes.
 
 Source excerpts are the full evidence window (`CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS`, 2000). Optional exact quotes are max 500 characters (`CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS`). Stored source segment indexes are bounded at 48.
 
@@ -586,7 +589,7 @@ Suggested cadence: 4 runs per day at 03:20 / 09:20 / 15:20 / 21:20, offset from 
 
 ```bash
 THEME_AI_PROVIDER=ollama \
-OLLAMA_MODEL=gemma3:4b \
+CREATOR_NOTES_MODEL=gemma3:4b \
 npm run creator-notes:podcast-batch -- --limit 10
 ```
 

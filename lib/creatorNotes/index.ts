@@ -16,6 +16,7 @@ export {
   applySourceEvidence,
   attachEvidenceWindowToNotes,
   compoundNoteReason,
+  noteTextLeaksSourceMetadata,
   unsupportedNumericTokens,
 } from '@/lib/creatorNotes/sourceEvidence';
 export { creatorNotesRunStatus, runCreatorNoteExtraction, emptyExtractionPerformance } from '@/lib/creatorNotes/run';

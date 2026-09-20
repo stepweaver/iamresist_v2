@@ -20,10 +20,11 @@ import { CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
 import {
   acceptGroundedCreatorNotes,
   compoundNoteReason,
+  noteTextLeaksSourceMetadata,
   unsupportedNumericTokens,
 } from '@/lib/creatorNotes/sourceEvidence';
 import type { CreatorTranscriptInput, CreatorTranscriptSegment, RawCreatorNote } from '@/lib/creatorNotes/types';
-import { parseCreatorNotesOutput, validateRawCreatorNote } from '@/lib/creatorNotes/validate';
+import { emptyKindDiagnostics, parseCreatorNotesOutput, validateRawCreatorNote } from '@/lib/creatorNotes/validate';
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
 import { loadSyntheticTranscript } from './helpers';
 
@@ -454,6 +455,75 @@ describe('Atomic Creator Notes semantic grounding', () => {
     );
     expect(accepted.notes).toHaveLength(0);
     expect(accepted.diagnostics.compoundRejected).toBe(1);
+  });
+});
+
+describe('Atomic Creator Notes title metadata is not evidence', () => {
+  it('does not treat episode-title tokens as source evidence', () => {
+    expect(
+      noteTextLeaksSourceMetadata(
+        'Iran expands exclusion zone after the navy warning?',
+        'Lloyds of London published the war-risk bulletin after the navy warning.',
+        { sourceTitle: 'Iran expands exclusion zone?' },
+      ),
+    ).toBe(true);
+    expect(
+      noteTextLeaksSourceMetadata(
+        'Iran expands the exclusion zone after a navy warning.',
+        'Iran expands the exclusion zone after a navy warning.',
+        { sourceTitle: 'Iran expands exclusion zone?' },
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects a note whose proposition came from the episode title rather than the window', async () => {
+    const segments = makeSegments(8, 150);
+    const transcript = transcriptFromSegments(segments, 'source-title-leak');
+    expect(transcript.sourceTitle).toBe('Iran Expands Exclusion Zone?');
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      {
+        aiConfig: TEST_AI,
+        id: ids('title-leak'),
+        log: () => {},
+        extractChunk: async ({ chunk }) => ({
+          notes: [
+            note({
+              kind: 'event',
+              text: 'Iran expands exclusion zone after the navy warning?',
+              sourceQuote: chunk.verbatimTranscript.slice(0, 48),
+              exactQuote: chunk.verbatimTranscript.slice(0, 48),
+              sourceSegmentIndexes: [],
+            }),
+          ],
+          rejected: 0,
+          kindDiagnostics: emptyKindDiagnostics(),
+        }),
+      },
+    );
+    expect(result.notes).toHaveLength(0);
+    expect(result.evidenceDiagnostics.groundingRejected).toBeGreaterThan(0);
+    expect(result.notes.some((item) => /iran expands exclusion zone/i.test(item.text))).toBe(false);
+  });
+
+  it('keeps a note when title words also occur in the evidence transcript', () => {
+    const segments: CreatorTranscriptSegment[] = [
+      { index: 0, startSeconds: 0, endSeconds: 40, text: 'Iran expands the exclusion zone after a navy warning.' },
+    ];
+    const accepted = acceptGroundedCreatorNotes(
+      [
+        note({
+          text: 'Iran expands the exclusion zone after a navy warning.',
+          sourceQuote: 'Iran expands the exclusion zone after a navy warning.',
+          exactQuote: 'Iran expands the exclusion zone after a navy warning.',
+          sourceSegmentIndexes: [0],
+        }),
+      ],
+      segments,
+      { sourceTitle: 'Iran Expands Exclusion Zone?' },
+    );
+    expect(accepted.notes).toHaveLength(1);
+    expect(accepted.notes[0]?.text).toContain('exclusion zone');
   });
 });
 

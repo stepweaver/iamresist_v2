@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { buildEvidenceWindows } from '@/lib/creatorNotes/chunk';
-import { CREATOR_NOTE_EXTRACTION_VERSION } from '@/lib/creatorNotes/constants';
+import {
+  CREATOR_NOTE_EXTRACTION_VERSION,
+  CREATOR_NOTES_WINDOW_BATCH_SIZE_DEFAULT,
+  creatorNotesWindowBatchSize,
+} from '@/lib/creatorNotes/constants';
 import { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
 import {
   createMemoryCreatorNotesExtractionCache,
@@ -56,15 +60,143 @@ function twoWindowTranscript(sourceItemId = 'guid-jiang-batch'): CreatorTranscri
   };
 }
 
+function withWindowBatchSize(size: string) {
+  const key = 'CREATOR_NOTES_WINDOW_BATCH_SIZE';
+  let previous: string | undefined;
+  beforeEach(() => {
+    previous = process.env[key];
+    process.env[key] = size;
+  });
+  afterEach(() => {
+    if (previous == null) delete process.env[key];
+    else process.env[key] = previous;
+  });
+}
+
+describe('default single-window extraction', () => {
+  afterEach(() => {
+    delete process.env.CREATOR_NOTES_WINDOW_BATCH_SIZE;
+  });
+
+  it('defaults window batch size to 1', () => {
+    delete process.env.CREATOR_NOTES_WINDOW_BATCH_SIZE;
+    expect(CREATOR_NOTES_WINDOW_BATCH_SIZE_DEFAULT).toBe(1);
+    expect(creatorNotesWindowBatchSize()).toBe(1);
+    const windows: CreatorTranscriptChunk[] = Array.from({ length: 4 }, (_, index) => ({
+      index,
+      windowId: `w${index}`,
+      startSeconds: index * 50,
+      endSeconds: index * 50 + 40,
+      segments: [],
+      segmentIndexes: [index],
+      text: `window ${index}`,
+      verbatimTranscript: `window ${index}`,
+      charCount: 10,
+    }));
+    const batches = packEvidenceWindowBatches(windows);
+    expect(batches).toHaveLength(4);
+    expect(batches.every((batch) => batch.length === 1)).toBe(true);
+  });
+
+  it('does not multi-window batch during normal extraction', async () => {
+    delete process.env.CREATOR_NOTES_WINDOW_BATCH_SIZE;
+    const transcript = twoWindowTranscript('guid-jiang-single-default');
+    const extractBatch = vi.fn(async ({ windows }: { windows: CreatorTranscriptChunk[] }) => ({
+      windows: windows.map((chunk) => ({
+        windowId: chunk.windowId,
+        notes: [
+          noteForWindow(
+            chunk,
+            chunk.verbatimTranscript.slice(0, 48),
+            chunk.index === 0
+              ? 'Jiang cites a Lloyds of London war-risk bulletin after the zone expanded.'
+              : 'Jiang cites an IAEA inspection notice for the enrichment site.',
+          ),
+        ],
+        rejected: 0,
+        kindDiagnostics: emptyKindDiagnostics(),
+      })),
+    }));
+    const extractChunk = vi.fn(async ({ chunk }: { chunk: CreatorTranscriptChunk }) => ({
+      notes: [
+        noteForWindow(
+          chunk,
+          chunk.verbatimTranscript.slice(0, 48),
+          chunk.index === 0
+            ? 'Jiang cites a Lloyds of London war-risk bulletin after the zone expanded.'
+            : 'Jiang cites an IAEA inspection notice for the enrichment site.',
+        ),
+      ],
+      rejected: 0,
+      kindDiagnostics: emptyKindDiagnostics(),
+    }));
+    const result = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      {
+        aiConfig: TEST_AI,
+        id: () => 'single-default',
+        log: () => {},
+        extractionCache: null,
+        extractBatch,
+        extractChunk,
+      },
+    );
+    expect(creatorNotesWindowBatchSize()).toBe(1);
+    expect(extractBatch).not.toHaveBeenCalled();
+    expect(extractChunk).toHaveBeenCalled();
+    expect(result.performance.ollamaBatchRequests).toBe(0);
+    expect(result.notes.length).toBeGreaterThan(0);
+  });
+
+  it('keeps extraction cache miss-then-hit behavior with the default batch size', async () => {
+    delete process.env.CREATOR_NOTES_WINDOW_BATCH_SIZE;
+    const transcript = twoWindowTranscript('guid-jiang-cache-default');
+    const cache = createMemoryCreatorNotesExtractionCache();
+    const extractChunk = vi.fn(async ({ chunk }: { chunk: CreatorTranscriptChunk }) => ({
+      notes: [
+        noteForWindow(
+          chunk,
+          chunk.verbatimTranscript.slice(0, 48),
+          'Jiang cites a Lloyds of London war-risk bulletin after the zone expanded.',
+        ),
+      ],
+      rejected: 0,
+      kindDiagnostics: emptyKindDiagnostics(),
+    }));
+    const first = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      { aiConfig: TEST_AI, id: () => 'cache-default-1', log: () => {}, extractChunk, extractionCache: cache },
+    );
+    expect(first.performance.cacheMisses).toBe(first.performance.evidenceWindowsTotal);
+    expect(first.performance.cacheHits).toBe(0);
+    extractChunk.mockClear();
+    const second = await runCreatorNoteExtraction(
+      { transcript, dryRun: true },
+      { aiConfig: TEST_AI, id: () => 'cache-default-2', log: () => {}, extractChunk, extractionCache: cache },
+    );
+    expect(second.performance.cacheHits).toBe(second.performance.evidenceWindowsTotal);
+    expect(second.performance.cacheMisses).toBe(0);
+    expect(extractChunk).not.toHaveBeenCalled();
+  });
+});
+
 function noteForWindow(chunk: CreatorTranscriptChunk, quote: string, text: string): RawCreatorNote {
+  const referencedSource = chunk.index === 0 ? 'Lloyds of London' : 'IAEA';
   return {
     kind: 'evidence_reference',
     startSeconds: chunk.startSeconds,
     endSeconds: chunk.endSeconds,
     text,
     attribution: 'Professor Jiang',
-    referencedSource: null,
-    eventFeatures: null,
+    referencedSource,
+    eventFeatures: {
+      actors: [],
+      action: null,
+      object: null,
+      institutions: [referencedSource],
+      locations: [],
+      referencedDocuments: [],
+    },
     sourceExcerpt: null,
     sourceQuote: quote,
     exactQuote: quote,
@@ -73,6 +205,7 @@ function noteForWindow(chunk: CreatorTranscriptChunk, quote: string, text: strin
 }
 
 describe('batched evidence windows', () => {
+  withWindowBatchSize('5');
   it('packs windows without merging their identities or transcripts', () => {
     const transcript = twoWindowTranscript();
     const windows = buildEvidenceWindows(transcript.segments);
@@ -205,6 +338,7 @@ describe('batched evidence windows', () => {
 });
 
 describe('extraction cache', () => {
+  withWindowBatchSize('5');
   it('records a miss then a hit for unchanged windows', async () => {
     const transcript = twoWindowTranscript();
     const cache = createMemoryCreatorNotesExtractionCache();
@@ -362,6 +496,7 @@ describe('extraction cache', () => {
 });
 
 describe('partial batch keep, repair, and fallback', () => {
+  withWindowBatchSize('5');
   it('keeps valid windows from a partial batch response', async () => {
     const transcript = twoWindowTranscript('guid-jiang-partial-keep');
     const windows = buildEvidenceWindows(transcript.segments);

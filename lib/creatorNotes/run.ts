@@ -361,6 +361,9 @@ export async function runCreatorNoteExtraction(
     });
     const grounded = acceptGroundedCreatorNotes(attached, transcript.segments, {
       allowedSegmentIndexes: chunk.segmentIndexes,
+      sourceTitle: transcript.sourceTitle,
+      sourceUrl: transcript.sourceUrl,
+      knownCreatorName: transcript.creatorName,
     });
     return {
       notes: grounded.notes,
