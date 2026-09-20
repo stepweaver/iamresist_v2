@@ -130,7 +130,10 @@ export async function readAudioTranscriptCache(
 }
 
 export async function writeAudioTranscriptCache(
-  record: Omit<AudioTranscriptCacheRecord, 'rawTranscriptionHash' | 'canonicalTranscriptHash' | 'segments'> & {
+  record: Omit<
+    AudioTranscriptCacheRecord,
+    'rawTranscriptionHash' | 'canonicalTranscriptHash' | 'segments' | 'normalizationVersion'
+  > & {
     segments?: CreatorTranscriptSegment[];
     rawSegments?: CreatorTranscriptSegment[];
     rawTranscriptionHash?: string;

@@ -263,15 +263,19 @@ export async function resolvePodcastTranscript(
         if (looksLikeHtmlDocument(fetched.payload) && !htmlExplicitlyTranscriptPage(candidate)) {
           throw podcastTranscriptFormatUnsupportedError('html');
         }
-        const labeled = fetched.payload.match(
-          /<(p|h[1-6])[^>]*>\s*(?:<(strong|b)[^>]*>\s*)?Transcript:?\s*(?:<\/(?:strong|b)>\s*)?<\/(?:p|h[1-6])>/i,
-        );
+        const labeled =
+          /<(p|h[1-6])[^>]*>\s*(?:<(strong|b)[^>]*>\s*)?Transcript:?\s*(?:<\/(?:strong|b)>\s*)?<\/(?:p|h[1-6])>/i.exec(
+            fetched.payload,
+          );
+        const html = labeled
+          ? fetched.payload.slice(labeled.index + labeled[0].length)
+          : fetched.payload;
         const paragraphs: string[] = [];
         const pRe = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
-        let p: RegExpExecArray | null = pRe.exec(labeled ? fetched.payload.slice(labeled.index + labeled[0].length) : fetched.payload);
+        let p: RegExpExecArray | null = pRe.exec(html);
         while (p) {
           paragraphs.push(p[1] || '');
-          p = pRe.exec(labeled ? fetched.payload.slice(labeled.index + labeled[0].length) : fetched.payload);
+          p = pRe.exec(html);
         }
         const cues = parseHtmlTranscriptParagraphs(paragraphs);
         const transcript = transcriptFromCues(episode, candidate, cues);

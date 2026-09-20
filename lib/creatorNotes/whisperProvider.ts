@@ -252,6 +252,7 @@ export function createFasterWhisperTranscriptionProvider(
             language: raw.language || language,
             rawSegments,
             segments,
+            normalizationVersion: CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
             createdAt: new Date().toISOString(),
           },
           cacheDir,
