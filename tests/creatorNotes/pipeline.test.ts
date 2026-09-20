@@ -395,20 +395,21 @@ describe('Atomic Creator Notes prompt contract', () => {
     });
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not infer event identity solely from the episode title');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not paraphrase evidence as a quotation');
-    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('The application will retrieve the verbatim transcript itself');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not invent or reconstruct quotations');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not unnecessarily generalize');
     expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not convert analysis into EVENT merely because it concerns an event');
-    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Every note must cite one or more supplied transcript segment indexes');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Returning an empty notes array is valid');
+    expect(CREATOR_NOTE_SYSTEM_PROMPT).toContain('Do not return transcript segment indexes');
     expect(messages[1].content).toContain('creator_analysis != fact');
     expect(messages[1].content).toContain('Do not convert analysis into EVENT merely because it concerns an event');
     expect(messages[1].content).toContain('sourceQuote');
-    expect(messages[1].content).toContain('sourceSegmentIndexes');
+    expect(messages[1].content).toContain('Do not return sourceSegmentIndexes');
     expect(messages[1].content).toContain('Do not paraphrase evidence as a quotation');
-    expect(messages[1].content).toContain('[SEGMENT 1 | 12-28]');
+    expect(messages[1].content).toContain('A federal appeals court issued a stay');
     expect(messages[1].content).toContain('named people');
     expect(messages[1].content).toContain('Do not unnecessarily generalize');
     expect(messages[1].content).toContain('David Pakman');
+    expect(messages[1].content).toContain('{"notes":[]} is valid');
     for (const kind of CREATOR_NOTE_KINDS) {
       expect(messages[1].content).toContain(kind);
     }
@@ -492,9 +493,9 @@ describe('Atomic Creator Notes CLI args', () => {
       createdAt: '2026-09-17T20:00:00.000Z',
     });
     expect(withExcerpt).toContain('[00:01:30–00:01:58] CREATOR ANALYSIS — David Pakman');
-    expect(withExcerpt).toContain('Transcript:');
+    expect(withExcerpt).toContain('Evidence:');
     expect(withExcerpt).toContain(
-      '"The speaker argues that the development is politically significant, while making clear that this is their interpretation of the consequences."',
+      'The speaker argues that the development is politically significant, while making clear that this is their interpretation of the consequences.',
     );
     expect(withExcerpt).toContain('Note:');
     expect(withExcerpt).toContain('Source segments: 3');
@@ -523,7 +524,7 @@ describe('Atomic Creator Notes CLI args', () => {
       noteFingerprint: 'fp',
       createdAt: '2026-09-17T20:00:00.000Z',
     });
-    expect(withNarrowQuote).toContain('Transcript:');
+    expect(withNarrowQuote).toContain('Evidence:');
     expect(withNarrowQuote).toContain('Source quote:');
     expect(withNarrowQuote).toContain('Source segments: 17, 18');
 
@@ -545,7 +546,7 @@ describe('Atomic Creator Notes CLI args', () => {
       noteFingerprint: 'fp2',
       createdAt: '2026-09-17T20:00:00.000Z',
     });
-    expect(withoutExcerpt).toContain('Transcript: (not available)');
+    expect(withoutExcerpt).toContain('Evidence: (not available)');
     expect(withoutExcerpt).toContain('Source segments: (none)');
     expect(withoutExcerpt).not.toContain('Quote: (not available)');
   });
@@ -644,7 +645,7 @@ describe('Atomic Creator Notes run', () => {
     expect(report).toContain('exact quotes requested:');
     expect(report).toContain('exact quotes verified:');
     expect(report).toContain('exact quotes rejected:');
-    expect(report).toContain('Transcript:');
+    expect(report).toContain('Evidence:');
     expect(report).toContain('Note:');
     expect(report).toContain('Source segments:');
     expect(report).not.toContain('eventFeatures: null');
@@ -767,10 +768,10 @@ describe('Atomic Creator Notes run', () => {
     expect(result.persistence.notesWritten).toBeGreaterThan(0);
     const persisted = store.notes.find((note) => note.kind === 'event');
     const original = loadSyntheticTranscript().segments[1].text;
-    expect(persisted?.sourceExcerpt).toBe(original);
+    expect(persisted?.sourceExcerpt).toContain(original);
     expect(persisted?.sourceExcerpt).not.toBe('MODEL-GENERATED EVIDENCE THAT MUST NOT SURVIVE');
     expect(persisted?.exactQuote).toContain("administration's National Guard deployment order in Chicago");
-    expect(persisted?.sourceSegmentIndexes).toEqual([1]);
+    expect(persisted?.sourceSegmentIndexes).toContain(1);
     expect(result.quoteDiagnostics.verified).toBeGreaterThan(0);
     expect(result.quoteDiagnostics.requested).toBeGreaterThanOrEqual(result.quoteDiagnostics.verified);
     expect(result.evidenceDiagnostics.notesWithSourceEvidence).toBeGreaterThan(0);
@@ -796,9 +797,26 @@ describe('Atomic Creator Notes run', () => {
         sourceSegmentIndexes: [1],
       },
     ];
+    let first = true;
     const result = await runCreatorNoteExtraction(
       { transcript, dryRun: true },
-      { extractChunk: mockExtractChunk(mixed), aiConfig: TEST_AI, id: ids('quote-diag'), log: () => {} },
+      {
+        extractChunk: async () => {
+          if (!first) return { notes: [], rejected: 0 };
+          first = false;
+          return {
+            notes: mixed.map((item) => ({
+              ...item,
+              sourceExcerpt: 'MODEL-GENERATED EVIDENCE THAT MUST NOT SURVIVE',
+              sourceSegmentIndexes: [...item.sourceSegmentIndexes],
+            })),
+            rejected: 0,
+          };
+        },
+        aiConfig: TEST_AI,
+        id: ids('quote-diag'),
+        log: () => {},
+      },
     );
     expect(result.quoteDiagnostics).toEqual({ requested: 2, verified: 1, rejected: 1 });
     expect(result.evidenceDiagnostics).toMatchObject({
@@ -811,7 +829,7 @@ describe('Atomic Creator Notes run', () => {
       quoteVerificationRejected: 2,
     });
     expect(result.notes.find((note) => note.kind === 'event')?.exactQuote).toContain('Westmere County Court');
-    expect(result.notes.find((note) => note.kind === 'event')?.sourceExcerpt).toBe(transcript.segments[1].text);
+    expect(result.notes.find((note) => note.kind === 'event')?.sourceExcerpt).toContain(transcript.segments[1].text);
     expect(result.notes.find((note) => note.kind === 'why_it_matters')).toBeUndefined();
     expect(result.notes).toHaveLength(1);
   });
@@ -999,9 +1017,9 @@ describe('Atomic Creator Notes deterministic evidence', () => {
         log: () => {},
       },
     );
-    expect(result.notes[0].sourceExcerpt).toBe(segments[overlapIndex].text);
+    expect(result.notes[0].sourceExcerpt).toContain(segments[overlapIndex].text);
     expect(result.notes[0].sourceExcerpt).not.toBe('MODEL PARAPHRASE FROM AN OVERLAPPING CHUNK');
-    expect(result.notes[0].sourceSegmentIndexes).toEqual([overlapIndex]);
+    expect(result.notes[0].sourceSegmentIndexes).toContain(overlapIndex);
   });
 
   it('uses --creator-name for attribution during dry-run when file metadata is missing', async () => {

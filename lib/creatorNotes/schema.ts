@@ -7,7 +7,6 @@ import {
   CREATOR_NOTES_MAX_INSTITUTIONS,
   CREATOR_NOTES_MAX_LOCATIONS,
   CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS,
-  CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES,
   CREATOR_NOTES_OBJECT_MAX,
   CREATOR_NOTES_TEXT_MAX_CHARS,
   CREATOR_NOTES_TEXT_MIN_CHARS,
@@ -21,7 +20,8 @@ import {
  * GBNF alternations bias constrained decoding toward the first member
  * (`event`). CREATOR_NOTE_KINDS is enforced in application validation with
  * no default/coercion. The prompt lists exact kind strings and few-shot
- * examples instead.
+ * examples instead. The model does not return global transcript segment
+ * indexes; the application attaches the evidence window coordinates.
  */
 export const CREATOR_NOTES_JSON_SCHEMA = {
   type: 'object',
@@ -43,12 +43,6 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
           attribution: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
           sourceQuote: { type: 'string', minLength: 1, maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
           exactQuote: { type: 'string', maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
-          sourceSegmentIndexes: {
-            type: 'array',
-            minItems: 1,
-            maxItems: CREATOR_NOTES_MAX_SOURCE_SEGMENT_INDEXES,
-            items: { type: 'integer', minimum: 0 },
-          },
           eventFeatures: {
             type: 'object',
             properties: {
@@ -78,7 +72,7 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
             additionalProperties: false,
           },
         },
-        required: ['kind', 'text', 'sourceQuote', 'sourceSegmentIndexes'],
+        required: ['kind', 'text', 'sourceQuote'],
         additionalProperties: false,
       },
     },

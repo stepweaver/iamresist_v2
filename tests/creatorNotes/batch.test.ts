@@ -457,7 +457,7 @@ describe('Atomic Creator Notes review', () => {
     const rendered = formatCreatorNotesReview(review);
     expect(rendered).toContain('David Pakman');
     expect(rendered).toContain('CLAIM');
-    expect(rendered).toContain('Transcript:');
+    expect(rendered).toContain('Evidence:');
     expect(parseCreatorNotesReviewArgs([]).limit).toBe(25);
     expect(parseCreatorNotesReviewArgs(['--limit', '50']).limit).toBe(50);
 

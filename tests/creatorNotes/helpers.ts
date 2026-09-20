@@ -229,12 +229,21 @@ export const SPECIFIC_NOTES: RawCreatorNote[] = [
 ];
 
 export function mockExtractChunk(notes: RawCreatorNote[] = SYNTHETIC_NOTES, rejected = 0) {
-  return async () => ({
-    notes: notes.map((note) => ({
-      ...note,
-      sourceExcerpt: 'MODEL-GENERATED EVIDENCE THAT MUST NOT SURVIVE',
-      sourceSegmentIndexes: [...note.sourceSegmentIndexes],
-    })),
-    rejected,
-  });
+  return async ({ chunk }: { chunk?: { segmentIndexes?: number[] } } = {}) => {
+    const allowed = new Set(chunk?.segmentIndexes || []);
+    const filtered =
+      allowed.size > 0
+        ? notes.filter((note) =>
+            (note.sourceSegmentIndexes || []).every((index) => allowed.has(index)),
+          )
+        : notes;
+    return {
+      notes: filtered.map((note) => ({
+        ...note,
+        sourceExcerpt: 'MODEL-GENERATED EVIDENCE THAT MUST NOT SURVIVE',
+        sourceSegmentIndexes: [...note.sourceSegmentIndexes],
+      })),
+      rejected,
+    };
+  };
 }

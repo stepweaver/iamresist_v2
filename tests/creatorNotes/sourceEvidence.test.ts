@@ -144,10 +144,10 @@ describe('Atomic Creator Notes source evidence', () => {
   });
 
   it('bounds oversized source evidence without truncating a word or inserting generated text', () => {
-    const longA = `${'Harborline '.repeat(40)}contract.`;
-    const longB = `${'Westmere '.repeat(40)}workshop.`;
-    const longC = `${'Calder '.repeat(40)}filing.`;
-    const longD = `${'Voss '.repeat(40)}declaration.`;
+    const longA = `${'Harborline '.repeat(80)}contract.`;
+    const longB = `${'Westmere '.repeat(80)}workshop.`;
+    const longC = `${'Calder '.repeat(80)}filing.`;
+    const longD = `${'Voss '.repeat(80)}declaration.`;
     const oversized = [segment(0, longA), segment(1, longB), segment(2, longC), segment(3, longD)];
     expect(longA.length + longB.length + longC.length + longD.length).toBeGreaterThan(
       CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS,

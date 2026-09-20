@@ -33,10 +33,10 @@
     "react-dom": "^19.1.2",
     "rss-parser": "^3.13.0",
     "server-only": "^0.0.1",
-    "stripe": "^20.4.1"
+    "stripe": "^20.4.1",
+    "undici": "^8.10.2"
   },
   "devDependencies": {
-    "typescript": "^5.8.3",
     "@eslint/eslintrc": "^3.3.3",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "19.2.14",
@@ -45,6 +45,7 @@
     "eslint-config-next": "^15.5.14",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.20.5",
+    "typescript": "^5.8.3",
     "vitest": "^3.0.5"
   }
 }

@@ -2,6 +2,7 @@ import 'server-only';
 
 import {
   CREATOR_NOTES_DEFAULT_MODEL,
+  CREATOR_NOTES_TRANSPORT_BACKOFF_MS,
   creatorNotesAiTimeoutMs,
 } from '@/lib/creatorNotes/constants';
 import { buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
@@ -13,7 +14,7 @@ import type {
   CreatorTranscriptInput,
 } from '@/lib/creatorNotes/types';
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
-import { ollamaChatJson, probeOllama } from '@/lib/themeMemory/ai/ollama';
+import { OLLAMA_CHAT_KEEP_ALIVE, ollamaChatJson, probeOllama } from '@/lib/themeMemory/ai/ollama';
 import { ThemeAIUnavailableError } from '@/lib/themeMemory/ai/types';
 
 export type CreatorNotesAiConfig = {
@@ -22,6 +23,12 @@ export type CreatorNotesAiConfig = {
   baseUrl: string;
   timeoutMs: number;
   retries: number;
+};
+
+export type CreatorNotesHealthCheckResult = {
+  ok: boolean;
+  reachable: boolean;
+  error?: string;
 };
 
 export function resolveCreatorNotesAiConfig(): CreatorNotesAiConfig {
@@ -55,10 +62,20 @@ export function isCreatorNotesConnectionError(error: unknown): boolean {
   const code =
     typeof error === 'object' && error && 'code' in error ? String((error as { code: unknown }).code || '') : '';
   const message = error instanceof Error ? error.message : String(error);
-  if (/ollama_http_/i.test(code) || /ollama_http_/i.test(message)) return false;
+  const cause =
+    typeof error === 'object' && error && 'cause' in error
+      ? error.cause instanceof Error
+        ? error.cause.message
+        : String((error as { cause?: unknown }).cause || '')
+      : '';
+  const haystack = `${code} ${message} ${cause}`;
+  if (/ollama_http_/i.test(haystack)) return false;
   return (
     /^fetch failed$/i.test(message.trim()) ||
-    /ECONNRESET|ECONNREFUSED|UND_ERR_SOCKET|socket hang up/i.test(message)
+    /ECONNRESET|ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|EAI_AGAIN|UND_ERR_CONNECT|UND_ERR_SOCKET|socket hang up/i.test(
+      haystack,
+    ) ||
+    /server unavailable|connection refused|connect econnrefused/i.test(haystack)
   );
 }
 
@@ -72,7 +89,12 @@ export function creatorNotesRecoveryReason(error: unknown): CreatorNotesRecovery
 }
 
 export function isCreatorNotesRecoverableInferenceError(error: unknown): boolean {
-  return creatorNotesRecoveryReason(error) != null;
+  const reason = creatorNotesRecoveryReason(error);
+  return reason === 'timeout' || reason === 'token_repeat';
+}
+
+export function isCreatorNotesTransportFailure(error: unknown): boolean {
+  return creatorNotesRecoveryReason(error) === 'connection';
 }
 
 export function assertCreatorNotesAiConfigured(config: CreatorNotesAiConfig = resolveCreatorNotesAiConfig()): void {
@@ -103,6 +125,34 @@ export async function warmupCreatorNotesAi(
   }
 }
 
+export async function healthCheckCreatorNotesOllama(
+  config: CreatorNotesAiConfig = resolveCreatorNotesAiConfig(),
+): Promise<CreatorNotesHealthCheckResult> {
+  const baseUrl = (config.baseUrl || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      return { ok: false, reachable: true, error: `ollama_http_${res.status}` };
+    }
+    return { ok: true, reachable: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, reachable: false, error: message === 'The operation was aborted' ? 'ollama_timeout' : message };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function creatorNotesTransportBackoffMs(): number {
+  return CREATOR_NOTES_TRANSPORT_BACKOFF_MS;
+}
+
 export async function extractCreatorNotesChunk(input: {
   transcript: CreatorTranscriptInput;
   chunk: CreatorTranscriptChunk;
@@ -128,10 +178,10 @@ export async function extractCreatorNotesChunk(input: {
     model: config.model,
     retries: config.retries,
     logLabel: '[creator-notes-ai]',
+    keepAlive: OLLAMA_CHAT_KEEP_ALIVE,
   });
 
   return parseCreatorNotesOutput(content, {
     knownCreatorName: input.transcript.creatorName,
-    segmentCount: input.transcript.segments.length,
   });
 }

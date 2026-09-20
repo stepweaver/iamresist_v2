@@ -555,7 +555,7 @@ describe('atomic notes receive normalized remote transcripts', () => {
     expect(store.insertNotes).not.toHaveBeenCalled();
     expect(result.persistence.notesWritten).toBe(0);
     expect(result.persistence.dryRun).toBe(true);
-    expect(result.notes[0]?.sourceExcerpt).toBe(transcriptText);
+    expect(result.notes[0]?.sourceExcerpt).toContain(transcriptText);
     expect(result.source.creatorName).toBe('David Pakman');
     expect(result.source.url).toBe(WATCH_URL);
     expect(formatCreatorNotesReport(result)).toContain('source: youtube-captions');

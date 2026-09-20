@@ -407,9 +407,14 @@ export function formatNotePreview(note: CreatorAtomicNote): string {
     lines.push('Source quote: (not available)', '');
   }
   if (note.sourceExcerpt) {
-    lines.push('Transcript:', `"${note.sourceExcerpt}"`, '');
+    lines.push(
+      'Evidence:',
+      formatNoteTimestampRange(note.startSeconds, note.endSeconds),
+      note.sourceExcerpt,
+      '',
+    );
   } else {
-    lines.push('Transcript: (not available)', '');
+    lines.push('Evidence: (not available)', '');
   }
   lines.push(`Source segments: ${formatSourceSegments(note.sourceSegmentIndexes)}`);
   lines.push(`Evidence duration: ${formatEvidenceDuration(note)}`);
@@ -455,9 +460,9 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  provider: ${result.ai.provider}`,
     `  model: ${result.ai.model}`,
     `  extraction version: ${result.ai.extractionVersion}`,
-    `  chunks: ${result.ai.chunks}`,
-    `  successful chunks: ${result.ai.successfulChunks}`,
-    `  failed chunks: ${result.ai.failedChunks}`,
+    `  evidence windows: ${result.ai.chunks}`,
+    `  successful windows: ${result.ai.successfulChunks}`,
+    `  failed windows: ${result.ai.failedChunks}`,
     '',
     'Notes:',
     `  total extracted: ${result.notes.length}`,
@@ -654,9 +659,13 @@ function formatReviewNote(note: CreatorAtomicNote): string {
     lines.push('Source quote:', `"${quote}"`, '');
   }
   if (note.sourceExcerpt) {
-    lines.push('Transcript:', `"${note.sourceExcerpt}"`);
+    lines.push(
+      'Evidence:',
+      formatNoteTimestampRange(note.startSeconds, note.endSeconds),
+      note.sourceExcerpt,
+    );
   } else {
-    lines.push('Transcript: (not available)');
+    lines.push('Evidence: (not available)');
   }
   lines.push(`Source segments: ${formatSourceSegments(note.sourceSegmentIndexes)}`);
   lines.push(`Evidence duration: ${formatEvidenceDuration(note)}`);

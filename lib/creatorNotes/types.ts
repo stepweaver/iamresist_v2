@@ -43,13 +43,17 @@ export interface CreatorTranscriptInput {
 
 export interface CreatorTranscriptChunk {
   index: number;
+  windowId: string;
   startSeconds: number | null;
   endSeconds: number | null;
   segments: CreatorTranscriptSegment[];
   segmentIndexes: number[];
   text: string;
+  verbatimTranscript: string;
   charCount: number;
 }
+
+export type CreatorEvidenceWindow = CreatorTranscriptChunk;
 
 /**
  * Model output after schema validation.

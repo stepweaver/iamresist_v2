@@ -353,6 +353,23 @@ export function addEvidenceDiagnostics(
   return target;
 }
 
+export function attachEvidenceWindowToNotes(
+  notes: RawCreatorNote[],
+  window: {
+    segmentIndexes: number[];
+    startSeconds: number | null;
+    endSeconds: number | null;
+  },
+): RawCreatorNote[] {
+  const indexes = uniqueSortedIndexes(window.segmentIndexes);
+  return notes.map((note) => ({
+    ...note,
+    sourceSegmentIndexes: [...indexes],
+    startSeconds: window.startSeconds,
+    endSeconds: window.endSeconds,
+  }));
+}
+
 export function acceptGroundedCreatorNotes(
   notes: RawCreatorNote[],
   segments: CreatorTranscriptSegment[],
@@ -385,7 +402,8 @@ export function acceptGroundedCreatorNotes(
   for (const note of evidenced.notes) {
     const bounds = timeRangeFromIndexes(segments, note.sourceSegmentIndexes);
     const duration = evidenceDurationSeconds(bounds);
-    const citedText = concatenateTranscriptSegments(segments, note.sourceSegmentIndexes);
+    const citedText =
+      note.sourceExcerpt || concatenateTranscriptSegments(segments, note.sourceSegmentIndexes);
     const quote = note.sourceQuote || note.exactQuote;
 
     if (duration != null && duration >= CREATOR_NOTES_EVIDENCE_DURATION_FLAG_SECONDS) {
@@ -448,31 +466,28 @@ export function applySourceEvidence(
     const resolved = resolveSourceSegmentEvidence(requestedIndexes, segments);
     if (resolved.invalid) diagnostics.invalidSourceSegmentReferences += 1;
 
-    const citedText = concatenateTranscriptSegments(segments, resolved.indexes);
+    const indexes = resolved.indexes;
+    const citedText = concatenateTranscriptSegments(segments, indexes) || resolved.excerpt || '';
     const rawQuote = proposedSourceQuote(note);
     let sourceQuote: string | null = null;
-    let indexes = resolved.indexes;
     if (rawQuote) {
       diagnostics.exactQuotesRequested += 1;
       sourceQuote = verifyExactQuote(rawQuote, citedText);
-      if (sourceQuote) {
-        diagnostics.exactQuotesVerified += 1;
-        const focused = smallestIndexesContainingQuote(segments, indexes, sourceQuote);
-        if (focused?.length) indexes = focused;
-      } else {
-        diagnostics.exactQuotesRejected += 1;
-      }
+      if (sourceQuote) diagnostics.exactQuotesVerified += 1;
+      else diagnostics.exactQuotesRejected += 1;
     }
 
-    const excerpt =
-      concatenateTranscriptSegments(segments, indexes) || resolved.excerpt;
-    const bounded = excerpt ? buildSourceExcerpt(segments, indexes) : null;
-    if (bounded?.excerpt) diagnostics.notesWithSourceEvidence += 1;
+    const excerpt = citedText
+      ? citedText.length <= CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS
+        ? citedText
+        : trimToWordBoundary(citedText, CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS)
+      : null;
+    if (excerpt) diagnostics.notesWithSourceEvidence += 1;
     else diagnostics.notesWithoutSourceEvidence += 1;
 
     return {
       ...note,
-      sourceExcerpt: bounded?.excerpt || excerpt || null,
+      sourceExcerpt: excerpt,
       sourceQuote,
       exactQuote: sourceQuote,
       sourceSegmentIndexes: indexes,

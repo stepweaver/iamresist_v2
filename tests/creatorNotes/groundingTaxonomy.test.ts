@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { chunkCreatorTranscript, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
+import { chunkCreatorTranscript, splitCreatorTranscriptChunk, buildEvidenceWindows } from '@/lib/creatorNotes/chunk';
 import { CREATOR_NOTE_EXTRACTION_VERSION, CREATOR_NOTE_KINDS, CREATOR_NOTES_TEXT_MAX_CHARS } from '@/lib/creatorNotes/constants';
 import { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
 import {
@@ -459,7 +459,7 @@ describe('Atomic Creator Notes recoverable inference failures', () => {
     expect(isCreatorNotesRecoverableInferenceError(genericHttp500())).toBe(false);
     expect(creatorNotesRecoveryReason(genericHttp500())).toBeNull();
     expect(isCreatorNotesConnectionError(fetchFailedError())).toBe(true);
-    expect(isCreatorNotesRecoverableInferenceError(fetchFailedError())).toBe(true);
+    expect(isCreatorNotesRecoverableInferenceError(fetchFailedError())).toBe(false);
     expect(creatorNotesRecoveryReason(fetchFailedError())).toBe('connection');
   });
 
@@ -474,7 +474,9 @@ describe('Atomic Creator Notes recoverable inference failures', () => {
         id: ids('token-repeat'),
         log: (_prefix, event, extra) => events.push({ event, extra }),
         extractChunk: async ({ chunk }) => {
-          if (chunk.charCount > 5000) throw tokenRepeatError();
+          if (chunk.segmentIndexes.length >= buildEvidenceWindows(segments)[0].segmentIndexes.length) {
+            throw tokenRepeatError();
+          }
           const index = chunk.segmentIndexes[0];
           return {
             notes: [
@@ -518,25 +520,36 @@ describe('Atomic Creator Notes recoverable inference failures', () => {
     );
     expect(events).toContain('recoverable failure');
     expect(events).toContain('chunk split');
-    expect(events.filter((event) => event === 'chunk split')).toHaveLength(1);
+    expect(events.filter((event) => event === 'chunk split').length).toBeGreaterThan(0);
     expect(calls).toBeGreaterThan(1);
-    expect(calls).toBeLessThanOrEqual(1 + splitCreatorTranscriptChunk(chunkCreatorTranscript(segments)[0]).length);
+    const parent = buildEvidenceWindows(segments)[0];
+    expect(calls).toBeLessThanOrEqual(
+      buildEvidenceWindows(segments).length * (1 + splitCreatorTranscriptChunk(parent).length),
+    );
     expect(result.persistence.status).toBe('failed');
     expect(result.notes).toHaveLength(0);
   });
 
-  it('splits and retries once after a fetch-failed connection error', async () => {
+  it('retries the same evidence window after a fetch-failed connection error and does not split', async () => {
     const segments = makeSegments(16, 400);
     const transcript = transcriptFromSegments(segments);
     const events: Array<{ event: string; extra?: Record<string, unknown> }> = [];
+    const calls: Array<{ indexes: number[] }> = [];
+    let first = true;
     const result = await runCreatorNoteExtraction(
       { transcript, dryRun: true },
       {
         aiConfig: TEST_AI,
         id: ids('fetch-failed'),
         log: (_prefix, event, extra) => events.push({ event, extra }),
+        healthCheck: async () => ({ ok: true, reachable: true }),
+        sleep: async () => {},
         extractChunk: async ({ chunk }) => {
-          if (chunk.charCount > 5000) throw fetchFailedError();
+          calls.push({ indexes: [...chunk.segmentIndexes] });
+          if (first) {
+            first = false;
+            throw fetchFailedError();
+          }
           const index = chunk.segmentIndexes[0];
           return {
             notes: [
@@ -544,7 +557,7 @@ describe('Atomic Creator Notes recoverable inference failures', () => {
                 text: 'Westmere County Court accepted a new filing in Calder v. Westmere Civic Board.',
                 exactQuote: `Seg ${String(index).padStart(3, '0')}`,
                 sourceQuote: `Seg ${String(index).padStart(3, '0')}`,
-                sourceSegmentIndexes: [index],
+                sourceSegmentIndexes: [99],
                 startSeconds: index * 10,
                 endSeconds: index * 10 + 8,
               }),
@@ -554,11 +567,14 @@ describe('Atomic Creator Notes recoverable inference failures', () => {
         },
       },
     );
-    expect(events.some((row) => row.event === 'recoverable failure' && row.extra?.reason === 'connection')).toBe(true);
-    expect(events.some((row) => row.event === 'chunk split' && row.extra?.splitReason === 'connection')).toBe(true);
+    expect(events.some((row) => row.event === 'transport failure')).toBe(true);
+    expect(events.some((row) => row.event === 'transport retry' && row.extra?.sameWindow === true)).toBe(true);
+    expect(events.some((row) => row.event === 'chunk split')).toBe(false);
+    expect(calls[0].indexes).toEqual(calls[1].indexes);
     expect(result.ai.failedChunks).toBe(0);
     expect(result.persistence.status).toBe('success');
     expect(result.notes.length).toBeGreaterThan(0);
+    expect(result.notes[0].sourceSegmentIndexes).toEqual(calls[1].indexes);
   });
 
   it('does not split on a generic HTTP 500', async () => {
@@ -644,6 +660,8 @@ describe('Atomic Creator Notes partial persistence and isolation', () => {
     expect(messages[1].content).toContain('Do not classify an interpretation as EVENT');
     expect(messages[1].content).toContain('Do not invent kind names');
     expect(messages[1].content).toContain('creator_analysis: "Jiang argues the steelman');
+    expect(messages[1].content).toContain('Do not return sourceSegmentIndexes');
+    expect(messages[1].content).toContain('{"notes":[]} is valid');
     expect(messages[1].content.indexOf('</source>')).toBeLessThan(
       messages[1].content.indexOf('kind is required and must be copied exactly'),
     );

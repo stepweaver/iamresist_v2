@@ -1,12 +1,13 @@
 export { CREATOR_NOTE_EXTRACTION_VERSION, CREATOR_NOTE_KINDS } from '@/lib/creatorNotes/constants';
 export { hashCreatorTranscript, creatorNoteFingerprint } from '@/lib/creatorNotes/identity';
-export { chunkCreatorTranscript, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
+export { chunkCreatorTranscript, splitCreatorTranscriptChunk, buildEvidenceWindows } from '@/lib/creatorNotes/chunk';
 export { parseCreatorNotesOutput, validateRawCreatorNote, emptyKindDiagnostics } from '@/lib/creatorNotes/validate';
 export { defaultVerificationStatus, dedupeRawCreatorNotes } from '@/lib/creatorNotes/postprocess';
 export { applyQuoteVerification } from '@/lib/creatorNotes/quotes';
 export {
   acceptGroundedCreatorNotes,
   applySourceEvidence,
+  attachEvidenceWindowToNotes,
   compoundNoteReason,
   unsupportedNumericTokens,
 } from '@/lib/creatorNotes/sourceEvidence';

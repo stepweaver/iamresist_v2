@@ -1,21 +1,29 @@
 import { randomUUID } from 'node:crypto';
 
-import { chunkCreatorTranscript, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
-import { CREATOR_NOTE_EXTRACTION_VERSION, type CreatorNoteRunStatus } from '@/lib/creatorNotes/constants';
+import { buildEvidenceWindows, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
+import {
+  CREATOR_NOTE_EXTRACTION_VERSION,
+  CREATOR_NOTES_TRANSPORT_BACKOFF_MS,
+  type CreatorNoteRunStatus,
+} from '@/lib/creatorNotes/constants';
 import { createSupabaseCreatorNotesStore } from '@/lib/creatorNotes/db';
 import {
   assertCreatorNotesAiConfigured,
   creatorNotesRecoveryReason,
   extractCreatorNotesChunk,
+  healthCheckCreatorNotesOllama,
   isCreatorNotesRecoverableInferenceError,
+  isCreatorNotesTransportFailure,
   resolveCreatorNotesAiConfig,
   type CreatorNotesAiConfig,
+  type CreatorNotesHealthCheckResult,
 } from '@/lib/creatorNotes/extract';
 import { applyKnownCreatorAttribution, hashCreatorTranscript, transcriptCharCount } from '@/lib/creatorNotes/identity';
 import { countNoteKinds, dedupeRawCreatorNotes, emptyKindCounts, toAtomicNotes } from '@/lib/creatorNotes/postprocess';
 import {
   acceptGroundedCreatorNotes,
   addEvidenceDiagnostics,
+  attachEvidenceWindowToNotes,
   emptyEvidenceDiagnostics,
   quoteDiagnosticsFromEvidence,
 } from '@/lib/creatorNotes/sourceEvidence';
@@ -50,6 +58,10 @@ export type CreatorNotesRunDeps = {
   id?: () => string;
   aiConfig?: CreatorNotesAiConfig;
   log?: (prefix: string, event: string, extra?: Record<string, unknown>) => void;
+  healthCheck?: (config: CreatorNotesAiConfig) => Promise<CreatorNotesHealthCheckResult>;
+  sleep?: (ms: number) => Promise<void>;
+  tryStartOllama?: (config: CreatorNotesAiConfig) => Promise<boolean>;
+  transportBackoffMs?: number;
 };
 
 type ChunkProcessResult = {
@@ -80,12 +92,16 @@ function clipError(error: unknown): string {
   return message.slice(0, 240);
 }
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function creatorNotesRunStatus(input: {
   failedChunks: number;
   noteCount: number;
 }): CreatorNoteRunStatus {
-  if (input.failedChunks > 0 && input.noteCount > 0) return 'partial';
-  if (input.failedChunks === 0 && input.noteCount > 0) return 'success';
+  if (input.failedChunks === 0) return 'success';
+  if (input.noteCount > 0) return 'partial';
   return 'failed';
 }
 
@@ -106,10 +122,13 @@ export async function runCreatorNoteExtraction(
   const aiConfig = deps.aiConfig || resolveCreatorNotesAiConfig();
   const extractChunk = deps.extractChunk || extractCreatorNotesChunk;
   const log = deps.log;
+  const healthCheck = deps.healthCheck || ((config: CreatorNotesAiConfig) => healthCheckCreatorNotesOllama(config));
+  const sleep = deps.sleep || sleepMs;
+  const backoffMs = deps.transportBackoffMs ?? CREATOR_NOTES_TRANSPORT_BACKOFF_MS;
 
   const transcriptHash = hashCreatorTranscript(transcript.segments);
   const transcriptChars = transcriptCharCount(transcript.segments);
-  const chunks = chunkCreatorTranscript(transcript.segments);
+  const chunks = buildEvidenceWindows(transcript.segments);
 
   const source = {
     sourceItemId: transcript.sourceItemId,
@@ -243,7 +262,12 @@ export async function runCreatorNoteExtraction(
       repair,
       rejectedKinds,
     });
-    const grounded = acceptGroundedCreatorNotes(extracted.notes, transcript.segments, {
+    const attached = attachEvidenceWindowToNotes(extracted.notes, {
+      segmentIndexes: chunk.segmentIndexes,
+      startSeconds: chunk.startSeconds,
+      endSeconds: chunk.endSeconds,
+    });
+    const grounded = acceptGroundedCreatorNotes(attached, transcript.segments, {
       allowedSegmentIndexes: chunk.segmentIndexes,
     });
     return {
@@ -255,17 +279,52 @@ export async function runCreatorNoteExtraction(
     };
   }
 
+  async function recoverTransportOnce(chunk: CreatorTranscriptChunk): Promise<boolean> {
+    logEvent(log, '[creator-notes]', 'transport failure', {
+      index: chunk.index,
+      windowId: chunk.windowId,
+      chars: chunk.charCount,
+    });
+    const probe = await healthCheck(aiConfig);
+    logEvent(log, '[creator-notes]', 'health check', {
+      index: chunk.index,
+      windowId: chunk.windowId,
+      ok: probe.ok,
+      reachable: probe.reachable,
+      error: probe.error || null,
+    });
+    if (!probe.reachable && deps.tryStartOllama) {
+      logEvent(log, '[creator-notes]', 'ollama start attempted', {
+        index: chunk.index,
+        windowId: chunk.windowId,
+      });
+      const started = await deps.tryStartOllama(aiConfig);
+      logEvent(log, '[creator-notes]', started ? 'ollama start succeeded' : 'ollama start failed', {
+        index: chunk.index,
+        windowId: chunk.windowId,
+      });
+      if (!started) return false;
+    } else if (!probe.reachable) {
+      return false;
+    }
+    await sleep(backoffMs);
+    return true;
+  }
+
   async function processChunk(
     chunk: CreatorTranscriptChunk,
-    isRetry: boolean,
+    flags: { inferenceRetry: boolean; transportRetry: boolean },
     childOffset: number | null,
   ): Promise<ChunkProcessResult> {
+    const isRetry = flags.inferenceRetry;
     logEvent(log, '[creator-notes]', isRetry ? 'retry child chunk started' : 'chunk started', {
       index: chunk.index,
+      windowId: chunk.windowId,
       childOffset,
       chars: chunk.charCount,
       startSeconds: chunk.startSeconds,
       endSeconds: chunk.endSeconds,
+      segmentIndexes: chunk.segmentIndexes,
     });
     try {
       let result = await extractAndGround(chunk, false);
@@ -273,6 +332,7 @@ export async function runCreatorNoteExtraction(
         const rejectedKinds = invalidRawKindValues(result.kindDiagnostics);
         logEvent(log, '[creator-notes]', 'chunk grounding repair started', {
           index: chunk.index,
+          windowId: chunk.windowId,
           childOffset,
           proposed: result.proposed,
           rejected: result.rejected,
@@ -283,18 +343,20 @@ export async function runCreatorNoteExtraction(
           log,
           '[creator-notes]',
           result.notes.length ? 'chunk grounding repair completed' : 'chunk grounding repair failed',
-          { index: chunk.index, childOffset, notes: result.notes.length, rejected: result.rejected },
+          { index: chunk.index, windowId: chunk.windowId, childOffset, notes: result.notes.length, rejected: result.rejected },
         );
       }
       if (result.rejected > 0) {
         logEvent(log, '[creator-notes]', 'validation rejected count', {
           index: chunk.index,
+          windowId: chunk.windowId,
           childOffset,
           rejected: result.rejected,
         });
       }
       logEvent(log, '[creator-notes]', isRetry ? 'retry child chunk completed' : 'chunk succeeded', {
         index: chunk.index,
+        windowId: chunk.windowId,
         childOffset,
         notes: result.notes.length,
         rejected: result.rejected,
@@ -310,9 +372,42 @@ export async function runCreatorNoteExtraction(
       };
     } catch (error) {
       const recovery = creatorNotesRecoveryReason(error);
-      if (isCreatorNotesRecoverableInferenceError(error) && !isRetry) {
+
+      if (isCreatorNotesTransportFailure(error) && !flags.transportRetry) {
+        const canRetry = await recoverTransportOnce(chunk);
+        if (canRetry) {
+          logEvent(log, '[creator-notes]', 'transport retry', {
+            index: chunk.index,
+            windowId: chunk.windowId,
+            chars: chunk.charCount,
+            error: clipError(error),
+            sameWindow: true,
+          });
+          return processChunk(chunk, { inferenceRetry: flags.inferenceRetry, transportRetry: true }, childOffset);
+        }
+        const message = clipError(error);
+        logEvent(log, '[creator-notes]', isRetry ? 'retry child chunk failed' : 'chunk failed', {
+          index: chunk.index,
+          windowId: chunk.windowId,
+          childOffset,
+          error: message,
+          ok: false,
+          split: false,
+        });
+        return {
+          notes: [],
+          rejected: 0,
+          diagnostics: emptyEvidenceDiagnostics(),
+          kindDiagnostics: emptyKindDiagnostics(),
+          ok: false,
+          error: message,
+        };
+      }
+
+      if (isCreatorNotesRecoverableInferenceError(error) && !flags.inferenceRetry) {
         logEvent(log, '[creator-notes]', 'recoverable failure', {
           index: chunk.index,
+          windowId: chunk.windowId,
           reason: recovery,
           chars: chunk.charCount,
           error: clipError(error),
@@ -320,20 +415,41 @@ export async function runCreatorNoteExtraction(
         if (recovery === 'timeout') {
           logEvent(log, '[creator-notes]', 'chunk timeout', {
             index: chunk.index,
+            windowId: chunk.windowId,
             chars: chunk.charCount,
             error: clipError(error),
           });
         }
         const children = splitCreatorTranscriptChunk(chunk);
+        if (children.length <= 1) {
+          const message = clipError(error);
+          logEvent(log, '[creator-notes]', isRetry ? 'retry child chunk failed' : 'chunk failed', {
+            index: chunk.index,
+            windowId: chunk.windowId,
+            childOffset,
+            error: message,
+            ok: false,
+          });
+          return {
+            notes: [],
+            rejected: 0,
+            diagnostics: emptyEvidenceDiagnostics(),
+            kindDiagnostics: emptyKindDiagnostics(),
+            ok: false,
+            error: message,
+          };
+        }
         const childRanges = children.map((child) => ({
           startIndex: child.segmentIndexes[0] ?? null,
           endIndex: child.segmentIndexes[child.segmentIndexes.length - 1] ?? null,
           startSeconds: child.startSeconds,
           endSeconds: child.endSeconds,
           chars: child.charCount,
+          windowId: child.windowId,
         }));
         logEvent(log, '[creator-notes]', 'chunk split', {
           index: chunk.index,
+          windowId: chunk.windowId,
           splitReason: recovery,
           children: children.length,
           childChars: children.map((child) => child.charCount),
@@ -348,7 +464,11 @@ export async function runCreatorNoteExtraction(
           error: null,
         };
         for (let i = 0; i < children.length; i += 1) {
-          const childResult = await processChunk(children[i], true, i);
+          const childResult = await processChunk(
+            children[i],
+            { inferenceRetry: true, transportRetry: flags.transportRetry },
+            i,
+          );
           merged.notes.push(...childResult.notes);
           merged.rejected += childResult.rejected;
           addEvidenceDiagnostics(merged.diagnostics, childResult.diagnostics);
@@ -360,9 +480,11 @@ export async function runCreatorNoteExtraction(
         }
         return merged;
       }
+
       const message = clipError(error);
       logEvent(log, '[creator-notes]', isRetry ? 'retry child chunk failed' : 'chunk failed', {
         index: chunk.index,
+        windowId: chunk.windowId,
         childOffset,
         error: message,
         ok: false,
@@ -380,7 +502,7 @@ export async function runCreatorNoteExtraction(
 
   try {
     for (const chunk of chunks) {
-      const processed = await processChunk(chunk, false, null);
+      const processed = await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null);
       collected.push(...processed.notes);
       validationRejected += processed.rejected;
       addEvidenceDiagnostics(evidenceDiagnostics, processed.diagnostics);

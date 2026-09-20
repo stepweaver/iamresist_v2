@@ -12,7 +12,12 @@ vi.mock('@/lib/env/themeMemory', () => ({
 }));
 
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
-import { createOllamaThemeAIProvider, probeOllama } from '@/lib/themeMemory/ai/ollama';
+import {
+  createOllamaThemeAIProvider,
+  ollamaChatJson,
+  ollamaFetchTimeoutMs,
+  probeOllama,
+} from '@/lib/themeMemory/ai/ollama';
 import { ThemeAIValidationError } from '@/lib/themeMemory/ai/types';
 import type { ThemeMembershipClassifyInput } from '@/lib/themeMemory/ai/types';
 import {
@@ -40,12 +45,17 @@ function membershipInput(overrides: Partial<ThemeMembershipClassifyInput> = {}):
 }
 
 function chatBody(fetchMock: ReturnType<typeof vi.fn>, call = 0) {
-  const init = fetchMock.mock.calls[call]?.[1] as { body?: string };
+  const init = fetchMock.mock.calls[call]?.[1] as { body?: string; dispatcher?: { close?: () => Promise<void> } };
   return JSON.parse(String(init?.body || '{}')) as {
     format?: unknown;
     options?: { temperature?: number };
     messages?: Array<{ role: string; content: string }>;
+    keep_alive?: string;
   };
+}
+
+function chatInit(fetchMock: ReturnType<typeof vi.fn>, call = 0) {
+  return fetchMock.mock.calls[call]?.[1] as { body?: string; dispatcher?: { close?: () => Promise<void> } };
 }
 
 function abortError() {
@@ -436,5 +446,56 @@ describe('Theme Memory structured output schemas', () => {
     expect(THEME_LABEL_JSON_SCHEMA.properties.canonicalLabel.type).toBe('string');
     expect(THEME_LABEL_JSON_SCHEMA.additionalProperties).toBe(false);
     expect(THEME_LABEL_JSON_SCHEMA).not.toEqual(THEME_MEMBERSHIP_JSON_SCHEMA);
+  });
+
+  it('does not send keep_alive on Theme Memory chat requests', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        model: 'test-model',
+        message: {
+          content: JSON.stringify({ belongs: true, confidence: 0.8, reasons: [] }),
+        },
+      }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createOllamaThemeAIProvider({
+      model: 'test-model',
+      timeoutMs: 1000,
+      retries: 0,
+    });
+    await provider.classifyMembership(membershipInput());
+    expect(chatBody(fetchMock).keep_alive).toBeUndefined();
+  });
+});
+
+describe('Ollama chat transport timeouts', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('extends undici wait past the default 300s body timeout', () => {
+    expect(ollamaFetchTimeoutMs(900_000)).toBe(905_000);
+    expect(ollamaFetchTimeoutMs(300_000)).toBeGreaterThan(300_000);
+  });
+
+  it('attaches a dispatcher and optional keep_alive to long chat requests', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ model: 'test-model', message: { content: '{"notes":[]}' } }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    await ollamaChatJson({
+      messages: [{ role: 'user', content: 'extract' }],
+      format: { type: 'object' },
+      timeoutMs: 900_000,
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      retries: 0,
+      keepAlive: '30m',
+    });
+    const init = chatInit(fetchMock);
+    expect(init.dispatcher).toEqual(expect.objectContaining({ close: expect.any(Function) }));
+    expect(chatBody(fetchMock).keep_alive).toBe('30m');
   });
 });

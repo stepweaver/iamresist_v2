@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { chunkCreatorTranscript, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
+import { buildEvidenceWindows, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
 import {
   CREATOR_NOTES_AI_TIMEOUT_MS_DEFAULT,
-  CREATOR_NOTES_CHUNK_CHARS_DEFAULT,
-  CREATOR_NOTES_CHUNK_OVERLAP_CHARS,
+  CREATOR_NOTES_EVIDENCE_WINDOW_MAX_CHARS,
+  CREATOR_NOTES_EVIDENCE_WINDOW_MAX_SECONDS,
+  CREATOR_NOTES_EVIDENCE_WINDOW_OVERLAP_SECONDS,
   creatorNotesAiTimeoutMs,
-  creatorNotesChunkChars,
 } from '@/lib/creatorNotes/constants';
 import { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
 import { formatCreatorNotesReport, formatNotePreview } from '@/lib/creatorNotes/format';
@@ -87,7 +87,7 @@ function groundedNote(index: number, overrides: Partial<RawCreatorNote> = {}): R
 }
 
 describe('Atomic Creator Notes long-transcript hardening', () => {
-  const envKeys = ['CREATOR_NOTES_AI_TIMEOUT_MS', 'CREATOR_NOTES_CHUNK_CHARS'] as const;
+  const envKeys = ['CREATOR_NOTES_AI_TIMEOUT_MS'] as const;
   const previousEnv: Partial<Record<(typeof envKeys)[number], string | undefined>> = {};
 
   afterEach(() => {
@@ -107,33 +107,37 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
     else process.env[key] = value;
   }
 
-  it('splits a ~12k source into smaller creator-note chunks on transcript-segment boundaries with overlap', () => {
-    expect(CREATOR_NOTES_CHUNK_CHARS_DEFAULT).toBe(7500);
-    setEnv('CREATOR_NOTES_CHUNK_CHARS', '');
-    expect(creatorNotesChunkChars()).toBe(7500);
+  it('builds ~30-60s evidence windows on transcript-segment boundaries with overlap', () => {
     const segments = makeSegments(80, 150);
     const totalChars = segments.reduce((sum, segment) => sum + segment.text.length, 0);
     expect(totalChars).toBeGreaterThanOrEqual(12000);
     expect(totalChars).toBeLessThan(13000);
 
-    const chunks = chunkCreatorTranscript(segments);
-    expect(chunks.length).toBeGreaterThan(1);
-    expect(chunks.every((chunk) => chunk.charCount <= CREATOR_NOTES_CHUNK_CHARS_DEFAULT + 150)).toBe(true);
-    expect(chunks.some((chunk) => chunk.charCount >= 6000)).toBe(true);
+    const windows = buildEvidenceWindows(segments);
+    expect(windows.length).toBeGreaterThan(1);
+    expect(windows.every((window) => window.charCount <= CREATOR_NOTES_EVIDENCE_WINDOW_MAX_CHARS + 150)).toBe(true);
+    expect(
+      windows.every((window) => {
+        if (window.startSeconds == null || window.endSeconds == null) return true;
+        const duration = window.endSeconds - window.startSeconds;
+        return duration <= CREATOR_NOTES_EVIDENCE_WINDOW_MAX_SECONDS + 1;
+      }),
+    ).toBe(true);
 
-    const firstIndexes = chunks[0].segments.map((segment) => segment.index);
-    const overlapIndexes = chunks[1].segments
+    const firstIndexes = windows[0].segments.map((segment) => segment.index);
+    const overlapIndexes = windows[1].segments
       .map((segment) => segment.index)
       .filter((index) => firstIndexes.includes(index));
     expect(overlapIndexes.length).toBeGreaterThan(0);
-    const overlapChars = overlapIndexes.reduce(
-      (sum, index) => sum + String(segments[index].text).length,
-      0,
-    );
-    expect(overlapChars).toBeGreaterThanOrEqual(CREATOR_NOTES_CHUNK_OVERLAP_CHARS);
+    const overlapSeconds =
+      (windows[0].endSeconds ?? 0) - (windows[1].startSeconds ?? (windows[0].endSeconds ?? 0));
+    expect(overlapSeconds).toBeGreaterThanOrEqual(CREATOR_NOTES_EVIDENCE_WINDOW_OVERLAP_SECONDS - 8);
 
-    for (const chunk of chunks) {
-      for (const segment of chunk.segments) {
+    for (const window of windows) {
+      expect(window.windowId).toMatch(/^w\d+$/);
+      expect(window.verbatimTranscript.length).toBeGreaterThan(0);
+      expect(window.segmentIndexes).toEqual(window.segments.map((segment) => segment.index));
+      for (const segment of window.segments) {
         expect(segment.text).toBe(segments[segment.index].text);
         expect(segment.index).toBe(segments[segment.index].index);
       }
@@ -147,11 +151,12 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
       endSeconds: 12,
       text: `${'Westmere filing '.repeat(600).trim()}.`,
     };
-    expect(huge.text.length).toBeGreaterThan(CREATOR_NOTES_CHUNK_CHARS_DEFAULT);
-    const chunks = chunkCreatorTranscript([huge, { index: 1, startSeconds: 12, endSeconds: 20, text: 'Next original segment stays whole.' }]);
-    expect(chunks[0].segments).toHaveLength(1);
-    expect(chunks[0].segments[0].text).toBe(huge.text);
-    expect(chunks[1].segments.some((segment) => segment.text === huge.text)).toBe(true);
+    expect(huge.text.length).toBeGreaterThan(CREATOR_NOTES_EVIDENCE_WINDOW_MAX_CHARS);
+    const windows = buildEvidenceWindows([huge, { index: 1, startSeconds: 12, endSeconds: 20, text: 'Next original segment stays whole.' }]);
+    expect(windows[0].segments).toHaveLength(1);
+    expect(windows[0].segments[0].text).toBe(huge.text);
+    expect(windows[1].segments[0].text).toBe('Next original segment stays whole.');
+    expect(windows[1].segments.every((segment) => segment.text !== huge.text)).toBe(true);
   });
 
   it('uses CREATOR_NOTES_AI_TIMEOUT_MS independently of Theme Memory', () => {
@@ -163,9 +168,10 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
     expect(creatorNotesAiTimeoutMs()).toBe(180000);
   });
 
-  it('on timeout splits the chunk and retries children once sequentially', async () => {
+  it('on timeout splits the window and retries children once sequentially', async () => {
     const segments = makeSegments(16, 400);
     const transcript = transcriptFromSegments(segments);
+    const parent = buildEvidenceWindows(segments)[0];
     const calls: Array<{ chars: number; repair?: boolean; indexes: number[] }> = [];
     const result = await runCreatorNoteExtraction(
       { transcript, dryRun: true },
@@ -175,13 +181,13 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
         log: () => {},
         extractChunk: async ({ chunk, repair }) => {
           calls.push({ chars: chunk.charCount, repair: Boolean(repair), indexes: [...chunk.segmentIndexes] });
-          if (!repair && chunk.charCount > 5000) throw timeoutError();
+          if (!repair && chunk.segmentIndexes.length >= parent.segmentIndexes.length) throw timeoutError();
           return { notes: [groundedNote(chunk.segmentIndexes[0])], rejected: 0 };
         },
       },
     );
-    expect(calls[0]?.chars).toBeGreaterThan(5000);
-    expect(calls.slice(1).every((call) => call.chars < calls[0].chars)).toBe(true);
+    expect(calls[0]?.indexes).toEqual(parent.segmentIndexes);
+    expect(calls.slice(1).some((call) => call.chars < calls[0].chars)).toBe(true);
     expect(calls.length).toBeGreaterThan(2);
     expect(result.ai.failedChunks).toBe(0);
     expect(result.persistence.status).toBe('success');
@@ -210,9 +216,12 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
     expect(events).toContain('chunk split');
     expect(events).toContain('retry child chunk started');
     expect(events).toContain('retry child chunk failed');
-    expect(events.filter((event) => event === 'chunk split')).toHaveLength(1);
+    expect(events.filter((event) => event === 'chunk split').length).toBeGreaterThan(0);
     expect(calls).toBeGreaterThan(1);
-    expect(calls).toBeLessThanOrEqual(1 + splitCreatorTranscriptChunk(chunkCreatorTranscript(segments)[0]).length);
+    const parent = buildEvidenceWindows(segments)[0];
+    expect(calls).toBeLessThanOrEqual(
+      buildEvidenceWindows(segments).length * (1 + splitCreatorTranscriptChunk(parent).length),
+    );
     expect(result.persistence.status).toBe('failed');
     expect(result.notes).toHaveLength(0);
   });
@@ -255,7 +264,7 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
     expect(ok.notes[0].sourceSegmentIndexes).toEqual([1]);
   });
 
-  it('requires sourceSegmentIndexes on accepted notes from a run', async () => {
+  it('inherits evidence-window indexes even when the model omits them', async () => {
     const transcript = loadSyntheticTranscript();
     const result = await runCreatorNoteExtraction(
       { transcript, dryRun: true },
@@ -263,18 +272,24 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
         aiConfig: TEST_AI,
         id: ids('require-index'),
         log: () => {},
-        extractChunk: async () => ({
-          notes: [groundedNote(1, { sourceSegmentIndexes: [] })],
+        extractChunk: async ({ chunk }) => ({
+          notes: [
+            groundedNote(chunk.segmentIndexes[0], {
+              sourceSegmentIndexes: [],
+              exactQuote: transcript.segments[chunk.segmentIndexes[0]].text.slice(0, 40),
+            }),
+          ],
           rejected: 0,
         }),
       },
     );
-    expect(result.notes).toHaveLength(0);
-    expect(result.validationRejected).toBeGreaterThan(0);
-    expect(result.persistence.status).toBe('failed');
+    expect(result.notes.length).toBeGreaterThan(0);
+    expect(result.notes.every((note) => note.sourceSegmentIndexes.length > 0)).toBe(true);
+    expect(result.notes[0].sourceExcerpt).toContain(transcript.segments[result.notes[0].sourceSegmentIndexes[0]].text);
+    expect(result.persistence.status).toBe('success');
   });
 
-  it('attempts grounding repair once when a chunk returns only ungrounded notes', async () => {
+  it('attempts grounding repair once when a window returns only ungrounded notes', async () => {
     const transcript = loadSyntheticTranscript();
     const events: string[] = [];
     let calls = 0;
@@ -284,24 +299,28 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
         aiConfig: TEST_AI,
         id: ids('repair'),
         log: (_prefix, event) => events.push(event),
-        extractChunk: async ({ repair }) => {
+        extractChunk: async ({ repair, chunk }) => {
           calls += 1;
+          const index = chunk.segmentIndexes[0];
           if (!repair) {
-            return { notes: [groundedNote(1, { sourceSegmentIndexes: [] })], rejected: 0 };
+            return {
+              notes: [groundedNote(index, { exactQuote: 'this fabricated quote is not in the window' })],
+              rejected: 0,
+            };
           }
           return {
-            notes: [groundedNote(1, { exactQuote: transcript.segments[1].text })],
+            notes: [groundedNote(index, { exactQuote: transcript.segments[index].text.slice(0, 24) })],
             rejected: 0,
           };
         },
       },
     );
-    expect(calls).toBe(2);
+    expect(calls).toBeGreaterThanOrEqual(2);
     expect(events).toContain('chunk grounding repair started');
     expect(events).toContain('chunk grounding repair completed');
-    expect(result.notes).toHaveLength(1);
-    expect(result.notes[0].sourceSegmentIndexes).toEqual([1]);
-    expect(result.notes[0].sourceExcerpt).toBe(transcript.segments[1].text);
+    expect(result.notes.length).toBeGreaterThan(0);
+    expect(result.notes[0].sourceSegmentIndexes.length).toBeGreaterThan(0);
+    expect(result.notes[0].sourceExcerpt).toContain(transcript.segments[result.notes[0].sourceSegmentIndexes[0]].text);
     expect(result.persistence.status).toBe('success');
   });
 
@@ -314,36 +333,42 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
         aiConfig: TEST_AI,
         id: ids('repair-once'),
         log: () => {},
-        extractChunk: async () => {
+        extractChunk: async ({ chunk }) => {
           calls += 1;
-          return { notes: [groundedNote(1, { sourceSegmentIndexes: [] })], rejected: 0 };
+          return {
+            notes: [
+              groundedNote(chunk.segmentIndexes[0], { exactQuote: 'this fabricated quote is not in the window' }),
+            ],
+            rejected: 0,
+          };
         },
       },
     );
-    expect(calls).toBe(2);
+    const windows = buildEvidenceWindows(transcript.segments);
+    expect(calls).toBe(windows.length * 2);
   });
 
   it('puts required repair instructions in the repair prompt', () => {
     const transcript = loadSyntheticTranscript();
     const messages = buildCreatorNoteMessages({
       transcript,
-      chunk: chunkCreatorTranscript(transcript.segments)[0],
+      chunk: buildEvidenceWindows(transcript.segments)[0],
       chunkCount: 1,
       repair: true,
     });
-    expect(messages[1].content).toContain('Every note must cite one or more supplied segment indexes');
-    expect(messages[1].content).toContain('Do not emit a note that cannot be supported by the supplied transcript');
+    expect(messages[1].content).toContain('Every note must include sourceQuote copied verbatim from this window');
+    expect(messages[1].content).toContain('Do not emit a note that cannot be supported by this window');
     expect(messages[1].content).toContain('Preserve attribution');
     expect(messages[1].content).toContain('Distinguish factual statements from creator analysis');
-    expect(messages[1].content).toContain('Every note must include sourceQuote copied verbatim from those cited segments');
     expect(messages[1].content).toContain('kind is required');
+    expect(messages[1].content).toContain('Do not return transcript segment indexes');
   });
 
   it('classifies success, partial, and failed run status', () => {
     expect(creatorNotesRunStatus({ failedChunks: 0, noteCount: 6 })).toBe('success');
     expect(creatorNotesRunStatus({ failedChunks: 2, noteCount: 6 })).toBe('partial');
     expect(creatorNotesRunStatus({ failedChunks: 2, noteCount: 0 })).toBe('failed');
-    expect(creatorNotesRunStatus({ failedChunks: 0, noteCount: 0 })).toBe('failed');
+    expect(creatorNotesRunStatus({ failedChunks: 0, noteCount: 0 })).toBe('success');
   });
 
   it('logs the actual run status instead of forcing success', async () => {
@@ -413,15 +438,15 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
       createdAt: '2026-09-18T00:00:00.000Z',
     });
     expect(preview).toContain('[00:00:12–00:00:28] EVENT — Professor Jiang');
-    expect(preview).toContain('Transcript:');
-    expect(preview).toContain('"Iran expands the exclusion zone after a navy warning."');
+    expect(preview).toContain('Evidence:');
+    expect(preview).toContain('Iran expands the exclusion zone after a navy warning.');
     expect(preview).toContain('Note:');
     expect(preview).toContain('Source segments: 4, 5');
     expect(preview).toContain('Source quote:');
     expect(preview).toContain('"Iran expands the exclusion zone."');
     expect(preview).toContain('Source segments: 4, 5');
     expect(preview).toContain('Evidence duration:');
-    expect(preview).not.toContain('Transcript: (not available)');
+    expect(preview).not.toContain('Evidence: (not available)');
   });
 
   it('keeps Theme Memory timeout semantics untouched', () => {

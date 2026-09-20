@@ -51,9 +51,9 @@ transcript/content
   D. local faster-whisper audio fallback (`--transcribe-audio` only), or
   E. YouTube captions (experimental, not used by automatic batch)
         ↓
-deterministic chunking
+deterministic evidence windows (~30-60s)
         ↓
-local Ollama / gemma3:4b  (sequential)
+local Ollama / gemma3:4b  (one window at a time)
         ↓
 strictly validated JSON
         ↓
@@ -136,30 +136,30 @@ The model does **not** get to manufacture transcript evidence.
 
 | Layer | Meaning |
 |-------|---------|
-| Original transcript segments | Source of truth. Indexed as `[SEGMENT n \| start-end]`. Chunk overlap keeps those original indexes. |
-| `sourceExcerpt` | Deterministic **verbatim evidence**. Copied by application code from the referenced original segments. Never generated or rewritten by the model. |
-| `sourceQuote` | Required **short verbatim span** from those cited segments. Mechanically verified by normalized literal substring match. Null/unverified quotes reject the note. Distinct from the paraphrased notebook `text`. |
+| Original transcript segments | Source of truth. The application groups them into deterministic evidence windows before calling the model. |
+| Evidence window | ~30-60 seconds or ~800-1500 characters of contiguous original segments, with ~10-15 seconds of overlap. The application owns `sourceSegmentIndexes`, start, and end. |
+| `sourceExcerpt` | The **full verbatim evidence window**. Copied by application code. Never generated or rewritten by the model. |
+| `sourceQuote` / `supportQuote` | Required **short verbatim span** from that window. Illustrative, not the entire grounding contract. Mechanically verified by normalized literal substring match. |
 | `exactQuote` | Persistence alias for `sourceQuote` (`exact_quote` column). |
-| `text` | Concise **AI-generated notebook paraphrase** of one primary proposition. Usually 1-2 sentences. |
+| `text` | Concise **AI-generated notebook paraphrase** of one primary proposition. Usually 1-2 sentences, preferably <= 350 characters. |
 | `eventFeatures` | Unverified structured extraction **candidates**. Not theme identity and not auto-linked. |
 
 ```
-sourceExcerpt = exact text copied by code from the supplied transcript
+sourceExcerpt = exact evidence window copied by code from original segments
 text          = concise AI-generated notebook note
 ```
 
-The model's provenance job is selecting `sourceSegmentIndexes` and copying a short `sourceQuote` from those segments. Every accepted transcript-derived note must cite at least one index that exists in the supplied chunk, and the quote must occur in those cited segments. Missing or invalid indexes are rejected; unverifiable quotes are rejected; the application never invents a replacement. For every accepted note the application:
+The model extracts from one known window and returns `kind`, `text`, and `sourceQuote`. It does **not** choose global transcript segment indexes. For every accepted note the application:
 
 1. validates `kind` (required; unknown/missing kinds are rejected, never defaulted to `event`)
-2. validates `sourceSegmentIndexes` (in-bounds, contiguous or nearly contiguous)
-3. retrieves those exact original transcript segments
-4. verifies `sourceQuote` as a normalized literal substring of those segments
-5. constructs a deterministic `sourceExcerpt` from that original text
-6. rejects notes that introduce numbers/percentages/dates/currency amounts absent from the cited window, or that pack multiple independent propositions into one note
+2. attaches the window's `sourceSegmentIndexes` plus start/end timestamps
+3. copies the full window as `sourceExcerpt`
+4. verifies `sourceQuote` as a normalized literal substring of that window
+5. rejects notes that introduce numbers/percentages/dates/currency amounts absent from the window, or that pack multiple independent propositions into one note
 
-Referenced segments are normally at most 3 and must be contiguous or nearly contiguous (at most one missing index between neighbors). Unusually large evidence windows are flagged for review. The excerpt target is 800 characters. Notebook `text` is capped at 500 characters.
+A note may only contain information found in its window. Multiple kinds may inherit the same window. Empty `{"notes":[]}` is success for that window. Notebook `text` is capped at 500 characters.
 
-A fabricated or paraphrased `sourceQuote` rejects the note. Unverifiable quotes are never rewritten into something that looks verbatim. One bounded repair attempt may re-extract the chunk.
+A fabricated or paraphrased `sourceQuote` rejects the note. Unverifiable quotes are never rewritten into something that looks verbatim. One bounded repair attempt may re-extract the window.
 
 The notebook paraphrase should preserve concrete names and identifiers that actually appear in the transcript (people, courts, cases, filings, dates, amounts). It must not invent them from outside knowledge, and it should not replace them with generic nouns.
 
@@ -417,7 +417,7 @@ Flags (single-item extract):
 
 Default local model remains `gemma3:4b` via `OLLAMA_MODEL`.
 
-Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters, cache hit/miss for local audio), then the existing Atomic Notes report. Note previews show timestamp, kind, creator, notebook paraphrase, mechanically verified `sourceQuote`, `Transcript:` excerpt, source segment indexes, and evidence duration. The report prints raw vs validated kind counts, kind missing/invalid/coercions, duplicates removed, grounding rejects, and quote verification rejects. Unknown/missing kinds are never defaulted to `event`. JSON Schema does not enum-constrain `kind`, because that biased gemma3 toward the first member.
+Human preview (not `--json`) starts with a Transcript acquisition section (`source`, `language`, `generated`, raw/normalized segment counts, duration covered, characters, cache hit/miss for local audio), then the existing Atomic Notes report. Note previews show timestamp, kind, creator, notebook paraphrase, mechanically verified `sourceQuote`, the full `Evidence:` window, source segment indexes, and evidence duration. The report prints raw vs validated kind counts, kind missing/invalid/coercions, duplicates removed, grounding rejects, and quote verification rejects. Unknown/missing kinds are never defaulted to `event`. JSON Schema does not enum-constrain `kind`, because that biased gemma3 toward the first member.
 
 First real podcast dry-run (do not persist):
 
@@ -468,7 +468,7 @@ When you persist, pass the real `source_items.id` UUID whenever it exists so pro
 
 ## Idempotency
 
-Transcript hash: SHA-256 of normalized segments (line endings collapsed, trim, timestamps + text). Version: `creator-notes-v1.2`.
+Transcript hash: SHA-256 of normalized segments (line endings collapsed, trim, timestamps + text). Version: `creator-notes-v1.6`.
 
 A completed **success** run with the same:
 
@@ -525,19 +525,19 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `OLLAMA_MODEL` | `gemma3:4b` if unset for this CLI | Chat model |
 | `THEME_AI_TIMEOUT_MS` | `45000` | Theme Memory classification timeout (unchanged) |
 | `THEME_AI_MAX_RETRIES` | `2` | Theme Memory retry of transient Ollama failures |
-| `CREATOR_NOTES_AI_TIMEOUT_MS` | `300000` | Atomic Notes per-chunk Ollama timeout |
+| `CREATOR_NOTES_AI_TIMEOUT_MS` | `300000` | Atomic Notes per-window Ollama timeout |
 | `CREATOR_NOTES_LOCK_FILE` | `tmp/creator-notes-batch.lock` | Exclusive batch lock; separate from Theme Memory |
-| `CREATOR_NOTES_CHUNK_CHARS` | `7500` | Target chunk size |
-| `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` | `30` | Hard cap per chunk |
+| `CREATOR_NOTES_CHUNK_CHARS` | `1500` | Max evidence-window / split size in characters |
+| `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` | `8` | Hard cap per evidence window |
 | `CREATOR_NOTES_WHISPER_MODEL` | `small` | faster-whisper model for `--transcribe-audio` |
 | `CREATOR_NOTES_PYTHON` | `python3` | Python used to run local Whisper |
 | `CREATOR_NOTES_FFMPEG` | `ffmpeg` | ffmpeg binary for 16 kHz mono speech |
 
-Chunking is by whole transcript segments, with ~800 characters of overlap. Individual segments are not split. Overlap preserves original segment indexes. Prompts label each segment as `[SEGMENT n | startSeconds-endSeconds]`. Target size is ~7,500 characters. If a chunk times out, it is split once into smaller segment-boundary children and those children are processed sequentially. Child timeouts are not retried again.
+Evidence windows are built from whole transcript segments before the LLM is called. Timed transcripts target ~45 seconds (max 60) with ~12 seconds of overlap. Untimed transcripts use ~800-1500 characters. Individual segments are never split. The model sees one window of verbatim transcript and must not return global indexes. Timeout and token-repeat failures split that window once into smaller segment-boundary children. Transport failures (`fetch failed`, connection refused, server unavailable) health-check Ollama, back off briefly, and retry the **same** window once — they do not split the transcript. A window that yields zero notes is success.
 
-Every accepted note must cite at least one `sourceSegmentIndexes` value that exists in the supplied chunk. Missing or invalid indexes are rejected and counted as validation rejections. The application copies `sourceExcerpt` from those original transcript segments; model prose never becomes evidence. If a chunk returns notes but none survive grounding, extraction retries that chunk once with a repair prompt. A `partial` run (some final chunks failed, some notes extracted) does not persist Atomic Notes.
+The application attaches the window's `sourceSegmentIndexes` and copies the full window as `sourceExcerpt`. `sourceQuote` must be a verbatim substring of that window. Numbers in the note are validated against the full window, not only the quote. If a window returns notes but none survive grounding, extraction retries that window once with a repair prompt. A complete run with zero unrecovered window failures is `success` even if no notes were notebook-worthy. A `partial` run does not persist Atomic Notes.
 
-Source excerpts are copied from original segments (`CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS`, 800). Normally at most 3 referenced segments. Optional exact quotes are max 500 characters (`CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS`). Parse allows at most 8 source segment indexes per note; evidence construction bounds the stored range.
+Source excerpts are the full evidence window (`CREATOR_NOTES_SOURCE_EXCERPT_MAX_CHARS`, 2000). Optional exact quotes are max 500 characters (`CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS`). Stored source segment indexes are bounded at 48.
 
 ## Milestone 1 scope boundaries
 

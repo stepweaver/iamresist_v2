@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { Agent, fetch as undiciFetch } from 'undici';
+
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
 import { ThemeAIUnavailableError, ThemeAIValidationError } from '@/lib/themeMemory/ai/types';
 import type { ThemeAIProvider, ThemeLabelGenerateInput, ThemeMembershipClassifyInput } from '@/lib/themeMemory/ai/types';
@@ -35,7 +37,35 @@ function sleep(ms: number): Promise<void> {
 
 const OLLAMA_TAGS_PROBE_TIMEOUT_MS = 25000;
 const OLLAMA_WARMUP_KEEP_ALIVE = '30m';
+const OLLAMA_CONNECT_TIMEOUT_MS = 30_000;
 const DEFAULT_THEME_AI_STARTUP_TIMEOUT_MS = 180000;
+
+export const OLLAMA_CHAT_KEEP_ALIVE = OLLAMA_WARMUP_KEEP_ALIVE;
+
+/**
+ * Undici's default headersTimeout/bodyTimeout is 300s. Long Ollama generations
+ * then surface as generic `fetch failed` even though AbortController is still waiting.
+ */
+export function ollamaFetchTimeoutMs(timeoutMs: number): number {
+  const timeout = Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.round(timeoutMs) : 60_000;
+  return timeout + 5_000;
+}
+
+function createOllamaDispatcher(timeoutMs: number): Agent {
+  const wait = ollamaFetchTimeoutMs(timeoutMs);
+  return new Agent({
+    headersTimeout: wait,
+    bodyTimeout: wait,
+    connectTimeout: OLLAMA_CONNECT_TIMEOUT_MS,
+  });
+}
+
+function ollamaRuntimeFetch(): typeof undiciFetch {
+  if (process.env.NODE_ENV === 'test' && typeof globalThis.fetch === 'function') {
+    return globalThis.fetch as unknown as typeof undiciFetch;
+  }
+  return undiciFetch;
+}
 
 function probeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.name === 'AbortError') return 'ollama_timeout';
@@ -52,6 +82,7 @@ export async function ollamaChatJson(input: {
   retries: number;
   logLabel?: string;
   options?: Record<string, unknown>;
+  keepAlive?: string | null;
 }): Promise<{ content: string; model: string }> {
   const url = `${input.baseUrl.replace(/\/$/, '')}/api/chat`;
   let lastError: unknown;
@@ -59,17 +90,20 @@ export async function ollamaChatJson(input: {
   for (let attempt = 0; attempt <= input.retries; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), input.timeoutMs);
+    const dispatcher = createOllamaDispatcher(input.timeoutMs);
     try {
-      const res = await fetch(url, {
+      const res = await ollamaRuntimeFetch()(url, {
         method: 'POST',
         cache: 'no-store',
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
+        dispatcher,
         body: JSON.stringify({
           model: input.model,
           messages: input.messages,
           stream: false,
           format: input.format,
+          keep_alive: input.keepAlive || undefined,
           options: { temperature: THEME_AI_STRUCTURED_TEMPERATURE, ...(input.options || {}) },
         }),
       });
@@ -118,6 +152,11 @@ export async function ollamaChatJson(input: {
       await sleep(250 * (attempt + 1));
     } finally {
       clearTimeout(timer);
+      try {
+        await dispatcher.close();
+      } catch {
+        // ignore
+      }
     }
   }
 
