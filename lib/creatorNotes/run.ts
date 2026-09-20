@@ -40,7 +40,12 @@ import {
   quoteDiagnosticsFromEvidence,
 } from '@/lib/creatorNotes/sourceEvidence';
 import { addKindDiagnostics, emptyKindDiagnostics, invalidRawKindValues } from '@/lib/creatorNotes/validate';
-import { packEvidenceWindowBatches } from '@/lib/creatorNotes/windowBatch';
+import {
+  assessWindowBatchCoverage,
+  packEvidenceWindowBatches,
+  selectEvidenceWindows,
+  windowBatchRepairIds,
+} from '@/lib/creatorNotes/windowBatch';
 import type {
   CreatorAtomicNote,
   CreatorNoteEvidenceDiagnostics,
@@ -50,7 +55,9 @@ import type {
   CreatorNotesExtractionPerformance,
   CreatorNotesRunResult,
   CreatorNotesStore,
+  CreatorNotesWindowBatchDiagnostics,
   CreatorNotesWindowBatchExtractResult,
+  CreatorNotesWindowFallbackReason,
   CreatorTranscriptChunk,
   CreatorTranscriptInput,
   RawCreatorNote,
@@ -71,6 +78,7 @@ export type CreatorNotesExtractBatchFn = (input: {
   windows: CreatorTranscriptChunk[];
   chunkCount: number;
   config?: CreatorNotesAiConfig;
+  repair?: boolean;
 }) => Promise<CreatorNotesWindowBatchExtractResult>;
 
 export type CreatorNotesRunDeps = {
@@ -129,6 +137,11 @@ export function emptyExtractionPerformance(
     cacheMisses: 0,
     ollamaBatchRequests: 0,
     individualFallbackRequests: 0,
+    batchWindowsSubmitted: 0,
+    batchWindowsAccepted: 0,
+    batchWindowsRepaired: 0,
+    individualFallbackWindows: 0,
+    batches: [],
     totalAiMs: 0,
     averageAiMsPerUncachedWindow: null,
   };
@@ -160,6 +173,7 @@ export async function runCreatorNoteExtraction(
     force?: boolean;
     limitNotes?: number | null;
     maxWindows?: number | null;
+    windowOffset?: number | null;
     bypassExtractionCache?: boolean;
   },
   deps: CreatorNotesRunDeps = {},
@@ -196,10 +210,10 @@ export async function runCreatorNoteExtraction(
   const rawTranscriptHash = hashRawTranscription(rawSegments);
   const transcriptChars = transcriptCharCount(transcript.segments);
   const allChunks = buildEvidenceWindows(transcript.segments);
-  const chunks =
-    input.maxWindows != null && Number.isFinite(input.maxWindows) && input.maxWindows >= 0
-      ? allChunks.slice(0, Math.floor(input.maxWindows))
-      : allChunks;
+  const chunks = selectEvidenceWindows(allChunks, {
+    offset: input.windowOffset,
+    maxWindows: input.maxWindows,
+  });
   const performance = emptyExtractionPerformance(chunks.length);
 
   const source = {
@@ -646,6 +660,73 @@ export async function runCreatorNoteExtraction(
     return groundExtracted(chunk, hit);
   }
 
+  function coverageFromBatchResult(
+    submittedWindowIds: string[],
+    result: CreatorNotesWindowBatchExtractResult,
+  ): CreatorNotesWindowBatchDiagnostics {
+    if (result.diagnostics) {
+      return assessWindowBatchCoverage({
+        submittedWindowIds,
+        returnedWindowIds: result.diagnostics.returnedWindowIds,
+        malformedWindowIds: result.diagnostics.malformedWindowIds,
+        unexpectedWindowIds: result.diagnostics.unexpectedWindowIds,
+        duplicateWindowIds: result.diagnostics.duplicateWindowIds,
+        validationFailuresByWindow: result.diagnostics.validationFailuresByWindow,
+      });
+    }
+    const validationFailuresByWindow: Record<string, string[]> = {};
+    for (const row of result.windows) {
+      if (row.rejected > 0) validationFailuresByWindow[row.windowId] = [`rejected:${row.rejected}`];
+    }
+    return assessWindowBatchCoverage({
+      submittedWindowIds,
+      returnedWindowIds: result.windows.map((row) => row.windowId),
+      validationFailuresByWindow,
+    });
+  }
+
+  async function acceptExtractedWindow(
+    chunk: CreatorTranscriptChunk,
+    extracted: CreatorNotesChunkExtractResult,
+  ): Promise<void> {
+    await writeWindowCache(chunk, extracted);
+    const firstGround = groundExtracted(chunk, extracted);
+    let result = firstGround;
+    if (firstGround.notes.length === 0 && (extracted.notes.length > 0 || extracted.rejected > 0)) {
+      const rejectedKinds = invalidRawKindValues(extracted.kindDiagnostics || emptyKindDiagnostics());
+      const repaired = await extractAndGround(chunk, true, rejectedKinds);
+      const mergedDiagnostics = addEvidenceDiagnostics({ ...firstGround.diagnostics }, repaired.diagnostics);
+      const mergedKinds = addKindDiagnostics(
+        addKindDiagnostics(emptyKindDiagnostics(), firstGround.kindDiagnostics),
+        repaired.kindDiagnostics,
+      );
+      result = {
+        notes: repaired.notes,
+        rejected: firstGround.rejected + repaired.rejected,
+        diagnostics: mergedDiagnostics,
+        kindDiagnostics: mergedKinds,
+        ok: true,
+        error: null,
+      };
+    }
+    recordProcessed(result);
+  }
+
+  async function fallbackWindowIndividually(
+    chunk: CreatorTranscriptChunk,
+    reason: CreatorNotesWindowFallbackReason,
+    diagnostics: CreatorNotesWindowBatchDiagnostics,
+  ): Promise<void> {
+    diagnostics.fallbackReasons[chunk.windowId] = reason;
+    performance.individualFallbackRequests += 1;
+    performance.individualFallbackWindows += 1;
+    logEvent(log, '[creator-notes]', 'window individual fallback', {
+      windowId: chunk.windowId,
+      reason,
+    });
+    recordProcessed(await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null));
+  }
+
   async function processPackedBatch(batch: CreatorTranscriptChunk[]): Promise<void> {
     if (!extractBatch || batch.length <= 1) {
       for (const chunk of batch) {
@@ -654,15 +735,19 @@ export async function runCreatorNoteExtraction(
       return;
     }
 
-    const runBatch = async () => {
+    const submittedWindowIds = batch.map((chunk) => chunk.windowId);
+    performance.batchWindowsSubmitted += batch.length;
+
+    const runBatch = async (windows: CreatorTranscriptChunk[], repair: boolean) => {
       const started = Date.now();
       performance.ollamaBatchRequests += 1;
       try {
         return await extractBatch({
           transcript,
-          windows: batch,
+          windows,
           chunkCount: chunks.length,
           config: aiConfig,
+          repair,
         });
       } finally {
         performance.totalAiMs += Date.now() - started;
@@ -672,14 +757,14 @@ export async function runCreatorNoteExtraction(
     let batchResult: CreatorNotesWindowBatchExtractResult | null = null;
     let batchError: unknown = null;
     try {
-      batchResult = await runBatch();
+      batchResult = await runBatch(batch, false);
     } catch (error) {
       batchError = error;
       if (isCreatorNotesTransportFailure(error)) {
         const canRetry = await recoverTransportOnce(batch[0]);
         if (canRetry) {
           try {
-            batchResult = await runBatch();
+            batchResult = await runBatch(batch, false);
             batchError = null;
           } catch (retryError) {
             batchError = retryError;
@@ -689,50 +774,100 @@ export async function runCreatorNoteExtraction(
     }
 
     if (!batchResult) {
-      logEvent(log, '[creator-notes]', 'window batch fallback', {
-        windowIds: batch.map((chunk) => chunk.windowId),
+      const diagnostics = coverageFromBatchResult(submittedWindowIds, { windows: [] });
+      logEvent(log, '[creator-notes]', 'window batch result', {
+        submittedWindowIds: diagnostics.submittedWindowIds,
+        returnedWindowIds: diagnostics.returnedWindowIds,
+        missingWindowIds: diagnostics.missingWindowIds,
+        malformedWindowIds: diagnostics.malformedWindowIds,
+        validationFailuresByWindow: diagnostics.validationFailuresByWindow,
         error: clipError(batchError),
       });
       for (const chunk of batch) {
-        performance.individualFallbackRequests += 1;
-        recordProcessed(await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null));
+        await fallbackWindowIndividually(chunk, 'batch_request_failed', diagnostics);
       }
+      performance.batches.push(diagnostics);
       return;
     }
 
+    const diagnostics = coverageFromBatchResult(submittedWindowIds, batchResult);
+    logEvent(log, '[creator-notes]', 'window batch result', {
+      submittedWindowIds: diagnostics.submittedWindowIds,
+      returnedWindowIds: diagnostics.returnedWindowIds,
+      missingWindowIds: diagnostics.missingWindowIds,
+      malformedWindowIds: diagnostics.malformedWindowIds,
+      unexpectedWindowIds: diagnostics.unexpectedWindowIds,
+      duplicateWindowIds: diagnostics.duplicateWindowIds,
+      validationFailuresByWindow: diagnostics.validationFailuresByWindow,
+    });
+
     const byId = new Map(batchResult.windows.map((row) => [row.windowId, row]));
+    const malformedKnown = new Set(
+      diagnostics.malformedWindowIds.filter((id) => submittedWindowIds.includes(id)),
+    );
+    const accepted: CreatorTranscriptChunk[] = [];
+    const needsRepair: Array<{ chunk: CreatorTranscriptChunk; reason: CreatorNotesWindowFallbackReason }> = [];
+
     for (const chunk of batch) {
       const extracted = byId.get(chunk.windowId);
-      if (!extracted) {
-        performance.individualFallbackRequests += 1;
-        recordProcessed(await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null));
+      if (!extracted || malformedKnown.has(chunk.windowId)) {
+        needsRepair.push({
+          chunk,
+          reason: malformedKnown.has(chunk.windowId) ? 'window_malformed' : 'window_missing',
+        });
         continue;
       }
-      await writeWindowCache(chunk, extracted);
-      const firstGround = groundExtracted(chunk, extracted);
-      let result = firstGround;
-      if (firstGround.notes.length === 0 && (extracted.notes.length > 0 || extracted.rejected > 0)) {
-        const rejectedKinds = invalidRawKindValues(extracted.kindDiagnostics);
-        const repaired = await extractAndGround(chunk, true, rejectedKinds);
-        const mergedDiagnostics = addEvidenceDiagnostics(
-          { ...firstGround.diagnostics },
-          repaired.diagnostics,
-        );
-        const mergedKinds = addKindDiagnostics(
-          addKindDiagnostics(emptyKindDiagnostics(), firstGround.kindDiagnostics),
-          repaired.kindDiagnostics,
-        );
-        result = {
-          notes: repaired.notes,
-          rejected: firstGround.rejected + repaired.rejected,
-          diagnostics: mergedDiagnostics,
-          kindDiagnostics: mergedKinds,
-          ok: true,
-          error: null,
-        };
-      }
-      recordProcessed(result);
+      accepted.push(chunk);
     }
+
+    for (const chunk of accepted) {
+      const extracted = byId.get(chunk.windowId);
+      if (!extracted) continue;
+      performance.batchWindowsAccepted += 1;
+      await acceptExtractedWindow(chunk, extracted);
+    }
+    diagnostics.acceptedWindowIds = accepted.map((chunk) => chunk.windowId);
+
+    const repairIds = windowBatchRepairIds(diagnostics);
+    const repairChunks = needsRepair.map((row) => row.chunk);
+    const canRepair = accepted.length > 0 && repairChunks.length > 0;
+
+    if (canRepair) {
+      logEvent(log, '[creator-notes]', 'window batch repair started', {
+        windowIds: repairIds,
+      });
+      let repairResult: CreatorNotesWindowBatchExtractResult | null = null;
+      try {
+        repairResult = await runBatch(repairChunks, true);
+      } catch (error) {
+        logEvent(log, '[creator-notes]', 'window batch repair failed', {
+          windowIds: repairIds,
+          error: clipError(error),
+        });
+      }
+
+      const repairedById = new Map((repairResult?.windows || []).map((row) => [row.windowId, row]));
+      for (const row of needsRepair) {
+        const extracted = repairedById.get(row.chunk.windowId);
+        if (!extracted) {
+          await fallbackWindowIndividually(
+            row.chunk,
+            repairResult ? 'repair_incomplete' : 'repair_failed',
+            diagnostics,
+          );
+          continue;
+        }
+        diagnostics.repairedWindowIds.push(row.chunk.windowId);
+        performance.batchWindowsRepaired += 1;
+        await acceptExtractedWindow(row.chunk, extracted);
+      }
+    } else {
+      for (const row of needsRepair) {
+        await fallbackWindowIndividually(row.chunk, row.reason, diagnostics);
+      }
+    }
+
+    performance.batches.push(diagnostics);
   }
 
   try {

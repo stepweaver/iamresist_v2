@@ -4,7 +4,7 @@
  */
 
 export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.6';
-export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.6';
+export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.7';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 /** Version the canonical transcript normalizer. Bump when segment merge/text rules change. */
 export const CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION = 'transcript-norm-v1';

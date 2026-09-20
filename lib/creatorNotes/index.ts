@@ -10,7 +10,7 @@ export { chunkCreatorTranscript, splitCreatorTranscriptChunk, buildEvidenceWindo
 export { parseCreatorNotesOutput, parseCreatorNotesBatchOutput, validateRawCreatorNote, emptyKindDiagnostics } from '@/lib/creatorNotes/validate';
 export { buildCreatorNoteMessages, buildCreatorNoteBatchMessages, CREATOR_NOTE_SYSTEM_PROMPT } from '@/lib/creatorNotes/prompt';
 export { defaultVerificationStatus, dedupeRawCreatorNotes } from '@/lib/creatorNotes/postprocess';
-export { applyQuoteVerification } from '@/lib/creatorNotes/quotes';
+export { applyQuoteVerification, quoteAnchorStartSeconds } from '@/lib/creatorNotes/quotes';
 export {
   acceptGroundedCreatorNotes,
   applySourceEvidence,
@@ -25,7 +25,7 @@ export { shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
 export { resolveCreatorSource, listCreatorSources } from '@/lib/creatorNotes/resolveSource';
 export { parseYouTubeVideoId, classifyCreatorSourceProvider } from '@/lib/creatorNotes/youtubeIdentity';
 export { normalizeCaptionCues } from '@/lib/creatorNotes/normalizeCaptions';
-export { packEvidenceWindowBatches } from '@/lib/creatorNotes/windowBatch';
+export { packEvidenceWindowBatches, selectEvidenceWindows } from '@/lib/creatorNotes/windowBatch';
 export {
   createMemoryCreatorNotesExtractionCache,
   createFileCreatorNotesExtractionCache,

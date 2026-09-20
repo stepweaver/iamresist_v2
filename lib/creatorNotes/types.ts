@@ -75,6 +75,7 @@ export interface RawCreatorNote {
   sourceSegmentIndexes: number[];
   evidenceDurationSeconds?: number | null;
   referencedSource?: string | null;
+  anchorStartSeconds?: number | null;
 }
 
 export interface CreatorAtomicNote {
@@ -93,6 +94,7 @@ export interface CreatorAtomicNote {
   sourceSegmentIndexes: number[];
   evidenceDurationSeconds?: number | null;
   referencedSource?: string | null;
+  anchorStartSeconds?: number | null;
   verificationStatus: VerificationStatus;
   extractionRunId: string;
   noteFingerprint: string;
@@ -277,12 +279,37 @@ export interface TranscriptAcquisitionDiagnostics {
   normalizationVersion?: string | null;
 }
 
+export type CreatorNotesWindowFallbackReason =
+  | 'batch_request_failed'
+  | 'window_missing'
+  | 'window_malformed'
+  | 'repair_failed'
+  | 'repair_incomplete';
+
+export interface CreatorNotesWindowBatchDiagnostics {
+  submittedWindowIds: string[];
+  returnedWindowIds: string[];
+  missingWindowIds: string[];
+  malformedWindowIds: string[];
+  unexpectedWindowIds: string[];
+  duplicateWindowIds: string[];
+  validationFailuresByWindow: Record<string, string[]>;
+  acceptedWindowIds: string[];
+  repairedWindowIds: string[];
+  fallbackReasons: Partial<Record<string, CreatorNotesWindowFallbackReason>>;
+}
+
 export interface CreatorNotesExtractionPerformance {
   evidenceWindowsTotal: number;
   cacheHits: number;
   cacheMisses: number;
   ollamaBatchRequests: number;
   individualFallbackRequests: number;
+  batchWindowsSubmitted: number;
+  batchWindowsAccepted: number;
+  batchWindowsRepaired: number;
+  individualFallbackWindows: number;
+  batches: CreatorNotesWindowBatchDiagnostics[];
   totalAiMs: number;
   averageAiMsPerUncachedWindow: number | null;
 }
@@ -298,6 +325,7 @@ export interface CreatorNotesExtractArgs {
   sourceTitle: string | null;
   sourceUrl: string | null;
   maxWindows: number | null;
+  windowOffset: number | null;
   bypassExtractionCache: boolean;
 }
 
@@ -320,6 +348,7 @@ export interface CreatorNotesPodcastExtractArgs {
   sourceUrl: string | null;
   transcribeAudio: boolean;
   maxWindows: number | null;
+  windowOffset: number | null;
   bypassExtractionCache: boolean;
 }
 
@@ -569,7 +598,9 @@ export interface CreatorNotesWindowBatchExtractResult {
     notes: RawCreatorNote[];
     rejected: number;
     kindDiagnostics: CreatorNoteKindDiagnostics;
+    validationFailures?: string[];
   }>;
+  diagnostics?: CreatorNotesWindowBatchDiagnostics;
 }
 
 export interface CreatorNotesStore {

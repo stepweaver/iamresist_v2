@@ -143,4 +143,49 @@ describe('creator vs referencedSource', () => {
     expect(result.notes[0]?.referencedSource).toBe('Lloyds of London');
     expect(result.notes[0]?.kind).toBe('evidence_reference');
   });
+
+  it('does not populate referencedSource with a subject country or actor', () => {
+    const note = validateRawCreatorNote(
+      {
+        kind: 'evidence_reference',
+        text: 'Jiang says Iran expanded the exclusion zone after the navy warning.',
+        attribution: 'Professor Jiang',
+        referencedSource: 'Iran',
+        sourceQuote: 'Iran expanded the exclusion zone after the navy warning',
+        eventFeatures: {
+          actors: ['Iran'],
+          action: 'expanded the exclusion zone',
+          object: 'exclusion zone',
+          institutions: ['Iran'],
+          locations: ['Iran'],
+          referencedDocuments: [],
+        },
+      },
+      { knownCreatorName: 'Professor Jiang' },
+    );
+    expect(note.referencedSource).toBeNull();
+  });
+
+  it('keeps a real publication or document as referencedSource', () => {
+    const note = validateRawCreatorNote(
+      {
+        kind: 'evidence_reference',
+        text: 'Jiang cites a Wall Street Journal report on the war-risk bulletin.',
+        attribution: 'Professor Jiang',
+        referencedSource: 'Wall Street Journal',
+        sourceQuote: 'Jiang cites a Wall Street Journal report on the war-risk bulletin',
+        eventFeatures: {
+          actors: ['Iran'],
+          action: 'cites',
+          object: 'war-risk bulletin',
+          institutions: ['Wall Street Journal'],
+          locations: ['Iran'],
+          referencedDocuments: ['Wall Street Journal report'],
+        },
+      },
+      { knownCreatorName: 'Professor Jiang' },
+    );
+    expect(note.referencedSource).toBe('Wall Street Journal');
+    expect(note.kind).toBe('evidence_reference');
+  });
 });

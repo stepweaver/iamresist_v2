@@ -139,3 +139,58 @@ export function applyQuoteVerification(
   });
   return { notes: verified, diagnostics };
 }
+
+function uniqueSortedIndexes(indexes: number[]): number[] {
+  return [...new Set(indexes)]
+    .filter((index) => Number.isInteger(index) && index >= 0)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Mechanical listen-from timestamp: first transcript segment that contains
+ * the beginning of the verified supportQuote. Not model-generated.
+ */
+export function quoteAnchorStartSeconds(
+  segments: CreatorTranscriptSegment[],
+  indexes: number[],
+  quote: string | null | undefined,
+): number | null {
+  if (!quote) return null;
+  const ordered = uniqueSortedIndexes(indexes).filter((index) => index < segments.length);
+  if (!ordered.length) return null;
+
+  const parts: Array<{ index: number; text: string }> = [];
+  for (const index of ordered) {
+    const text = String(segments[index]?.text || '').trim();
+    if (text) parts.push({ index, text });
+  }
+  if (!parts.length) return null;
+
+  let joined = '';
+  const spans: Array<{ start: number; end: number; index: number }> = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    if (i > 0) joined += ' ';
+    const start = joined.length;
+    joined += parts[i].text;
+    spans.push({ start, end: joined.length, index: parts[i].index });
+  }
+
+  const verbatim = extractVerifiedQuote(quote, joined);
+  if (!verbatim) return null;
+  const quoteNorm = normalizeForQuoteMatch(verbatim);
+  const sourceNorm = normalizeForQuoteMatch(joined);
+  const idx = sourceNorm.normalized.indexOf(quoteNorm.normalized);
+  if (idx < 0) return null;
+  const originalStart = sourceNorm.map[idx];
+  if (originalStart == null) return null;
+
+  const span =
+    spans.find((row) => originalStart >= row.start && originalStart < row.end) ||
+    spans.find((row) => originalStart >= row.start && originalStart <= row.end) ||
+    spans[0];
+  const segment = segments[span.index];
+  if (!segment || segment.startSeconds == null || !Number.isFinite(segment.startSeconds) || segment.startSeconds < 0) {
+    return null;
+  }
+  return segment.startSeconds;
+}

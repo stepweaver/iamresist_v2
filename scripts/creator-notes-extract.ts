@@ -12,6 +12,7 @@ async function main() {
     force: args.force,
     limitNotes: args.limitNotes,
     maxWindows: args.maxWindows,
+    windowOffset: args.windowOffset,
     bypassExtractionCache: args.bypassExtractionCache,
   });
   result.transcriptAcquisition = prepared.acquisition;

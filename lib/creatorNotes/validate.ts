@@ -26,8 +26,10 @@ import type {
   CreatorNoteKindCounts,
   CreatorNoteKindDiagnostics,
   CreatorNoteEventFeatures,
+  CreatorNotesWindowBatchDiagnostics,
   RawCreatorNote,
 } from '@/lib/creatorNotes/types';
+import { assessWindowBatchCoverage, emptyWindowBatchDiagnostics } from '@/lib/creatorNotes/windowBatch';
 import { extractJsonObject } from '@/lib/themeMemory/ai/validate';
 
 export class CreatorNotesValidationError extends Error {
@@ -336,7 +338,12 @@ export function validateRawCreatorNote(
 export function parseCreatorNotesOutput(
   text: string,
   opts: { knownCreatorName?: string | null; maxNotes?: number; segmentCount?: number } = {},
-): { notes: RawCreatorNote[]; rejected: number; kindDiagnostics: CreatorNoteKindDiagnostics } {
+): {
+  notes: RawCreatorNote[];
+  rejected: number;
+  kindDiagnostics: CreatorNoteKindDiagnostics;
+  validationFailures: string[];
+} {
   const parsed = extractJsonObject(text);
   if (!isPlainObject(parsed)) {
     throw new CreatorNotesValidationError('envelope_not_object');
@@ -351,6 +358,7 @@ export function parseCreatorNotesOutput(
   const extra = Math.max(0, parsed.notes.length - maxNotes);
   rejected += extra;
   const kindDiagnostics = emptyKindDiagnostics();
+  const validationFailures: string[] = extra ? ['notes_over_max'] : [];
 
   for (const entry of parsed.notes) {
     inspectRawNoteKind(entry, kindDiagnostics);
@@ -367,13 +375,14 @@ export function parseCreatorNotesOutput(
     } catch (error) {
       if (error instanceof CreatorNotesValidationError) {
         rejected += 1;
+        validationFailures.push(error.code);
         continue;
       }
       throw error;
     }
   }
 
-  return { notes, rejected, kindDiagnostics };
+  return { notes, rejected, kindDiagnostics, validationFailures };
 }
 
 export function parseCreatorNotesBatchOutput(
@@ -385,7 +394,9 @@ export function parseCreatorNotesBatchOutput(
     notes: RawCreatorNote[];
     rejected: number;
     kindDiagnostics: CreatorNoteKindDiagnostics;
+    validationFailures: string[];
   }>;
+  diagnostics: CreatorNotesWindowBatchDiagnostics;
 } {
   const parsed = extractJsonObject(text);
   if (!isPlainObject(parsed)) {
@@ -396,34 +407,83 @@ export function parseCreatorNotesBatchOutput(
     throw new CreatorNotesValidationError('windows_not_array');
   }
 
-  const expected = new Set((opts.expectedWindowIds || []).filter(Boolean));
+  const submittedWindowIds = (opts.expectedWindowIds || []).filter(Boolean);
+  const expected = new Set(submittedWindowIds);
   const seen = new Set<string>();
+  const returnedWindowIds: string[] = [];
+  const malformedWindowIds: string[] = [];
+  const unexpectedWindowIds: string[] = [];
+  const duplicateWindowIds: string[] = [];
+  const validationFailuresByWindow: Record<string, string[]> = {};
   const windows: Array<{
     windowId: string;
     notes: RawCreatorNote[];
     rejected: number;
     kindDiagnostics: CreatorNoteKindDiagnostics;
+    validationFailures: string[];
   }> = [];
 
-  for (const row of rows) {
-    if (!isPlainObject(row) || typeof row.windowId !== 'string' || !row.windowId.trim()) {
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    if (!isPlainObject(row)) {
+      malformedWindowIds.push(`(row ${i})`);
+      continue;
+    }
+    if (typeof row.windowId !== 'string' || !row.windowId.trim()) {
+      malformedWindowIds.push(`(row ${i})`);
       continue;
     }
     const windowId = row.windowId.trim();
-    if (expected.size && !expected.has(windowId)) continue;
-    if (seen.has(windowId)) continue;
+    if (expected.size && !expected.has(windowId)) {
+      unexpectedWindowIds.push(windowId);
+      continue;
+    }
+    if (seen.has(windowId)) {
+      duplicateWindowIds.push(windowId);
+      continue;
+    }
+    if (!Array.isArray(row.notes)) {
+      seen.add(windowId);
+      malformedWindowIds.push(windowId);
+      continue;
+    }
     seen.add(windowId);
-    const extracted = parseCreatorNotesOutput(JSON.stringify({ notes: Array.isArray(row.notes) ? row.notes : [] }), {
+    const extracted = parseCreatorNotesOutput(JSON.stringify({ notes: row.notes }), {
       knownCreatorName: opts.knownCreatorName,
       maxNotes: opts.maxNotes,
     });
+    if (extracted.validationFailures.length) {
+      validationFailuresByWindow[windowId] = extracted.validationFailures;
+    }
+    returnedWindowIds.push(windowId);
     windows.push({
       windowId,
       notes: extracted.notes,
       rejected: extracted.rejected,
       kindDiagnostics: extracted.kindDiagnostics,
+      validationFailures: extracted.validationFailures,
     });
   }
 
-  return { windows };
+  const diagnostics = submittedWindowIds.length
+    ? assessWindowBatchCoverage({
+        submittedWindowIds,
+        returnedWindowIds,
+        malformedWindowIds,
+        unexpectedWindowIds,
+        duplicateWindowIds,
+        validationFailuresByWindow,
+      })
+    : {
+        ...emptyWindowBatchDiagnostics(returnedWindowIds),
+        returnedWindowIds,
+        missingWindowIds: [],
+        malformedWindowIds,
+        unexpectedWindowIds,
+        duplicateWindowIds,
+        validationFailuresByWindow,
+        acceptedWindowIds: returnedWindowIds,
+      };
+
+  return { windows, diagnostics };
 }

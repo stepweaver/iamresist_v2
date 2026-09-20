@@ -14,6 +14,7 @@ async function main() {
     force: args.force,
     limitNotes: args.limitNotes,
     maxWindows: args.maxWindows,
+    windowOffset: args.windowOffset,
     bypassExtractionCache: args.bypassExtractionCache,
   });
   const finishedAt = Date.now();

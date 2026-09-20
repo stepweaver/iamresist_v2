@@ -91,16 +91,17 @@ export const CREATOR_NOTE_SYSTEM_PROMPT = [
 const KIND_INSTRUCTIONS = [
   'Note kinds. kind is required. Choose the kind that matches the note. Do not default to event.',
   'event: An observable occurrence or development described in the transcript. Example: "A federal court issued a new order in the case."',
-  'claim: A factual assertion made by the creator which could in principle be checked against evidence. A claim is not automatically true.',
+  'claim: A factual assertion that could in principle be independently checked. A claim is not automatically true. Do not use claim for interpretations, strategic frameworks, forecasts, or opinions about what facts mean.',
   'new_development: A newly described change or update inside an ongoing event. Use this only when the transcript presents a change, not merely because the topic is an event.',
   'context: Explanatory or background information needed to understand the current item.',
-  'evidence_reference: A report, statistic, document, article, filing, official statement, dataset, court decision, or other source the creator explicitly invokes.',
-  "creator_analysis: The creator's interpretation, inference, forecast, causal explanation, or strategic assessment. This is not a fact and is not an event.",
+  'evidence_reference: Use only when the creator explicitly invokes an external evidentiary source such as an article, publication, report, official statement, government or agency document, filing, dataset, statistic source, or named institutional source. Examples: Wall Street Journal, Lloyd\'s of London, IAEA report, Pentagon statement. Do not use evidence_reference when the note is about a subject country, actor, target, or an institution merely discussed.',
+  "creator_analysis: The creator's interpretation, synthesis, causal argument, strategic framework, forecast, or opinion about what facts mean. This is not a fact and is not an event. A note may be creator_analysis even if its supporting evidence contains numbers or facts. Do not force every statement containing a factual detail into claim.",
   "why_it_matters: The creator's explanation of significance, consequence, stakes, or downstream effects. This is not a fact.",
   '',
-  'creator_analysis != fact. why_it_matters != fact. claim != verified fact. creator_analysis != event.',
+  'creator_analysis != fact. why_it_matters != fact. claim != verified fact. creator_analysis != event. claim != creator_analysis.',
   'Do not convert analysis into EVENT merely because it concerns an event.',
   'Do not classify an interpretation as EVENT merely because it discusses an event.',
+  'Do not classify an interpretation, framework, or forecast as claim merely because it mentions a fact or number.',
   'Separate broader interpretation into creator_analysis.',
   'Do not collapse these categories together.',
   'Do not force category diversity. Choose the kind that matches the note.',
@@ -113,6 +114,8 @@ const KIND_INSTRUCTIONS = [
   '- context: "Jiang notes this is the second expansion since the carrier strike."',
   '- evidence_reference: "Jiang cites an interception-rate figure from a named report."',
   '- creator_analysis: "Jiang argues the steelman of the official narrative still fails."',
+  '- creator_analysis: "Jiang argues control is more important than dominance."',
+  '- creator_analysis: "Jiang treats multiple military events as part of a single strategy."',
   '- why_it_matters: "Jiang says the zone change raises the cost of a wider war."',
   'Do not use summary, key_takeaway, event_summary, or similar invented labels.',
 ].join('\n');
@@ -242,7 +245,7 @@ export function buildCreatorNoteMessages(input: {
     `sourceQuote is required for every emitted note. Copy a contiguous substring exactly as written in this window. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters. Do not invent quotation marks around a paraphrase. If you cannot copy a short supporting excerpt exactly, omit the note.`,
     'startSeconds and endSeconds may be omitted; the application owns the evidence window timestamps.',
     attributionInstruction(knownCreator),
-    'referencedSource is the cited outlet, institution, report, or document when the creator invokes one. It is not the speaker. Leave it null when none is cited.',
+    'referencedSource is the named external evidentiary source the creator explicitly invokes: an article, publication, report, official statement, government or agency document, filing, dataset, or named institutional source. Examples: Wall Street Journal, Lloyd\'s of London, IAEA report, Pentagon statement. It is not the speaker, not the subject country, not the actor, not the target, and not an institution merely discussed. Leave it null unless an evidentiary source is actually invoked. If none is invoked, do not use evidence_reference; use claim, event, or creator_analysis as appropriate.',
     `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
     'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
     'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',
@@ -258,6 +261,7 @@ export function buildCreatorNoteBatchMessages(input: {
   transcript: CreatorTranscriptInput;
   windows: CreatorTranscriptChunk[];
   chunkCount: number;
+  repair?: boolean;
 }): Array<{ role: 'system' | 'user'; content: string }> {
   const maxNotes = creatorNotesMaxNotesPerChunk();
   const knownCreator = clip(input.transcript.creatorName, 80);
@@ -287,6 +291,15 @@ export function buildCreatorNoteBatchMessages(input: {
     '',
     SPECIFICITY_INSTRUCTIONS,
     '',
+    ...(input.repair
+      ? [
+          'BATCH REPAIR: the previous batched response omitted or malformed results for ONLY the window IDs supplied above.',
+          'Return one result object for each supplied windowId. Do not return other windows.',
+          'Do not merge windows. notes for a window may only use that window\'s transcript.',
+          'Returning {"notes":[]} is valid for a window.',
+          '',
+        ]
+      : []),
     'Evaluate EACH evidence window independently. Do not merge windows. Do not use one window to support a note from another window.',
     'Return one result object per supplied windowId. notes for a window may only use that window\'s transcript.',
     `Return JSON: {"windows":[{"windowId":"${input.windows[0]?.windowId || 'w0'}","notes":[{"kind":"event","text":"...","attribution":${knownCreator ? `"${knownCreator}"` : 'null'},"referencedSource":null,"sourceQuote":"...","eventFeatures":{"actors":[],"action":null,"object":null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}]}`,
@@ -297,7 +310,7 @@ export function buildCreatorNoteBatchMessages(input: {
     `sourceQuote is required for every emitted note. Copy a contiguous substring exactly as written in THAT window. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters.`,
     'startSeconds and endSeconds may be omitted; the application owns the evidence window timestamps.',
     attributionInstruction(knownCreator),
-    'referencedSource is the cited outlet, institution, report, or document when the creator invokes one. It is not the speaker. Leave it null when none is cited.',
+    'referencedSource is the named external evidentiary source the creator explicitly invokes: an article, publication, report, official statement, government or agency document, filing, dataset, or named institutional source. Examples: Wall Street Journal, Lloyd\'s of London, IAEA report, Pentagon statement. It is not the speaker, not the subject country, not the actor, not the target, and not an institution merely discussed. Leave it null unless an evidentiary source is actually invoked. If none is invoked, do not use evidence_reference; use claim, event, or creator_analysis as appropriate.',
     `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
     'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
     'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',

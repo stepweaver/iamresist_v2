@@ -441,7 +441,26 @@ describe('Atomic Creator Notes CLI args', () => {
       sourceTitle: null,
       sourceUrl: null,
       maxWindows: null,
+      windowOffset: null,
       bypassExtractionCache: true,
+    });
+  });
+
+  it('parses --window-offset with --max-windows', () => {
+    expect(
+      parseCreatorNotesExtractArgs([
+        '--source-item',
+        '123',
+        '--transcript-file',
+        './tmp/transcript.json',
+        '--window-offset',
+        '6',
+        '--max-windows',
+        '6',
+      ]),
+    ).toMatchObject({
+      maxWindows: 6,
+      windowOffset: 6,
     });
   });
 
@@ -471,6 +490,7 @@ describe('Atomic Creator Notes CLI args', () => {
       sourceTitle: 'Calibration segment',
       sourceUrl: 'https://example.test/calibration',
       maxWindows: null,
+      windowOffset: null,
       bypassExtractionCache: false,
     });
   });

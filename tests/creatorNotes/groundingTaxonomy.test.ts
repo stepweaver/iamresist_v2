@@ -255,6 +255,51 @@ describe('Atomic Creator Notes taxonomy calibration', () => {
     });
     expect(parsed.kind).toBe('creator_analysis');
   });
+
+  it('keeps a factual assertion as claim and a strategic interpretation as creator_analysis', () => {
+    const claim = validateRawCreatorNote(
+      {
+        kind: 'claim',
+        text: 'Jiang says Iran has overstated military results before.',
+        attribution: 'Professor Jiang',
+        sourceQuote: 'And Iran has overstated military results before.',
+        sourceSegmentIndexes: [1],
+      },
+      { knownCreatorName: 'Professor Jiang' },
+    );
+    const analysis = validateRawCreatorNote(
+      {
+        kind: 'creator_analysis',
+        text: 'Professor Jiang believes that multiple military events are part of a single strategy.',
+        attribution: 'Professor Jiang',
+        sourceQuote: 'These events are part of a single strategy.',
+        sourceSegmentIndexes: [2],
+      },
+      { knownCreatorName: 'Professor Jiang' },
+    );
+    expect(claim.kind).toBe('claim');
+    expect(analysis.kind).toBe('creator_analysis');
+    const parsed = parseCreatorNotesOutput(
+      JSON.stringify({
+        notes: [
+          {
+            kind: 'claim',
+            text: 'Jiang says Iran has overstated military results before.',
+            attribution: 'Professor Jiang',
+            sourceQuote: 'And Iran has overstated military results before.',
+          },
+          {
+            kind: 'creator_analysis',
+            text: 'Jiang argues control is more important than dominance in this campaign.',
+            attribution: 'Professor Jiang',
+            sourceQuote: 'Control is more important than dominance.',
+          },
+        ],
+      }),
+      { knownCreatorName: 'Professor Jiang' },
+    );
+    expect(parsed.notes.map((item) => item.kind)).toEqual(['claim', 'creator_analysis']);
+  });
 });
 
 describe('Atomic Creator Notes quote and segment alignment', () => {
@@ -660,6 +705,8 @@ describe('Atomic Creator Notes partial persistence and isolation', () => {
     expect(messages[1].content).toContain('Do not classify an interpretation as EVENT');
     expect(messages[1].content).toContain('Do not invent kind names');
     expect(messages[1].content).toContain('creator_analysis: "Jiang argues the steelman');
+    expect(messages[1].content).toContain('Do not force every statement containing a factual detail into claim');
+    expect(messages[1].content).toContain('not the subject country');
     expect(messages[1].content).toContain('Do not return sourceSegmentIndexes');
     expect(messages[1].content).toContain('{"notes":[]} is valid');
     expect(messages[1].content.indexOf('</source>')).toBeLessThan(
@@ -739,6 +786,11 @@ describe('Atomic Creator Notes partial persistence and isolation', () => {
         cacheMisses: 1,
         ollamaBatchRequests: 0,
         individualFallbackRequests: 0,
+        batchWindowsSubmitted: 0,
+        batchWindowsAccepted: 0,
+        batchWindowsRepaired: 0,
+        individualFallbackWindows: 0,
+        batches: [],
         totalAiMs: 0,
         averageAiMsPerUncachedWindow: null,
       },

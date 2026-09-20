@@ -66,6 +66,14 @@ function parsePositiveInt(raw: string | null, flag: string): number | null {
   return Number(raw);
 }
 
+function parseNonNegativeInt(raw: string | null, flag: string): number | null {
+  if (raw == null) return null;
+  if (raw === '' || !/^\d+$/.test(raw)) {
+    throw new Error(`${flag} must be a non-negative integer`);
+  }
+  return Number(raw);
+}
+
 function parseKindFlag(raw: string | null): CreatorNoteKind | null {
   if (raw == null) return null;
   const kind = raw.trim();
@@ -96,6 +104,7 @@ export function parseCreatorNotesExtractArgs(argv: string[]): CreatorNotesExtrac
     sourceTitle: parseOptionalFlag(argv, '--source-title'),
     sourceUrl: parseOptionalFlag(argv, '--source-url'),
     maxWindows: parsePositiveInt(argValue(argv, '--max-windows'), '--max-windows'),
+    windowOffset: parseNonNegativeInt(argValue(argv, '--window-offset'), '--window-offset'),
     bypassExtractionCache: argv.includes('--bypass-extraction-cache') || argv.includes('--force'),
   };
 }
@@ -131,6 +140,7 @@ export function parseCreatorNotesPodcastExtractArgs(argv: string[]): CreatorNote
     sourceUrl: parseOptionalFlag(argv, '--source-url'),
     transcribeAudio: argv.includes('--transcribe-audio'),
     maxWindows: parsePositiveInt(argValue(argv, '--max-windows'), '--max-windows'),
+    windowOffset: parseNonNegativeInt(argValue(argv, '--window-offset'), '--window-offset'),
     bypassExtractionCache: argv.includes('--bypass-extraction-cache') || argv.includes('--force'),
   };
 }
@@ -388,6 +398,25 @@ function formatSourceSegments(indexes: number[] | undefined): string {
   return indexes.join(', ');
 }
 
+function formatIdList(ids: string[] | undefined): string {
+  if (!ids || !ids.length) return '(none)';
+  return ids.join(', ');
+}
+
+function formatValidationFailures(failures: Record<string, string[]> | undefined): string {
+  const keys = Object.keys(failures || {});
+  if (!keys.length) return '(none)';
+  return keys
+    .map((windowId) => `${windowId}=${(failures?.[windowId] || []).join(',') || 'rejected'}`)
+    .join(' ');
+}
+
+function formatFallbackReasons(reasons: Partial<Record<string, string>> | undefined): string {
+  const keys = Object.keys(reasons || {});
+  if (!keys.length) return '(none)';
+  return keys.map((windowId) => `${windowId}=${reasons?.[windowId]}`).join(' ');
+}
+
 function formatKindCountMap(counts: Record<string, number>): string {
   const keys = Object.keys(counts);
   if (!keys.length) return '(none)';
@@ -421,6 +450,9 @@ export function formatNotePreview(note: CreatorAtomicNote): string {
     lines.push('Source quote:', `"${quote}"`, '');
   } else {
     lines.push('Source quote: (not available)', '');
+  }
+  if (note.anchorStartSeconds != null && Number.isFinite(note.anchorStartSeconds) && note.anchorStartSeconds >= 0) {
+    lines.push(`Listen anchor: ${formatClock(note.anchorStartSeconds)}`, '');
   }
   if (note.sourceExcerpt) {
     lines.push(
@@ -494,8 +526,32 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  cache misses: ${result.performance?.cacheMisses ?? 0}`,
     `  Ollama batch requests: ${result.performance?.ollamaBatchRequests ?? 0}`,
     `  individual fallback requests: ${result.performance?.individualFallbackRequests ?? 0}`,
+    `  batch windows submitted: ${result.performance?.batchWindowsSubmitted ?? 0}`,
+    `  batch windows accepted: ${result.performance?.batchWindowsAccepted ?? 0}`,
+    `  batch windows repaired: ${result.performance?.batchWindowsRepaired ?? 0}`,
+    `  individual fallback windows: ${result.performance?.individualFallbackWindows ?? 0}`,
     `  total AI time: ${formatDurationMs(result.performance?.totalAiMs ?? null)}`,
     `  average AI time per uncached window: ${formatDurationMs(result.performance?.averageAiMsPerUncachedWindow ?? null)}`,
+  );
+  const batches = result.performance?.batches || [];
+  if (batches.length) {
+    lines.push('');
+    for (let i = 0; i < batches.length; i += 1) {
+      const batch = batches[i];
+      lines.push(
+        `  batch ${i + 1}:`,
+        `    submitted: ${formatIdList(batch.submittedWindowIds)}`,
+        `    returned: ${formatIdList(batch.returnedWindowIds)}`,
+        `    missing: ${formatIdList(batch.missingWindowIds)}`,
+        `    malformed: ${formatIdList(batch.malformedWindowIds)}`,
+        `    validation failures: ${formatValidationFailures(batch.validationFailuresByWindow)}`,
+        `    accepted: ${formatIdList(batch.acceptedWindowIds)}`,
+        `    repaired: ${formatIdList(batch.repairedWindowIds)}`,
+        `    fallback: ${formatFallbackReasons(batch.fallbackReasons)}`,
+      );
+    }
+  }
+  lines.push(
     '',
     'Notes:',
     `  total extracted: ${result.notes.length}`,

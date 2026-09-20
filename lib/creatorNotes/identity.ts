@@ -70,6 +70,39 @@ function featurePool(features: CreatorNoteEventFeatures | null | undefined): str
   return [...(features.institutions || []), ...(features.referencedDocuments || [])];
 }
 
+function featureHasName(list: string[] | undefined, value: string | null | undefined): boolean {
+  if (!value) return false;
+  return (list || []).some((entry) => attributionMatches(entry, value));
+}
+
+function referencedSourceIsSubjectNotEvidence(
+  value: string | null | undefined,
+  eventFeatures?: CreatorNoteEventFeatures | null,
+): boolean {
+  const cleaned = normalizeAttribution(value);
+  if (!cleaned) return false;
+  if (featureHasName(eventFeatures?.referencedDocuments, cleaned)) return false;
+  return (
+    featureHasName(eventFeatures?.actors, cleaned) || featureHasName(eventFeatures?.locations, cleaned)
+  );
+}
+
+function firstEvidentiaryReferencedSource(
+  eventFeatures?: CreatorNoteEventFeatures | null,
+): string | null {
+  const fromDocument = normalizeAttribution(eventFeatures?.referencedDocuments?.[0]);
+  if (fromDocument) return fromDocument;
+  for (const institution of eventFeatures?.institutions || []) {
+    const cleaned = normalizeAttribution(institution);
+    if (!cleaned) continue;
+    if (featureHasName(eventFeatures?.actors, cleaned) || featureHasName(eventFeatures?.locations, cleaned)) {
+      continue;
+    }
+    return cleaned;
+  }
+  return null;
+}
+
 function isReferencedEntityName(
   value: string | null | undefined,
   knownCreatorName?: string | null,
@@ -107,14 +140,19 @@ export function resolveCreatorVersusReferencedSource<
     attribution = known || null;
   }
 
+  if (referencedSourceIsSubjectNotEvidence(referencedSource, note.eventFeatures)) {
+    referencedSource = null;
+  }
+
   if (note.kind === 'evidence_reference') {
     if (known) attribution = known;
     if (!referencedSource) {
-      referencedSource =
-        normalizeAttribution(note.eventFeatures?.referencedDocuments?.[0]) ||
-        normalizeAttribution(note.eventFeatures?.institutions?.[0]) ||
-        null;
+      referencedSource = firstEvidentiaryReferencedSource(note.eventFeatures);
     }
+  }
+
+  if (referencedSourceIsSubjectNotEvidence(referencedSource, note.eventFeatures)) {
+    referencedSource = null;
   }
 
   return {

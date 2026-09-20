@@ -13,6 +13,7 @@ import {
   concatenateTranscriptSegments,
   extractVerifiedQuote,
   normalizeForQuoteMatch,
+  quoteAnchorStartSeconds,
 } from '@/lib/creatorNotes/quotes';
 import type {
   CreatorNoteEvidenceDiagnostics,
@@ -449,6 +450,7 @@ export function acceptGroundedCreatorNotes(
       sourceQuote: quote,
       exactQuote: quote,
       evidenceDurationSeconds: duration,
+      anchorStartSeconds: quoteAnchorStartSeconds(segments, note.sourceSegmentIndexes, quote),
     });
     diagnostics.notesWithSourceEvidence += 1;
   }

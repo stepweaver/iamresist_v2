@@ -192,11 +192,12 @@ export async function extractCreatorNotesWindowBatch(input: {
   windows: CreatorTranscriptChunk[];
   chunkCount: number;
   config?: CreatorNotesAiConfig;
+  repair?: boolean;
 }): Promise<CreatorNotesWindowBatchExtractResult> {
   const config = input.config || resolveCreatorNotesAiConfig();
   assertCreatorNotesAiConfigured(config);
-  if (input.windows.length === 0) return { windows: [] };
-  if (input.windows.length === 1) {
+  if (input.windows.length === 0) return { windows: [], diagnostics: undefined };
+  if (input.windows.length === 1 && !input.repair) {
     const single = await extractCreatorNotesChunk({
       transcript: input.transcript,
       chunk: input.windows[0],
@@ -221,6 +222,7 @@ export async function extractCreatorNotesWindowBatch(input: {
       transcript: input.transcript,
       windows: input.windows,
       chunkCount: input.chunkCount,
+      repair: Boolean(input.repair),
     }),
     format: CREATOR_NOTES_BATCH_JSON_SCHEMA,
     timeoutMs: config.timeoutMs,

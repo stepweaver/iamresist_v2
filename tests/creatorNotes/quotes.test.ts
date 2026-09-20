@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS } from '@/lib/creatorNotes/constants';
+import { formatNotePreview } from '@/lib/creatorNotes/format';
 import {
   applyQuoteVerification,
   concatenateTranscriptSegments,
   extractVerifiedQuote,
   normalizeForQuoteMatch,
+  quoteAnchorStartSeconds,
 } from '@/lib/creatorNotes/quotes';
 import type { CreatorTranscriptSegment, RawCreatorNote } from '@/lib/creatorNotes/types';
 
@@ -124,5 +126,61 @@ describe('Atomic Creator Notes quote matching', () => {
     expect(result.notes[0].exactQuote).toContain('Westmere County Court');
     expect(result.notes[1].exactQuote).toBeNull();
     expect(result.notes[2].exactQuote).toBeNull();
+  });
+});
+
+describe('supportQuote listen anchors', () => {
+  it('derives anchorStartSeconds from the segment that contains the quote start', () => {
+    const segments: CreatorTranscriptSegment[] = [
+      { index: 0, startSeconds: 10, endSeconds: 20, text: 'Welcome back to the show.' },
+      { index: 1, startSeconds: 754, endSeconds: 770, text: 'Professor Jiang says control is more important than dominance.' },
+      { index: 2, startSeconds: 770, endSeconds: 790, text: 'That is the strategic frame for the rest of the hour.' },
+    ];
+    expect(
+      quoteAnchorStartSeconds(
+        segments,
+        [0, 1, 2],
+        'Professor Jiang says control is more important than dominance.',
+      ),
+    ).toBe(754);
+  });
+
+  it('anchors a quote that spans segments to the first matching segment', () => {
+    const segments: CreatorTranscriptSegment[] = [
+      { index: 0, startSeconds: 12, endSeconds: 20, text: 'The key question is not who is winning,' },
+      { index: 1, startSeconds: 20, endSeconds: 28, text: 'but who is controlling the cost.' },
+      { index: 2, startSeconds: 28, endSeconds: 36, text: 'That is why the bulletin matters.' },
+    ];
+    expect(
+      quoteAnchorStartSeconds(
+        segments,
+        [0, 1, 2],
+        'The key question is not who is winning, but who is controlling the cost.',
+      ),
+    ).toBe(12);
+  });
+
+  it('prints a mechanical Listen anchor in the note preview', () => {
+    const preview = formatNotePreview({
+      id: 'n1',
+      sourceItemId: 's1',
+      creatorId: 'professor-jiang',
+      startSeconds: 754,
+      endSeconds: 770,
+      kind: 'creator_analysis',
+      text: 'Jiang argues control is more important than dominance.',
+      attribution: 'Professor Jiang',
+      eventFeatures: null,
+      sourceExcerpt: 'Professor Jiang says control is more important than dominance.',
+      sourceQuote: 'Professor Jiang says control is more important than dominance.',
+      exactQuote: 'Professor Jiang says control is more important than dominance.',
+      sourceSegmentIndexes: [1],
+      anchorStartSeconds: 754,
+      verificationStatus: 'not_applicable',
+      extractionRunId: 'run-1',
+      noteFingerprint: 'fp',
+      createdAt: '2026-09-20T00:00:00.000Z',
+    });
+    expect(preview).toContain('Listen anchor: 00:12:34');
   });
 });
