@@ -2,8 +2,14 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION } from '@/lib/creatorNotes/constants';
+import {
+  canonicalizeTranscriptSegments,
+  hashCanonicalTranscript,
+  hashRawTranscription,
+} from '@/lib/creatorNotes/identity';
+import { parseRawWhisperSegments } from '@/lib/creatorNotes/audioTranscription';
 import type { CreatorTranscriptSegment } from '@/lib/creatorNotes/types';
-import { normalizeWhisperSegments } from '@/lib/creatorNotes/audioTranscription';
 
 export const DEFAULT_AUDIO_TRANSCRIPT_CACHE_DIR = path.join(
   process.cwd(),
@@ -18,7 +24,11 @@ export type AudioTranscriptCacheRecord = {
   model: string;
   version: string;
   language: string | null;
+  rawSegments: CreatorTranscriptSegment[];
   segments: CreatorTranscriptSegment[];
+  rawTranscriptionHash: string;
+  canonicalTranscriptHash: string;
+  normalizationVersion: string;
   createdAt: string;
 };
 
@@ -55,19 +65,32 @@ export function audioTranscriptCachePath(
 function isSegment(value: unknown): value is CreatorTranscriptSegment {
   if (!value || typeof value !== 'object') return false;
   const row = value as Record<string, unknown>;
-  return typeof row.index === 'number' && typeof row.text === 'string';
+  return typeof row.text === 'string';
+}
+
+function readSegmentList(value: unknown): CreatorTranscriptSegment[] | null {
+  if (!Array.isArray(value) || !value.every(isSegment)) return null;
+  return parseRawWhisperSegments(value);
 }
 
 function parseCacheRecord(raw: string): AudioTranscriptCacheRecord | null {
   try {
-    const parsed = JSON.parse(raw) as Partial<AudioTranscriptCacheRecord>;
+    const parsed = JSON.parse(raw) as Partial<AudioTranscriptCacheRecord> & {
+      segments?: CreatorTranscriptSegment[];
+      rawSegments?: CreatorTranscriptSegment[];
+    };
     if (!parsed || typeof parsed !== 'object') return null;
     if (typeof parsed.audioUrl !== 'string' || !parsed.audioUrl.trim()) return null;
     if (typeof parsed.provider !== 'string' || typeof parsed.model !== 'string' || typeof parsed.version !== 'string') {
       return null;
     }
-    if (!Array.isArray(parsed.segments) || !parsed.segments.every(isSegment)) return null;
-    const segments = normalizeWhisperSegments(parsed.segments);
+    const rawSegments = readSegmentList(parsed.rawSegments) || readSegmentList(parsed.segments);
+    if (!rawSegments?.length) return null;
+    const normalizationVersion =
+      typeof parsed.normalizationVersion === 'string' && parsed.normalizationVersion.trim()
+        ? parsed.normalizationVersion.trim()
+        : CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION;
+    const segments = canonicalizeTranscriptSegments(rawSegments, normalizationVersion);
     if (!segments.length) return null;
     return {
       sourceItemId: String(parsed.sourceItemId || ''),
@@ -76,7 +99,11 @@ function parseCacheRecord(raw: string): AudioTranscriptCacheRecord | null {
       model: parsed.model,
       version: parsed.version,
       language: parsed.language || null,
+      rawSegments,
       segments,
+      rawTranscriptionHash: hashRawTranscription(rawSegments),
+      canonicalTranscriptHash: hashCanonicalTranscript(segments, normalizationVersion),
+      normalizationVersion,
       createdAt: parsed.createdAt || new Date().toISOString(),
     };
   } catch {
@@ -103,11 +130,22 @@ export async function readAudioTranscriptCache(
 }
 
 export async function writeAudioTranscriptCache(
-  record: AudioTranscriptCacheRecord,
+  record: Omit<AudioTranscriptCacheRecord, 'rawTranscriptionHash' | 'canonicalTranscriptHash' | 'segments'> & {
+    segments?: CreatorTranscriptSegment[];
+    rawSegments?: CreatorTranscriptSegment[];
+    rawTranscriptionHash?: string;
+    canonicalTranscriptHash?: string;
+    normalizationVersion?: string;
+  },
   cacheDir = DEFAULT_AUDIO_TRANSCRIPT_CACHE_DIR,
 ): Promise<string> {
   await mkdir(cacheDir, { recursive: true });
   const dest = audioTranscriptCachePath(record, cacheDir);
+  const rawSegments = record.rawSegments?.length
+    ? parseRawWhisperSegments(record.rawSegments)
+    : parseRawWhisperSegments(record.segments || []);
+  const normalizationVersion = record.normalizationVersion || CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION;
+  const segments = canonicalizeTranscriptSegments(rawSegments, normalizationVersion);
   const payload: AudioTranscriptCacheRecord = {
     sourceItemId: record.sourceItemId,
     audioUrl: record.audioUrl,
@@ -115,7 +153,11 @@ export async function writeAudioTranscriptCache(
     model: record.model,
     version: record.version,
     language: record.language,
-    segments: record.segments,
+    rawSegments,
+    segments,
+    rawTranscriptionHash: hashRawTranscription(rawSegments),
+    canonicalTranscriptHash: hashCanonicalTranscript(segments, normalizationVersion),
+    normalizationVersion,
     createdAt: record.createdAt || new Date().toISOString(),
   };
   await writeFile(dest, `${JSON.stringify(payload)}\n`, 'utf8');

@@ -13,7 +13,8 @@ import {
   transcriptionEmptyError,
   PodcastTranscriptError,
 } from '@/lib/creatorNotes/errors';
-import { transcriptCharCount } from '@/lib/creatorNotes/identity';
+import { transcriptCharCount, hashCanonicalTranscript, hashRawTranscription } from '@/lib/creatorNotes/identity';
+import { CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION } from '@/lib/creatorNotes/constants';
 import { durationCoveredSeconds } from '@/lib/creatorNotes/normalizeCaptions';
 import {
   defaultOfficialTranscriptAdapters,
@@ -113,6 +114,9 @@ function acquisitionFrom(
     transcriptUrl: transcript.transcriptUrl || candidate?.url || null,
     transcriptMimeType: transcript.transcriptMimeType || candidate?.mimeType || null,
     transcriptLanguage: transcript.transcriptLanguage || candidate?.language || null,
+    rawTranscriptionHash: hashRawTranscription(transcript.rawSegments || transcript.segments),
+    canonicalTranscriptHash: hashCanonicalTranscript(transcript.segments),
+    normalizationVersion: transcript.normalizationVersion || CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
   };
 }
 

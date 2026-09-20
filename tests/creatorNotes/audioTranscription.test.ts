@@ -4,12 +4,8 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  LOCAL_AUDIO_TRANSCRIPT_SOURCE,
-  asAudioTranscriptionResult,
-  normalizeWhisperSegments,
-  type AudioTranscriptionProvider,
-} from '@/lib/creatorNotes/audioTranscription';
+import { asAudioTranscriptionResult, LOCAL_AUDIO_TRANSCRIPT_SOURCE, normalizeWhisperSegments, type AudioTranscriptionProvider } from '@/lib/creatorNotes/audioTranscription';
+import { hashCreatorTranscript } from '@/lib/creatorNotes/identity';
 import {
   downloadPodcastAudio,
   withTemporaryAudioWorkspace,
@@ -320,6 +316,17 @@ describe('local transcript cache', () => {
     expect(runWhisper).toHaveBeenCalledTimes(1);
     expect(download).toHaveBeenCalledTimes(1);
     expect(second.segments[0]?.text).toBe('Iran expands the exclusion zone.');
+    const third = asAudioTranscriptionResult(
+      await provider.transcribe({
+        audioUrl: 'https://creator.example/audio/iran.mp3',
+        sourceItemId: 'guid-jiang-iran',
+      }),
+    );
+    expect(third.cacheHit).toBe(true);
+    expect(third.segments).toEqual(second.segments);
+    expect(third.rawSegments).toEqual(second.rawSegments);
+    expect(third.rawTranscriptionHash).toBe(second.rawTranscriptionHash);
+    expect(hashCreatorTranscript(third.segments)).toBe(hashCreatorTranscript(second.segments));
   });
 
   it('treats a missing cache file as a miss', async () => {

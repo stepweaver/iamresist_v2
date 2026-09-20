@@ -31,6 +31,9 @@ export interface CreatorTranscriptInput {
   publishedAt: string | null;
   sourceIdentityKey: string | null;
   segments: CreatorTranscriptSegment[];
+  rawSegments?: CreatorTranscriptSegment[];
+  rawTranscriptionHash?: string | null;
+  normalizationVersion?: string | null;
   audioUrl?: string | null;
   transcriptSource?: PodcastTranscriptSourceName | 'youtube-captions' | 'file' | null;
   transcriptUrl?: string | null;
@@ -71,6 +74,7 @@ export interface RawCreatorNote {
   exactQuote: string | null;
   sourceSegmentIndexes: number[];
   evidenceDurationSeconds?: number | null;
+  referencedSource?: string | null;
 }
 
 export interface CreatorAtomicNote {
@@ -88,6 +92,7 @@ export interface CreatorAtomicNote {
   exactQuote: string | null;
   sourceSegmentIndexes: number[];
   evidenceDurationSeconds?: number | null;
+  referencedSource?: string | null;
   verificationStatus: VerificationStatus;
   extractionRunId: string;
   noteFingerprint: string;
@@ -152,6 +157,8 @@ export interface CreatorNotesRunResult {
     transcriptSegments: number;
     transcriptChars: number;
     transcriptHash: string;
+    rawTranscriptHash?: string | null;
+    normalizationVersion?: string | null;
   };
   ai: {
     provider: string;
@@ -161,6 +168,7 @@ export interface CreatorNotesRunResult {
     successfulChunks: number;
     failedChunks: number;
   };
+  performance: CreatorNotesExtractionPerformance;
   notes: CreatorAtomicNote[];
   kindCounts: CreatorNoteKindCounts;
   kindDiagnostics: CreatorNoteKindDiagnostics;
@@ -264,6 +272,19 @@ export interface TranscriptAcquisitionDiagnostics {
   transcriptionVersion?: string | null;
   cacheHit?: boolean | null;
   timings?: CreatorNotesTimingDiagnostics | null;
+  rawTranscriptionHash?: string | null;
+  canonicalTranscriptHash?: string | null;
+  normalizationVersion?: string | null;
+}
+
+export interface CreatorNotesExtractionPerformance {
+  evidenceWindowsTotal: number;
+  cacheHits: number;
+  cacheMisses: number;
+  ollamaBatchRequests: number;
+  individualFallbackRequests: number;
+  totalAiMs: number;
+  averageAiMsPerUncachedWindow: number | null;
 }
 
 export interface CreatorNotesExtractArgs {
@@ -276,6 +297,8 @@ export interface CreatorNotesExtractArgs {
   creatorName: string | null;
   sourceTitle: string | null;
   sourceUrl: string | null;
+  maxWindows: number | null;
+  bypassExtractionCache: boolean;
 }
 
 export interface CreatorNotesSourcesArgs {
@@ -296,6 +319,8 @@ export interface CreatorNotesPodcastExtractArgs {
   sourceTitle: string | null;
   sourceUrl: string | null;
   transcribeAudio: boolean;
+  maxWindows: number | null;
+  bypassExtractionCache: boolean;
 }
 
 export interface CreatorNotesBatchArgs {
@@ -536,6 +561,15 @@ export interface CreatorNotesChunkExtractResult {
   notes: RawCreatorNote[];
   rejected: number;
   kindDiagnostics?: CreatorNoteKindDiagnostics;
+}
+
+export interface CreatorNotesWindowBatchExtractResult {
+  windows: Array<{
+    windowId: string;
+    notes: RawCreatorNote[];
+    rejected: number;
+    kindDiagnostics: CreatorNoteKindDiagnostics;
+  }>;
 }
 
 export interface CreatorNotesStore {

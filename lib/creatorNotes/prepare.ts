@@ -5,7 +5,8 @@ import { fetchCreatorTranscript, type TranscriptProvider } from '@/lib/creatorNo
 import { resolveCreatorSource, type ResolveCreatorSourceDeps } from '@/lib/creatorNotes/resolveSource';
 import { loadCreatorSourceMetadata, shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
 import { loadTranscriptFile, mergeTranscriptMetadata } from '@/lib/creatorNotes/transcript';
-import { transcriptCharCount } from '@/lib/creatorNotes/identity';
+import { transcriptCharCount, hashCanonicalTranscript, hashRawTranscription } from '@/lib/creatorNotes/identity';
+import { CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION } from '@/lib/creatorNotes/constants';
 import type {
   CreatorNotesExtractArgs,
   CreatorTranscriptInput,
@@ -47,6 +48,9 @@ function fileAcquisition(transcript: CreatorTranscriptInput): TranscriptAcquisit
     normalizedSegments: transcript.segments.length,
     durationCoveredSeconds: durationCoveredSeconds(transcript.segments),
     characters: transcriptCharCount(transcript.segments),
+    rawTranscriptionHash: hashRawTranscription(transcript.rawSegments || transcript.segments),
+    canonicalTranscriptHash: hashCanonicalTranscript(transcript.segments),
+    normalizationVersion: transcript.normalizationVersion || CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
   };
 }
 

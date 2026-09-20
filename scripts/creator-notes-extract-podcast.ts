@@ -13,6 +13,8 @@ async function main() {
     dryRun: args.dryRun,
     force: args.force,
     limitNotes: args.limitNotes,
+    maxWindows: args.maxWindows,
+    bypassExtractionCache: args.bypassExtractionCache,
   });
   const finishedAt = Date.now();
   result.transcriptAcquisition = {

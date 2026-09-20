@@ -95,6 +95,8 @@ export function parseCreatorNotesExtractArgs(argv: string[]): CreatorNotesExtrac
     creatorName: parseOptionalFlag(argv, '--creator-name'),
     sourceTitle: parseOptionalFlag(argv, '--source-title'),
     sourceUrl: parseOptionalFlag(argv, '--source-url'),
+    maxWindows: parsePositiveInt(argValue(argv, '--max-windows'), '--max-windows'),
+    bypassExtractionCache: argv.includes('--bypass-extraction-cache') || argv.includes('--force'),
   };
 }
 
@@ -128,6 +130,8 @@ export function parseCreatorNotesPodcastExtractArgs(argv: string[]): CreatorNote
     sourceTitle: parseOptionalFlag(argv, '--source-title'),
     sourceUrl: parseOptionalFlag(argv, '--source-url'),
     transcribeAudio: argv.includes('--transcribe-audio'),
+    maxWindows: parsePositiveInt(argValue(argv, '--max-windows'), '--max-windows'),
+    bypassExtractionCache: argv.includes('--bypass-extraction-cache') || argv.includes('--force'),
   };
 }
 
@@ -186,6 +190,15 @@ export function formatTranscriptSection(acquisition: TranscriptAcquisitionDiagno
     `  duration covered: ${formatDurationCovered(acquisition.durationCoveredSeconds)}`,
     `  characters: ${acquisition.characters}`,
   ];
+  if (acquisition.normalizationVersion) {
+    lines.push(`  normalization version: ${acquisition.normalizationVersion}`);
+  }
+  if (acquisition.rawTranscriptionHash) {
+    lines.push(`  raw transcription hash: ${acquisition.rawTranscriptionHash}`);
+  }
+  if (acquisition.canonicalTranscriptHash) {
+    lines.push(`  canonical transcript hash: ${acquisition.canonicalTranscriptHash}`);
+  }
   if (acquisition.transcriptUrl) lines.push(`  transcript URL: ${acquisition.transcriptUrl}`);
   if (acquisition.transcriptMimeType) lines.push(`  transcript mime: ${acquisition.transcriptMimeType}`);
   if (acquisition.transcriptLanguage && acquisition.transcriptLanguage !== acquisition.language) {
@@ -401,6 +414,9 @@ export function formatNotePreview(note: CreatorAtomicNote): string {
     note.text,
     '',
   ];
+  if (note.referencedSource) {
+    lines.splice(1, 0, `referencedSource: ${note.referencedSource}`);
+  }
   if (quote) {
     lines.push('Source quote:', `"${quote}"`, '');
   } else {
@@ -455,6 +471,14 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  transcript segments: ${result.source.transcriptSegments}`,
     `  transcript chars: ${result.source.transcriptChars}`,
     `  transcript hash: ${result.source.transcriptHash}`,
+  );
+  if (result.source.rawTranscriptHash) {
+    lines.push(`  raw transcription hash: ${result.source.rawTranscriptHash}`);
+  }
+  if (result.source.normalizationVersion) {
+    lines.push(`  normalization version: ${result.source.normalizationVersion}`);
+  }
+  lines.push(
     '',
     'AI:',
     `  provider: ${result.ai.provider}`,
@@ -463,6 +487,15 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  evidence windows: ${result.ai.chunks}`,
     `  successful windows: ${result.ai.successfulChunks}`,
     `  failed windows: ${result.ai.failedChunks}`,
+    '',
+    'Performance:',
+    `  evidence windows total: ${result.performance?.evidenceWindowsTotal ?? result.ai.chunks}`,
+    `  cache hits: ${result.performance?.cacheHits ?? 0}`,
+    `  cache misses: ${result.performance?.cacheMisses ?? 0}`,
+    `  Ollama batch requests: ${result.performance?.ollamaBatchRequests ?? 0}`,
+    `  individual fallback requests: ${result.performance?.individualFallbackRequests ?? 0}`,
+    `  total AI time: ${formatDurationMs(result.performance?.totalAiMs ?? null)}`,
+    `  average AI time per uncached window: ${formatDurationMs(result.performance?.averageAiMsPerUncachedWindow ?? null)}`,
     '',
     'Notes:',
     `  total extracted: ${result.notes.length}`,

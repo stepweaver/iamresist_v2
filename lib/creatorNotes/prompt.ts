@@ -189,9 +189,10 @@ function attributionInstruction(knownCreator: string): string {
   if (knownCreator) {
     return [
       `attribution is required for claim, creator_analysis, and why_it_matters. Use "${knownCreator}" unless the transcript clearly names another speaker.`,
-      `Do not write "${GENERIC_SPEAKER_ATTRIBUTION}" when the creator name is known.`,
-      `Do not infer a government title or role from the word "speaker". "${GENERIC_SPEAKER_ATTRIBUTION}" means only an unidentified person speaking in the transcript.`,
-      'Do not invent speaker identities.',
+    `Do not write "${GENERIC_SPEAKER_ATTRIBUTION}" when the creator name is known.`,
+    `Do not infer a government title or role from the word "speaker". "${GENERIC_SPEAKER_ATTRIBUTION}" means only an unidentified person speaking in the transcript.`,
+    'Do not invent speaker identities.',
+    `attribution is the creator/speaker, never a cited institution or document. If ${knownCreator} cites Lloyd's, WSJ, IAEA, or another source, keep attribution as "${knownCreator}" and put that entity in referencedSource.`,
     ].join(' ');
   }
   return [
@@ -233,7 +234,7 @@ export function buildCreatorNoteMessages(input: {
     '',
     ...(input.repair ? [repairInstructions(input.rejectedKinds), ''] : []),
     `From ONLY the transcript below, extract zero or more notebook-worthy atomic notes.`,
-    `Return JSON: {"notes":[{"kind":"event","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":string|null,"sourceQuote":"...","eventFeatures":{"actors":[],"action":string|null,"object":string|null,"institutions":[],"locations":[],"referencedDocuments":[]}},{"kind":"creator_analysis","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":"${knownCreator || 'The speaker'}","sourceQuote":"...","eventFeatures":{"actors":[],"action":null,"object":null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}`,
+    `Return JSON: {"notes":[{"kind":"event","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":${knownCreator ? `"${knownCreator}"` : 'null'},"referencedSource":null,"sourceQuote":"...","eventFeatures":{"actors":[],"action":string|null,"object":string|null,"institutions":[],"locations":[],"referencedDocuments":[]}},{"kind":"evidence_reference","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":"${knownCreator || 'The speaker'}","referencedSource":"Lloyd's of London","sourceQuote":"...","eventFeatures":{"actors":[],"action":null,"object":null,"institutions":["Lloyd's of London"],"locations":[],"referencedDocuments":[]}}]}`,
     `notes must be an array of at most ${maxNotes} objects. {"notes":[]} is valid.`,
     `kind is required and must be copied exactly from: ${CREATOR_NOTE_KINDS.join(', ')}. Do not omit kind. Do not invent kind names. Do not default to event.`,
     `text must be one concise notebook paraphrase of one primary proposition, usually 1-2 sentences, between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters, preferably <= ${CREATOR_NOTES_TEXT_PREFERRED_CHARS}. Preserve concrete names and identifiers from this window. Split independently useful numbers, events, or claims into separate notes.`,
@@ -241,6 +242,62 @@ export function buildCreatorNoteMessages(input: {
     `sourceQuote is required for every emitted note. Copy a contiguous substring exactly as written in this window. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters. Do not invent quotation marks around a paraphrase. If you cannot copy a short supporting excerpt exactly, omit the note.`,
     'startSeconds and endSeconds may be omitted; the application owns the evidence window timestamps.',
     attributionInstruction(knownCreator),
+    'referencedSource is the cited outlet, institution, report, or document when the creator invokes one. It is not the speaker. Leave it null when none is cited.',
+    `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
+    'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
+    'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',
+  ].join('\n');
+
+  return [
+    { role: 'system', content: `${CREATOR_NOTE_SYSTEM_PROMPT}\nPrompt version ${CREATOR_NOTE_PROMPT_VERSION}.` },
+    { role: 'user', content: user },
+  ];
+}
+
+export function buildCreatorNoteBatchMessages(input: {
+  transcript: CreatorTranscriptInput;
+  windows: CreatorTranscriptChunk[];
+  chunkCount: number;
+}): Array<{ role: 'system' | 'user'; content: string }> {
+  const maxNotes = creatorNotesMaxNotesPerChunk();
+  const knownCreator = clip(input.transcript.creatorName, 80);
+  const windowBlocks = input.windows.map((chunk) => {
+    const windowLabel = chunk.windowId || `w${chunk.index}`;
+    return [
+      `<window id="${windowLabel}">`,
+      `time range seconds: ${chunk.startSeconds ?? 'unknown'}–${chunk.endSeconds ?? 'unknown'}`,
+      '<transcript>',
+      renderWindowTranscript(chunk),
+      '</transcript>',
+      '</window>',
+    ].join('\n');
+  });
+  const user = [
+    '<source>',
+    `creator: ${knownCreator || '(unknown)'}`,
+    `title (not event identity): ${clip(input.transcript.sourceTitle, 180) || '(none)'}`,
+    `url: ${clip(input.transcript.sourceUrl, 240) || '(none)'}`,
+    `evidence windows in this request: ${input.windows.map((chunk) => chunk.windowId || `w${chunk.index}`).join(', ')} (${input.windows.length} of ${input.chunkCount} total)`,
+    ...windowBlocks,
+    '</source>',
+    '',
+    KIND_INSTRUCTIONS,
+    '',
+    GROUNDING_INSTRUCTIONS,
+    '',
+    SPECIFICITY_INSTRUCTIONS,
+    '',
+    'Evaluate EACH evidence window independently. Do not merge windows. Do not use one window to support a note from another window.',
+    'Return one result object per supplied windowId. notes for a window may only use that window\'s transcript.',
+    `Return JSON: {"windows":[{"windowId":"${input.windows[0]?.windowId || 'w0'}","notes":[{"kind":"event","text":"...","attribution":${knownCreator ? `"${knownCreator}"` : 'null'},"referencedSource":null,"sourceQuote":"...","eventFeatures":{"actors":[],"action":null,"object":null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}]}`,
+    `Each window's notes array has at most ${maxNotes} objects. {"notes":[]} is valid for a window.`,
+    `kind is required and must be copied exactly from: ${CREATOR_NOTE_KINDS.join(', ')}. Do not omit kind. Do not invent kind names. Do not default to event.`,
+    `text must be one concise notebook paraphrase of one primary proposition, usually 1-2 sentences, between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters, preferably <= ${CREATOR_NOTES_TEXT_PREFERRED_CHARS}. Preserve concrete names and identifiers from that window.`,
+    'Do not return sourceSegmentIndexes. The application already knows each evidence window coordinates.',
+    `sourceQuote is required for every emitted note. Copy a contiguous substring exactly as written in THAT window. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters.`,
+    'startSeconds and endSeconds may be omitted; the application owns the evidence window timestamps.',
+    attributionInstruction(knownCreator),
+    'referencedSource is the cited outlet, institution, report, or document when the creator invokes one. It is not the speaker. Leave it null when none is cited.',
     `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
     'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
     'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',

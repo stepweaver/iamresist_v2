@@ -41,6 +41,7 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
             maxLength: CREATOR_NOTES_TEXT_MAX_CHARS,
           },
           attribution: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
+          referencedSource: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
           sourceQuote: { type: 'string', minLength: 1, maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
           exactQuote: { type: 'string', maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
           eventFeatures: {
@@ -78,5 +79,32 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
     },
   },
   required: ['notes'],
+  additionalProperties: false,
+} as const;
+
+const NOTE_ITEM_SCHEMA = CREATOR_NOTES_JSON_SCHEMA.properties.notes.items;
+
+export const CREATOR_NOTES_BATCH_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    windows: {
+      type: 'array',
+      maxItems: 6,
+      items: {
+        type: 'object',
+        properties: {
+          windowId: { type: 'string', minLength: 1, maxLength: 32 },
+          notes: {
+            type: 'array',
+            maxItems: CREATOR_NOTES_MAX_NOTES_PER_CHUNK_DEFAULT,
+            items: NOTE_ITEM_SCHEMA,
+          },
+        },
+        required: ['windowId', 'notes'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['windows'],
   additionalProperties: false,
 } as const;

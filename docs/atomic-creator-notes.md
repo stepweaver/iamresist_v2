@@ -53,7 +53,9 @@ transcript/content
         ↓
 deterministic evidence windows (~30-60s)
         ↓
-local Ollama / gemma3:4b  (one window at a time)
+local Ollama / gemma3:4b  (bounded batches of 4–6 windows; grounding stays per window)
+        ↓
+local evidence-window extraction cache (source + transcript + norm version + window hash + extraction version + model)
         ↓
 strictly validated JSON
         ↓
@@ -407,7 +409,9 @@ Flags (single-item extract):
 | Flag | Effect |
 |------|--------|
 | `--dry-run` | Extract + validate + print. Zero creator-note DB writes. Does **not** query or write `intel.creator_note_runs` / `intel.creator_atomic_notes`, and does **not** require the creator-notes migration. File mode also skips `source_items` lookup. Remote mode still **reads** the existing source item (intel UUID or Voice RSS) so captions can be fetched. |
-| `--force` | Bypass equivalent-run skip; still fingerprint-dedupes notes. |
+| `--force` | Bypass equivalent-run skip and the local evidence-window extraction cache. Still fingerprint-dedupes notes. |
+| `--bypass-extraction-cache` | Re-query Ollama for evidence windows even when a local extraction cache hit exists. Does not imply DB persistence. |
+| `--max-windows <n>` | Process only the first n evidence windows. Calibration/benchmark only. |
 | `--limit-notes <n>` | Keep at most n notes after dedupe. |
 | `--json` | Machine-readable result instead of the human report. |
 | `--creator-name <name>` | Fill missing creator attribution metadata. On remote dry-run, may override resolved creator name. Not persisted as invented source metadata. |

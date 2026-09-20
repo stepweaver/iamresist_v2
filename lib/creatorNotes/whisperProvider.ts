@@ -8,11 +8,16 @@ import {
   CREATOR_NOTES_WHISPER_VERSION,
   LOCAL_AUDIO_TRANSCRIPT_SOURCE,
   asAudioTranscriptionResult,
-  normalizeWhisperSegments,
+  parseRawWhisperSegments,
   type AudioTranscriptionProvider,
   type AudioTranscriptionResult,
   type WhisperSegmentLike,
 } from '@/lib/creatorNotes/audioTranscription';
+import { CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION } from '@/lib/creatorNotes/constants';
+import {
+  canonicalizeTranscriptSegments,
+  hashRawTranscription,
+} from '@/lib/creatorNotes/identity';
 import {
   readAudioTranscriptCache,
   writeAudioTranscriptCache,
@@ -138,7 +143,8 @@ function transcriptFromLocalAudio(input: {
   sourceItemId: string;
   audioUrl: string;
   language: string | null;
-  segments: ReturnType<typeof normalizeWhisperSegments>;
+  rawSegments: ReturnType<typeof parseRawWhisperSegments>;
+  segments: ReturnType<typeof canonicalizeTranscriptSegments>;
   provider: string;
   model: string;
   version: string;
@@ -154,7 +160,10 @@ function transcriptFromLocalAudio(input: {
     sourceUrl: null,
     publishedAt: null,
     sourceIdentityKey: input.audioUrl,
+    rawSegments: input.rawSegments,
     segments: input.segments,
+    rawTranscriptionHash: hashRawTranscription(input.rawSegments),
+    normalizationVersion: CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
     audioUrl: input.audioUrl,
     transcriptSource: LOCAL_AUDIO_TRANSCRIPT_SOURCE,
     transcriptUrl: null,
@@ -201,6 +210,7 @@ export function createFasterWhisperTranscriptionProvider(
           sourceItemId,
           audioUrl,
           language: cached.language || language,
+          rawSegments: cached.rawSegments,
           segments: cached.segments,
           provider: cached.provider || providerName,
           model: cached.model || model,
@@ -229,7 +239,8 @@ export function createFasterWhisperTranscriptionProvider(
         const whisperStarted = Date.now();
         const raw = await runWhisper(transcoded.destPath, { language, model });
         const transcriptionMs = Date.now() - whisperStarted + transcoded.elapsedMs;
-        const segments = normalizeWhisperSegments(raw.segments);
+        const rawSegments = parseRawWhisperSegments(raw.segments);
+        const segments = canonicalizeTranscriptSegments(rawSegments);
         if (!segments.length) throw transcriptionEmptyError();
         await writeAudioTranscriptCache(
           {
@@ -239,6 +250,7 @@ export function createFasterWhisperTranscriptionProvider(
             model,
             version,
             language: raw.language || language,
+            rawSegments,
             segments,
             createdAt: new Date().toISOString(),
           },
@@ -248,6 +260,7 @@ export function createFasterWhisperTranscriptionProvider(
           sourceItemId,
           audioUrl,
           language: raw.language || language,
+          rawSegments,
           segments,
           provider: providerName,
           model,

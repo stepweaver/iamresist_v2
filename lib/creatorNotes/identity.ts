@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import type { CreatorTranscriptSegment } from '@/lib/creatorNotes/types';
+import {
+  CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
+  type CreatorNoteKind,
+} from '@/lib/creatorNotes/constants';
+import type { CreatorNoteEventFeatures, CreatorTranscriptSegment } from '@/lib/creatorNotes/types';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -50,14 +54,85 @@ export function resolveNoteAttribution(
   return cleaned;
 }
 
-export function applyKnownCreatorAttribution<T extends { attribution: string | null }>(
-  notes: T[],
+function attributionKey(value: string | null | undefined): string | null {
+  const cleaned = normalizeAttribution(value);
+  return cleaned ? cleaned.toLowerCase() : null;
+}
+
+function attributionMatches(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = attributionKey(a);
+  const right = attributionKey(b);
+  return Boolean(left && right && left === right);
+}
+
+function featurePool(features: CreatorNoteEventFeatures | null | undefined): string[] {
+  if (!features) return [];
+  return [...(features.institutions || []), ...(features.referencedDocuments || [])];
+}
+
+function isReferencedEntityName(
+  value: string | null | undefined,
   knownCreatorName?: string | null,
-): T[] {
-  return notes.map((note) => ({
+  eventFeatures?: CreatorNoteEventFeatures | null,
+): boolean {
+  const cleaned = normalizeAttribution(value);
+  if (!cleaned || isGenericSpeakerAttribution(cleaned)) return false;
+  if (attributionMatches(cleaned, knownCreatorName)) return false;
+  return featurePool(eventFeatures).some((entry) => attributionMatches(entry, cleaned));
+}
+
+export function resolveCreatorVersusReferencedSource<
+  T extends {
+    kind: CreatorNoteKind;
+    attribution: string | null;
+    referencedSource?: string | null;
+    eventFeatures?: CreatorNoteEventFeatures | null;
+  },
+>(note: T, knownCreatorName?: string | null): T {
+  const known = normalizeAttribution(knownCreatorName);
+  let attribution = resolveNoteAttribution(note.attribution, knownCreatorName);
+  let referencedSource = normalizeAttribution(note.referencedSource);
+
+  const attributionIsCreator = Boolean(known && attributionMatches(attribution, known));
+  const attributionIsSpeaker = isGenericSpeakerAttribution(attribution);
+  const moveAttributionToReferenced =
+    Boolean(known) &&
+    Boolean(attribution) &&
+    !attributionIsCreator &&
+    !attributionIsSpeaker &&
+    (note.kind === 'evidence_reference' || isReferencedEntityName(attribution, known, note.eventFeatures));
+
+  if (moveAttributionToReferenced) {
+    referencedSource = referencedSource || attribution;
+    attribution = known || null;
+  }
+
+  if (note.kind === 'evidence_reference') {
+    if (known) attribution = known;
+    if (!referencedSource) {
+      referencedSource =
+        normalizeAttribution(note.eventFeatures?.referencedDocuments?.[0]) ||
+        normalizeAttribution(note.eventFeatures?.institutions?.[0]) ||
+        null;
+    }
+  }
+
+  return {
     ...note,
-    attribution: resolveNoteAttribution(note.attribution, knownCreatorName),
-  }));
+    attribution,
+    referencedSource: referencedSource || null,
+  };
+}
+
+export function applyKnownCreatorAttribution<
+  T extends {
+    kind: CreatorNoteKind;
+    attribution: string | null;
+    referencedSource?: string | null;
+    eventFeatures?: CreatorNoteEventFeatures | null;
+  },
+>(notes: T[], knownCreatorName?: string | null): T[] {
+  return notes.map((note) => resolveCreatorVersusReferencedSource(note, knownCreatorName));
 }
 
 function timestampKey(value: number | null | undefined): string {
@@ -73,8 +148,68 @@ export function serializeTranscriptForHash(segments: CreatorTranscriptSegment[])
   return lines.join('\n').trim();
 }
 
-export function hashCreatorTranscript(segments: CreatorTranscriptSegment[]): string {
-  const payload = serializeTranscriptForHash(segments);
+export function canonicalizeTranscriptSegments(
+  segments: CreatorTranscriptSegment[],
+  version: string = CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
+): CreatorTranscriptSegment[] {
+  // v1: stable parse only. Caption-merge is a different algorithm and must not
+  // silently rewrite Whisper cache identity. Unknown versions still parse as v1
+  // so callers can include a bumped version in the hash without changing text.
+  void version;
+  const out: CreatorTranscriptSegment[] = [];
+  for (const row of segments || []) {
+    const text = normalizeWhitespace(String(row?.text || ''));
+    if (!text) continue;
+    const start =
+      row.startSeconds != null && Number.isFinite(row.startSeconds) ? row.startSeconds : null;
+    const end = row.endSeconds != null && Number.isFinite(row.endSeconds) ? row.endSeconds : null;
+    out.push({
+      index: out.length,
+      startSeconds: start,
+      endSeconds: end,
+      text,
+    });
+  }
+  return out;
+}
+
+export function hashRawTranscription(segments: CreatorTranscriptSegment[]): string {
+  const payload = `raw\n${serializeTranscriptForHash(segments)}`;
+  return createHash('sha256').update(payload).digest('hex');
+}
+
+export function hashCanonicalTranscript(
+  segments: CreatorTranscriptSegment[],
+  normalizationVersion: string = CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
+): string {
+  const payload = `${normalizationVersion}\n${serializeTranscriptForHash(segments)}`;
+  return createHash('sha256').update(payload).digest('hex');
+}
+
+export function hashCreatorTranscript(
+  segments: CreatorTranscriptSegment[],
+  opts: { normalizationVersion?: string } = {},
+): string {
+  return hashCanonicalTranscript(
+    segments,
+    opts.normalizationVersion || CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
+  );
+}
+
+export function hashEvidenceWindow(input: {
+  windowId: string;
+  segmentIndexes: number[];
+  startSeconds: number | null;
+  endSeconds: number | null;
+  text: string;
+}): string {
+  const payload = [
+    String(input.windowId || ''),
+    input.segmentIndexes.join(','),
+    timestampKey(input.startSeconds),
+    timestampKey(input.endSeconds),
+    normalizeWhitespace(input.text).replace(/\s+/g, ' '),
+  ].join('|');
   return createHash('sha256').update(payload).digest('hex');
 }
 

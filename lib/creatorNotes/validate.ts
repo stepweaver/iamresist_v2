@@ -16,7 +16,12 @@ import {
   type AttributionRequiredKind,
   type CreatorNoteKind,
 } from '@/lib/creatorNotes/constants';
-import { dedupeStringsCaseInsensitive, normalizeNoteText, resolveNoteAttribution } from '@/lib/creatorNotes/identity';
+import {
+  dedupeStringsCaseInsensitive,
+  normalizeNoteText,
+  resolveCreatorVersusReferencedSource,
+  resolveNoteAttribution,
+} from '@/lib/creatorNotes/identity';
 import type {
   CreatorNoteKindCounts,
   CreatorNoteKindDiagnostics,
@@ -292,6 +297,11 @@ export function validateRawCreatorNote(
     boundedOptionalString(value.attribution, 'attribution', CREATOR_NOTES_ATTRIBUTION_MAX),
     opts.knownCreatorName,
   );
+  const referencedSource = boundedOptionalString(
+    value.referencedSource ?? value.referenced_source,
+    'referencedSource',
+    CREATOR_NOTES_ATTRIBUTION_MAX,
+  );
   if (isAttributionRequired(kind) && !attribution) {
     throw new CreatorNotesValidationError('attribution_required');
   }
@@ -305,18 +315,22 @@ export function validateRawCreatorNote(
     'source_quote',
   );
 
-  return {
-    kind,
-    startSeconds,
-    endSeconds,
-    text,
-    attribution,
-    eventFeatures: parseEventFeatures(value.eventFeatures ?? value.event_features),
-    sourceExcerpt: null,
-    sourceQuote,
-    exactQuote: sourceQuote,
-    sourceSegmentIndexes,
-  };
+  return resolveCreatorVersusReferencedSource(
+    {
+      kind,
+      startSeconds,
+      endSeconds,
+      text,
+      attribution,
+      referencedSource,
+      eventFeatures: parseEventFeatures(value.eventFeatures ?? value.event_features),
+      sourceExcerpt: null,
+      sourceQuote,
+      exactQuote: sourceQuote,
+      sourceSegmentIndexes,
+    },
+    opts.knownCreatorName,
+  );
 }
 
 export function parseCreatorNotesOutput(
@@ -360,4 +374,56 @@ export function parseCreatorNotesOutput(
   }
 
   return { notes, rejected, kindDiagnostics };
+}
+
+export function parseCreatorNotesBatchOutput(
+  text: string,
+  opts: { knownCreatorName?: string | null; maxNotes?: number; expectedWindowIds?: string[] } = {},
+): {
+  windows: Array<{
+    windowId: string;
+    notes: RawCreatorNote[];
+    rejected: number;
+    kindDiagnostics: CreatorNoteKindDiagnostics;
+  }>;
+} {
+  const parsed = extractJsonObject(text);
+  if (!isPlainObject(parsed)) {
+    throw new CreatorNotesValidationError('envelope_not_object');
+  }
+  const rows = Array.isArray(parsed.windows) ? parsed.windows : null;
+  if (!rows) {
+    throw new CreatorNotesValidationError('windows_not_array');
+  }
+
+  const expected = new Set((opts.expectedWindowIds || []).filter(Boolean));
+  const seen = new Set<string>();
+  const windows: Array<{
+    windowId: string;
+    notes: RawCreatorNote[];
+    rejected: number;
+    kindDiagnostics: CreatorNoteKindDiagnostics;
+  }> = [];
+
+  for (const row of rows) {
+    if (!isPlainObject(row) || typeof row.windowId !== 'string' || !row.windowId.trim()) {
+      continue;
+    }
+    const windowId = row.windowId.trim();
+    if (expected.size && !expected.has(windowId)) continue;
+    if (seen.has(windowId)) continue;
+    seen.add(windowId);
+    const extracted = parseCreatorNotesOutput(JSON.stringify({ notes: Array.isArray(row.notes) ? row.notes : [] }), {
+      knownCreatorName: opts.knownCreatorName,
+      maxNotes: opts.maxNotes,
+    });
+    windows.push({
+      windowId,
+      notes: extracted.notes,
+      rejected: extracted.rejected,
+      kindDiagnostics: extracted.kindDiagnostics,
+    });
+  }
+
+  return { windows };
 }

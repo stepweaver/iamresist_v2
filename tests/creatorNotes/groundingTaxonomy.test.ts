@@ -733,6 +733,15 @@ describe('Atomic Creator Notes partial persistence and isolation', () => {
         wideEvidenceWindows: 0,
       },
       quoteDiagnostics: { requested: 0, verified: 0, rejected: 0 },
+      performance: {
+        evidenceWindowsTotal: 1,
+        cacheHits: 0,
+        cacheMisses: 1,
+        ollamaBatchRequests: 0,
+        individualFallbackRequests: 0,
+        totalAiMs: 0,
+        averageAiMsPerUncachedWindow: null,
+      },
       persistence: {
         dryRun: true,
         priorEquivalentRunId: null,

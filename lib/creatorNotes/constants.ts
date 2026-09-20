@@ -6,6 +6,10 @@
 export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.6';
 export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.6';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
+/** Version the canonical transcript normalizer. Bump when segment merge/text rules change. */
+export const CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION = 'transcript-norm-v1';
+export const CREATOR_NOTES_WINDOW_BATCH_SIZE_DEFAULT = 5;
+export const CREATOR_NOTES_WINDOW_BATCH_MAX_INPUT_CHARS_DEFAULT = 9000;
 
 export const CREATOR_NOTE_KINDS = [
   'event',
@@ -110,4 +114,13 @@ export function creatorNotesRetryChunkChars(parentCharCount: number): number {
   const parent = Number.isFinite(parentCharCount) && parentCharCount > 0 ? parentCharCount : creatorNotesChunkChars();
   if (parent <= CREATOR_NOTES_RETRY_CHUNK_CHARS_FLOOR) return parent;
   return Math.max(CREATOR_NOTES_RETRY_CHUNK_CHARS_FLOOR, Math.floor(parent / 2));
+}
+
+export function creatorNotesWindowBatchSize(): number {
+  const n = optInt('CREATOR_NOTES_WINDOW_BATCH_SIZE', CREATOR_NOTES_WINDOW_BATCH_SIZE_DEFAULT);
+  return Math.min(6, Math.max(1, n));
+}
+
+export function creatorNotesWindowBatchMaxInputChars(): number {
+  return optInt('CREATOR_NOTES_WINDOW_BATCH_MAX_INPUT_CHARS', CREATOR_NOTES_WINDOW_BATCH_MAX_INPUT_CHARS_DEFAULT);
 }

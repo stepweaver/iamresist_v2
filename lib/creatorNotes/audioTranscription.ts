@@ -1,6 +1,11 @@
-import { normalizeWhitespace } from '@/lib/creatorNotes/identity';
+import {
+  canonicalizeTranscriptSegments,
+  hashCanonicalTranscript,
+  hashRawTranscription,
+  transcriptCharCount,
+} from '@/lib/creatorNotes/identity';
+import { CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION } from '@/lib/creatorNotes/constants';
 import { durationCoveredSeconds } from '@/lib/creatorNotes/normalizeCaptions';
-import { transcriptCharCount } from '@/lib/creatorNotes/identity';
 import type {
   CreatorTranscriptInput,
   CreatorTranscriptSegment,
@@ -48,11 +53,11 @@ function optionalFinite(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function normalizeWhisperSegments(raw: WhisperSegmentLike[] | null | undefined): CreatorTranscriptSegment[] {
+export function parseRawWhisperSegments(raw: WhisperSegmentLike[] | null | undefined): CreatorTranscriptSegment[] {
   const segments: CreatorTranscriptSegment[] = [];
   for (const row of raw || []) {
-    const text = normalizeWhitespace(String(row?.text || ''));
-    if (!text) continue;
+    const text = String(row?.text || '');
+    if (!String(text).trim()) continue;
     segments.push({
       index: segments.length,
       startSeconds: optionalFinite(row.startSeconds ?? row.start),
@@ -61,6 +66,10 @@ export function normalizeWhisperSegments(raw: WhisperSegmentLike[] | null | unde
     });
   }
   return segments;
+}
+
+export function normalizeWhisperSegments(raw: WhisperSegmentLike[] | null | undefined): CreatorTranscriptSegment[] {
+  return canonicalizeTranscriptSegments(parseRawWhisperSegments(raw));
 }
 
 export function applyEpisodeIdentityToTranscript(
@@ -76,6 +85,9 @@ export function applyEpisodeIdentityToTranscript(
     publishedAt: episode.publishedAt,
     sourceIdentityKey: episode.episodeUrl || episode.audioUrl || episode.guid,
     segments: transcript.segments,
+    rawSegments: transcript.rawSegments || transcript.segments,
+    rawTranscriptionHash: transcript.rawTranscriptionHash || hashRawTranscription(transcript.rawSegments || transcript.segments),
+    normalizationVersion: transcript.normalizationVersion || CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
     audioUrl: episode.audioUrl,
     transcriptSource: LOCAL_AUDIO_TRANSCRIPT_SOURCE,
     transcriptUrl: null,
@@ -111,6 +123,11 @@ export function acquisitionFromLocalTranscription(
     transcriptionProvider: transcript.transcriptionProvider || null,
     transcriptionModel: transcript.transcriptionModel || null,
     transcriptionVersion: transcript.transcriptionVersion || null,
+    rawTranscriptionHash:
+      transcript.rawTranscriptionHash ||
+      hashRawTranscription(transcript.rawSegments || transcript.segments),
+    canonicalTranscriptHash: hashCanonicalTranscript(transcript.segments),
+    normalizationVersion: transcript.normalizationVersion || CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
     cacheHit: extras.cacheHit ?? null,
     timings: {
       audioDownloadMs: extras.audioDownloadMs ?? null,

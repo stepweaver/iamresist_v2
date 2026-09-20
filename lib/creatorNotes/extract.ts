@@ -5,11 +5,12 @@ import {
   CREATOR_NOTES_TRANSPORT_BACKOFF_MS,
   creatorNotesAiTimeoutMs,
 } from '@/lib/creatorNotes/constants';
-import { buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
-import { CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
-import { parseCreatorNotesOutput } from '@/lib/creatorNotes/validate';
+import { buildCreatorNoteBatchMessages, buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
+import { CREATOR_NOTES_BATCH_JSON_SCHEMA, CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
+import { emptyKindDiagnostics, parseCreatorNotesBatchOutput, parseCreatorNotesOutput } from '@/lib/creatorNotes/validate';
 import type {
   CreatorNotesChunkExtractResult,
+  CreatorNotesWindowBatchExtractResult,
   CreatorTranscriptChunk,
   CreatorTranscriptInput,
 } from '@/lib/creatorNotes/types';
@@ -183,5 +184,55 @@ export async function extractCreatorNotesChunk(input: {
 
   return parseCreatorNotesOutput(content, {
     knownCreatorName: input.transcript.creatorName,
+  });
+}
+
+export async function extractCreatorNotesWindowBatch(input: {
+  transcript: CreatorTranscriptInput;
+  windows: CreatorTranscriptChunk[];
+  chunkCount: number;
+  config?: CreatorNotesAiConfig;
+}): Promise<CreatorNotesWindowBatchExtractResult> {
+  const config = input.config || resolveCreatorNotesAiConfig();
+  assertCreatorNotesAiConfigured(config);
+  if (input.windows.length === 0) return { windows: [] };
+  if (input.windows.length === 1) {
+    const single = await extractCreatorNotesChunk({
+      transcript: input.transcript,
+      chunk: input.windows[0],
+      chunkCount: input.chunkCount,
+      config,
+    });
+    return {
+      windows: [
+        {
+          windowId: input.windows[0].windowId,
+          notes: single.notes,
+          rejected: single.rejected,
+          kindDiagnostics: single.kindDiagnostics || emptyKindDiagnostics(),
+        },
+      ],
+    };
+  }
+
+  const expectedWindowIds = input.windows.map((window) => window.windowId);
+  const { content } = await ollamaChatJson({
+    messages: buildCreatorNoteBatchMessages({
+      transcript: input.transcript,
+      windows: input.windows,
+      chunkCount: input.chunkCount,
+    }),
+    format: CREATOR_NOTES_BATCH_JSON_SCHEMA,
+    timeoutMs: config.timeoutMs,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    retries: config.retries,
+    logLabel: '[creator-notes-ai]',
+    keepAlive: OLLAMA_CHAT_KEEP_ALIVE,
+  });
+
+  return parseCreatorNotesBatchOutput(content, {
+    knownCreatorName: input.transcript.creatorName,
+    expectedWindowIds,
   });
 }

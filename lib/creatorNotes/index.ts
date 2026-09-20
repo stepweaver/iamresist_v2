@@ -1,7 +1,14 @@
-export { CREATOR_NOTE_EXTRACTION_VERSION, CREATOR_NOTE_KINDS } from '@/lib/creatorNotes/constants';
-export { hashCreatorTranscript, creatorNoteFingerprint } from '@/lib/creatorNotes/identity';
+export { CREATOR_NOTE_EXTRACTION_VERSION, CREATOR_NOTE_KINDS, CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION } from '@/lib/creatorNotes/constants';
+export {
+  hashCreatorTranscript,
+  hashCanonicalTranscript,
+  hashRawTranscription,
+  canonicalizeTranscriptSegments,
+  creatorNoteFingerprint,
+} from '@/lib/creatorNotes/identity';
 export { chunkCreatorTranscript, splitCreatorTranscriptChunk, buildEvidenceWindows } from '@/lib/creatorNotes/chunk';
-export { parseCreatorNotesOutput, validateRawCreatorNote, emptyKindDiagnostics } from '@/lib/creatorNotes/validate';
+export { parseCreatorNotesOutput, parseCreatorNotesBatchOutput, validateRawCreatorNote, emptyKindDiagnostics } from '@/lib/creatorNotes/validate';
+export { buildCreatorNoteMessages, buildCreatorNoteBatchMessages, CREATOR_NOTE_SYSTEM_PROMPT } from '@/lib/creatorNotes/prompt';
 export { defaultVerificationStatus, dedupeRawCreatorNotes } from '@/lib/creatorNotes/postprocess';
 export { applyQuoteVerification } from '@/lib/creatorNotes/quotes';
 export {
@@ -11,14 +18,19 @@ export {
   compoundNoteReason,
   unsupportedNumericTokens,
 } from '@/lib/creatorNotes/sourceEvidence';
-export { creatorNotesRunStatus, runCreatorNoteExtraction } from '@/lib/creatorNotes/run';
+export { creatorNotesRunStatus, runCreatorNoteExtraction, emptyExtractionPerformance } from '@/lib/creatorNotes/run';
 export { parseCreatorNotesExtractArgs, parseCreatorNotesSourcesArgs, parseCreatorNotesPodcastSourcesArgs, parseCreatorNotesPodcastExtractArgs, parseCreatorNotesBatchArgs, parseCreatorNotesReviewArgs, formatCreatorNotesReport, formatCreatorNotesBatchReport, formatCreatorNotesPodcastBatchReport, formatCreatorNotesReview, formatPodcastSourcesList, formatPodcastFeedsReport } from '@/lib/creatorNotes/format';
 export { createMemoryCreatorNotesStore, loadPersistedCreatorNotesReview } from '@/lib/creatorNotes/db';
 export { shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';
 export { resolveCreatorSource, listCreatorSources } from '@/lib/creatorNotes/resolveSource';
 export { parseYouTubeVideoId, classifyCreatorSourceProvider } from '@/lib/creatorNotes/youtubeIdentity';
 export { normalizeCaptionCues } from '@/lib/creatorNotes/normalizeCaptions';
-export { YouTubeTranscriptProvider } from '@/lib/creatorNotes/youtubeTranscript';
+export { packEvidenceWindowBatches } from '@/lib/creatorNotes/windowBatch';
+export {
+  createMemoryCreatorNotesExtractionCache,
+  createFileCreatorNotesExtractionCache,
+  extractionCacheKey,
+} from '@/lib/creatorNotes/extractionCache';
 export { prepareCreatorNotesTranscript } from '@/lib/creatorNotes/prepare';
 export { runCreatorNotesBatch } from '@/lib/creatorNotes/batch';
 export { runCreatorNotesPodcastBatch } from '@/lib/creatorNotes/podcastBatch';
@@ -32,6 +44,7 @@ export { parseVttTranscript, parseSrtTranscript, normalizeTranscriptCues } from 
 export { resolvePodcastTranscript } from '@/lib/creatorNotes/podcastTranscript';
 export {
   normalizeWhisperSegments,
+  parseRawWhisperSegments,
   type AudioTranscriptionProvider,
 } from '@/lib/creatorNotes/audioTranscription';
 export { createFasterWhisperTranscriptionProvider } from '@/lib/creatorNotes/whisperProvider';

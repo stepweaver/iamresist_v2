@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { buildEvidenceWindows, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
 import {
   CREATOR_NOTE_EXTRACTION_VERSION,
+  CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
   CREATOR_NOTES_TRANSPORT_BACKOFF_MS,
   type CreatorNoteRunStatus,
 } from '@/lib/creatorNotes/constants';
@@ -11,6 +12,7 @@ import {
   assertCreatorNotesAiConfigured,
   creatorNotesRecoveryReason,
   extractCreatorNotesChunk,
+  extractCreatorNotesWindowBatch,
   healthCheckCreatorNotesOllama,
   isCreatorNotesRecoverableInferenceError,
   isCreatorNotesTransportFailure,
@@ -18,7 +20,17 @@ import {
   type CreatorNotesAiConfig,
   type CreatorNotesHealthCheckResult,
 } from '@/lib/creatorNotes/extract';
-import { applyKnownCreatorAttribution, hashCreatorTranscript, transcriptCharCount } from '@/lib/creatorNotes/identity';
+import {
+  createFileCreatorNotesExtractionCache,
+  type CreatorNotesExtractionCache,
+} from '@/lib/creatorNotes/extractionCache';
+import {
+  applyKnownCreatorAttribution,
+  hashCreatorTranscript,
+  hashEvidenceWindow,
+  hashRawTranscription,
+  transcriptCharCount,
+} from '@/lib/creatorNotes/identity';
 import { countNoteKinds, dedupeRawCreatorNotes, emptyKindCounts, toAtomicNotes } from '@/lib/creatorNotes/postprocess';
 import {
   acceptGroundedCreatorNotes,
@@ -28,14 +40,17 @@ import {
   quoteDiagnosticsFromEvidence,
 } from '@/lib/creatorNotes/sourceEvidence';
 import { addKindDiagnostics, emptyKindDiagnostics, invalidRawKindValues } from '@/lib/creatorNotes/validate';
+import { packEvidenceWindowBatches } from '@/lib/creatorNotes/windowBatch';
 import type {
   CreatorAtomicNote,
   CreatorNoteEvidenceDiagnostics,
   CreatorNoteKindDiagnostics,
   CreatorNoteRun,
   CreatorNotesChunkExtractResult,
+  CreatorNotesExtractionPerformance,
   CreatorNotesRunResult,
   CreatorNotesStore,
+  CreatorNotesWindowBatchExtractResult,
   CreatorTranscriptChunk,
   CreatorTranscriptInput,
   RawCreatorNote,
@@ -51,8 +66,17 @@ export type CreatorNotesExtractChunkFn = (input: {
   rejectedKinds?: string[];
 }) => Promise<CreatorNotesChunkExtractResult>;
 
+export type CreatorNotesExtractBatchFn = (input: {
+  transcript: CreatorTranscriptInput;
+  windows: CreatorTranscriptChunk[];
+  chunkCount: number;
+  config?: CreatorNotesAiConfig;
+}) => Promise<CreatorNotesWindowBatchExtractResult>;
+
 export type CreatorNotesRunDeps = {
   extractChunk?: CreatorNotesExtractChunkFn;
+  extractBatch?: CreatorNotesExtractBatchFn | null;
+  extractionCache?: CreatorNotesExtractionCache | null;
   store?: CreatorNotesStore;
   now?: () => Date;
   id?: () => string;
@@ -96,6 +120,30 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function emptyExtractionPerformance(
+  evidenceWindowsTotal = 0,
+): CreatorNotesExtractionPerformance {
+  return {
+    evidenceWindowsTotal,
+    cacheHits: 0,
+    cacheMisses: 0,
+    ollamaBatchRequests: 0,
+    individualFallbackRequests: 0,
+    totalAiMs: 0,
+    averageAiMsPerUncachedWindow: null,
+  };
+}
+
+function finalizeExtractionPerformance(
+  performance: CreatorNotesExtractionPerformance,
+): CreatorNotesExtractionPerformance {
+  const uncached = performance.cacheMisses;
+  return {
+    ...performance,
+    averageAiMsPerUncachedWindow: uncached > 0 ? performance.totalAiMs / uncached : null,
+  };
+}
+
 export function creatorNotesRunStatus(input: {
   failedChunks: number;
   noteCount: number;
@@ -111,24 +159,48 @@ export async function runCreatorNoteExtraction(
     dryRun?: boolean;
     force?: boolean;
     limitNotes?: number | null;
+    maxWindows?: number | null;
+    bypassExtractionCache?: boolean;
   },
   deps: CreatorNotesRunDeps = {},
 ): Promise<CreatorNotesRunResult> {
   const dryRun = Boolean(input.dryRun);
   const force = Boolean(input.force);
+  const bypassExtractionCache = Boolean(input.bypassExtractionCache) || force;
   const transcript = input.transcript;
   const now = deps.now || (() => new Date());
   const nextId = deps.id || (() => randomUUID());
   const aiConfig = deps.aiConfig || resolveCreatorNotesAiConfig();
   const extractChunk = deps.extractChunk || extractCreatorNotesChunk;
+  const extractBatch =
+    deps.extractChunk && deps.extractBatch === undefined
+      ? null
+      : deps.extractBatch === null
+        ? null
+        : deps.extractBatch || extractCreatorNotesWindowBatch;
+  const extractionCache =
+    deps.extractionCache !== undefined
+      ? deps.extractionCache
+      : !deps.extractChunk && deps.extractBatch === undefined
+        ? createFileCreatorNotesExtractionCache()
+        : null;
   const log = deps.log;
   const healthCheck = deps.healthCheck || ((config: CreatorNotesAiConfig) => healthCheckCreatorNotesOllama(config));
   const sleep = deps.sleep || sleepMs;
   const backoffMs = deps.transportBackoffMs ?? CREATOR_NOTES_TRANSPORT_BACKOFF_MS;
 
-  const transcriptHash = hashCreatorTranscript(transcript.segments);
+  const rawSegments = transcript.rawSegments?.length ? transcript.rawSegments : transcript.segments;
+  const normalizationVersion =
+    transcript.normalizationVersion || CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION;
+  const transcriptHash = hashCreatorTranscript(transcript.segments, { normalizationVersion });
+  const rawTranscriptHash = hashRawTranscription(rawSegments);
   const transcriptChars = transcriptCharCount(transcript.segments);
-  const chunks = buildEvidenceWindows(transcript.segments);
+  const allChunks = buildEvidenceWindows(transcript.segments);
+  const chunks =
+    input.maxWindows != null && Number.isFinite(input.maxWindows) && input.maxWindows >= 0
+      ? allChunks.slice(0, Math.floor(input.maxWindows))
+      : allChunks;
+  const performance = emptyExtractionPerformance(chunks.length);
 
   const source = {
     sourceItemId: transcript.sourceItemId,
@@ -139,6 +211,8 @@ export async function runCreatorNoteExtraction(
     transcriptSegments: transcript.segments.length,
     transcriptChars,
     transcriptHash,
+    rawTranscriptHash,
+    normalizationVersion,
   };
 
   const ai = {
@@ -189,6 +263,7 @@ export async function runCreatorNoteExtraction(
       duplicatesRemoved: 0,
       evidenceDiagnostics: emptyEvidenceDiagnostics(),
       quoteDiagnostics: quoteDiagnosticsFromEvidence(emptyEvidenceDiagnostics()),
+      performance: emptyExtractionPerformance(chunks.length),
       persistence: {
         dryRun: false,
         priorEquivalentRunId: equivalent.id,
@@ -243,25 +318,28 @@ export async function runCreatorNoteExtraction(
     return synthesized;
   }
 
-  async function extractAndGround(
+  function windowCacheKey(chunk: CreatorTranscriptChunk) {
+    return {
+      sourceItemId: transcript.sourceItemId,
+      transcriptHash,
+      normalizationVersion,
+      windowHash: hashEvidenceWindow({
+        windowId: chunk.windowId,
+        segmentIndexes: chunk.segmentIndexes,
+        startSeconds: chunk.startSeconds,
+        endSeconds: chunk.endSeconds,
+        text: chunk.verbatimTranscript || chunk.text,
+      }),
+      extractionVersion: CREATOR_NOTE_EXTRACTION_VERSION,
+      provider: aiConfig.provider,
+      model: aiConfig.model,
+    };
+  }
+
+  function groundExtracted(
     chunk: CreatorTranscriptChunk,
-    repair: boolean,
-    rejectedKinds?: string[],
-  ): Promise<{
-    notes: RawCreatorNote[];
-    rejected: number;
-    diagnostics: CreatorNoteEvidenceDiagnostics;
-    kindDiagnostics: CreatorNoteKindDiagnostics;
-    proposed: number;
-  }> {
-    const extracted = await extractChunk({
-      transcript,
-      chunk,
-      chunkCount: chunks.length,
-      config: aiConfig,
-      repair,
-      rejectedKinds,
-    });
+    extracted: CreatorNotesChunkExtractResult,
+  ): ChunkProcessResult {
     const attached = attachEvidenceWindowToNotes(extracted.notes, {
       segmentIndexes: chunk.segmentIndexes,
       startSeconds: chunk.startSeconds,
@@ -275,6 +353,50 @@ export async function runCreatorNoteExtraction(
       rejected: extracted.rejected + grounded.rejected,
       diagnostics: grounded.diagnostics,
       kindDiagnostics: kindDiagnosticsFromExtracted(extracted),
+      ok: true,
+      error: null,
+    };
+  }
+
+  async function writeWindowCache(chunk: CreatorTranscriptChunk, extracted: CreatorNotesChunkExtractResult) {
+    if (!extractionCache) return;
+    await extractionCache.set(windowCacheKey(chunk), {
+      windowId: chunk.windowId,
+      notes: extracted.notes,
+      rejected: extracted.rejected,
+      kindDiagnostics: kindDiagnosticsFromExtracted(extracted),
+      extractedAt: now().toISOString(),
+    });
+  }
+
+  async function extractAndGround(
+    chunk: CreatorTranscriptChunk,
+    repair: boolean,
+    rejectedKinds?: string[],
+  ): Promise<{
+    notes: RawCreatorNote[];
+    rejected: number;
+    diagnostics: CreatorNoteEvidenceDiagnostics;
+    kindDiagnostics: CreatorNoteKindDiagnostics;
+    proposed: number;
+  }> {
+    const extractStarted = Date.now();
+    const extracted = await extractChunk({
+      transcript,
+      chunk,
+      chunkCount: chunks.length,
+      config: aiConfig,
+      repair,
+      rejectedKinds,
+    });
+    performance.totalAiMs += Date.now() - extractStarted;
+    await writeWindowCache(chunk, extracted);
+    const grounded = groundExtracted(chunk, extracted);
+    return {
+      notes: grounded.notes,
+      rejected: grounded.rejected,
+      diagnostics: grounded.diagnostics,
+      kindDiagnostics: grounded.kindDiagnostics,
       proposed: extracted.notes.length,
     };
   }
@@ -500,17 +622,137 @@ export async function runCreatorNoteExtraction(
     }
   }
 
+  function recordProcessed(processed: ChunkProcessResult) {
+    collected.push(...processed.notes);
+    validationRejected += processed.rejected;
+    addEvidenceDiagnostics(evidenceDiagnostics, processed.diagnostics);
+    addKindDiagnostics(kindDiagnostics, processed.kindDiagnostics);
+    if (processed.ok) ai.successfulChunks += 1;
+    else {
+      ai.failedChunks += 1;
+      if (processed.error) chunkErrors.push(processed.error);
+    }
+  }
+
+  async function readCachedWindow(chunk: CreatorTranscriptChunk): Promise<ChunkProcessResult | null> {
+    if (!extractionCache || bypassExtractionCache) return null;
+    const hit = await extractionCache.get(windowCacheKey(chunk));
+    if (!hit) return null;
+    performance.cacheHits += 1;
+    logEvent(log, '[creator-notes]', 'extraction cache hit', {
+      index: chunk.index,
+      windowId: chunk.windowId,
+    });
+    return groundExtracted(chunk, hit);
+  }
+
+  async function processPackedBatch(batch: CreatorTranscriptChunk[]): Promise<void> {
+    if (!extractBatch || batch.length <= 1) {
+      for (const chunk of batch) {
+        recordProcessed(await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null));
+      }
+      return;
+    }
+
+    const runBatch = async () => {
+      const started = Date.now();
+      performance.ollamaBatchRequests += 1;
+      try {
+        return await extractBatch({
+          transcript,
+          windows: batch,
+          chunkCount: chunks.length,
+          config: aiConfig,
+        });
+      } finally {
+        performance.totalAiMs += Date.now() - started;
+      }
+    };
+
+    let batchResult: CreatorNotesWindowBatchExtractResult | null = null;
+    let batchError: unknown = null;
+    try {
+      batchResult = await runBatch();
+    } catch (error) {
+      batchError = error;
+      if (isCreatorNotesTransportFailure(error)) {
+        const canRetry = await recoverTransportOnce(batch[0]);
+        if (canRetry) {
+          try {
+            batchResult = await runBatch();
+            batchError = null;
+          } catch (retryError) {
+            batchError = retryError;
+          }
+        }
+      }
+    }
+
+    if (!batchResult) {
+      logEvent(log, '[creator-notes]', 'window batch fallback', {
+        windowIds: batch.map((chunk) => chunk.windowId),
+        error: clipError(batchError),
+      });
+      for (const chunk of batch) {
+        performance.individualFallbackRequests += 1;
+        recordProcessed(await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null));
+      }
+      return;
+    }
+
+    const byId = new Map(batchResult.windows.map((row) => [row.windowId, row]));
+    for (const chunk of batch) {
+      const extracted = byId.get(chunk.windowId);
+      if (!extracted) {
+        performance.individualFallbackRequests += 1;
+        recordProcessed(await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null));
+        continue;
+      }
+      await writeWindowCache(chunk, extracted);
+      const firstGround = groundExtracted(chunk, extracted);
+      let result = firstGround;
+      if (firstGround.notes.length === 0 && (extracted.notes.length > 0 || extracted.rejected > 0)) {
+        const rejectedKinds = invalidRawKindValues(extracted.kindDiagnostics);
+        const repaired = await extractAndGround(chunk, true, rejectedKinds);
+        const mergedDiagnostics = addEvidenceDiagnostics(
+          { ...firstGround.diagnostics },
+          repaired.diagnostics,
+        );
+        const mergedKinds = addKindDiagnostics(
+          addKindDiagnostics(emptyKindDiagnostics(), firstGround.kindDiagnostics),
+          repaired.kindDiagnostics,
+        );
+        result = {
+          notes: repaired.notes,
+          rejected: firstGround.rejected + repaired.rejected,
+          diagnostics: mergedDiagnostics,
+          kindDiagnostics: mergedKinds,
+          ok: true,
+          error: null,
+        };
+      }
+      recordProcessed(result);
+    }
+  }
+
   try {
+    const pending: CreatorTranscriptChunk[] = [];
     for (const chunk of chunks) {
-      const processed = await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null);
-      collected.push(...processed.notes);
-      validationRejected += processed.rejected;
-      addEvidenceDiagnostics(evidenceDiagnostics, processed.diagnostics);
-      addKindDiagnostics(kindDiagnostics, processed.kindDiagnostics);
-      if (processed.ok) ai.successfulChunks += 1;
-      else {
-        ai.failedChunks += 1;
-        if (processed.error) chunkErrors.push(processed.error);
+      const cached = await readCachedWindow(chunk);
+      if (cached) {
+        recordProcessed(cached);
+        continue;
+      }
+      performance.cacheMisses += 1;
+      if (!extractBatch) {
+        recordProcessed(await processChunk(chunk, { inferenceRetry: false, transportRetry: false }, null));
+      } else {
+        pending.push(chunk);
+      }
+    }
+    if (extractBatch && pending.length) {
+      for (const batch of packEvidenceWindowBatches(pending)) {
+        await processPackedBatch(batch);
       }
     }
 
@@ -589,6 +831,7 @@ export async function runCreatorNoteExtraction(
     return {
       source,
       ai,
+      performance: finalizeExtractionPerformance(performance),
       notes,
       kindCounts: countNoteKinds(notes),
       kindDiagnostics,

@@ -440,6 +440,8 @@ describe('Atomic Creator Notes CLI args', () => {
       creatorName: null,
       sourceTitle: null,
       sourceUrl: null,
+      maxWindows: null,
+      bypassExtractionCache: true,
     });
   });
 
@@ -468,6 +470,8 @@ describe('Atomic Creator Notes CLI args', () => {
       creatorName: 'David Pakman',
       sourceTitle: 'Calibration segment',
       sourceUrl: 'https://example.test/calibration',
+      maxWindows: null,
+      bypassExtractionCache: false,
     });
   });
 
