@@ -5,6 +5,24 @@ export class CreatorTranscriptError extends Error {
   }
 }
 
+export const AI_PROVIDER_UNAVAILABLE = 'AI_PROVIDER_UNAVAILABLE';
+
+export class CreatorNotesProviderUnavailableError extends Error {
+  readonly code = AI_PROVIDER_UNAVAILABLE;
+
+  constructor(message = `${AI_PROVIDER_UNAVAILABLE}: transport failure`) {
+    super(message);
+    this.name = 'CreatorNotesProviderUnavailableError';
+  }
+}
+
+export function isCreatorNotesProviderUnavailableError(error: unknown): boolean {
+  if (error instanceof CreatorNotesProviderUnavailableError) return true;
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? String((error as { code: unknown }).code || '') : '';
+  return code === AI_PROVIDER_UNAVAILABLE;
+}
+
 export function sourceItemNotFoundError(id: string): CreatorTranscriptError {
   return new CreatorTranscriptError(`source item not found: ${id}`);
 }

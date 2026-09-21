@@ -49,6 +49,8 @@ export const CREATOR_NOTE_SYSTEM_PROMPT = [
   'Keep analysis attributed to the speaker.',
   'Keep factual claims attributed unless independently verified elsewhere.',
   'Each note must contain one primary proposition.',
+  'Preserve who performed each action. Do not merge actions performed by different actors into one proposition. Split them into separate atomic notes when needed.',
+  'Do not compare quantities with different units or scopes. Distinguish per-unit cost from aggregate cost. Only state a cost comparison when the evidence itself supports that same comparison.',
   'Write concise notebook-style language, usually 1-2 sentences, preferably under 350 characters.',
   'If this window contains an observable development, a number/statistic, an interpretation, and why it matters, those should usually become separate atomic notes with the appropriate kinds.',
   'It is valid for multiple note kinds to come from the same window.',
@@ -57,6 +59,7 @@ export const CREATOR_NOTE_SYSTEM_PROMPT = [
   'Every note must include sourceQuote: a short verbatim span copied from this window.',
   'sourceQuote is an illustrative direct quote, not the entire grounding contract.',
   'A note may only contain information found in this window.',
+  'Note text must be notebook prose. Never copy JSON keys, schema fragments, or serialization artifacts such as sourceQuote":, referencedSource":, or kind": into text.',
   'Do not return transcript segment indexes. The application already knows the evidence coordinates.',
   'Do not convert analysis into EVENT merely because it concerns an event.',
   `kind must be copied exactly from: ${CREATOR_NOTE_KINDS.join(', ')}.`,
@@ -131,6 +134,8 @@ const GROUNDING_INSTRUCTIONS = [
   'Do not paraphrase evidence as a quotation.',
   'Do not introduce a number, percentage, date, or currency amount that does not occur in this window.',
   'Do not use outside or world knowledge to fill missing facts.',
+  'Preserve who performed each action. If actor A fired missiles and actor B intercepted them, those are two notes, not one merged proposition.',
+  'Do not compare quantities with different units or scopes. Distinguish per-unit cost from aggregate/total cost. Only state a cost comparison when this window itself makes that comparison.',
   'If nothing is notebook-worthy, return {"notes":[]}.',
 ].join('\n');
 
@@ -176,6 +181,7 @@ const SPECIFICITY_INSTRUCTIONS = [
   '- concrete actions',
   'Do not unnecessarily generalize named entities into generic nouns.',
   'If a specific name is not in the transcript, do not invent one.',
+  'Keep distinct actors attached to the actions they performed. Do not collapse two actors\' actions into one sentence.',
 ].join('\n');
 
 export function renderTranscriptSegment(segment: CreatorTranscriptSegment): string {
@@ -193,11 +199,12 @@ function renderWindowTranscript(chunk: CreatorTranscriptChunk): string {
 function attributionInstruction(knownCreator: string): string {
   if (knownCreator) {
     return [
-      `attribution is required for claim, creator_analysis, and why_it_matters. Use "${knownCreator}" unless the transcript clearly names another speaker.`,
+      `attribution is required for claim, creator_analysis, and why_it_matters. Use "${knownCreator}" unless the transcript clearly names a guest who is speaking as themselves.`,
     `Do not write "${GENERIC_SPEAKER_ATTRIBUTION}" when the creator name is known.`,
     `Do not infer a government title or role from the word "speaker". "${GENERIC_SPEAKER_ATTRIBUTION}" means only an unidentified person speaking in the transcript.`,
     'Do not invent speaker identities.',
-    `attribution is the creator/speaker, never a cited institution or document. If ${knownCreator} cites Lloyd's, WSJ, IAEA, or another source, keep attribution as "${knownCreator}" and put that entity in referencedSource.`,
+    `attribution is the podcast creator, never a cited institution, document, or person being quoted. If ${knownCreator} cites Lloyd's, WSJ, IAEA, or another source, keep attribution as "${knownCreator}" and put that entity in referencedSource.`,
+    `If ${knownCreator} quotes another person, keep attribution as "${knownCreator}" and put that person in quotedSpeaker, e.g. quotedSpeaker: Donald Trump. Never change the Atomic Note creator from "${knownCreator}" to the person being quoted.`,
     ].join(' ');
   }
   return [
@@ -206,6 +213,7 @@ function attributionInstruction(knownCreator: string): string {
     `Do not infer a government title or role from the word "speaker".`,
     'If the transcript explicitly identifies a guest, you may use that named attribution.',
     'Do not invent speaker identities.',
+    'If the speaker quotes another person, keep attribution as the speaker and put that person in quotedSpeaker. Never replace the creator with the quoted person.',
   ].join(' ');
 }
 
@@ -242,12 +250,15 @@ export function buildCreatorNoteMessages(input: {
     `Return JSON: {"notes":[{"kind":"event","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":${knownCreator ? `"${knownCreator}"` : 'null'},"referencedSource":null,"sourceQuote":"...","eventFeatures":{"actors":[],"action":string|null,"object":string|null,"institutions":[],"locations":[],"referencedDocuments":[]}},{"kind":"evidence_reference","startSeconds":number|null,"endSeconds":number|null,"text":"...","attribution":"${knownCreator || 'The speaker'}","referencedSource":"Lloyd's of London","sourceQuote":"...","eventFeatures":{"actors":[],"action":null,"object":null,"institutions":["Lloyd's of London"],"locations":[],"referencedDocuments":[]}}]}`,
     `notes must be an array of at most ${maxNotes} objects. {"notes":[]} is valid.`,
     `kind is required and must be copied exactly from: ${CREATOR_NOTE_KINDS.join(', ')}. Do not omit kind. Do not invent kind names. Do not default to event.`,
-    `text must be one concise notebook paraphrase of one primary proposition, usually 1-2 sentences, between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters, preferably <= ${CREATOR_NOTES_TEXT_PREFERRED_CHARS}. Preserve concrete names and identifiers from this window. Split independently useful numbers, events, or claims into separate notes.`,
+    `text must be one concise notebook paraphrase of one primary proposition, usually 1-2 sentences, between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters, preferably <= ${CREATOR_NOTES_TEXT_PREFERRED_CHARS}. Preserve concrete names and identifiers from this window. Split independently useful numbers, events, or claims into separate notes. Preserve who performed each action; do not merge different actors' actions into one proposition.`,
     'Do not return sourceSegmentIndexes. The application already knows the evidence window coordinates.',
     `sourceQuote is required for every emitted note. Copy a contiguous substring exactly as written in this window. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters. Do not invent quotation marks around a paraphrase. If you cannot copy a short supporting excerpt exactly, omit the note.`,
     'startSeconds and endSeconds may be omitted; the application owns the evidence window timestamps.',
     attributionInstruction(knownCreator),
-    'referencedSource is the named external evidentiary source the creator explicitly invokes: an article, publication, report, official statement, government or agency document, filing, dataset, or named institutional source. Examples: Wall Street Journal, Lloyd\'s of London, IAEA report, Pentagon statement. It is not the speaker, not the subject country, not the actor, not the target, and not an institution merely discussed. Leave it null unless an evidentiary source is actually invoked. referencedSource must literally occur in this evidence window. If none is invoked, or the name is not in this window, do not emit evidence_reference. Do not convert a rejected evidence_reference into another kind.',
+    'referencedSource is allowed only on evidence_reference notes. It is the named external evidentiary source the creator explicitly invokes: an article, publication, report, official statement, government or agency document, filing, dataset, or named institutional source. Examples: Wall Street Journal, Lloyd\'s of London, IAEA report, Pentagon statement. It is not the speaker, not the subject country, not the actor, not the target, and not an institution merely discussed. Leave it null unless an evidentiary source is actually invoked. referencedSource must literally occur in this evidence window. Empty strings, commas, whitespace, and punctuation-only values are not sources — use null. If none is invoked, or the name is not in this window, do not emit evidence_reference. Do not convert a rejected evidence_reference into another kind.',
+    'quotedSpeaker is the person the creator quotes, not the Atomic Note creator. Leave it null unless the creator is quoting someone else.',
+    'Do not put JSON keys or schema fragments such as sourceQuote":, referencedSource":, or kind": into note text.',
+    'Do not compare quantities with different units or scopes. Distinguish per-unit cost from aggregate cost. Only state a cost comparison when this window itself supports that comparison.',
     `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
     'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
     'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',
@@ -307,12 +318,15 @@ export function buildCreatorNoteBatchMessages(input: {
     `Return JSON: {"windows":[{"windowId":"${input.windows[0]?.windowId || 'w0'}","notes":[{"kind":"event","text":"...","attribution":${knownCreator ? `"${knownCreator}"` : 'null'},"referencedSource":null,"sourceQuote":"...","eventFeatures":{"actors":[],"action":null,"object":null,"institutions":[],"locations":[],"referencedDocuments":[]}}]}]}`,
     `Each window's notes array has at most ${maxNotes} objects. {"notes":[]} is valid for a window.`,
     `kind is required and must be copied exactly from: ${CREATOR_NOTE_KINDS.join(', ')}. Do not omit kind. Do not invent kind names. Do not default to event.`,
-    `text must be one concise notebook paraphrase of one primary proposition, usually 1-2 sentences, between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters, preferably <= ${CREATOR_NOTES_TEXT_PREFERRED_CHARS}. Preserve concrete names and identifiers from that window.`,
+    `text must be one concise notebook paraphrase of one primary proposition, usually 1-2 sentences, between ${CREATOR_NOTES_TEXT_MIN_CHARS} and ${CREATOR_NOTES_TEXT_MAX_CHARS} characters, preferably <= ${CREATOR_NOTES_TEXT_PREFERRED_CHARS}. Preserve concrete names and identifiers from that window. Preserve who performed each action; do not merge different actors' actions into one proposition.`,
     'Do not return sourceSegmentIndexes. The application already knows each evidence window coordinates.',
     `sourceQuote is required for every emitted note. Copy a contiguous substring exactly as written in THAT window. Do not clean up grammar, punctuation, wording, or speaker phrasing. Typically one or two sentences, preferably <= ${CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS} characters.`,
     'startSeconds and endSeconds may be omitted; the application owns the evidence window timestamps.',
     attributionInstruction(knownCreator),
-    'referencedSource is the named external evidentiary source the creator explicitly invokes: an article, publication, report, official statement, government or agency document, filing, dataset, or named institutional source. Examples: Wall Street Journal, Lloyd\'s of London, IAEA report, Pentagon statement. It is not the speaker, not the subject country, not the actor, not the target, and not an institution merely discussed. Leave it null unless an evidentiary source is actually invoked. referencedSource must literally occur in this evidence window. If none is invoked, or the name is not in this window, do not emit evidence_reference. Do not convert a rejected evidence_reference into another kind.',
+    'referencedSource is allowed only on evidence_reference notes. It is the named external evidentiary source the creator explicitly invokes: an article, publication, report, official statement, government or agency document, filing, dataset, or named institutional source. Examples: Wall Street Journal, Lloyd\'s of London, IAEA report, Pentagon statement. It is not the speaker, not the subject country, not the actor, not the target, and not an institution merely discussed. Leave it null unless an evidentiary source is actually invoked. referencedSource must literally occur in this evidence window. Empty strings, commas, whitespace, and punctuation-only values are not sources — use null. If none is invoked, or the name is not in this window, do not emit evidence_reference. Do not convert a rejected evidence_reference into another kind.',
+    'quotedSpeaker is the person the creator quotes, not the Atomic Note creator. Leave it null unless the creator is quoting someone else.',
+    'Do not put JSON keys or schema fragments such as sourceQuote":, referencedSource":, or kind": into note text.',
+    'Do not compare quantities with different units or scopes. Distinguish per-unit cost from aggregate cost. Only state a cost comparison when that window itself supports that comparison.',
     `eventFeatures.actors max ${CREATOR_NOTES_MAX_ACTORS}; institutions max ${CREATOR_NOTES_MAX_INSTITUTIONS}; locations max ${CREATOR_NOTES_MAX_LOCATIONS}; referencedDocuments max ${CREATOR_NOTES_MAX_REFERENCED_DOCUMENTS}.`,
     'eventFeatures are extraction candidates, not verified identities. Use empty arrays when unknown. Keep original human-readable names.',
     'Do not include verificationStatus. Do not mark claims true. Do not use world knowledge.',

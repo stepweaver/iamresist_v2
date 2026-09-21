@@ -15,6 +15,7 @@ import {
   normalizeComparableNoteText,
   resolveCreatorVersusReferencedSource,
 } from '@/lib/creatorNotes/identity';
+import { noteTextHasStructuredOutputLeakage, repairStructuredOutputLeakage } from '@/lib/creatorNotes/validate';
 import {
   concatenateTranscriptSegments,
   extractVerifiedQuote,
@@ -313,6 +314,22 @@ export function compoundNoteReason(text: string): 'text_too_long' | 'text_not_at
   return null;
 }
 
+const COMPARISON_RE =
+  /\b(higher than|lower than|more than|less than|greater than|compared to|versus|\bvs\.?\b)\b/i;
+const PER_UNIT_RE = /\b(per\s+[a-z]+|each|apiece|a piece)\b/i;
+const MONEY_RE = /\$[\d,]+(?:\s*[-–]\s*\$?[\d,]+)?(?:\s*(?:million|billion|thousand))?/gi;
+
+export function mixedScopeCostComparison(noteText: string, evidenceText: string): boolean {
+  const note = String(noteText || '');
+  const evidence = String(evidenceText || '');
+  const moneyMatches = note.match(MONEY_RE) || [];
+  if (moneyMatches.length < 2) return false;
+  if (!COMPARISON_RE.test(note)) return false;
+  if (!COMPARISON_RE.test(evidence)) return true;
+  if (PER_UNIT_RE.test(evidence) && !PER_UNIT_RE.test(note)) return true;
+  return false;
+}
+
 function evidenceDurationSeconds(
   range: { startSeconds: number | null; endSeconds: number | null },
 ): number | null {
@@ -505,6 +522,17 @@ export function acceptGroundedCreatorNotes(
       diagnostics.groundingRejected += 1;
       continue;
     }
+    if (mixedScopeCostComparison(note.text, citedText)) {
+      rejected += 1;
+      diagnostics.groundingRejected += 1;
+      continue;
+    }
+    const repairedText = repairStructuredOutputLeakage(note.text);
+    if (!repairedText || noteTextHasStructuredOutputLeakage(repairedText)) {
+      rejected += 1;
+      diagnostics.groundingRejected += 1;
+      continue;
+    }
     if (note.kind === 'evidence_reference') {
       if (!isEvidentiaryReferencedSource(note.referencedSource, note.eventFeatures, citedText)) {
         rejected += 1;
@@ -525,6 +553,7 @@ export function acceptGroundedCreatorNotes(
 
     accepted.push({
       ...note,
+      text: repairedText,
       startSeconds: note.startSeconds ?? bounds.startSeconds,
       endSeconds: note.endSeconds ?? bounds.endSeconds,
       sourceQuote: quote,

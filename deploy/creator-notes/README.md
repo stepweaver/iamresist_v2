@@ -54,6 +54,7 @@ Required:
 - `THEME_AI_TIMEOUT_MS=45000`
 - `THEME_AI_STARTUP_TIMEOUT_MS=180000` for the Ollama readiness warm-up only
 - `CREATOR_NOTES_AI_TIMEOUT_MS=300000` for Atomic Notes extraction (independent of Theme Memory)
+- `CREATOR_NOTES_OLLAMA_KEEP_ALIVE=5m` for Atomic Notes (independent of Theme Memory's 30m keep-alive)
 
 Optional:
 

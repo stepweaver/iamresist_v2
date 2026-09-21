@@ -42,6 +42,7 @@ export const CREATOR_NOTES_JSON_SCHEMA = {
           },
           attribution: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
           referencedSource: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
+          quotedSpeaker: { type: 'string', maxLength: CREATOR_NOTES_ATTRIBUTION_MAX },
           sourceQuote: { type: 'string', minLength: 1, maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
           exactQuote: { type: 'string', maxLength: CREATOR_NOTES_EXACT_QUOTE_MAX_CHARS },
           eventFeatures: {

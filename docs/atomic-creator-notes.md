@@ -74,6 +74,7 @@ Reuse:
 - `THEME_AI_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` (fallback only)
 - `CREATOR_NOTES_MODEL` (production extraction model; intended value `gemma3:4b`)
 - `CREATOR_NOTES_AI_TIMEOUT_MS` (Atomic Notes Ollama timeout; independent of Theme Memory)
+- `CREATOR_NOTES_OLLAMA_KEEP_ALIVE` (Atomic Notes Ollama keep-alive; default `5m`, independent of Theme Memory's 30m)
 - existing Ollama chat helper (`ollamaChatJson`)
 - intel schema / Supabase service-role client
 - Theme Memory CLI preload (`.env` loading + `server-only` stub)
@@ -532,6 +533,7 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `THEME_AI_TIMEOUT_MS` | `45000` | Theme Memory classification timeout (unchanged) |
 | `THEME_AI_MAX_RETRIES` | `2` | Theme Memory retry of transient Ollama failures |
 | `CREATOR_NOTES_AI_TIMEOUT_MS` | `300000` | Atomic Notes per-window Ollama timeout |
+| `CREATOR_NOTES_OLLAMA_KEEP_ALIVE` | `5m` | Atomic Notes Ollama keep-alive. Independent of Theme Memory's 30m warm-up. |
 | `CREATOR_NOTES_WINDOW_BATCH_SIZE` | `1` | Windows per Ollama request. Production default is one window. Multi-window batching remains available for experiments only. |
 | `CREATOR_NOTES_LOCK_FILE` | `tmp/creator-notes-batch.lock` | Exclusive batch lock; separate from Theme Memory |
 | `CREATOR_NOTES_CHUNK_CHARS` | `1500` | Max evidence-window / split size in characters |
@@ -540,7 +542,7 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `CREATOR_NOTES_PYTHON` | `python3` | Python used to run local Whisper |
 | `CREATOR_NOTES_FFMPEG` | `ffmpeg` | ffmpeg binary for 16 kHz mono speech |
 
-Evidence windows are built from whole transcript segments before the LLM is called. Timed transcripts target ~45 seconds (max 60) with ~12 seconds of overlap. Untimed transcripts use ~800-1500 characters. Individual segments are never split. Production extraction sends **one** evidence window per Ollama request. Timeout and token-repeat failures split that window once into smaller segment-boundary children. Transport failures (`fetch failed`, connection refused, server unavailable) health-check Ollama, back off briefly, and retry the **same** window once — they do not split the transcript. A window that yields zero notes is success.
+Evidence windows are built from whole transcript segments before the LLM is called. Timed transcripts target ~45 seconds (max 60) with ~12 seconds of overlap. Untimed transcripts use ~800-1500 characters. Individual segments are never split. Production extraction sends **one** evidence window per Ollama request. Timeout and token-repeat failures split that window once into smaller segment-boundary children. Transport failures (`fetch failed`, connection refused, server unavailable) health-check Ollama. If Ollama is still reachable, the **same** window is retried once. If Ollama is unreachable, the run aborts immediately with `AI_PROVIDER_UNAVAILABLE` / transport failure and does not continue remaining windows. Successful extraction-cache entries stay intact so the next run resumes. Application code does not call `sudo`/`systemctl`. A window that yields zero notes is success.
 
 The application attaches the window's `sourceSegmentIndexes` and copies the full window as `sourceExcerpt`. `sourceQuote` must be a verbatim substring of that window. Numbers in the note are validated against the full window, not only the quote. An `evidence_reference` is accepted only when `referencedSource` names an external evidentiary source that literally occurs in that window; a country or actor being discussed is not a source, and a rejected `evidence_reference` is dropped rather than converted to another kind. Note text may not copy episode-title or other source-metadata wording unless those words also occur in the window. If a window returns notes but none survive grounding, extraction retries that window once with a repair prompt. A complete run with zero unrecovered window failures is `success` even if no notes were notebook-worthy. A `partial` run does not persist Atomic Notes.
 

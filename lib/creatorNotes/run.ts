@@ -63,6 +63,11 @@ import type {
   RawCreatorNote,
 } from '@/lib/creatorNotes/types';
 import { intelDbConfigured } from '@/lib/intel/db';
+import {
+  AI_PROVIDER_UNAVAILABLE,
+  CreatorNotesProviderUnavailableError,
+  isCreatorNotesProviderUnavailableError,
+} from '@/lib/creatorNotes/errors';
 
 export type CreatorNotesExtractChunkFn = (input: {
   transcript: CreatorTranscriptInput;
@@ -92,7 +97,6 @@ export type CreatorNotesRunDeps = {
   log?: (prefix: string, event: string, extra?: Record<string, unknown>) => void;
   healthCheck?: (config: CreatorNotesAiConfig) => Promise<CreatorNotesHealthCheckResult>;
   sleep?: (ms: number) => Promise<void>;
-  tryStartOllama?: (config: CreatorNotesAiConfig) => Promise<boolean>;
   transportBackoffMs?: number;
 };
 
@@ -432,19 +436,15 @@ export async function runCreatorNoteExtraction(
       reachable: probe.reachable,
       error: probe.error || null,
     });
-    if (!probe.reachable && deps.tryStartOllama) {
-      logEvent(log, '[creator-notes]', 'ollama start attempted', {
+    if (!probe.reachable) {
+      logEvent(log, '[creator-notes]', 'ollama unavailable abort', {
         index: chunk.index,
         windowId: chunk.windowId,
+        error: probe.error || null,
       });
-      const started = await deps.tryStartOllama(aiConfig);
-      logEvent(log, '[creator-notes]', started ? 'ollama start succeeded' : 'ollama start failed', {
-        index: chunk.index,
-        windowId: chunk.windowId,
-      });
-      if (!started) return false;
-    } else if (!probe.reachable) {
-      return false;
+      throw new CreatorNotesProviderUnavailableError(
+        `${AI_PROVIDER_UNAVAILABLE}: transport failure`,
+      );
     }
     await sleep(backoffMs);
     return true;
@@ -510,11 +510,12 @@ export async function runCreatorNoteExtraction(
         error: null,
       };
     } catch (error) {
+      if (isCreatorNotesProviderUnavailableError(error)) throw error;
       const recovery = creatorNotesRecoveryReason(error);
 
-      if (isCreatorNotesTransportFailure(error) && !flags.transportRetry) {
+      if (isCreatorNotesTransportFailure(error)) {
         const canRetry = await recoverTransportOnce(chunk);
-        if (canRetry) {
+        if (canRetry && !flags.transportRetry) {
           logEvent(log, '[creator-notes]', 'transport retry', {
             index: chunk.index,
             windowId: chunk.windowId,
@@ -763,6 +764,7 @@ export async function runCreatorNoteExtraction(
       batchResult = await runBatch(batch, false);
     } catch (error) {
       batchError = error;
+      if (isCreatorNotesProviderUnavailableError(error)) throw error;
       if (isCreatorNotesTransportFailure(error)) {
         const canRetry = await recoverTransportOnce(batch[0]);
         if (canRetry) {
@@ -770,6 +772,7 @@ export async function runCreatorNoteExtraction(
             batchResult = await runBatch(batch, false);
             batchError = null;
           } catch (retryError) {
+            if (isCreatorNotesProviderUnavailableError(retryError)) throw retryError;
             batchError = retryError;
           }
         }
@@ -843,6 +846,7 @@ export async function runCreatorNoteExtraction(
       try {
         repairResult = await runBatch(repairChunks, true);
       } catch (error) {
+        if (isCreatorNotesProviderUnavailableError(error)) throw error;
         logEvent(log, '[creator-notes]', 'window batch repair failed', {
           windowIds: repairIds,
           error: clipError(error),

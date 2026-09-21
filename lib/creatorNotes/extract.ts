@@ -4,6 +4,7 @@ import {
   CREATOR_NOTES_TRANSPORT_BACKOFF_MS,
   creatorNotesAiTimeoutMs,
   creatorNotesModel,
+  creatorNotesOllamaKeepAlive,
 } from '@/lib/creatorNotes/constants';
 import { buildCreatorNoteBatchMessages, buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
 import { CREATOR_NOTES_BATCH_JSON_SCHEMA, CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
@@ -15,7 +16,7 @@ import type {
   CreatorTranscriptInput,
 } from '@/lib/creatorNotes/types';
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
-import { OLLAMA_CHAT_KEEP_ALIVE, ollamaChatJson, probeOllama } from '@/lib/themeMemory/ai/ollama';
+import { ollamaChatJson, probeOllama } from '@/lib/themeMemory/ai/ollama';
 import { ThemeAIUnavailableError } from '@/lib/themeMemory/ai/types';
 
 export type CreatorNotesAiConfig = {
@@ -24,6 +25,7 @@ export type CreatorNotesAiConfig = {
   baseUrl: string;
   timeoutMs: number;
   retries: number;
+  keepAlive?: string;
 };
 
 export type CreatorNotesHealthCheckResult = {
@@ -41,6 +43,7 @@ export function resolveCreatorNotesAiConfig(): CreatorNotesAiConfig {
     baseUrl: themeMemoryEnv.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
     timeoutMs: creatorNotesAiTimeoutMs(),
     retries: 0,
+    keepAlive: creatorNotesOllamaKeepAlive(),
   };
 }
 
@@ -182,7 +185,7 @@ export async function extractCreatorNotesChunk(input: {
     model: config.model,
     retries: config.retries,
     logLabel: '[creator-notes-ai]',
-    keepAlive: OLLAMA_CHAT_KEEP_ALIVE,
+    keepAlive: config.keepAlive || creatorNotesOllamaKeepAlive(),
   });
 
   return parseCreatorNotesOutput(content, {
@@ -233,7 +236,7 @@ export async function extractCreatorNotesWindowBatch(input: {
     model: config.model,
     retries: config.retries,
     logLabel: '[creator-notes-ai]',
-    keepAlive: OLLAMA_CHAT_KEEP_ALIVE,
+    keepAlive: config.keepAlive || creatorNotesOllamaKeepAlive(),
   });
 
   return parseCreatorNotesBatchOutput(content, {

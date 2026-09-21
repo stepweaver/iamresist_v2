@@ -75,6 +75,7 @@ export interface RawCreatorNote {
   sourceSegmentIndexes: number[];
   evidenceDurationSeconds?: number | null;
   referencedSource?: string | null;
+  quotedSpeaker?: string | null;
   anchorStartSeconds?: number | null;
 }
 
@@ -94,6 +95,7 @@ export interface CreatorAtomicNote {
   sourceSegmentIndexes: number[];
   evidenceDurationSeconds?: number | null;
   referencedSource?: string | null;
+  quotedSpeaker?: string | null;
   anchorStartSeconds?: number | null;
   verificationStatus: VerificationStatus;
   extractionRunId: string;

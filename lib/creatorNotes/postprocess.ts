@@ -119,6 +119,7 @@ export function toAtomicNotes(input: {
     sourceSegmentIndexes: Array.isArray(note.sourceSegmentIndexes) ? note.sourceSegmentIndexes : [],
     evidenceDurationSeconds: note.evidenceDurationSeconds ?? null,
     referencedSource: note.referencedSource || null,
+    quotedSpeaker: note.quotedSpeaker || null,
     anchorStartSeconds: note.anchorStartSeconds ?? null,
     verificationStatus: defaultVerificationStatus(note.kind),
     extractionRunId: input.extractionRunId,

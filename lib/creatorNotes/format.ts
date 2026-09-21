@@ -446,6 +446,9 @@ export function formatNotePreview(note: CreatorAtomicNote): string {
   if (note.referencedSource) {
     lines.splice(1, 0, `referencedSource: ${note.referencedSource}`);
   }
+  if (note.quotedSpeaker) {
+    lines.splice(1, 0, `quotedSpeaker: ${note.quotedSpeaker}`);
+  }
   if (quote) {
     lines.push('Source quote:', `"${quote}"`, '');
   } else {

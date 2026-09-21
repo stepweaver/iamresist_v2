@@ -141,6 +141,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - Milestone 1 structured notebook notes from **one** creator transcript. Not a public UI and not Theme Memory linking.
 - Reuses Theme AI / Ollama env (`THEME_AI_PROVIDER=ollama`). Production extraction model: `CREATOR_NOTES_MODEL=gemma3:4b` (falls back to `OLLAMA_MODEL`). Live extraction has no deterministic fallback.
 - Optional: `CREATOR_NOTES_AI_TIMEOUT_MS` (default `300000`) for Atomic Notes Ollama calls, independent of `THEME_AI_TIMEOUT_MS`
+- Optional: `CREATOR_NOTES_OLLAMA_KEEP_ALIVE` (default `5m`) for Atomic Notes, independent of Theme Memory's 30m keep-alive
 - Optional: `CREATOR_NOTES_WINDOW_BATCH_SIZE` (default `1`; one evidence window per Ollama request)
 - Optional: `CREATOR_NOTES_CHUNK_CHARS` (default `1500`), `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` (default `8`)
 - Apply intel SQL migrations through `20260919200000_creator_notes_evidence_windows.sql`

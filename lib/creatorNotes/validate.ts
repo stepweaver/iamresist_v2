@@ -21,6 +21,7 @@ import {
   normalizeNoteText,
   resolveCreatorVersusReferencedSource,
   resolveNoteAttribution,
+  sanitizeReferencedSource,
 } from '@/lib/creatorNotes/identity';
 import type {
   CreatorNoteKindCounts,
@@ -119,6 +120,27 @@ function parseExactQuote(value: unknown, field = 'exact_quote'): string | null {
   }
   const cleaned = value.trim();
   return cleaned || null;
+}
+
+const STRUCTURED_OUTPUT_LEAK_RE =
+  /"?\s*(sourceQuote|referencedSource|kind|attribution|eventFeatures|exactQuote|quotedSpeaker)"?\s*":/i;
+
+export function repairStructuredOutputLeakage(text: string): string | null {
+  const original = normalizeNoteText(text);
+  if (!original) return null;
+  const leakAt = original.search(STRUCTURED_OUTPUT_LEAK_RE);
+  if (leakAt < 0) return original;
+  const repaired = original
+    .slice(0, leakAt)
+    .replace(/[\s,;:]+$/g, '')
+    .replace(/["'`]+$/g, '')
+    .trim();
+  if (!repaired || STRUCTURED_OUTPUT_LEAK_RE.test(repaired)) return null;
+  return repaired;
+}
+
+export function noteTextHasStructuredOutputLeakage(text: string): boolean {
+  return STRUCTURED_OUTPUT_LEAK_RE.test(normalizeNoteText(text));
 }
 
 function emptyValidatedKindCounts(): CreatorNoteKindCounts {
@@ -278,9 +300,9 @@ export function validateRawCreatorNote(
   if (typeof value.text !== 'string') {
     throw new CreatorNotesValidationError('text_not_string');
   }
-  const text = normalizeNoteText(value.text);
+  const text = repairStructuredOutputLeakage(value.text);
   if (!text) {
-    throw new CreatorNotesValidationError('text_empty');
+    throw new CreatorNotesValidationError(noteTextHasStructuredOutputLeakage(String(value.text || '')) ? 'text_structured_leakage' : 'text_empty');
   }
   if (text.length < CREATOR_NOTES_TEXT_MIN_CHARS) {
     throw new CreatorNotesValidationError('text_too_short');
@@ -299,9 +321,16 @@ export function validateRawCreatorNote(
     boundedOptionalString(value.attribution, 'attribution', CREATOR_NOTES_ATTRIBUTION_MAX),
     opts.knownCreatorName,
   );
-  const referencedSource = boundedOptionalString(
-    value.referencedSource ?? value.referenced_source,
-    'referencedSource',
+  const referencedSource = sanitizeReferencedSource(
+    boundedOptionalString(
+      value.referencedSource ?? value.referenced_source,
+      'referencedSource',
+      CREATOR_NOTES_ATTRIBUTION_MAX,
+    ),
+  );
+  const quotedSpeaker = boundedOptionalString(
+    value.quotedSpeaker ?? value.quoted_speaker,
+    'quotedSpeaker',
     CREATOR_NOTES_ATTRIBUTION_MAX,
   );
   if (isAttributionRequired(kind) && !attribution) {
@@ -325,6 +354,7 @@ export function validateRawCreatorNote(
       text,
       attribution,
       referencedSource,
+      quotedSpeaker,
       eventFeatures: parseEventFeatures(value.eventFeatures ?? value.event_features),
       sourceExcerpt: null,
       sourceQuote,

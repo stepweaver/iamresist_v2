@@ -36,6 +36,17 @@ export function normalizeAttribution(value: string | null | undefined): string |
   return cleaned || null;
 }
 
+export function sanitizeReferencedSource(value: string | null | undefined): string | null {
+  const cleaned = normalizeAttribution(value);
+  if (!cleaned) return null;
+  const stripped = cleaned.replace(/^[\s,.;:!?'"`()[\]{}]+|[\s,.;:!?'"`()[\]{}]+$/g, '').trim();
+  if (!stripped) return null;
+  if (/^[\s,.;:!?()[\]{}"'`]+$/.test(stripped)) return null;
+  const alnum = stripped.replace(/[^\p{L}\p{N}]+/gu, '');
+  if (!alnum) return null;
+  return stripped;
+}
+
 export function isGenericSpeakerAttribution(value: string | null | undefined): boolean {
   const cleaned = normalizeAttribution(value);
   if (!cleaned) return false;
@@ -148,12 +159,21 @@ export function resolveCreatorVersusReferencedSource<
     kind: CreatorNoteKind;
     attribution: string | null;
     referencedSource?: string | null;
+    quotedSpeaker?: string | null;
     eventFeatures?: CreatorNoteEventFeatures | null;
   },
 >(note: T, knownCreatorName?: string | null): T {
   const known = normalizeAttribution(knownCreatorName);
   let attribution = resolveNoteAttribution(note.attribution, knownCreatorName);
-  let referencedSource = normalizeAttribution(note.referencedSource);
+  let referencedSource = sanitizeReferencedSource(note.referencedSource);
+  let quotedSpeaker = normalizeAttribution(note.quotedSpeaker);
+
+  if (known && quotedSpeaker && attributionMatches(quotedSpeaker, known)) {
+    quotedSpeaker = null;
+  }
+  if (known && quotedSpeaker && attributionMatches(attribution, quotedSpeaker)) {
+    attribution = known;
+  }
 
   const attributionIsCreator = Boolean(known && attributionMatches(attribution, known));
   const attributionIsSpeaker = isGenericSpeakerAttribution(attribution);
@@ -162,10 +182,11 @@ export function resolveCreatorVersusReferencedSource<
     Boolean(attribution) &&
     !attributionIsCreator &&
     !attributionIsSpeaker &&
+    !quotedSpeaker &&
     (note.kind === 'evidence_reference' || isReferencedEntityName(attribution, known, note.eventFeatures));
 
   if (moveAttributionToReferenced) {
-    referencedSource = referencedSource || attribution;
+    referencedSource = referencedSource || sanitizeReferencedSource(attribution);
     attribution = known || null;
   }
 
@@ -176,8 +197,10 @@ export function resolveCreatorVersusReferencedSource<
   if (note.kind === 'evidence_reference') {
     if (known) attribution = known;
     if (!referencedSource) {
-      referencedSource = firstEvidentiaryReferencedSource(note.eventFeatures);
+      referencedSource = sanitizeReferencedSource(firstEvidentiaryReferencedSource(note.eventFeatures));
     }
+  } else {
+    referencedSource = null;
   }
 
   if (referencedSourceIsSubjectNotEvidence(referencedSource, note.eventFeatures)) {
@@ -187,6 +210,7 @@ export function resolveCreatorVersusReferencedSource<
   return {
     ...note,
     attribution,
+    quotedSpeaker: quotedSpeaker || null,
     referencedSource: referencedSource || null,
   };
 }
@@ -196,6 +220,7 @@ export function applyKnownCreatorAttribution<
     kind: CreatorNoteKind;
     attribution: string | null;
     referencedSource?: string | null;
+    quotedSpeaker?: string | null;
     eventFeatures?: CreatorNoteEventFeatures | null;
   },
 >(notes: T[], knownCreatorName?: string | null): T[] {

@@ -3,9 +3,10 @@
  * Bump CREATOR_NOTE_EXTRACTION_VERSION when prompt or validation semantics change.
  */
 
-export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.7';
-export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.8';
+export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.8';
+export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.9';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
+export const CREATOR_NOTES_OLLAMA_KEEP_ALIVE_DEFAULT = '5m';
 /** Version the canonical transcript normalizer. Bump when segment merge/text rules change. */
 export const CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION = 'transcript-norm-v1';
 /** Production default: one evidence window per Ollama request. */
@@ -128,6 +129,16 @@ export function creatorNotesMaxNotesPerChunk(): number {
 
 export function creatorNotesAiTimeoutMs(): number {
   return optInt('CREATOR_NOTES_AI_TIMEOUT_MS', CREATOR_NOTES_AI_TIMEOUT_MS_DEFAULT);
+}
+
+/**
+ * Creator Notes Ollama keep-alive is independent of Theme Memory's 30m warm-up.
+ * Production default: CREATOR_NOTES_OLLAMA_KEEP_ALIVE=5m
+ */
+export function creatorNotesOllamaKeepAlive(): string {
+  const dedicated = optString('CREATOR_NOTES_OLLAMA_KEEP_ALIVE');
+  if (dedicated) return dedicated;
+  return CREATOR_NOTES_OLLAMA_KEEP_ALIVE_DEFAULT;
 }
 
 export function creatorNotesRetryChunkChars(parentCharCount: number): number {

@@ -7,7 +7,13 @@ export {
   creatorNoteFingerprint,
 } from '@/lib/creatorNotes/identity';
 export { chunkCreatorTranscript, splitCreatorTranscriptChunk, buildEvidenceWindows } from '@/lib/creatorNotes/chunk';
-export { parseCreatorNotesOutput, parseCreatorNotesBatchOutput, validateRawCreatorNote, emptyKindDiagnostics } from '@/lib/creatorNotes/validate';
+export {
+  parseCreatorNotesOutput,
+  parseCreatorNotesBatchOutput,
+  validateRawCreatorNote,
+  emptyKindDiagnostics,
+  repairStructuredOutputLeakage,
+} from '@/lib/creatorNotes/validate';
 export { buildCreatorNoteMessages, buildCreatorNoteBatchMessages, CREATOR_NOTE_SYSTEM_PROMPT } from '@/lib/creatorNotes/prompt';
 export { defaultVerificationStatus, dedupeRawCreatorNotes } from '@/lib/creatorNotes/postprocess';
 export { applyQuoteVerification, quoteAnchorStartSeconds } from '@/lib/creatorNotes/quotes';
@@ -16,6 +22,7 @@ export {
   applySourceEvidence,
   attachEvidenceWindowToNotes,
   compoundNoteReason,
+  mixedScopeCostComparison,
   noteTextLeaksSourceMetadata,
   unsupportedNumericTokens,
 } from '@/lib/creatorNotes/sourceEvidence';
@@ -38,6 +45,11 @@ export { runCreatorNotesPodcastBatch } from '@/lib/creatorNotes/podcastBatch';
 export { reviewCreatorNotes } from '@/lib/creatorNotes/review';
 export { selectEligibleCreatorNotesItems } from '@/lib/creatorNotes/select';
 export { acquireCreatorNotesRunLock, CreatorNotesLockBusyError } from '@/lib/creatorNotes/runLock';
+export {
+  AI_PROVIDER_UNAVAILABLE,
+  CreatorNotesProviderUnavailableError,
+  isCreatorNotesProviderUnavailableError,
+} from '@/lib/creatorNotes/errors';
 export { preparePodcastCreatorNotesTranscript } from '@/lib/creatorNotes/podcastPrepare';
 export { listPodcastSources, resolvePodcastEpisode, loadPodcastCatalog, diagnosePodcastFeeds } from '@/lib/creatorNotes/podcastCatalog';
 export { parsePodcastFeedXml } from '@/lib/creatorNotes/podcastRss';
