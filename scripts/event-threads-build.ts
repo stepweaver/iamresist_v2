@@ -1,10 +1,10 @@
 import { buildEventThreads, EVENT_THREADS_PERSISTENCE_DISABLED } from '@/lib/eventThreads/build';
 import {
-  createDryRunEventThreadsWriter,
   createSupabaseAtomicNotesReader,
   createSupabaseIntelOsintSearch,
 } from '@/lib/eventThreads/db';
 import { formatEventThreadsReport, parseEventThreadsBuildArgs } from '@/lib/eventThreads/format';
+import { createDryRunEventThreadsWriter } from '@/lib/eventThreads/store';
 import { resolvePodcastEpisode } from '@/lib/creatorNotes/podcastCatalog';
 
 async function main() {
