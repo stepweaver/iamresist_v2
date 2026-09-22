@@ -28,6 +28,7 @@ describe('Event Threads identity and chronology', () => {
     expect(threads).toHaveLength(1);
     expect(threads[0]?.title.toLowerCase()).toMatch(/exclusion zone/);
     expect(threads[0]?.title.toLowerCase()).not.toBe('iran');
+    expect(threads[0]?.identityKey.toLowerCase()).not.toMatch(/\bleast\b|\bfive\b|\bseparate events\b/);
   });
 
   it('does not merge threads from generic entity overlap alone', () => {

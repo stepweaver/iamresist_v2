@@ -11,5 +11,5 @@ export {
   createMemoryEventThreadsWriter,
 } from '@/lib/eventThreads/store';
 export { resolveNoteDeterministically, applyResolvedCandidate } from '@/lib/eventThreads/resolve';
-export { clusterEntriesIntoThreads, shouldMergeThreadIdentities } from '@/lib/eventThreads/identity';
+export { clusterEntriesIntoThreads, shouldMergeThreadIdentities, hasStrongEventIdentity } from '@/lib/eventThreads/identity';
 export { selectIntelOsintLinks } from '@/lib/eventThreads/intelLinks';

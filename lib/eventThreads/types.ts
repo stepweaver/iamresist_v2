@@ -46,6 +46,15 @@ export interface EventThreadNoteContext {
   allowedNoteIds: Set<string>;
 }
 
+export interface EventThreadIdentityAnchors {
+  actors: string[];
+  actions: string[];
+  objects: string[];
+  institutions: string[];
+  locations: string[];
+  documents: string[];
+}
+
 export interface ResolvedThreadEntry {
   id: string;
   atomicNoteId: string | null;
@@ -61,6 +70,7 @@ export interface ResolvedThreadEntry {
   confidence: EventThreadConfidence;
   identityTerms: string[];
   identityPhrases: string[];
+  identityAnchors: EventThreadIdentityAnchors;
 }
 
 export interface ProposedEventThread {

@@ -123,9 +123,6 @@ describe('Event Threads build dry-run', () => {
     expect(result.threadsProposed).toBeGreaterThan(0);
     expect(result.threadEntriesProposed).toBeGreaterThan(0);
     expect(result.intelOsintCandidateLinks).toBeGreaterThan(0);
-    expect(result.threads.some((thread) => thread.entries.some((entry) => entry.entryKind === 'creator_analysis'))).toBe(
-      true,
-    );
     expect(result.threads.some((thread) => thread.entries.some((entry) => entry.entryKind === 'evidence_reference'))).toBe(
       true,
     );

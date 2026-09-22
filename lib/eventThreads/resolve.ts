@@ -9,40 +9,48 @@ import {
   type EventThreadEntryKind,
   type EventThreadResolutionType,
 } from '@/lib/eventThreads/constants';
-import { distinctiveTermsFromText } from '@/lib/eventThreads/identity';
+import {
+  distinctiveTermsFromText,
+  isDistinctiveEventPhrase,
+  isDistinctiveIdentityToken,
+  tokenizeIdentity,
+  EMPTY_ANCHORS,
+} from '@/lib/eventThreads/identity';
 import { suppliedContextText } from '@/lib/eventThreads/context';
 import {
   checkInferenceBoundary,
+  classifyDiscourseState,
   entryKindForNote,
+  eventCountNumbers,
+  extractCandidateActors,
   isAnalysisKind,
+  isNonEndorsingDiscourse,
+  looksLikeBeliefAttribution,
   looksLikeConditional,
   looksLikeSteelman,
+  normalizeMatchText,
   resolutionTypeForKind,
+  semanticRolesUnsupported,
+  unsupportedResolvedNumbers,
 } from '@/lib/eventThreads/grounding';
 import { EVENT_THREADS_ENTRY_KIND_SET, EVENT_THREADS_RESOLUTION_TYPE_SET } from '@/lib/eventThreads/schema';
-import type { EventThreadNoteContext, EventThreadsAiConfig, ResolvedThreadEntry } from '@/lib/eventThreads/types';
+import type {
+  EventThreadIdentityAnchors,
+  EventThreadNoteContext,
+  EventThreadsAiConfig,
+  ResolvedThreadEntry,
+} from '@/lib/eventThreads/types';
 
-const PRONOUN_RE = /\b(they|them|their|it|its|those|these|he|him|his|she|her)\b/i;
+const SUBJECT_PRONOUN_RE = /\b(they|he|she)\b/i;
+const POSSESSIVE_PRONOUN_RE = /\b(their|its)\b/i;
 const LAUNCH_RE = /\b(fir(?:e|es|ed)|launch(?:ed|es)?|attack(?:ed|s)?)\b/i;
 const INTERCEPT_RE = /\b(intercept(?:s|ed|ing)?|shot down|destroyed)\b/i;
-const NUMBER_RE = /\b(\d{1,4})\b/g;
 const MISSILE_RE = /\b(ballistic\s+missiles?|missiles?|rockets?|drones?)\b/i;
 
 function clipResolved(text: string): string {
   const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
   if (cleaned.length <= EVENT_THREADS_RESOLVED_TEXT_MAX_CHARS) return cleaned;
   return cleaned.slice(0, EVENT_THREADS_RESOLVED_TEXT_MAX_CHARS).trimEnd();
-}
-
-function numbersIn(text: string): number[] {
-  const out: number[] = [];
-  const re = new RegExp(NUMBER_RE.source, 'g');
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text))) {
-    const n = Number(match[1]);
-    if (Number.isFinite(n)) out.push(n);
-  }
-  return out;
 }
 
 function americanToUs(text: string): string {
@@ -62,21 +70,70 @@ export function listenAnchorSeconds(context: EventThreadNoteContext): number | n
   return null;
 }
 
+function creatorExclude(context: EventThreadNoteContext): string[] {
+  return tokenizeIdentity(`${context.note.attribution || ''} ${context.source.creatorName || ''}`);
+}
+
+function inheritSupportedPreceding(
+  resolvedText: string,
+  preceding: string,
+  exclude: string[],
+): { terms: string[]; phrases: string[] } {
+  if (!preceding) return { terms: [], phrases: [] };
+  const resolvedNorm = normalizeMatchText(resolvedText);
+  const previous = distinctiveTermsFromText(preceding, exclude);
+  return {
+    terms: previous.terms.filter((term) => resolvedNorm.includes(term) && isDistinctiveIdentityToken(term, exclude)),
+    phrases: previous.phrases.filter(
+      (phrase) =>
+        isDistinctiveEventPhrase(phrase, exclude) &&
+        phrase.split(' ').some((part) => resolvedNorm.includes(part)),
+    ),
+  };
+}
+
+function anchorsFromContext(
+  context: EventThreadNoteContext,
+  resolvedText: string,
+): EventThreadIdentityAnchors {
+  const features = context.note.eventFeatures;
+  const proper = extractCandidateActors(`${resolvedText}\n${context.note.text}`);
+  const actors = [...(features?.actors || []), ...proper].slice(0, 6);
+  const objects = [features?.object, features?.object && !/\b(them|it|this|that)\b/i.test(features.object) ? features.object : null]
+    .filter(Boolean)
+    .map((value) => String(value));
+  const action = features?.action ? [features.action] : [];
+  const documents = [
+    ...(features?.referencedDocuments || []),
+    ...proper.filter((value) => value.split(' ').length >= 2),
+  ];
+  return {
+    actors,
+    actions: action,
+    objects,
+    institutions: features?.institutions || [],
+    locations: features?.locations || [],
+    documents,
+  };
+}
+
 function identityFromContext(
   context: EventThreadNoteContext,
   resolutionType: EventThreadResolutionType,
   resolvedText: string,
-): { terms: string[]; phrases: string[] } {
-  const current = distinctiveTermsFromText(`${resolvedText}\n${context.note.text}\n${context.evidenceWindow}`);
+): { terms: string[]; phrases: string[]; anchors: EventThreadIdentityAnchors } {
+  const exclude = creatorExclude(context);
+  const current = distinctiveTermsFromText(`${resolvedText}\n${context.note.text}\n${context.evidenceWindow}`, exclude);
   const contextual =
     resolutionType === 'semantic_role' ||
     resolutionType === 'coreference' ||
     resolutionType === 'ellipsis' ||
     resolutionType === 'discourse_context';
-  const previous = contextual ? distinctiveTermsFromText(context.precedingWindow || '') : { terms: [], phrases: [] };
+  const inherited = contextual ? inheritSupportedPreceding(resolvedText, context.precedingWindow || '', exclude) : { terms: [], phrases: [] };
   return {
-    terms: [...new Set([...current.terms, ...previous.terms])],
-    phrases: [...new Set([...current.phrases, ...previous.phrases])],
+    terms: [...new Set([...current.terms, ...inherited.terms])],
+    phrases: [...new Set([...current.phrases, ...inherited.phrases])],
+    anchors: anchorsFromContext(context, resolvedText),
   };
 }
 
@@ -103,6 +160,7 @@ function fallbackEntry(context: EventThreadNoteContext, patch: Partial<ResolvedT
     confidence: patch.confidence || (resolutionType === 'uncertain' ? 'uncertain' : 'medium'),
     identityTerms: patch.identityTerms || identity.terms,
     identityPhrases: patch.identityPhrases || identity.phrases,
+    identityAnchors: patch.identityAnchors || identity.anchors,
   };
 }
 
@@ -112,7 +170,17 @@ function uncertain(context: EventThreadNoteContext, text?: string): ResolvedThre
     resolutionType: 'uncertain',
     confidence: 'uncertain',
     entryKind: entryKindForNote(context.note.kind),
+    identityAnchors: { ...EMPTY_ANCHORS, ...anchorsFromContext(context, context.note.text) },
   });
+}
+
+function candidatePasses(context: EventThreadNoteContext, candidate: ResolvedThreadEntry): boolean {
+  if (checkInferenceBoundary({ resolvedText: candidate.resolvedText, context, entryKind: candidate.entryKind })) {
+    return false;
+  }
+  if (unsupportedResolvedNumbers(candidate.resolvedText, context).length) return false;
+  if (semanticRolesUnsupported(candidate.resolvedText, context)) return false;
+  return true;
 }
 
 export function resolveSemanticRoleIntercept(context: EventThreadNoteContext): ResolvedThreadEntry | null {
@@ -121,12 +189,13 @@ export function resolveSemanticRoleIntercept(context: EventThreadNoteContext): R
   if (!previous || !INTERCEPT_RE.test(current) || !LAUNCH_RE.test(previous)) return null;
   if (!MISSILE_RE.test(previous) && !MISSILE_RE.test(current)) return null;
 
-  const launched = numbersIn(previous);
-  const intercepted = numbersIn(current);
+  const launched = eventCountNumbers(previous);
+  const intercepted = eventCountNumbers(current);
   if (!launched.length || !intercepted.length) return null;
 
   const launchedCount = launched[0];
   const interceptedCount = intercepted[0];
+  if (launchedCount == null || interceptedCount == null) return null;
   if (interceptedCount > launchedCount) return null;
 
   const interceptor =
@@ -144,14 +213,12 @@ export function resolveSemanticRoleIntercept(context: EventThreadNoteContext): R
     confidence: 'high',
     entryKind: entryKindForNote(context.note.kind) === 'creator_analysis' ? 'creator_analysis' : 'event',
   });
-  if (checkInferenceBoundary({ resolvedText: candidate.resolvedText, context, entryKind: candidate.entryKind })) {
-    return null;
-  }
+  if (!candidatePasses(context, candidate)) return null;
   return candidate;
 }
 
 function resolveCoreference(context: EventThreadNoteContext): ResolvedThreadEntry | null {
-  if (!PRONOUN_RE.test(context.note.text) && !PRONOUN_RE.test(context.evidenceWindow)) return null;
+  if (!SUBJECT_PRONOUN_RE.test(context.note.text) && !POSSESSIVE_PRONOUN_RE.test(context.note.text)) return null;
   const previous = context.precedingWindow || '';
   const prevActors = context.neighboringNotes
     .flatMap((note) => note.eventFeatures?.actors || [])
@@ -161,17 +228,67 @@ function resolveCoreference(context: EventThreadNoteContext): ResolvedThreadEntr
     (previous.match(/\b(Iran|U\.?S\.?|United States|THAAD|Patriot(?:\s+Systems)?)\b/) || [])[0];
   if (!actor) return null;
 
-  const replaced = context.note.text.replace(PRONOUN_RE, actor);
+  const possessive = /s$/i.test(actor) ? `${actor}'` : `${actor}'s`;
+  const replaced = context.note.text
+    .replace(/\b(They|they|He|he|She|she)\b/g, actor)
+    .replace(/\b(their|its)\b/gi, possessive);
   if (replaced === context.note.text) return null;
   const candidate = fallbackEntry(context, {
     resolvedText: replaced,
     resolutionType: 'coreference',
     confidence: 'medium',
   });
-  if (checkInferenceBoundary({ resolvedText: candidate.resolvedText, context, entryKind: candidate.entryKind })) {
-    return null;
-  }
+  if (!candidatePasses(context, candidate)) return null;
   return candidate;
+}
+
+function frameAlternativeExplanation(context: EventThreadNoteContext): string {
+  const creator = context.note.attribution || context.source.creatorName || 'The creator';
+  const text = String(context.note.text || '').trim();
+  if (/considers the alternative/i.test(text)) return text;
+  const explicit = text.match(/alternative (?:explanation|reading)(?:\s+is)?(?:\s+that)?\s+(.+)/i);
+  if (explicit?.[1]) {
+    return `${creator} considers the alternative explanation that ${explicit[1].replace(/[.]+$/, '')}.`;
+  }
+  return text;
+}
+
+function resolveDiscourse(context: EventThreadNoteContext): ResolvedThreadEntry | null {
+  const currentState = classifyDiscourseState(`${context.note.text}\n${context.evidenceWindow || ''}`);
+  const surroundingState = classifyDiscourseState(context.precedingWindow || '');
+  const kind = entryKindForNote(context.note.kind);
+
+  if (currentState === 'creator_conclusion') {
+    return fallbackEntry(context, {
+      entryKind: 'creator_analysis',
+      resolutionType: 'creator_analysis',
+      confidence: 'high',
+      resolvedText: context.note.text,
+    });
+  }
+  if (isNonEndorsingDiscourse(currentState) || looksLikeSteelman(context.note.text) || looksLikeSteelman(context.evidenceWindow || '')) {
+    if (looksLikeBeliefAttribution(context.note.text)) {
+      return uncertain(context, context.note.text);
+    }
+    return fallbackEntry(context, {
+      entryKind: kind,
+      resolutionType: 'discourse_context',
+      confidence: 'medium',
+      resolvedText: frameAlternativeExplanation(context),
+    });
+  }
+  if (isNonEndorsingDiscourse(surroundingState) && isAnalysisKind(kind)) {
+    if (looksLikeBeliefAttribution(context.note.text)) {
+      return uncertain(context, context.note.text);
+    }
+    return fallbackEntry(context, {
+      entryKind: kind,
+      resolutionType: 'discourse_context',
+      confidence: 'medium',
+      resolvedText: frameAlternativeExplanation(context),
+    });
+  }
+  return null;
 }
 
 export function resolveNoteDeterministically(context: EventThreadNoteContext): ResolvedThreadEntry {
@@ -183,14 +300,8 @@ export function resolveNoteDeterministically(context: EventThreadNoteContext): R
   }
 
   const entryKind = entryKindForNote(context.note.kind);
-  if (looksLikeSteelman(context.note.text) || looksLikeSteelman(context.evidenceWindow)) {
-    return fallbackEntry(context, {
-      entryKind: 'creator_analysis',
-      resolutionType: 'creator_analysis',
-      confidence: 'high',
-      resolvedText: context.note.text,
-    });
-  }
+  const discourse = resolveDiscourse(context);
+  if (discourse) return discourse;
 
   const intercept = resolveSemanticRoleIntercept(context);
   if (intercept) {
@@ -218,7 +329,7 @@ export function resolveNoteDeterministically(context: EventThreadNoteContext): R
   return fallbackEntry(context, {
     entryKind,
     resolutionType: resolutionTypeForKind(entryKind, 'literal'),
-    confidence: isAnalysisKind(entryKind) ? 'high' : 'high',
+    confidence: 'high',
     resolvedText: context.note.text,
   });
 }
@@ -252,7 +363,30 @@ export function applyResolvedCandidate(
   const originalKind = entryKindForNote(context.note.kind);
   let entryKind = asEntryKind(candidate.entryKind) || originalKind;
   if (isAnalysisKind(originalKind)) entryKind = originalKind;
-  if (looksLikeSteelman(context.note.text)) entryKind = 'creator_analysis';
+
+  const currentState = classifyDiscourseState(`${context.note.text}\n${context.evidenceWindow || ''}`);
+  const surroundingState = classifyDiscourseState(context.precedingWindow || '');
+  const discourseIsNonEndorsing =
+    isNonEndorsingDiscourse(currentState) ||
+    looksLikeSteelman(context.note.text) ||
+    (isNonEndorsingDiscourse(surroundingState) && isAnalysisKind(originalKind));
+  if (discourseIsNonEndorsing) {
+    const resolvedText = clipResolved(candidate.resolvedText || context.note.text);
+    if (looksLikeBeliefAttribution(resolvedText)) {
+      return uncertain(context, context.note.text);
+    }
+    if (candidate.resolutionType !== 'creator_analysis') {
+      entryKind = originalKind;
+      const framed = fallbackEntry(context, {
+        resolvedText: /considers the alternative/i.test(resolvedText) ? resolvedText : frameAlternativeExplanation(context),
+        resolutionType: 'discourse_context',
+        entryKind,
+        confidence: 'medium',
+      });
+      if (!candidatePasses(context, framed)) return uncertain(context, context.note.text);
+      return framed;
+    }
+  }
 
   let resolutionType = asResolutionType(candidate.resolutionType) || 'uncertain';
   resolutionType = resolutionTypeForKind(entryKind, resolutionType);
@@ -260,6 +394,12 @@ export function applyResolvedCandidate(
   const resolvedText = clipResolved(candidate.resolvedText || context.note.text);
   const failure = checkInferenceBoundary({ resolvedText, context, entryKind });
   if (failure) {
+    return uncertain(context, context.note.text);
+  }
+  if (unsupportedResolvedNumbers(resolvedText, context).length) {
+    return uncertain(context, context.note.text);
+  }
+  if (semanticRolesUnsupported(resolvedText, context)) {
     return uncertain(context, context.note.text);
   }
 
@@ -310,7 +450,7 @@ export async function resolveNoteWithOptionalAi(
   const deterministic = resolveNoteDeterministically(context);
   const needsAi =
     deterministic.resolutionType === 'uncertain' ||
-    (PRONOUN_RE.test(context.note.text) && deterministic.resolutionType === 'literal');
+    (SUBJECT_PRONOUN_RE.test(context.note.text) && deterministic.resolutionType === 'literal');
   if (!needsAi || !deps.chatJson || !deps.aiConfig || deps.aiConfig.provider !== 'ollama') {
     return deterministic;
   }

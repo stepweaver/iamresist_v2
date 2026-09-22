@@ -105,9 +105,17 @@ function formatThreadChronology(thread: ProposedEventThread): string[] {
   if (thread.intelLinks.length) {
     lines.push('  Intel/OSINT candidate links:');
     for (const link of thread.intelLinks) {
-      lines.push(`    - ${link.sourceName || link.deskLane || link.linkKind}: ${link.title || link.sourceUrl || link.sourceItemId}`);
-      lines.push(`      signals: ${link.matchSignals.join(', ') || '(none)'}`);
-      if (link.sourceUrl) lines.push(`      Open article: ${link.sourceUrl}`);
+      lines.push('    candidate:');
+      lines.push(`    ${link.title || link.sourceUrl || link.sourceItemId}`);
+      lines.push('    accepted because:');
+      if (link.matchSignals.length) {
+        for (const signal of link.matchSignals) {
+          lines.push(`    - ${signal}`);
+        }
+      } else {
+        lines.push('    - (none)');
+      }
+      if (link.sourceUrl) lines.push(`    Open article: ${link.sourceUrl}`);
     }
     lines.push('');
   }
