@@ -151,8 +151,8 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 **Stripe / Printify / email** (`lib/env/shop.js`, `lib/env/site.js`)
 
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-- `NEXT_PUBLIC_STRIPE_PRICE_ID_*` — Price IDs per product line (see `lib/shopProducts.js` / `lib/config/products.js`)
-- `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `PRINTIFY_WEBHOOK_SECRET`, `PRINTIFY_PRODUCT_ID` (as needed)
+- `NEXT_PUBLIC_STRIPE_PRICE_ID_*` — Price IDs per product line (see `lib/shopProducts.js` / `lib/config/products.js`). Server fallbacks are the matching `STRIPE_PRICE_ID_*` keys.
+- `PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `PRINTIFY_WEBHOOK_SECRET`, `PRINTIFY_PRODUCT_ID` (as needed). BELIEVE NOTHING also uses `PRINTIFY_PRODUCT_ID_BELIEVE_NOTHING` and `PRINTIFY_VARIANT_ID_BELIEVE_NOTHING`.
 - `RESEND_API_KEY`, `ORDER_FROM_EMAIL`, `ORDER_FROM_NAME` (transactional email when enabled)
 
 Copy from a secure vault; do not commit `.env.local`.

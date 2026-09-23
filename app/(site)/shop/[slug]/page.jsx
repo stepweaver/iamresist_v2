@@ -1,6 +1,6 @@
 /**
  * Dynamic product page - renders sticker product by slug
- * Routes: /shop/sticker, /shop/gadsden, /shop/taco, /shop/all-mad-here
+ * Routes: /shop/sticker, /shop/gadsden, /shop/taco, /shop/all-mad-here, /shop/antifa, /shop/believe-nothing
  */
 
 import { notFound } from 'next/navigation';

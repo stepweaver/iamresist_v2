@@ -50,6 +50,18 @@ describe('getSubtotalCents — mixed cart', () => {
     // std(1) + gadsden(2) = 3 standard total → $14
     expect(getSubtotalCents([std(1), gadsden])).toBe(1400);
   });
+
+  it('bumper designs pool together for the bumper volume tier', () => {
+    const believe = { slug: 'believe-nothing', productKey: 'believeNothingIndividual', quantity: 2 };
+    // antifa(1) + believe-nothing(2) = 3 bumper total → $24
+    expect(getSubtotalCents([bumper(1), believe])).toBe(2400);
+  });
+
+  it('believe nothing alone uses the bumper tier', () => {
+    const believe = { slug: 'believe-nothing', productKey: 'believeNothingIndividual', quantity: 1 };
+    expect(getSubtotalCents([believe])).toBe(1000);
+    expect(getTotalCents([believe], 1)).toBe(1400);
+  });
 });
 
 describe('getSubtotalCents — empty cart', () => {

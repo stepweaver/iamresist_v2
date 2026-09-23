@@ -34,4 +34,20 @@ describe('validateAndNormalizeCart', () => {
     });
     expect(r.ok).toBe(false);
   });
+
+  it('accepts the believe-nothing bumper sticker catalog key', () => {
+    const r = validateAndNormalizeCart({
+      cart: [{ slug: 'believe-nothing', productKey: 'believeNothingIndividual', quantity: 1 }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.items[0]).toMatchObject({
+      slug: 'believe-nothing',
+      productKey: 'believeNothingIndividual',
+      quantity: 1,
+      sku: 'BELIEVE-NOTHING-STICKER-001',
+      productName: 'BELIEVE NOTHING Bumper Sticker',
+    });
+    expect(r.items[0]).toHaveProperty('printifyProductId');
+    expect(r.items[0]).toHaveProperty('printifyVariantId');
+  });
 });
