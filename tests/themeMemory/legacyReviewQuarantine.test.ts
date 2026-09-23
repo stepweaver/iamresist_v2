@@ -291,7 +291,11 @@ describe('legacy REVIEW quarantine for Theme Memory ranking', () => {
     expect(hit?.matchedThemeId).toBe(theme.id);
     expect(hit?.creatorCount7d).toBe(3);
     expect(hit?.membershipIsNotCorroboration).toBe(true);
-    const ranking = deriveThemeAttentionSignal(hit, { relevanceScore: 62, publishedAt: NOW }, 'shadow');
+    const ranking = deriveThemeAttentionSignal(
+      hit,
+      { relevanceScore: 62, publishedAt: NOW, nowMs: Date.parse(NOW) },
+      'shadow',
+    );
     expect(ranking.eligible).toBe(true);
     expect(ranking.contribution).toBeGreaterThan(0);
     expect(ranking.appliedContribution).toBe(0);
@@ -507,6 +511,7 @@ describe('legacy REVIEW quarantine for Theme Memory ranking', () => {
         },
         plain: null,
       },
+      { nowMs: Date.parse(NOW) },
     );
     const boosted = comparison.rows.find((row) => row.itemId === 'boosted');
     const plain = comparison.rows.find((row) => row.itemId === 'plain');

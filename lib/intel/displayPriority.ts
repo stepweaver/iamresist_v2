@@ -67,6 +67,8 @@ export type DisplayPriorityInput = {
    * active: apply bounded contribution.
    */
   themeRankingMode?: ThemeRankingMode;
+  /** Ranking clock for theme freshness. Defaults to wall time. */
+  nowMs?: number;
 };
 
 type ScoringInput = DisplayPriorityInput;
@@ -478,6 +480,7 @@ export function computeDisplayPriority(input: ScoringInput): DisplayPriorityResu
         contentUseMode: input.contentUseMode,
         missionScopeState,
         baseDisplayPriority: clamp(score),
+        nowMs: input.nowMs,
       },
       mode,
     );

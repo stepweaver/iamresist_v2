@@ -69,6 +69,7 @@ function sortByScore(
 export function compareThemeRanking(
   items: ThemeRankableCompareItem[],
   attentionByItemId: Map<string, ThemeAttentionForItem | null> | Record<string, ThemeAttentionForItem | null | undefined>,
+  options: { nowMs?: number } = {},
 ): ThemeRankingComparison {
   const rows: ThemeRankingComparisonRow[] = [];
   const baselineScores: Array<{ id: string; score: number }> = [];
@@ -89,11 +90,13 @@ export function compareThemeRanking(
       ...item,
       themeAttention: null,
       themeRankingMode: 'off' satisfies ThemeRankingMode,
+      nowMs: options.nowMs,
     });
     const themeAware = computeDisplayPriority({
       ...item,
       themeAttention: context,
       themeRankingMode: 'active',
+      nowMs: options.nowMs,
     });
     const signal = deriveThemeAttentionSignal(
       context,
@@ -106,6 +109,7 @@ export function compareThemeRanking(
         contentUseMode: item.contentUseMode,
         missionScopeState: item.missionScopeState,
         baseDisplayPriority: baseline.displayPriority,
+        nowMs: options.nowMs,
       },
       'active',
     );
