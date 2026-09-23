@@ -400,7 +400,7 @@ describe('podcast extract and batch', () => {
   it('marks missing transcripts as TRANSCRIPT_UNAVAILABLE without calling extraction', async () => {
     const extractChunk = vi.fn(mockExtractChunk(SPECIFIC_NOTES.slice(0, 1)));
     const result = await runCreatorNotesPodcastBatch(
-      { limit: 10, dryRun: true, force: false, creator: null, sinceHours: 48, json: false },
+      { limit: 10, dryRun: true, force: false, creator: null, sinceHours: 48, json: false, transcribeAudio: false },
       {
         listEpisodes: async () => [episode({ transcriptCandidates: [], creatorId: 'brennan-center', creatorName: 'The Briefing', episodeUrl: 'https://brennancenter.substack.com/p/x' })],
         adapters: [],

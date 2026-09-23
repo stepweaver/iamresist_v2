@@ -155,6 +155,7 @@ export function parseCreatorNotesBatchArgs(argv: string[]): CreatorNotesBatchArg
     creator: parseOptionalFlag(argv, '--creator'),
     sinceHours: clampCreatorNotesSinceHours(sinceRaw ?? CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS),
     json: argv.includes('--json'),
+    transcribeAudio: argv.includes('--transcribe-audio'),
   };
 }
 
@@ -712,6 +713,19 @@ export function formatCreatorNotesPodcastBatchReport(result: CreatorNotesPodcast
     `  runs created: ${s.persistence.dryRun ? 0 : s.persistence.runsCreated}`,
     `  notes written: ${s.persistence.dryRun ? 0 : s.persistence.notesWritten}`,
   ];
+  if (result.items.length) {
+    lines.push('', 'Episodes:');
+    for (const item of result.items) {
+      lines.push(
+        `  ${[
+          clip(item.title, 72),
+          item.outcome,
+          item.transcriptStatus || '—',
+          item.transcriptSource || '—',
+        ].join('  ')}`,
+      );
+    }
+  }
   if (s.persistence.dryRun) lines.push('', 'Dry run: yes (zero creator-note writes)');
   return lines.join('\n');
 }

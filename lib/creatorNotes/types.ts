@@ -361,6 +361,7 @@ export interface CreatorNotesBatchArgs {
   creator: string | null;
   sinceHours: number;
   json: boolean;
+  transcribeAudio: boolean;
 }
 
 export interface CreatorNotesReviewArgs {

@@ -17,6 +17,7 @@ import {
   type PodcastCatalogDeps,
 } from '@/lib/creatorNotes/podcastCatalog';
 import { resolvePodcastTranscript, type PodcastHttpGet } from '@/lib/creatorNotes/podcastTranscript';
+import type { AudioTranscriptionProvider } from '@/lib/creatorNotes/audioTranscription';
 import type { OfficialTranscriptAdapter } from '@/lib/creatorNotes/podcastAdapters';
 import { acquireCreatorNotesRunLock, CreatorNotesLockBusyError } from '@/lib/creatorNotes/runLock';
 import {
@@ -49,6 +50,7 @@ export type CreatorNotesPodcastBatchDeps = PodcastCatalogDeps & {
   resolveTranscript?: typeof resolvePodcastTranscript;
   adapters?: OfficialTranscriptAdapter[];
   get?: PodcastHttpGet;
+  audioTranscription?: AudioTranscriptionProvider;
   extractChunk?: CreatorNotesExtractChunkFn;
   store?: CreatorNotesStore;
   now?: () => Date;
@@ -60,6 +62,20 @@ export type CreatorNotesPodcastBatchDeps = PodcastCatalogDeps & {
   skipWarmup?: boolean;
   warmup?: () => Promise<void>;
 };
+
+function reportedTranscriptSource(
+  source: string | null | undefined,
+  fallback: CreatorNotesPodcastBatchItemResult['transcriptSource'],
+): CreatorNotesPodcastBatchItemResult['transcriptSource'] {
+  if (
+    source === 'official_creator_page' ||
+    source === 'podcast_namespace' ||
+    source === 'local_audio_transcription'
+  ) {
+    return source;
+  }
+  return fallback;
+}
 
 function clipError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -164,7 +180,12 @@ async function processOne(
   const resolveTranscript = deps.resolveTranscript || resolvePodcastTranscript;
   let resolved;
   try {
-    resolved = await resolveTranscript(episode, { get: deps.get, adapters: deps.adapters });
+    resolved = await resolveTranscript(episode, {
+      get: deps.get,
+      adapters: deps.adapters,
+      transcribeAudio: Boolean(args.transcribeAudio),
+      audioTranscription: args.transcribeAudio ? deps.audioTranscription : undefined,
+    });
   } catch (error) {
     const status =
       error instanceof PodcastTranscriptError ? error.status : 'TRANSCRIPT_FETCH_FAILED';
@@ -195,9 +216,7 @@ async function processOne(
         ...itemBase(episode),
         outcome: resolved.status === 'TRANSCRIPT_UNAVAILABLE' ? 'transcript_unavailable' : 'failed',
         transcriptStatus: resolved.status,
-        transcriptSource: resolved.transcript?.transcriptSource === 'official_creator_page' || resolved.transcript?.transcriptSource === 'podcast_namespace'
-          ? resolved.transcript.transcriptSource
-          : null,
+        transcriptSource: reportedTranscriptSource(resolved.transcript?.transcriptSource, null),
         transcriptUrl: resolved.candidate?.url || null,
         error: resolved.error,
         notes: 0,
@@ -235,11 +254,7 @@ async function processOne(
         ...itemBase(episode),
         outcome: alreadyProcessed ? 'already_processed' : result.persistence.status === 'failed' ? 'failed' : 'processed',
         transcriptStatus: 'TRANSCRIPT_AVAILABLE',
-        transcriptSource:
-          resolved.transcript.transcriptSource === 'official_creator_page' ||
-          resolved.transcript.transcriptSource === 'podcast_namespace'
-            ? resolved.transcript.transcriptSource
-            : 'podcast_namespace',
+        transcriptSource: reportedTranscriptSource(resolved.transcript.transcriptSource, 'podcast_namespace'),
         transcriptUrl: resolved.transcript.transcriptUrl || resolved.candidate?.url || null,
         error: result.persistence.status === 'failed' ? 'extraction_failed' : null,
         notes: result.notes.length,
@@ -259,10 +274,7 @@ async function processOne(
         ...itemBase(episode),
         outcome: 'failed',
         transcriptStatus: 'TRANSCRIPT_AVAILABLE',
-        transcriptSource:
-          resolved.transcript.transcriptSource === 'official_creator_page'
-            ? 'official_creator_page'
-            : 'podcast_namespace',
+        transcriptSource: reportedTranscriptSource(resolved.transcript.transcriptSource, 'podcast_namespace'),
         transcriptUrl: resolved.transcript.transcriptUrl || null,
         error: clipError(error),
         notes: 0,
@@ -371,11 +383,16 @@ export async function runCreatorNotesPodcastBatch(
     });
 
     const store = dryRun ? undefined : deps.store || createSupabaseCreatorNotesStore();
+    let audioTranscription = deps.audioTranscription;
+    if (args.transcribeAudio && !audioTranscription) {
+      const { createFasterWhisperTranscriptionProvider } = await import('@/lib/creatorNotes/whisperProvider');
+      audioTranscription = createFasterWhisperTranscriptionProvider();
+    }
     const items: CreatorNotesPodcastBatchItemResult[] = [];
     const extractionResults: CreatorNotesRunResult[] = [];
 
     for (const episode of candidates) {
-      const processed = await processOne(episode, args, { ...deps, store, aiConfig });
+      const processed = await processOne(episode, args, { ...deps, store, aiConfig, audioTranscription });
       items.push(processed.item);
       if (processed.result) extractionResults.push(processed.result);
     }

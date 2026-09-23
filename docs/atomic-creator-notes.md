@@ -187,11 +187,11 @@ Preferred source hierarchy:
 Podcast episode
   → Podcasting 2.0 <podcast:transcript>
   → official creator transcript page (configured adapter)
-  → local audio transcription fallback (single-episode CLI, --transcribe-audio only)
+  → local audio transcription fallback (`--transcribe-audio` on single-episode extract or podcast batch)
   → unavailable
 ```
 
-If no public transcript exists, the status is `TRANSCRIPT_UNAVAILABLE` unless `--transcribe-audio` is passed on `creator-notes:extract-podcast` and the episode has an RSS audio enclosure. That opt-in path downloads the enclosure to a temporary directory, transcodes to 16 kHz mono speech with ffmpeg, transcribes locally with faster-whisper (CPU), and feeds timestamped segments into the existing Atomic Notes pipeline. Publisher transcripts still win. Batch ingest does not transcribe audio. Paid transcription APIs are not used. Whole podcast audio is never stored in Supabase; only a local transcript cache under `tmp/creator-notes-audio-transcripts/` is reused.
+If no public transcript exists, the status is `TRANSCRIPT_UNAVAILABLE` unless `--transcribe-audio` is passed and the episode has an RSS audio enclosure. That flag is accepted by `creator-notes:extract-podcast` and by `creator-notes:podcast-batch`. It downloads the enclosure to a temporary directory, transcodes to 16 kHz mono speech with ffmpeg, transcribes locally with faster-whisper (CPU), and feeds timestamped segments into the existing Atomic Notes pipeline. Publisher transcripts still win. The production podcast batch passes `--transcribe-audio` because most feeds do not publish transcripts. Omitting the flag preserves the previous batch behavior. Paid transcription APIs are not used. Whole podcast audio is never stored in Supabase; only a local transcript cache under `tmp/creator-notes-audio-transcripts/` is reused.
 
 YouTube caption retrieval remains in the codebase as **experimental / non-default**. `creator-notes:batch` no longer selects YouTube items automatically. Single-item `creator-notes:extract --source-item <youtube-id>` can still fetch captions when you ask it to.
 
@@ -297,17 +297,17 @@ npm run creator-notes:extract-podcast -- \
   --dry-run
 ```
 
-Requires `ffmpeg` and faster-whisper on the host. Cache: `tmp/creator-notes-audio-transcripts/`. Do not enable a systemd timer for this path yet.
+Requires `ffmpeg` and faster-whisper on the host. Cache: `tmp/creator-notes-audio-transcripts/`. The production batch uses the same fallback; install the timer only after a one-episode run succeeds.
 
 Flow: resolve episode from Voices RSS / official adapter feed → resolve transcript (publisher first; optional `--transcribe-audio` fallback) → normalize → **existing** Atomic Notes extraction → preview. This does not duplicate the AI pipeline. Transcription always finishes before Ollama extraction starts. Elapsed times are reported separately for audio download, transcription, Atomic Notes extraction, and total.
 
 ### Bounded podcast batch
 
 ```bash
-npm run creator-notes:podcast-batch -- --limit 10
+npm run creator-notes:podcast-batch -- --limit 10 --transcribe-audio
 ```
 
-Defaults: limit 10 (hard max 50), 48-hour recency window, newest first. Only episodes with a usable public transcript are extracted. Missing transcripts are `TRANSCRIPT_UNAVAILABLE`. Audio is never transcribed.
+Defaults: limit 10 (hard max 50), 48-hour recency window, newest first. A publisher transcript is used when one exists. With `--transcribe-audio`, a missing publisher transcript falls through to the RSS audio enclosure and local faster-whisper. Without that flag, missing transcripts stay `TRANSCRIPT_UNAVAILABLE`. Episodes run sequentially. The batch report lists each episode's `transcriptSource`: `official_creator_page`, `podcast_namespace`, or `local_audio_transcription`.
 
 ### B. Automatic transcript retrieval from a supported source item
 
@@ -419,7 +419,7 @@ Flags (single-item extract):
 | `--creator-name <name>` | Fill missing creator attribution metadata. On remote dry-run, may override resolved creator name. Not persisted as invented source metadata. |
 | `--source-title <title>` | Fill missing source title. On remote dry-run, may override resolved title. |
 | `--source-url <url>` | Fill missing source URL. On remote dry-run, may override resolved URL. |
-| `--transcribe-audio` | Podcast extract only. If no publisher transcript exists and an RSS audio enclosure is present, run local faster-whisper fallback. Required explicitly; audio is never transcribed silently. |
+| `--transcribe-audio` | Podcast extract and podcast batch. If no publisher transcript exists and an RSS audio enclosure is present, run the local faster-whisper fallback. Required explicitly; audio is never transcribed unless this flag is present. |
 
 Default local model remains `gemma3:4b` via `CREATOR_NOTES_MODEL` (falls back to `OLLAMA_MODEL`). Production value: `CREATOR_NOTES_MODEL=gemma3:4b`. One evidence window is sent per Ollama request; multi-window batching stays in code but is not the default (`CREATOR_NOTES_WINDOW_BATCH_SIZE=1`).
 
@@ -538,9 +538,10 @@ Corroboration semantics in ranking / Intel are unchanged in this milestone.
 | `CREATOR_NOTES_LOCK_FILE` | `tmp/creator-notes-batch.lock` | Exclusive batch lock; separate from Theme Memory |
 | `CREATOR_NOTES_CHUNK_CHARS` | `1500` | Max evidence-window / split size in characters |
 | `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` | `8` | Hard cap per evidence window |
-| `CREATOR_NOTES_WHISPER_MODEL` | `small` | faster-whisper model for `--transcribe-audio` |
-| `CREATOR_NOTES_PYTHON` | `python3` | Python used to run local Whisper |
-| `CREATOR_NOTES_FFMPEG` | `ffmpeg` | ffmpeg binary for 16 kHz mono speech |
+| `CREATOR_NOTES_WHISPER_MODEL` | `small` | faster-whisper model for `--transcribe-audio`. Keep `small` unless a measured run shows a reason to change it. |
+| `CREATOR_NOTES_TRANSCRIBE_LANGUAGE` | `en` | Language passed to local faster-whisper |
+| `CREATOR_NOTES_PYTHON` | `python3` | Python used to run local Whisper. `PYTHON` is also recognized. |
+| `CREATOR_NOTES_FFMPEG` | `ffmpeg` | ffmpeg binary for 16 kHz mono speech. Otherwise `ffmpeg` must be on `PATH`. |
 
 Evidence windows are built from whole transcript segments before the LLM is called. Timed transcripts target ~45 seconds (max 60) with ~12 seconds of overlap. Untimed transcripts use ~800-1500 characters. Individual segments are never split. Production extraction sends **one** evidence window per Ollama request. Timeout and token-repeat failures split that window once into smaller segment-boundary children. Transport failures (`fetch failed`, connection refused, server unavailable) health-check Ollama. If Ollama is still reachable, the **same** window is retried once. If Ollama is unreachable, the run aborts immediately with `AI_PROVIDER_UNAVAILABLE` / transport failure and does not continue remaining windows. Successful extraction-cache entries stay intact so the next run resumes. Application code does not call `sudo`/`systemctl`. A window that yields zero notes is success.
 
@@ -550,7 +551,7 @@ Source excerpts are the full evidence window (`CREATOR_NOTES_SOURCE_EXCERPT_MAX_
 
 ## Milestone 1 scope boundaries
 
-**In scope:** one-source CLI extraction, supplied transcript files, podcast RSS transcript intake (Podcasting 2.0 + one official-page adapter), opt-in local audio transcription fallback on single-episode extract, bounded podcast batch ingest, experimental YouTube captions (non-default), read-only review, validation, persistence, idempotency, recency window, transcript-failure handling, overlap lock, systemd unit files (manual install), tests, docs.
+**In scope:** one-source CLI extraction, supplied transcript files, podcast RSS transcript intake (Podcasting 2.0 + one official-page adapter), opt-in local audio transcription fallback on single-episode extract and on podcast batch when `--transcribe-audio` is passed, bounded podcast batch ingest, experimental YouTube captions (non-default), read-only review, validation, persistence, idempotency, recency window, transcript-failure handling, overlap lock, systemd unit files (manual install), tests, docs.
 
 **Out of scope:**
 
@@ -558,7 +559,6 @@ Source excerpts are the full evidence window (`CREATOR_NOTES_SOURCE_EXCERPT_MAX_
 - homepage ranking changes
 - Theme Memory scoring, matching, memberships, or mutations
 - event clustering / Event Threads from notes
-- batch / scheduled audio transcription
 - paid transcription APIs
 - generic web scraping of third-party transcript mirrors
 - automated publication
@@ -585,14 +585,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now creator-notes.timer
 ```
 
-Suggested cadence: 4 runs per day at 03:20 / 09:20 / 15:20 / 21:20, offset from Theme Memory. Each invocation is `npm run creator-notes:podcast-batch -- --limit 10`.
+Suggested cadence: 4 runs per day at 03:20 / 09:20 / 15:20 / 21:20, offset from Theme Memory. Each invocation is `npm run creator-notes:podcast-batch -- --limit 10 --transcribe-audio`. Install the timer manually after a one-episode run. Application code does not enable it.
 
 ## First persisted batch
 
 ```bash
 THEME_AI_PROVIDER=ollama \
 CREATOR_NOTES_MODEL=gemma3:4b \
-npm run creator-notes:podcast-batch -- --limit 10
+npm run creator-notes:podcast-batch -- --limit 10 --transcribe-audio
 ```
 
 Then inspect:

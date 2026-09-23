@@ -118,6 +118,7 @@ async function runBatch(
       creator: null,
       sinceHours: 48,
       json: false,
+      transcribeAudio: false,
       ...opts,
     },
     {
