@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
 import { buildEvidenceWindows, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
-import { classifyTranscriptContent, resolveNoteContentRole } from '@/lib/creatorNotes/contentRole';
+import {
+  classifyTranscriptContent,
+  contentRoleSegmentDiagnostics,
+  isEditorialExtractionRole,
+  persistableCreatorNotes,
+  resolveNoteContentRole,
+} from '@/lib/creatorNotes/contentRole';
 import {
   CREATOR_NOTE_EXTRACTION_VERSION,
   CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
@@ -61,6 +67,7 @@ import type {
   CreatorNotesWindowFallbackReason,
   CreatorTranscriptChunk,
   CreatorTranscriptInput,
+  CreatorTranscriptSegment,
   RawCreatorNote,
 } from '@/lib/creatorNotes/types';
 import { intelDbConfigured } from '@/lib/intel/db';
@@ -162,6 +169,13 @@ function finalizeExtractionPerformance(
   };
 }
 
+export function prepareAtomicNoteEvidenceWindows(segments: CreatorTranscriptSegment[]) {
+  const classified = classifyTranscriptContent(segments);
+  const classifiedWindows = buildEvidenceWindows(classified.segments);
+  const editorialWindows = classifiedWindows.filter((window) => isEditorialExtractionRole(window.contentRole));
+  return { classified, classifiedWindows, editorialWindows };
+}
+
 export function creatorNotesRunStatus(input: {
   failedChunks: number;
   noteCount: number;
@@ -180,6 +194,7 @@ export async function runCreatorNoteExtraction(
     maxWindows?: number | null;
     windowOffset?: number | null;
     bypassExtractionCache?: boolean;
+    contentRoleDiagnostics?: boolean;
   },
   deps: CreatorNotesRunDeps = {},
 ): Promise<CreatorNotesRunResult> {
@@ -214,14 +229,16 @@ export async function runCreatorNoteExtraction(
   const transcriptHash = hashCreatorTranscript(transcript.segments, { normalizationVersion });
   const rawTranscriptHash = hashRawTranscription(rawSegments);
   const transcriptChars = transcriptCharCount(transcript.segments);
-  const classified = classifyTranscriptContent(transcript.segments);
-  const classifiedWindows = buildEvidenceWindows(classified.segments);
-  const editorialWindows = classifiedWindows.filter((window) => (window.contentRole ?? 'editorial') === 'editorial');
+  const prepared = prepareAtomicNoteEvidenceWindows(transcript.segments);
+  const editorialWindows = prepared.editorialWindows;
   const contentRoles = {
-    ...classified.diagnostics,
+    ...prepared.classified.diagnostics,
     editorialWindows: editorialWindows.length,
-    nonEditorialWindowsSkipped: classifiedWindows.length - editorialWindows.length,
+    nonEditorialWindowsSkipped: prepared.classifiedWindows.length - editorialWindows.length,
     nonEditorialNotesDropped: 0,
+    ...(input.contentRoleDiagnostics
+      ? { segments: contentRoleSegmentDiagnostics(prepared.classified.segments) }
+      : {}),
   };
   const chunks = selectEvidenceWindows(editorialWindows, {
     offset: input.windowOffset,
@@ -373,19 +390,31 @@ export async function runCreatorNoteExtraction(
       startSeconds: chunk.startSeconds,
       endSeconds: chunk.endSeconds,
     });
-    const grounded = acceptGroundedCreatorNotes(attached, classified.segments, {
+    const grounded = acceptGroundedCreatorNotes(attached, prepared.classified.segments, {
       allowedSegmentIndexes: chunk.segmentIndexes,
       sourceTitle: transcript.sourceTitle,
       sourceUrl: transcript.sourceUrl,
       knownCreatorName: transcript.creatorName,
     });
     const notes: RawCreatorNote[] = [];
+    if (!isEditorialExtractionRole(chunk.contentRole)) {
+      contentRoles.nonEditorialNotesDropped += grounded.notes.length;
+      return {
+        notes,
+        rejected: extracted.rejected + grounded.rejected,
+        diagnostics: grounded.diagnostics,
+        kindDiagnostics: kindDiagnosticsFromExtracted(extracted),
+        ok: true,
+        error: null,
+      };
+    }
     for (const note of grounded.notes) {
       const role = resolveNoteContentRole({
-        contentRole: chunk.contentRole ?? 'editorial',
+        contentRole: chunk.contentRole,
         text: note.text,
         sourceQuote: note.sourceQuote,
         exactQuote: note.exactQuote,
+        sourceExcerpt: note.sourceExcerpt,
       });
       if (role !== 'editorial') {
         contentRoles.nonEditorialNotesDropped += 1;
@@ -933,7 +962,7 @@ export async function runCreatorNoteExtraction(
     }
 
     const createdAt = now().toISOString();
-    const notes: CreatorAtomicNote[] = toAtomicNotes({
+    const atomicNotes = toAtomicNotes({
       notes: limited,
       sourceItemId: transcript.sourceItemId,
       creatorId: transcript.creatorId,
@@ -941,6 +970,10 @@ export async function runCreatorNoteExtraction(
       createdAt,
       idFactory: nextId,
     });
+    const notes = persistableCreatorNotes(atomicNotes);
+    if (notes.length !== atomicNotes.length) {
+      contentRoles.nonEditorialNotesDropped += atomicNotes.length - notes.length;
+    }
 
     const finalEvidence = {
       notesWithSourceEvidence: notes.filter(

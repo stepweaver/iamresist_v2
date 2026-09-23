@@ -29,6 +29,15 @@ export interface TranscriptContentEligibility {
   eligibleForEditorialBoost: boolean;
 }
 
+export interface TranscriptContentRoleSegmentDiagnostic {
+  index: number;
+  startSeconds: number | null;
+  endSeconds: number | null;
+  contentRole: TranscriptContentRole;
+  /** Short machine-readable rule id, such as `cue:offer_code` or `adjacent_short_span`. */
+  reason: string;
+}
+
 export interface TranscriptContentRoleDiagnostics {
   editorialSegments: number;
   sponsorReadSegments: number;
@@ -36,9 +45,12 @@ export interface TranscriptContentRoleDiagnostics {
   introOutroSegments: number;
   uncertainSegments: number;
   segmentsSplit: number;
+  segmentsExcludedFromAtomicNotes: number;
   editorialWindows: number;
   nonEditorialWindowsSkipped: number;
   nonEditorialNotesDropped: number;
+  /** Present when a run is started with content-role diagnostics. */
+  segments?: TranscriptContentRoleSegmentDiagnostic[];
 }
 
 export interface CreatorTranscriptSegment {
@@ -47,6 +59,8 @@ export interface CreatorTranscriptSegment {
   endSeconds: number | null;
   text: string;
   contentRole?: TranscriptContentRole;
+  /** Short machine-readable classification rule. Not model reasoning. */
+  contentRoleReason?: string;
   /** Original transcript index when classification splits one spoken segment. */
   originSegmentIndex?: number;
 }
@@ -362,6 +376,7 @@ export interface CreatorNotesExtractArgs {
   maxWindows: number | null;
   windowOffset: number | null;
   bypassExtractionCache: boolean;
+  contentRoleDiagnostics: boolean;
 }
 
 export interface CreatorNotesSourcesArgs {
@@ -385,6 +400,7 @@ export interface CreatorNotesPodcastExtractArgs {
   maxWindows: number | null;
   windowOffset: number | null;
   bypassExtractionCache: boolean;
+  contentRoleDiagnostics: boolean;
 }
 
 export interface CreatorNotesBatchArgs {

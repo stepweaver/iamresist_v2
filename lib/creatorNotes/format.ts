@@ -106,6 +106,7 @@ export function parseCreatorNotesExtractArgs(argv: string[]): CreatorNotesExtrac
     maxWindows: parsePositiveInt(argValue(argv, '--max-windows'), '--max-windows'),
     windowOffset: parseNonNegativeInt(argValue(argv, '--window-offset'), '--window-offset'),
     bypassExtractionCache: argv.includes('--bypass-extraction-cache') || argv.includes('--force'),
+    contentRoleDiagnostics: argv.includes('--content-role-diagnostics'),
   };
 }
 
@@ -142,6 +143,7 @@ export function parseCreatorNotesPodcastExtractArgs(argv: string[]): CreatorNote
     maxWindows: parsePositiveInt(argValue(argv, '--max-windows'), '--max-windows'),
     windowOffset: parseNonNegativeInt(argValue(argv, '--window-offset'), '--window-offset'),
     bypassExtractionCache: argv.includes('--bypass-extraction-cache') || argv.includes('--force'),
+    contentRoleDiagnostics: argv.includes('--content-role-diagnostics'),
   };
 }
 
@@ -529,7 +531,9 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  sponsor_read segments: ${result.contentRoles?.sponsorReadSegments ?? 0}`,
     `  housekeeping segments: ${result.contentRoles?.housekeepingSegments ?? 0}`,
     `  intro_outro segments: ${result.contentRoles?.introOutroSegments ?? 0}`,
-    `  editorial windows: ${result.contentRoles?.editorialWindows ?? result.ai.chunks}`,
+    `  uncertain segments: ${result.contentRoles?.uncertainSegments ?? 0}`,
+    `  segments excluded from Atomic Notes: ${result.contentRoles?.segmentsExcludedFromAtomicNotes ?? 0}`,
+    `  editorial windows created: ${result.contentRoles?.editorialWindows ?? result.ai.chunks}`,
     `  non-editorial windows skipped: ${result.contentRoles?.nonEditorialWindowsSkipped ?? 0}`,
     `  non-editorial notes dropped: ${result.contentRoles?.nonEditorialNotesDropped ?? 0}`,
     '',
@@ -546,6 +550,15 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  total AI time: ${formatDurationMs(result.performance?.totalAiMs ?? null)}`,
     `  average AI time per uncached window: ${formatDurationMs(result.performance?.averageAiMsPerUncachedWindow ?? null)}`,
   );
+  const roleSegments = result.contentRoles?.segments;
+  if (roleSegments?.length) {
+    lines.push('', 'Segment classifications:');
+    for (const segment of roleSegments) {
+      lines.push(
+        `  [${segment.index}] ${formatNoteTimestampRange(segment.startSeconds, segment.endSeconds)} ${segment.contentRole} ${segment.reason}`,
+      );
+    }
+  }
   const batches = result.performance?.batches || [];
   if (batches.length) {
     lines.push('');
@@ -765,6 +778,7 @@ function formatReviewNote(note: CreatorAtomicNote): string {
   const quote = note.sourceQuote || note.exactQuote;
   const lines = [
     `${formatNoteTimestampRange(note.startSeconds, note.endSeconds)} ${kindLabel(note.kind)}`,
+    `Content role: ${note.contentRole ?? 'unknown'}`,
     '',
     'Note:',
     note.text,

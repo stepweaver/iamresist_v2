@@ -10,7 +10,10 @@ export { chunkCreatorTranscript, splitCreatorTranscriptChunk, buildEvidenceWindo
 export {
   classifyPlainText,
   classifyTranscriptContent,
+  contentRoleSegmentDiagnostics,
+  isEditorialExtractionRole,
   noteContentEligibility,
+  persistableCreatorNotes,
   resolveNoteContentRole,
 } from '@/lib/creatorNotes/contentRole';
 export {
@@ -32,7 +35,12 @@ export {
   noteTextLeaksSourceMetadata,
   unsupportedNumericTokens,
 } from '@/lib/creatorNotes/sourceEvidence';
-export { creatorNotesRunStatus, runCreatorNoteExtraction, emptyExtractionPerformance } from '@/lib/creatorNotes/run';
+export {
+  creatorNotesRunStatus,
+  emptyExtractionPerformance,
+  prepareAtomicNoteEvidenceWindows,
+  runCreatorNoteExtraction,
+} from '@/lib/creatorNotes/run';
 export { parseCreatorNotesExtractArgs, parseCreatorNotesSourcesArgs, parseCreatorNotesPodcastSourcesArgs, parseCreatorNotesPodcastExtractArgs, parseCreatorNotesBatchArgs, parseCreatorNotesReviewArgs, formatCreatorNotesReport, formatCreatorNotesBatchReport, formatCreatorNotesPodcastBatchReport, formatCreatorNotesReview, formatPodcastSourcesList, formatPodcastFeedsReport } from '@/lib/creatorNotes/format';
 export { createMemoryCreatorNotesStore, loadPersistedCreatorNotesReview } from '@/lib/creatorNotes/db';
 export { shouldLookupCreatorSourceMetadata } from '@/lib/creatorNotes/source';

@@ -14,6 +14,7 @@ async function main() {
     maxWindows: args.maxWindows,
     windowOffset: args.windowOffset,
     bypassExtractionCache: args.bypassExtractionCache,
+    contentRoleDiagnostics: args.contentRoleDiagnostics,
   });
   result.transcriptAcquisition = prepared.acquisition;
 

@@ -16,6 +16,7 @@ async function main() {
     maxWindows: args.maxWindows,
     windowOffset: args.windowOffset,
     bypassExtractionCache: args.bypassExtractionCache,
+    contentRoleDiagnostics: args.contentRoleDiagnostics,
   });
   const finishedAt = Date.now();
   result.transcriptAcquisition = {

@@ -446,6 +446,7 @@ describe('Atomic Creator Notes CLI args', () => {
       maxWindows: null,
       windowOffset: null,
       bypassExtractionCache: true,
+      contentRoleDiagnostics: false,
     });
   });
 
@@ -495,6 +496,7 @@ describe('Atomic Creator Notes CLI args', () => {
       maxWindows: null,
       windowOffset: null,
       bypassExtractionCache: false,
+      contentRoleDiagnostics: false,
     });
   });
 

@@ -2,6 +2,7 @@ import 'server-only';
 
 import { intelDbConfigured } from '@/lib/intel/db';
 import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
+import { persistableCreatorNotes } from '@/lib/creatorNotes/contentRole';
 import { reviewCreatorNotes, type CreatorNotesReviewQuery } from '@/lib/creatorNotes/review';
 import type {
   CreatorAtomicNote,
@@ -75,7 +76,7 @@ function noteToRow(note: CreatorAtomicNote) {
     source_excerpt: note.sourceExcerpt,
     exact_quote: note.sourceQuote || note.exactQuote,
     source_segment_indexes: note.sourceSegmentIndexes || [],
-    content_role: note.contentRole ?? 'editorial',
+    content_role: note.contentRole === 'editorial' ? 'editorial' : null,
     verification_status: note.verificationStatus,
     note_fingerprint: note.noteFingerprint,
     created_at: note.createdAt,
@@ -139,8 +140,9 @@ export function createSupabaseCreatorNotesStore(): CreatorNotesStore {
     },
 
     async insertNotes(notes) {
-      if (notes.length === 0) return { written: 0 };
-      const fingerprints = notes.map((note) => note.noteFingerprint);
+      const persistable = persistableCreatorNotes(notes);
+      if (persistable.length === 0) return { written: 0 };
+      const fingerprints = persistable.map((note) => note.noteFingerprint);
       const { data: existing, error: existingError } = await client()
         .from('creator_atomic_notes')
         .select('note_fingerprint')
@@ -148,7 +150,7 @@ export function createSupabaseCreatorNotesStore(): CreatorNotesStore {
       if (existingError) throw new Error(`creator_atomic_notes fingerprint select: ${existingError.message}`);
       const existingRows = (existing ?? []) as Array<{ note_fingerprint?: string }>;
       const seen = new Set(existingRows.map((row) => String(row.note_fingerprint || '')));
-      const fresh = notes.filter((note) => !seen.has(note.noteFingerprint));
+      const fresh = persistable.filter((note) => !seen.has(note.noteFingerprint));
       if (fresh.length === 0) return { written: 0 };
 
       const chunkSize = 40;
@@ -209,8 +211,9 @@ export function createMemoryCreatorNotesStore(seed: {
       existing.errorMessage = patch.errorMessage;
     },
     async insertNotes(incoming) {
+      const persistable = persistableCreatorNotes(incoming);
       const seen = new Set(notes.map((note) => note.noteFingerprint));
-      const fresh = incoming.filter((note) => !seen.has(note.noteFingerprint));
+      const fresh = persistable.filter((note) => !seen.has(note.noteFingerprint));
       if (fresh.length === 0) return { written: 0 };
       writes.notes += 1;
       notes.push(...fresh.map((note) => ({ ...note })));

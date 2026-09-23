@@ -3,12 +3,15 @@ import type {
   TranscriptContentEligibility,
   TranscriptContentRole,
   TranscriptContentRoleDiagnostics,
+  TranscriptContentRoleSegmentDiagnostic,
 } from '@/lib/creatorNotes/types';
 
 /**
- * Segment roles are deterministic. Atomic Note extraction, reasoning, theme
- * memory, event threads, and editorial boost read this classification.
- * The raw transcript is not rewritten.
+ * Segment roles are deterministic. Atomic Note windows may be built only from
+ * segments whose contentRole is exactly `editorial`. sponsor_read, housekeeping,
+ * intro_outro, and uncertain are excluded. A missing role is uncertain.
+ * Cue-free spoken sentences are an explicit editorial decision (`no_non_editorial_cue`),
+ * not a fallback for a missing role. The raw transcript is not rewritten.
  */
 const EDITORIAL_ELIGIBLE: TranscriptContentEligibility = {
   eligibleForThemeMemory: true,
@@ -34,47 +37,102 @@ const ROLE_RANK: Record<TranscriptContentRole, number> = {
   editorial: 0,
 };
 
-type Cue = { role: Exclude<TranscriptContentRole, 'editorial' | 'uncertain'>; source: string };
+type NonEditorialCueRole = Exclude<TranscriptContentRole, 'editorial' | 'uncertain'>;
+type Cue = { role: NonEditorialCueRole; id: string; source: string };
 
 const CUES: Cue[] = [
-  { role: 'sponsor_read', source: String.raw`\bsquarespace\b` },
-  { role: 'sponsor_read', source: String.raw`\bchumba(?:\s+casino)?\b` },
-  { role: 'sponsor_read', source: String.raw`\bwild\s+alaskan\b` },
-  { role: 'sponsor_read', source: String.raw`\bwildalaskan\b` },
-  { role: 'sponsor_read', source: String.raw`\bbrought to you by\b` },
-  { role: 'sponsor_read', source: String.raw`\bsponsored by\b` },
-  { role: 'sponsor_read', source: String.raw`\btoday'?s sponsor\b` },
-  { role: 'sponsor_read', source: String.raw`\bour sponsor\b` },
-  { role: 'sponsor_read', source: String.raw`\bthis (?:episode|podcast|video|show) is sponsored\b` },
-  { role: 'sponsor_read', source: String.raw`\ba word from (?:our |the )?sponsor\b` },
-  { role: 'sponsor_read', source: String.raw`\bfor sponsoring\b` },
-  { role: 'sponsor_read', source: String.raw`\buse (?:promo )?code\b` },
-  { role: 'sponsor_read', source: String.raw`\bpromo code\b` },
-  { role: 'sponsor_read', source: String.raw`\b(?:go to|visit|head to|check out|sign up at)\s+[a-z0-9][\w.-]*\.(?:com|org|net)\b` },
-  { role: 'sponsor_read', source: String.raw`\bfree trial\b` },
-  { role: 'sponsor_read', source: String.raw`\blimited[- ]time (?:offer|deal)\b` },
-  { role: 'housekeeping', source: String.raw`\blike and subscribe\b` },
-  { role: 'housekeeping', source: String.raw`\b(?:hit|smash|tap|click) (?:that |the )?(?:like|subscribe|bell|notification)\b` },
-  { role: 'housekeeping', source: String.raw`\bplease subscribe\b` },
-  { role: 'housekeeping', source: String.raw`\bdon'?t forget to subscribe\b` },
-  { role: 'housekeeping', source: String.raw`\bsubscribe (?:to|for) (?:more|the channel|the show|the podcast|notifications)\b` },
-  { role: 'housekeeping', source: String.raw`\blet'?s get to \d` },
-  { role: 'housekeeping', source: String.raw`\bkeep you posted\b` },
-  { role: 'housekeeping', source: String.raw`\b(?:hit|ring) the bell\b` },
-  { role: 'housekeeping', source: String.raw`\bturn on (?:post )?notifications\b` },
-  { role: 'housekeeping', source: String.raw`\bjoin (?:the )?(?:membership|patreon)\b` },
-  { role: 'housekeeping', source: String.raw`(^|[\s.!?…])subscribe(?=[.!?…]|$)` },
-  { role: 'intro_outro', source: String.raw`^\s*(?:hey[\s,]+)?(?:everybody[\s,]+)?welcome back[.!]?\s*$` },
-  { role: 'intro_outro', source: String.raw`\bwelcome back to the (?:show|podcast|episode|channel)\b` },
-  { role: 'intro_outro', source: String.raw`\bwelcome to the (?:show|podcast|episode|channel)\b` },
-  { role: 'intro_outro', source: String.raw`\bi(?:'ll| will) see you (?:in the )?next\b` },
-  { role: 'intro_outro', source: String.raw`\bthanks for (?:listening|watching|tuning in)\b` },
+  { role: 'sponsor_read', id: 'squarespace', source: String.raw`\bsquarespace\b` },
+  { role: 'sponsor_read', id: 'chumba', source: String.raw`\bchumba(?:\s+casino)?\b` },
+  { role: 'sponsor_read', id: 'cassina', source: String.raw`\bcassina\b` },
+  { role: 'sponsor_read', id: 'wild_alaskan', source: String.raw`\bwild\s+alaskan\b` },
+  { role: 'sponsor_read', id: 'wild_alaskan', source: String.raw`\bwildalaskan\b` },
+  { role: 'sponsor_read', id: 'wild_caught', source: String.raw`\bwild[- ]caught\b` },
+  { role: 'sponsor_read', id: 'sponsor_intro', source: String.raw`\bbrought to you by\b` },
+  { role: 'sponsor_read', id: 'sponsor_intro', source: String.raw`\bsponsored by\b` },
+  { role: 'sponsor_read', id: 'sponsor_intro', source: String.raw`\btoday'?s sponsor\b` },
+  { role: 'sponsor_read', id: 'sponsor_intro', source: String.raw`\bour sponsor\b` },
+  { role: 'sponsor_read', id: 'sponsor_intro', source: String.raw`\bthis (?:episode|podcast|video|show) is sponsored\b` },
+  { role: 'sponsor_read', id: 'sponsor_intro', source: String.raw`\ba word from (?:our |the )?sponsor\b` },
+  { role: 'sponsor_read', id: 'sponsor_intro', source: String.raw`\bfor sponsoring\b` },
+  {
+    role: 'sponsor_read',
+    id: 'offer_code',
+    source: String.raw`\b(?:use\s+(?:promo|offer)\s+code|use\s+code|(?:promo|offer)\s+code)\b`,
+  },
+  { role: 'sponsor_read', id: 'spoken_url', source: String.raw`\bslash\s+[a-z][a-z0-9]{3,}\b` },
+  {
+    role: 'sponsor_read',
+    id: 'spoken_url',
+    source: String.raw`\b(?:go to|visit|head to|check out|sign up at)\s+[a-z0-9][\w.-]*\.(?:com|org|net)\b`,
+  },
+  { role: 'sponsor_read', id: 'discount', source: String.raw`(?:\$\s*\d+|\b\d+\s*%)\s*off\b` },
+  { role: 'sponsor_read', id: 'free_trial', source: String.raw`\bfree trial\b` },
+  { role: 'sponsor_read', id: 'free_trial', source: String.raw`\blimited[- ]time (?:offer|deal)\b` },
+  { role: 'sponsor_read', id: 'ad_legal', source: String.raw`\bterms and conditions apply\b` },
+  { role: 'sponsor_read', id: 'ad_legal', source: String.raw`\bno purchase necessary\b` },
+  { role: 'sponsor_read', id: 'ad_legal', source: String.raw`\bmoney[- ]back guarantee\b` },
+  { role: 'sponsor_read', id: 'ad_legal', source: String.raw`\brisk[- ]free\b` },
+  { role: 'sponsor_read', id: 'squarespace_script', source: String.raw`\bphotography school\b` },
+  { role: 'sponsor_read', id: 'squarespace_script', source: String.raw`\bportraits online\b` },
+  { role: 'sponsor_read', id: 'squarespace_script', source: String.raw`\bselling your portraits\b` },
+  { role: 'sponsor_read', id: 'squarespace_script', source: String.raw`\bcookie empire\b` },
+  { role: 'sponsor_read', id: 'squarespace_script', source: String.raw`\bcookies you just made\b` },
+  { role: 'sponsor_read', id: 'squarespace_script', source: String.raw`\bmovie reviewing hobby\b` },
+  { role: 'sponsor_read', id: 'social_games', source: String.raw`\bonline social games\b` },
+  { role: 'sponsor_read', id: 'social_games', source: String.raw`\bdaily boosts\b` },
+  { role: 'sponsor_read', id: 'social_games', source: String.raw`\blittle epiphanies\b` },
+  { role: 'sponsor_read', id: 'social_games', source: String.raw`\bfun way to switch off\b` },
+  { role: 'sponsor_read', id: 'celebrity_read', source: String.raw`\btiffany stratton\b` },
+  { role: 'sponsor_read', id: 'celebrity_read', source: String.raw`\btiffy time\b` },
+  { role: 'sponsor_read', id: 'celebrity_read', source: String.raw`\bsmackdown\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\bvacuum[- ]sealed\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\bindividually portioned\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\balaskan waters\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\balaskan fishermen\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\bcoho salmon\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\bbuying seafood\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\bseafood that looks great\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\bdelivered right to your door\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\bhigh[- ]quality ingredients\b` },
+  { role: 'sponsor_read', id: 'seafood_pitch', source: String.raw`\bpremium wild\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\blike and subscribe\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\b(?:hit|smash|tap|click) (?:that |the )?(?:like|subscribe|bell|notification)\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\bplease subscribe\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\bdon'?t forget to subscribe\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\bsubscribe (?:to|for) (?:more|the channel|the show|the podcast|notifications)\b` },
+  { role: 'housekeeping', id: 'audience_goal', source: String.raw`\blet'?s get to \d` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\bkeep you posted\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\b(?:hit|ring) the bell\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\bturn on (?:post )?notifications\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`\bjoin (?:the )?(?:membership|patreon)\b` },
+  { role: 'housekeeping', id: 'subscribe', source: String.raw`(^|[\s.!?…])subscribe(?=[.!?…]|$)` },
+  { role: 'housekeeping', id: 'outro', source: String.raw`\bthat'?s the end of the discussion\b` },
+  { role: 'housekeeping', id: 'outro', source: String.raw`\bend of the (?:discussion|episode|show|podcast)\b` },
+  { role: 'intro_outro', id: 'welcome', source: String.raw`^\s*(?:hey[\s,]+)?(?:everybody[\s,]+)?welcome back[.!]?\s*$` },
+  { role: 'intro_outro', id: 'welcome', source: String.raw`\bwelcome back to the (?:show|podcast|episode|channel)\b` },
+  { role: 'intro_outro', id: 'welcome', source: String.raw`\bwelcome to the (?:show|podcast|episode|channel)\b` },
+  { role: 'intro_outro', id: 'outro', source: String.raw`\bi(?:'ll| will) see you (?:in the )?next\b` },
+  { role: 'intro_outro', id: 'outro', source: String.raw`\bthanks for (?:listening|watching|tuning in)\b` },
 ];
+
+/** Weaker commercial wording. Applied only beside an already non-editorial span. */
+const COMMERCIAL_CONTINUATION =
+  /\b(?:seafood|fillets?|salmon|portioned|alaskan|quick[- ]frozen|omega|gmos?|fishermen|subscription|first box|epiphan(?:y|ies)|switch off|tiffy|smackdown|vacuum|coho|ingredients)\b/i;
+
+/**
+ * News vocabulary that must stay editorial even when it sits against an ad.
+ * Checked only for spans that did not already match a sponsor or housekeeping cue.
+ */
+const EDITORIAL_GUARD =
+  /\b(?:ukrain\w*|russia\w*|zelensky\w*|putin|trump|diesel|estonia|nato|congress|senate|court|refin\w*|missile|gaza|israel|tariff|election|white house|united nations|article\s+[ivx\d]+|iran|hormuz|president|war|ban)\b/i;
+
+const NON_SPEECH = /^\s*(?:\[(?:music|applause|silence|inaudible|laughter|noise)\]|\((?:music|applause|silence|inaudible)\))\s*$/i;
 
 const COMMERCIAL_WORD =
   /^(?:\s+)(?:helps|help|creators?|build(?:ing)?|websites?|business(?:es)?|for|your|their|our|to|and|go|visit|www|free|coins?|casino|use|code|promo|discount|trials?|company|seafood|salmon|premium|offers?|deals?|members?|sign|up|start|get|with|from|today|now|at|episode|podcast|show|sponsoring|sponsor|giving|away|is|new|players?|every|day|week|when|you|link|single|percent|off|shipping)\b/i;
 
-type Range = { start: number; end: number; role: TranscriptContentRole };
+type CueHit = { start: number; end: number; role: NonEditorialCueRole; id: string };
+type Range = { start: number; end: number; role: TranscriptContentRole; reason: string };
 
 function substantiveChars(text: string): number {
   return text.replace(/[^a-z0-9]+/gi, '').length;
@@ -98,13 +156,13 @@ function sentenceRanges(text: string): Array<{ start: number; end: number }> {
   return ranges.filter((range) => text.slice(range.start, range.end).trim());
 }
 
-function cuesIn(text: string): Array<{ start: number; end: number; role: Cue['role'] }> {
-  const found: Array<{ start: number; end: number; role: Cue['role'] }> = [];
+function cuesIn(text: string): CueHit[] {
+  const found: CueHit[] = [];
   for (const cue of CUES) {
     const re = new RegExp(cue.source, 'gi');
     for (const match of text.matchAll(re)) {
       if (match.index == null) continue;
-      found.push({ start: match.index, end: match.index + match[0].length, role: cue.role });
+      found.push({ start: match.index, end: match.index + match[0].length, role: cue.role, id: cue.id });
     }
   }
   return found;
@@ -112,6 +170,10 @@ function cuesIn(text: string): Array<{ start: number; end: number; role: Cue['ro
 
 function strongestRole(roles: TranscriptContentRole[]): TranscriptContentRole {
   return roles.reduce((best, role) => (ROLE_RANK[role] > ROLE_RANK[best] ? role : best), 'editorial');
+}
+
+function winningCue(cues: CueHit[]): CueHit {
+  return cues.reduce((best, cue) => (ROLE_RANK[cue.role] > ROLE_RANK[best.role] ? cue : best));
 }
 
 function extendCommercial(text: string, from: number, limit: number): number {
@@ -135,14 +197,24 @@ function peelLeadingGlue(text: string, start: number, cueStart: number): number 
   return cueStart;
 }
 
+function roleWithoutCue(sentence: string): { role: TranscriptContentRole; reason: string } {
+  if (!sentence.trim()) return { role: 'uncertain', reason: 'empty' };
+  if (NON_SPEECH.test(sentence.trim())) return { role: 'uncertain', reason: 'non_speech' };
+  return { role: 'editorial', reason: 'no_non_editorial_cue' };
+}
+
 function partitionSentence(text: string, start: number, end: number): Range[] {
   const sentence = text.slice(start, end);
   const cues = cuesIn(sentence);
-  if (!cues.length) return [{ start, end, role: 'editorial' }];
+  if (!cues.length) {
+    const plain = roleWithoutCue(sentence);
+    return [{ start, end, role: plain.role, reason: plain.reason }];
+  }
 
-  const role = strongestRole(cues.map((cue) => cue.role));
-  let cueStart = start + Math.min(...cues.map((cue) => cue.start));
-  let cueEnd = start + Math.max(...cues.map((cue) => cue.end));
+  const cue = winningCue(cues);
+  const reason = `cue:${cue.id}`;
+  let cueStart = start + Math.min(...cues.map((item) => item.start));
+  let cueEnd = start + Math.max(...cues.map((item) => item.end));
   cueStart = peelLeadingGlue(text, start, cueStart);
   cueEnd = extendCommercial(text, cueEnd, end);
 
@@ -151,16 +223,18 @@ function partitionSentence(text: string, start: number, end: number): Range[] {
   const pieces: Range[] = [];
 
   if (beforeChars >= MIN_SPLIT_CHARS) {
-    pieces.push({ start, end: cueStart, role: 'editorial' });
+    const before = roleWithoutCue(text.slice(start, cueStart));
+    pieces.push({ start, end: cueStart, role: before.role, reason: before.reason });
   } else {
     cueStart = start;
   }
 
   if (afterChars >= MIN_SPLIT_CHARS) {
-    pieces.push({ start: cueStart, end: cueEnd, role });
-    pieces.push({ start: cueEnd, end, role: 'editorial' });
+    const after = roleWithoutCue(text.slice(cueEnd, end));
+    pieces.push({ start: cueStart, end: cueEnd, role: cue.role, reason });
+    pieces.push({ start: cueEnd, end, role: after.role, reason: after.reason });
   } else {
-    pieces.push({ start: cueStart, end, role });
+    pieces.push({ start: cueStart, end, role: cue.role, reason });
   }
 
   return pieces;
@@ -172,6 +246,9 @@ function mergeRanges(ranges: Range[]): Range[] {
     const previous = merged[merged.length - 1];
     if (previous && previous.role === range.role && previous.end >= range.start) {
       previous.end = Math.max(previous.end, range.end);
+      if (range.reason.startsWith('cue:') && !previous.reason.startsWith('cue:')) {
+        previous.reason = range.reason;
+      }
       continue;
     }
     merged.push({ ...range });
@@ -209,6 +286,7 @@ function interpolateSeconds(
 
 type Piece = {
   role: TranscriptContentRole;
+  reason: string;
   text: string;
   startSeconds: number | null;
   endSeconds: number | null;
@@ -216,11 +294,24 @@ type Piece = {
 
 function piecesForSegment(segment: CreatorTranscriptSegment): Piece[] {
   const text = String(segment.text || '');
-  const ranges = partitionText(text).filter((range) => text.slice(range.start, range.end).trim());
-  if (!ranges.length) {
+  if (!text.trim()) {
     return [
       {
-        role: 'editorial',
+        role: 'uncertain',
+        reason: 'empty',
+        text,
+        startSeconds: segment.startSeconds,
+        endSeconds: segment.endSeconds,
+      },
+    ];
+  }
+  const ranges = partitionText(text).filter((range) => text.slice(range.start, range.end).trim());
+  if (!ranges.length) {
+    const plain = roleWithoutCue(text);
+    return [
+      {
+        role: plain.role,
+        reason: plain.reason,
         text,
         startSeconds: segment.startSeconds,
         endSeconds: segment.endSeconds,
@@ -229,30 +320,112 @@ function piecesForSegment(segment: CreatorTranscriptSegment): Piece[] {
   }
   const roles = [...new Set(ranges.map((range) => range.role))];
   if (roles.length === 1 || !roles.includes('editorial')) {
+    const winning = ranges.reduce((best, range) => (ROLE_RANK[range.role] > ROLE_RANK[best.role] ? range : best));
     return [
       {
-        role: strongestRole(roles),
+        role: winning.role,
+        reason: winning.reason,
         text,
         startSeconds: segment.startSeconds,
         endSeconds: segment.endSeconds,
       },
     ];
   }
-  return ranges.map((range) => {
-    const times = interpolateSeconds(segment.startSeconds, segment.endSeconds, text.length, range.start, range.end);
-    return {
-      role: range.role,
-      text: text.slice(range.start, range.end).trim(),
-      startSeconds: times.startSeconds,
-      endSeconds: times.endSeconds,
-    };
-  }).filter((piece) => piece.text);
+  return ranges
+    .map((range) => {
+      const times = interpolateSeconds(segment.startSeconds, segment.endSeconds, text.length, range.start, range.end);
+      return {
+        role: range.role,
+        reason: range.reason,
+        text: text.slice(range.start, range.end).trim(),
+        startSeconds: times.startSeconds,
+        endSeconds: times.endSeconds,
+      };
+    })
+    .filter((piece) => piece.text);
+}
+
+function nonEditorialNeighbor(
+  prev: TranscriptContentRole | null | undefined,
+  next: TranscriptContentRole | null | undefined,
+): TranscriptContentRole | null {
+  const roles = [prev, next].filter((role): role is TranscriptContentRole => Boolean(role) && role !== 'editorial');
+  if (!roles.length) return null;
+  return strongestRole(roles);
+}
+
+/**
+ * A sponsor sentence that never hits a primary cue stays glued to the
+ * neighboring editorial window unless we peel commercial or very short
+ * leftovers that sit directly against an already excluded span.
+ * Editorial guard words stop that peel so the sentence after an ad survives.
+ */
+function applyAdjacency(segments: CreatorTranscriptSegment[]): void {
+  const limit = Math.max(1, segments.length);
+  for (let pass = 0; pass < limit; pass += 1) {
+    let changed = false;
+    for (let i = 0; i < segments.length; i += 1) {
+      const segment = segments[i];
+      if (segment.contentRole !== 'editorial') continue;
+      const text = String(segment.text || '');
+      const neighbor = nonEditorialNeighbor(
+        i > 0 ? segments[i - 1].contentRole : null,
+        i + 1 < segments.length ? segments[i + 1].contentRole : null,
+      );
+      if (!neighbor || neighbor === 'editorial') continue;
+      if (EDITORIAL_GUARD.test(text)) {
+        segment.contentRoleReason = 'editorial_guard';
+        continue;
+      }
+      const commercial = COMMERCIAL_CONTINUATION.test(text);
+      const short = substantiveChars(text) < MIN_SPLIT_CHARS;
+      if (!commercial && !short) continue;
+      segment.contentRole = commercial ? 'sponsor_read' : neighbor;
+      segment.contentRoleReason = commercial ? 'adjacent_commercial' : 'adjacent_short_span';
+      changed = true;
+    }
+    if (!changed) break;
+  }
+}
+
+function countRole(
+  diagnostics: Pick<
+    TranscriptContentRoleDiagnostics,
+    | 'editorialSegments'
+    | 'sponsorReadSegments'
+    | 'housekeepingSegments'
+    | 'introOutroSegments'
+    | 'uncertainSegments'
+  >,
+  role: TranscriptContentRole | null | undefined,
+): void {
+  if (role === 'sponsor_read') diagnostics.sponsorReadSegments += 1;
+  else if (role === 'housekeeping') diagnostics.housekeepingSegments += 1;
+  else if (role === 'intro_outro') diagnostics.introOutroSegments += 1;
+  else if (role === 'editorial') diagnostics.editorialSegments += 1;
+  else diagnostics.uncertainSegments += 1;
+}
+
+export function contentRoleSegmentDiagnostics(
+  segments: CreatorTranscriptSegment[],
+): TranscriptContentRoleSegmentDiagnostic[] {
+  return segments.map((segment) => ({
+    index: segment.index,
+    startSeconds: segment.startSeconds,
+    endSeconds: segment.endSeconds,
+    contentRole: segment.contentRole === 'editorial' ? 'editorial' : segment.contentRole || 'uncertain',
+    reason: segment.contentRoleReason || 'unspecified',
+  }));
 }
 
 export function classifyPlainText(text: string): TranscriptContentRole {
-  const ranges = partitionText(String(text || ''));
-  if (!ranges.length) return 'editorial';
-  return strongestRole(ranges.map((range) => range.role));
+  const value = String(text || '');
+  if (!value.trim()) return 'uncertain';
+  const { segments } = classifyTranscriptContent([
+    { index: 0, startSeconds: null, endSeconds: null, text: value },
+  ]);
+  if (!segments.length) return 'uncertain';
+  return strongestRole(segments.map((segment) => segment.contentRole || 'uncertain'));
 }
 
 export function classifyTranscriptContent(segments: CreatorTranscriptSegment[]): {
@@ -265,6 +438,7 @@ export function classifyTranscriptContent(segments: CreatorTranscriptSegment[]):
     | 'introOutroSegments'
     | 'uncertainSegments'
     | 'segmentsSplit'
+    | 'segmentsExcludedFromAtomicNotes'
   >;
 } {
   const classified: CreatorTranscriptSegment[] = [];
@@ -282,9 +456,12 @@ export function classifyTranscriptContent(segments: CreatorTranscriptSegment[]):
         endSeconds: piece.endSeconds,
         text: piece.text,
         contentRole: piece.role,
+        contentRoleReason: piece.reason,
       });
     }
   });
+
+  applyAdjacency(classified);
 
   if (classified.length !== segments.length) {
     classified.forEach((segment, index) => {
@@ -304,15 +481,19 @@ export function classifyTranscriptContent(segments: CreatorTranscriptSegment[]):
     introOutroSegments: 0,
     uncertainSegments: 0,
     segmentsSplit,
+    segmentsExcludedFromAtomicNotes: 0,
   };
-  for (const segment of classified) {
-    if (segment.contentRole === 'sponsor_read') diagnostics.sponsorReadSegments += 1;
-    else if (segment.contentRole === 'housekeeping') diagnostics.housekeepingSegments += 1;
-    else if (segment.contentRole === 'intro_outro') diagnostics.introOutroSegments += 1;
-    else if (segment.contentRole === 'uncertain') diagnostics.uncertainSegments += 1;
-    else diagnostics.editorialSegments += 1;
-  }
+  for (const segment of classified) countRole(diagnostics, segment.contentRole);
+  diagnostics.segmentsExcludedFromAtomicNotes =
+    diagnostics.sponsorReadSegments +
+    diagnostics.housekeepingSegments +
+    diagnostics.introOutroSegments +
+    diagnostics.uncertainSegments;
   return { segments: classified, diagnostics };
+}
+
+export function isEditorialExtractionRole(role: TranscriptContentRole | null | undefined): role is 'editorial' {
+  return role === 'editorial';
 }
 
 export function resolveNoteContentRole(note: {
@@ -320,8 +501,9 @@ export function resolveNoteContentRole(note: {
   text?: string | null;
   sourceQuote?: string | null;
   exactQuote?: string | null;
+  sourceExcerpt?: string | null;
 }): TranscriptContentRole {
-  const spoken = [note.text, note.sourceQuote, note.exactQuote].filter(Boolean).join('\n');
+  const spoken = [note.text, note.sourceQuote, note.exactQuote, note.sourceExcerpt].filter(Boolean).join('\n');
   const inferred = classifyPlainText(spoken);
   if (inferred !== 'editorial') return inferred;
   if (note.contentRole && note.contentRole !== 'editorial') return note.contentRole;
@@ -333,8 +515,13 @@ export function noteContentEligibility(note: {
   text?: string | null;
   sourceQuote?: string | null;
   exactQuote?: string | null;
+  sourceExcerpt?: string | null;
 }): TranscriptContentEligibility {
   return resolveNoteContentRole(note) === 'editorial' ? EDITORIAL_ELIGIBLE : BLOCKED;
+}
+
+export function persistableCreatorNotes<T extends { contentRole?: TranscriptContentRole | null }>(notes: T[]): T[] {
+  return notes.filter((note) => note.contentRole === 'editorial');
 }
 
 export function emptyContentRoleDiagnostics(): TranscriptContentRoleDiagnostics {
@@ -345,6 +532,7 @@ export function emptyContentRoleDiagnostics(): TranscriptContentRoleDiagnostics 
     introOutroSegments: 0,
     uncertainSegments: 0,
     segmentsSplit: 0,
+    segmentsExcludedFromAtomicNotes: 0,
     editorialWindows: 0,
     nonEditorialWindowsSkipped: 0,
     nonEditorialNotesDropped: 0,

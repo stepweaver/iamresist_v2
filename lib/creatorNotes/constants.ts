@@ -4,7 +4,7 @@
  * filtering changes what can be written into the corpus.
  */
 
-export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.9';
+export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.10';
 export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.9';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 export const CREATOR_NOTES_OLLAMA_KEEP_ALIVE_DEFAULT = '5m';

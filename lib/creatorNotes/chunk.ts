@@ -96,7 +96,16 @@ function overlapSegments(segments: CreatorTranscriptSegment[], overlapChars: num
 }
 
 function segmentContentRole(segment: CreatorTranscriptSegment): TranscriptContentRole {
-  return segment.contentRole ?? 'editorial';
+  if (
+    segment.contentRole === 'editorial' ||
+    segment.contentRole === 'sponsor_read' ||
+    segment.contentRole === 'housekeeping' ||
+    segment.contentRole === 'intro_outro' ||
+    segment.contentRole === 'uncertain'
+  ) {
+    return segment.contentRole;
+  }
+  return 'uncertain';
 }
 
 function windowContentRole(segments: CreatorTranscriptSegment[]): TranscriptContentRole {
