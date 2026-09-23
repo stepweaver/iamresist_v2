@@ -8,6 +8,12 @@ export {
 } from '@/lib/creatorNotes/identity';
 export { chunkCreatorTranscript, splitCreatorTranscriptChunk, buildEvidenceWindows } from '@/lib/creatorNotes/chunk';
 export {
+  classifyPlainText,
+  classifyTranscriptContent,
+  noteContentEligibility,
+  resolveNoteContentRole,
+} from '@/lib/creatorNotes/contentRole';
+export {
   parseCreatorNotesOutput,
   parseCreatorNotesBatchOutput,
   validateRawCreatorNote,
@@ -69,6 +75,8 @@ export type {
   CreatorNoteQuoteDiagnostics,
   CreatorTranscriptInput,
   CreatorNotesRunResult,
+  TranscriptContentEligibility,
+  TranscriptContentRole,
   PodcastEpisodeSource,
   PodcastTranscriptCandidate,
   PodcastTranscriptStatus,

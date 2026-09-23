@@ -18,7 +18,7 @@ function client() {
 }
 
 const NOTE_SELECT_COLUMNS =
-  'id, extraction_run_id, source_item_id, creator_id, start_seconds, end_seconds, kind, text, attribution, event_features, source_excerpt, exact_quote, source_segment_indexes, verification_status, note_fingerprint, created_at';
+  'id, extraction_run_id, source_item_id, creator_id, start_seconds, end_seconds, kind, text, attribution, event_features, source_excerpt, exact_quote, source_segment_indexes, content_role, verification_status, note_fingerprint, created_at';
 
 export function createSupabaseAtomicNotesReader(): EventThreadsNoteReader {
   return {

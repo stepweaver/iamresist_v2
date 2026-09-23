@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildEvidenceWindows, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
+import { classifyTranscriptContent } from '@/lib/creatorNotes/contentRole';
 import {
   CREATOR_NOTES_AI_TIMEOUT_MS_DEFAULT,
   CREATOR_NOTES_DEFAULT_MODEL,
@@ -359,7 +360,9 @@ describe('Atomic Creator Notes long-transcript hardening', () => {
         },
       },
     );
-    const windows = buildEvidenceWindows(transcript.segments);
+    const windows = buildEvidenceWindows(classifyTranscriptContent(transcript.segments).segments).filter(
+      (window) => window.contentRole === 'editorial',
+    );
     expect(calls).toBe(windows.length * 2);
   });
 

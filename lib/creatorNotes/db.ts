@@ -52,6 +52,7 @@ function asNote(row: Record<string, unknown>): CreatorAtomicNote {
     sourceQuote: row.exact_quote == null ? null : String(row.exact_quote),
     exactQuote: row.exact_quote == null ? null : String(row.exact_quote),
     sourceSegmentIndexes: indexes,
+    contentRole: row.content_role == null ? undefined : (String(row.content_role) as CreatorAtomicNote['contentRole']),
     verificationStatus: row.verification_status as CreatorAtomicNote['verificationStatus'],
     extractionRunId: String(row.extraction_run_id),
     noteFingerprint: String(row.note_fingerprint),
@@ -74,6 +75,7 @@ function noteToRow(note: CreatorAtomicNote) {
     source_excerpt: note.sourceExcerpt,
     exact_quote: note.sourceQuote || note.exactQuote,
     source_segment_indexes: note.sourceSegmentIndexes || [],
+    content_role: note.contentRole ?? 'editorial',
     verification_status: note.verificationStatus,
     note_fingerprint: note.noteFingerprint,
     created_at: note.createdAt,
@@ -219,7 +221,7 @@ export function createMemoryCreatorNotesStore(seed: {
 }
 
 const NOTE_SELECT_COLUMNS =
-  'id, extraction_run_id, source_item_id, creator_id, start_seconds, end_seconds, kind, text, attribution, event_features, source_excerpt, exact_quote, source_segment_indexes, verification_status, note_fingerprint, created_at';
+  'id, extraction_run_id, source_item_id, creator_id, start_seconds, end_seconds, kind, text, attribution, event_features, source_excerpt, exact_quote, source_segment_indexes, content_role, verification_status, note_fingerprint, created_at';
 
 const RUN_SELECT_COLUMNS =
   'id, source_item_id, source_identity_key, creator_id, model_provider, model_name, extraction_version, transcript_hash, status, input_chars, notes_created, started_at, completed_at, error_message, created_at';

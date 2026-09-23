@@ -18,6 +18,7 @@ export function asNoteFromRow(row: Record<string, unknown>): CreatorAtomicNote {
     sourceQuote: row.exact_quote == null ? null : String(row.exact_quote),
     exactQuote: row.exact_quote == null ? null : String(row.exact_quote),
     sourceSegmentIndexes: indexes,
+    contentRole: row.content_role == null ? undefined : (String(row.content_role) as CreatorAtomicNote['contentRole']),
     verificationStatus: row.verification_status as CreatorAtomicNote['verificationStatus'],
     extractionRunId: String(row.extraction_run_id || ''),
     noteFingerprint: String(row.note_fingerprint || ''),

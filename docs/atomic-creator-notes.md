@@ -51,7 +51,9 @@ transcript/content
   D. local faster-whisper audio fallback (`--transcribe-audio` only), or
   E. YouTube captions (experimental, not used by automatic batch)
         ↓
-deterministic evidence windows (~30-60s)
+segment content-role classification (editorial / sponsor_read / housekeeping / intro_outro)
+        ↓
+editorial evidence windows only (~30-60s; mixed spans are split, raw transcript kept)
         ↓
 local Ollama / gemma3:4b  (bounded batches of 4–6 windows; grounding stays per window)
         ↓
@@ -66,6 +68,8 @@ Supabase intel.creator_note_runs
         ↓
 CLI diagnostic output / review command
 ```
+
+Sponsor reads, housekeeping, and intro/outro stay in the raw transcript. They are not sent to Ollama, and they are not eligible for Theme Memory, Event Threads, the reasoning graph, or editorial boost. A note whose text or verified quote is still sponsor or housekeeping copy is dropped even if the window was labeled editorial. Only `editorial` notes enter those later layers.
 
 Single-item mode still exists for calibration. Bounded **podcast** batch mode discovers eligible Voice podcast episodes automatically. Automatic YouTube caption ingest is **disabled** from default batch selection; the YouTube retrieval code remains in the repo as experimental/non-default. Neither path writes Theme Memory or ranking state.
 

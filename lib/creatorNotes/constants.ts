@@ -1,9 +1,10 @@
 /**
  * Atomic Creator Notes Milestone 1 versions and bounds.
- * Bump CREATOR_NOTE_EXTRACTION_VERSION when prompt or validation semantics change.
+ * Bump CREATOR_NOTE_EXTRACTION_VERSION when prompt, validation, or content-role
+ * filtering changes what can be written into the corpus.
  */
 
-export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.8';
+export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.9';
 export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.9';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 export const CREATOR_NOTES_OLLAMA_KEEP_ALIVE_DEFAULT = '5m';

@@ -84,6 +84,36 @@ describe('Event Threads build dry-run', () => {
     expect(result.threadEntriesProposed).toBe(1);
   });
 
+  it('keeps sponsor reads and housekeeping out of event threads', async () => {
+    const notes = [
+      makeNote({
+        kind: 'context',
+        text: 'Squarespace helps creators build websites for their businesses.',
+        startSeconds: 621,
+      }),
+      makeNote({
+        kind: 'event',
+        text: 'Estonia is now part of the escalation ladder after the latest security guarantee.',
+        startSeconds: 700,
+      }),
+      makeNote({
+        kind: 'context',
+        text: "Let's get to 7 million.",
+        startSeconds: 900,
+      }),
+    ];
+    const result = await buildEventThreads({
+      sourceItemId: SOURCE_ITEM,
+      dryRun: true,
+      reader: createMemoryAtomicNotesReader(notes),
+      aiConfig: null,
+    });
+    expect(result.atomicNotesConsidered).toBe(1);
+    const rendered = JSON.stringify(result.threads);
+    expect(rendered).not.toMatch(/squarespace/i);
+    expect(rendered).not.toMatch(/7 million/);
+  });
+
   it('never mutates Atomic Notes and performs zero writes', async () => {
     const notes = jiangNotes();
     const original = notes.map((note) => ({ ...note, sourceSegmentIndexes: [...note.sourceSegmentIndexes] }));

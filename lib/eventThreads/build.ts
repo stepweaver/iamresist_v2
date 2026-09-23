@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { noteContentEligibility } from '@/lib/creatorNotes/contentRole';
 import type { CreatorAtomicNote } from '@/lib/creatorNotes/types';
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
 import { ollamaChatJson } from '@/lib/themeMemory/ai/ollama';
@@ -88,9 +89,13 @@ export async function buildEventThreads(input: {
   }
 
   const writer = input.writer || createDryRunEventThreadsWriter();
-  const notes = await input.reader.loadNotesBySourceItemId(input.sourceItemId);
-  if (!notes.length) {
+  const loaded = await input.reader.loadNotesBySourceItemId(input.sourceItemId);
+  if (!loaded.length) {
     throw new Error(`No persisted Atomic Creator Notes for source-item ${input.sourceItemId}`);
+  }
+  const notes = loaded.filter((note) => noteContentEligibility(note).eligibleForEventThreads);
+  if (!notes.length) {
+    throw new Error(`No editorial Atomic Creator Notes for source-item ${input.sourceItemId}`);
   }
 
   const beforeSnapshot = snapshotNotes(notes);

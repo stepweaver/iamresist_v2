@@ -121,6 +121,7 @@ export function toAtomicNotes(input: {
     referencedSource: note.referencedSource || null,
     quotedSpeaker: note.quotedSpeaker || null,
     anchorStartSeconds: note.anchorStartSeconds ?? null,
+    contentRole: note.contentRole ?? 'editorial',
     verificationStatus: defaultVerificationStatus(note.kind),
     extractionRunId: input.extractionRunId,
     noteFingerprint: creatorNoteFingerprint({

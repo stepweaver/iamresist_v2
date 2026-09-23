@@ -15,11 +15,40 @@ export interface CreatorNoteEventFeatures {
   referencedDocuments: string[];
 }
 
+export type TranscriptContentRole =
+  | 'editorial'
+  | 'sponsor_read'
+  | 'housekeeping'
+  | 'intro_outro'
+  | 'uncertain';
+
+export interface TranscriptContentEligibility {
+  eligibleForThemeMemory: boolean;
+  eligibleForEventThreads: boolean;
+  eligibleForReasoningGraph: boolean;
+  eligibleForEditorialBoost: boolean;
+}
+
+export interface TranscriptContentRoleDiagnostics {
+  editorialSegments: number;
+  sponsorReadSegments: number;
+  housekeepingSegments: number;
+  introOutroSegments: number;
+  uncertainSegments: number;
+  segmentsSplit: number;
+  editorialWindows: number;
+  nonEditorialWindowsSkipped: number;
+  nonEditorialNotesDropped: number;
+}
+
 export interface CreatorTranscriptSegment {
   index: number;
   startSeconds: number | null;
   endSeconds: number | null;
   text: string;
+  contentRole?: TranscriptContentRole;
+  /** Original transcript index when classification splits one spoken segment. */
+  originSegmentIndex?: number;
 }
 
 export interface CreatorTranscriptInput {
@@ -54,6 +83,7 @@ export interface CreatorTranscriptChunk {
   text: string;
   verbatimTranscript: string;
   charCount: number;
+  contentRole?: TranscriptContentRole;
 }
 
 export type CreatorEvidenceWindow = CreatorTranscriptChunk;
@@ -77,6 +107,7 @@ export interface RawCreatorNote {
   referencedSource?: string | null;
   quotedSpeaker?: string | null;
   anchorStartSeconds?: number | null;
+  contentRole?: TranscriptContentRole;
 }
 
 export interface CreatorAtomicNote {
@@ -97,6 +128,7 @@ export interface CreatorAtomicNote {
   referencedSource?: string | null;
   quotedSpeaker?: string | null;
   anchorStartSeconds?: number | null;
+  contentRole?: TranscriptContentRole;
   verificationStatus: VerificationStatus;
   extractionRunId: string;
   noteFingerprint: string;
@@ -188,6 +220,7 @@ export interface CreatorNotesRunResult {
     status: CreatorNoteRunStatus | 'skipped';
   };
   transcriptAcquisition?: TranscriptAcquisitionDiagnostics | null;
+  contentRoles?: TranscriptContentRoleDiagnostics;
 }
 
 export type CreatorTranscriptProviderName = 'youtube' | 'podcast' | 'unknown';

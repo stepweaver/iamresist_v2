@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { buildEvidenceWindows, splitCreatorTranscriptChunk } from '@/lib/creatorNotes/chunk';
+import { classifyTranscriptContent, resolveNoteContentRole } from '@/lib/creatorNotes/contentRole';
 import {
   CREATOR_NOTE_EXTRACTION_VERSION,
   CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION,
@@ -213,8 +214,16 @@ export async function runCreatorNoteExtraction(
   const transcriptHash = hashCreatorTranscript(transcript.segments, { normalizationVersion });
   const rawTranscriptHash = hashRawTranscription(rawSegments);
   const transcriptChars = transcriptCharCount(transcript.segments);
-  const allChunks = buildEvidenceWindows(transcript.segments);
-  const chunks = selectEvidenceWindows(allChunks, {
+  const classified = classifyTranscriptContent(transcript.segments);
+  const classifiedWindows = buildEvidenceWindows(classified.segments);
+  const editorialWindows = classifiedWindows.filter((window) => (window.contentRole ?? 'editorial') === 'editorial');
+  const contentRoles = {
+    ...classified.diagnostics,
+    editorialWindows: editorialWindows.length,
+    nonEditorialWindowsSkipped: classifiedWindows.length - editorialWindows.length,
+    nonEditorialNotesDropped: 0,
+  };
+  const chunks = selectEvidenceWindows(editorialWindows, {
     offset: input.windowOffset,
     maxWindows: input.maxWindows,
   });
@@ -289,6 +298,7 @@ export async function runCreatorNoteExtraction(
         notesWritten: 0,
         status: 'skipped',
       },
+      contentRoles,
     };
   }
 
@@ -363,14 +373,28 @@ export async function runCreatorNoteExtraction(
       startSeconds: chunk.startSeconds,
       endSeconds: chunk.endSeconds,
     });
-    const grounded = acceptGroundedCreatorNotes(attached, transcript.segments, {
+    const grounded = acceptGroundedCreatorNotes(attached, classified.segments, {
       allowedSegmentIndexes: chunk.segmentIndexes,
       sourceTitle: transcript.sourceTitle,
       sourceUrl: transcript.sourceUrl,
       knownCreatorName: transcript.creatorName,
     });
+    const notes: RawCreatorNote[] = [];
+    for (const note of grounded.notes) {
+      const role = resolveNoteContentRole({
+        contentRole: chunk.contentRole ?? 'editorial',
+        text: note.text,
+        sourceQuote: note.sourceQuote,
+        exactQuote: note.exactQuote,
+      });
+      if (role !== 'editorial') {
+        contentRoles.nonEditorialNotesDropped += 1;
+        continue;
+      }
+      notes.push({ ...note, contentRole: 'editorial' as const });
+    }
     return {
-      notes: grounded.notes,
+      notes,
       rejected: extracted.rejected + grounded.rejected,
       diagnostics: grounded.diagnostics,
       kindDiagnostics: kindDiagnosticsFromExtracted(extracted),
@@ -988,6 +1012,7 @@ export async function runCreatorNoteExtraction(
         notesWritten: dryRun ? 0 : notesWritten,
         status,
       },
+      contentRoles,
     };
   } catch (error) {
     if (!dryRun && store) {

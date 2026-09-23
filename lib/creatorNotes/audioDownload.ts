@@ -76,8 +76,16 @@ async function writeResponseBody(
       }
       if (!file.write(Buffer.from(value))) {
         await new Promise<void>((resolve, reject) => {
-          file.once('drain', resolve);
-          file.once('error', reject);
+          const onDrain = () => {
+            file.off('error', onError);
+            resolve();
+          };
+          const onError = (error: Error) => {
+            file.off('drain', onDrain);
+            reject(error);
+          };
+          file.once('drain', onDrain);
+          file.once('error', onError);
         });
       }
     }

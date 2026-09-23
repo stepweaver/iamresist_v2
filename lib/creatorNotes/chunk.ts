@@ -14,6 +14,7 @@ import type {
   CreatorEvidenceWindow,
   CreatorTranscriptChunk,
   CreatorTranscriptSegment,
+  TranscriptContentRole,
 } from '@/lib/creatorNotes/types';
 
 function uniqueSegmentIndexes(segments: CreatorTranscriptSegment[]): number[] {
@@ -94,6 +95,16 @@ function overlapSegments(segments: CreatorTranscriptSegment[], overlapChars: num
   return out;
 }
 
+function segmentContentRole(segment: CreatorTranscriptSegment): TranscriptContentRole {
+  return segment.contentRole ?? 'editorial';
+}
+
+function windowContentRole(segments: CreatorTranscriptSegment[]): TranscriptContentRole {
+  const roles = new Set(segments.map((segment) => segmentContentRole(segment)));
+  if (roles.size === 1) return [...roles][0];
+  return 'uncertain';
+}
+
 function toChunk(chunkSegments: CreatorTranscriptSegment[], index: number): CreatorTranscriptChunk {
   const range = timeRange(chunkSegments);
   const text = chunkText(chunkSegments);
@@ -107,6 +118,7 @@ function toChunk(chunkSegments: CreatorTranscriptSegment[], index: number): Crea
     text,
     verbatimTranscript: text,
     charCount: text.length,
+    contentRole: windowContentRole(chunkSegments),
   };
 }
 
@@ -235,6 +247,9 @@ export function buildEvidenceWindows(
     let end = start - 1;
     for (let i = start; i < indexed.length; i += 1) {
       const next = indexed[i];
+      if (current.length > 0 && segmentContentRole(current[0]) !== segmentContentRole(next)) {
+        break;
+      }
       if (
         wouldExceedMax(current, next, { maxChars, maxSeconds, timed }) &&
         current.length > 0
@@ -250,6 +265,11 @@ export function buildEvidenceWindows(
     if (!current.length) break;
     windows.push(toChunk(current, windows.length));
     if (end >= indexed.length - 1) break;
+    const following = indexed[end + 1];
+    if (following && segmentContentRole(current[0]) !== segmentContentRole(following)) {
+      start = end + 1;
+      continue;
+    }
     const nextStart = overlapStartIndex(indexed, start, end, {
       timed,
       overlapSeconds,

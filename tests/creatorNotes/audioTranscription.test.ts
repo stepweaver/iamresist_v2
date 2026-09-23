@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -356,6 +357,48 @@ describe('audio download and transcription failures', () => {
     ).rejects.toMatchObject({ status: 'AUDIO_DOWNLOAD_FAILED' });
   });
 
+  it('does not accumulate WriteStream error listeners when the download backs up', async () => {
+    const warnings: Error[] = [];
+    const onWarning = (warning: Error) => {
+      if (warning.name === 'MaxListenersExceededWarning') warnings.push(warning);
+    };
+    const streams = new Set<EventEmitter>();
+    const originalOn = EventEmitter.prototype.on;
+    EventEmitter.prototype.on = function patchedOn(this: EventEmitter, event: string, listener: (...args: unknown[]) => void) {
+      if (event === 'error' && this.constructor?.name === 'WriteStream') streams.add(this);
+      return originalOn.call(this, event, listener);
+    };
+    process.on('warning', onWarning);
+    try {
+      const dest = path.join(tempDir('cn-listeners-'), 'ep.mp3');
+      const chunk = new Uint8Array(256 * 1024);
+      const body = new ReadableStream({
+        start(controller) {
+          for (let i = 0; i < 20; i += 1) controller.enqueue(chunk);
+          controller.close();
+        },
+      });
+      const result = await downloadPodcastAudio({
+        audioUrl: 'https://creator.example/audio/iran.mp3',
+        destPath: dest,
+        fetchImpl: async () =>
+          new Response(body, {
+            status: 200,
+            headers: { 'content-type': 'audio/mpeg' },
+          }),
+      });
+      expect(result.bytes).toBe(chunk.byteLength * 20);
+      expect(warnings).toEqual([]);
+      expect(streams.size).toBeGreaterThan(0);
+      for (const stream of streams) {
+        expect(stream.listenerCount('error')).toBe(0);
+      }
+    } finally {
+      EventEmitter.prototype.on = originalOn;
+      process.off('warning', onWarning);
+    }
+  });
+
   it('maps an oversized enclosure to AUDIO_TOO_LARGE', async () => {
     const dest = path.join(tempDir('cn-big-'), 'ep.mp3');
     await expect(
@@ -438,6 +481,7 @@ describe('temporary file cleanup', () => {
       model: 'small',
       version: 'creator-notes-whisper-v1',
       language: 'en',
+      rawSegments: segments(),
       segments: segments(),
       createdAt: NOW.toISOString(),
     }, cacheDir);
