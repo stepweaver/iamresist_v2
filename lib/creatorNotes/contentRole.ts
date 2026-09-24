@@ -28,6 +28,9 @@ const BLOCKED: TranscriptContentEligibility = {
 };
 
 const MIN_SPLIT_CHARS = 48;
+/** Cue-free gap inside one sponsor read. A longer gap stays editorial. */
+const SPONSOR_ISLAND_MAX_CHARS = 360;
+const SPONSOR_ISLAND_MAX_SECONDS = 18;
 
 const ROLE_RANK: Record<TranscriptContentRole, number> = {
   sponsor_read: 4,
@@ -354,13 +357,61 @@ function nonEditorialNeighbor(
   return strongestRole(roles);
 }
 
+function confidentSponsorRead(segment: CreatorTranscriptSegment | undefined): boolean {
+  return segment?.contentRole === 'sponsor_read' && String(segment.contentRoleReason || '').startsWith('cue:');
+}
+
+function islandSeconds(segments: CreatorTranscriptSegment[]): number | null {
+  let start: number | null = null;
+  let end: number | null = null;
+  for (const segment of segments) {
+    if (segment.startSeconds == null || segment.endSeconds == null) return null;
+    if (!Number.isFinite(segment.startSeconds) || !Number.isFinite(segment.endSeconds)) return null;
+    start = start == null ? segment.startSeconds : Math.min(start, segment.startSeconds);
+    end = end == null ? segment.endSeconds : Math.max(end, segment.endSeconds);
+  }
+  if (start == null || end == null) return null;
+  return end - start;
+}
+
+/** A short cue-free gap between two primary sponsor cues, not a separate discussion. */
+function isolatedSponsorIsland(segments: CreatorTranscriptSegment[]): boolean {
+  const chars = segments.reduce((sum, segment) => sum + substantiveChars(String(segment.text || '')), 0);
+  if (chars === 0 || chars > SPONSOR_ISLAND_MAX_CHARS) return false;
+  const seconds = islandSeconds(segments);
+  if (seconds != null && seconds > SPONSOR_ISLAND_MAX_SECONDS) return false;
+  return segments.every((segment) => !EDITORIAL_GUARD.test(String(segment.text || '')));
+}
+
+function absorbSponsorIslands(segments: CreatorTranscriptSegment[]): void {
+  let index = 0;
+  while (index < segments.length) {
+    if (segments[index].contentRole !== 'editorial' || !confidentSponsorRead(segments[index - 1])) {
+      index += 1;
+      continue;
+    }
+    let end = index;
+    while (end < segments.length && segments[end].contentRole === 'editorial') end += 1;
+    const run = segments.slice(index, end);
+    if (confidentSponsorRead(segments[end]) && isolatedSponsorIsland(run)) {
+      for (const segment of run) {
+        segment.contentRole = 'sponsor_read';
+        segment.contentRoleReason = 'sponsor_block_continuity';
+      }
+    }
+    index = Math.max(end, index + 1);
+  }
+}
+
 /**
  * A sponsor sentence that never hits a primary cue stays glued to the
  * neighboring editorial window unless we peel commercial or very short
  * leftovers that sit directly against an already excluded span.
- * Editorial guard words stop that peel so the sentence after an ad survives.
+ * A short cue-free gap between two primary sponsor cues stays in that block.
+ * Editorial guard words stop both peels so the sentence after an ad survives.
  */
 function applyAdjacency(segments: CreatorTranscriptSegment[]): void {
+  absorbSponsorIslands(segments);
   const limit = Math.max(1, segments.length);
   for (let pass = 0; pass < limit; pass += 1) {
     let changed = false;
@@ -368,10 +419,9 @@ function applyAdjacency(segments: CreatorTranscriptSegment[]): void {
       const segment = segments[i];
       if (segment.contentRole !== 'editorial') continue;
       const text = String(segment.text || '');
-      const neighbor = nonEditorialNeighbor(
-        i > 0 ? segments[i - 1].contentRole : null,
-        i + 1 < segments.length ? segments[i + 1].contentRole : null,
-      );
+      const prev = i > 0 ? segments[i - 1] : undefined;
+      const next = i + 1 < segments.length ? segments[i + 1] : undefined;
+      const neighbor = nonEditorialNeighbor(prev?.contentRole, next?.contentRole);
       if (!neighbor || neighbor === 'editorial') continue;
       if (EDITORIAL_GUARD.test(text)) {
         segment.contentRoleReason = 'editorial_guard';

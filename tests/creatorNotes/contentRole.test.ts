@@ -569,3 +569,81 @@ describe('Meidas V1.9 sponsor regression', () => {
     ).toBe(true);
   });
 });
+
+/**
+ * Verbatim spans from creator-note run 52939a00-78d5-4f43-bf7b-0cdc22786140
+ * (source item kzdSpHAO0tAEMYC3KH1toIsDEa9B0AIk). Segment 108, 643.81–649.5,
+ * is the cue-free sentence inside the Wild Alaskan read.
+ */
+const VERSATILE =
+  "It's incredibly versatile cooks up beautifully and has a great texture that makes it an easy go to for dinner.";
+const COHO = 'One of my favorites has been the coho salmon.';
+const WILD_CAUGHT =
+  'They offer the best way to get wild caught high quality seafood delivered right to your door on your schedule.';
+const VACUUM =
+  "Each box comes with individually portioned vacuum sealed fillets that are easy to prep, whether I'm throwing together a quick dinner or making something a little more special.";
+const ALASKAN_WATERS =
+  'Everything is quick frozen right from the Alaskan waters. Plus every order supports sustainable harvesting practices and Alaskan fishermen.';
+const MONEY_BACK =
+  'so confident that their fish is the best that they offer a 100% satisfaction and money back guarantee so you can try your first box risk free.';
+const SLASH_MITIS = 'slash mitis for $35 off your first order of premium wild caught seafood.';
+const FOOD_POLICY =
+  'Grocery prices and restaurant supply contracts are getting harder to explain without a policy change.';
+
+function v110Segments(): CreatorTranscriptSegment[] {
+  const opening = v19Segments().filter((item) => item.index <= 5);
+  const outro = v19Segments().filter((item) => item.index >= 15);
+  return [
+    ...opening,
+    segment(6, 560, 600, DIESEL_ANALYSIS),
+    segment(7, 600, 620, "I've really been trying to keep healthier high quality ingredients around the house. And one thing I've got tired of is buying seafood that looks great at the store, but then just doesn't live up to expectations."),
+    segment(8, 620, 632, WILD_CAUGHT),
+    segment(9, 632, 640, VACUUM),
+    segment(10, 640, 643, ALASKAN_WATERS),
+    segment(11, 643, 643.8, COHO),
+    segment(12, 643.81, 649.5, VERSATILE),
+    segment(13, 650.89, 659.5, MONEY_BACK),
+    segment(14, 661.46, 668.3, SLASH_MITIS),
+    segment(18, 679.5, 720, DIESEL_CONTROL),
+    segment(19, 900, 940, FOOD_POLICY),
+    segment(20, 1000, 1060, ESTONIA_V19),
+    ...outro,
+  ];
+}
+
+describe('Meidas V1.10 sponsor-block continuity', () => {
+  it('keeps the isolated seafood sentence inside the Wild Alaskan block', () => {
+    const classified = classifyTranscriptContent(v110Segments());
+    const versatile = classified.segments.find((item) => item.text === VERSATILE);
+    expect(versatile?.contentRole).toBe('sponsor_read');
+    expect(versatile?.contentRoleReason).toBe('sponsor_block_continuity');
+
+    const editorial = editorialWindowText(v110Segments());
+    expect(editorial).not.toMatch(/incredibly versatile/i);
+    expect(editorial).not.toMatch(/vacuum sealed|coho salmon|wild caught|slash mitis|money back guarantee/i);
+    expect(editorial).not.toMatch(/photography school|portraits online|cookie empire|movie reviewing hobby/i);
+    expect(editorial).not.toMatch(/Cassina|online social games|little epiphanies|no purchase necessary/i);
+    expect(editorial).not.toMatch(/end of the discussion|let's get to 7 million/i);
+    expect(editorial).toMatch(/refining capacity/i);
+    expect(editorial).toMatch(/diesel price under control/i);
+    expect(editorial).toMatch(/Eastern Estonia/i);
+    expect(editorial).toMatch(/Grocery prices and restaurant supply contracts/i);
+
+    const food = classified.segments.find((item) => item.text === FOOD_POLICY);
+    expect(food?.contentRole).toBe('editorial');
+    const dieselAfter = classified.segments.find((item) => item.text === DIESEL_CONTROL);
+    expect(dieselAfter?.contentRole).toBe('editorial');
+    expect(dieselAfter?.contentRoleReason).toBe('editorial_guard');
+  });
+
+  it('does not treat the versatility sentence as an ad outside a sponsor block', () => {
+    const classified = classifyTranscriptContent([
+      segment(0, 0, 30, DIESEL_CONTROL),
+      segment(1, 30, 36, VERSATILE),
+      segment(2, 36, 70, FOOD_POLICY),
+    ]);
+    expect(classified.segments.find((item) => item.text === VERSATILE)?.contentRole).toBe('editorial');
+    expect(classified.segments.find((item) => item.text === FOOD_POLICY)?.contentRole).toBe('editorial');
+    expect(classified.segments.find((item) => item.text === DIESEL_CONTROL)?.contentRole).toBe('editorial');
+  });
+});
