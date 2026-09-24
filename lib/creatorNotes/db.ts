@@ -2,7 +2,16 @@ import 'server-only';
 
 import { intelDbConfigured } from '@/lib/intel/db';
 import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
+import {
+  CREATOR_NOTES_BRIEF_EPISODE_LIMIT,
+  CREATOR_NOTES_BRIEF_RUN_SCAN_LIMIT,
+  selectBriefEpisodes,
+  selectWinningSuccessRun,
+  type BriefEpisode,
+  type BriefEpisodeMeta,
+} from '@/lib/creatorNotes/brief';
 import { persistableCreatorNotes } from '@/lib/creatorNotes/contentRole';
+import { isUuid } from '@/lib/creatorNotes/identity';
 import { reviewCreatorNotes, type CreatorNotesReviewQuery } from '@/lib/creatorNotes/review';
 import type {
   CreatorAtomicNote,
@@ -269,6 +278,82 @@ export async function loadPersistedCreatorNotesReview(
   }
 
   return reviewCreatorNotes({ notes, runs, catalog: deps.catalog, query });
+}
+
+function optionalText(value: unknown): string | null {
+  if (value == null) return null;
+  const cleaned = String(value).trim();
+  return cleaned || null;
+}
+
+async function loadBriefEpisodeMeta(sourceItemIds: string[]): Promise<BriefEpisodeMeta[]> {
+  const ids = [...new Set(sourceItemIds.filter((id) => isUuid(id)))];
+  if (!ids.length) return [];
+  const { data, error } = await client()
+    .from('source_items')
+    .select('id, title, published_at, canonical_url, sources(name)')
+    .in('id', ids);
+  if (error) throw new Error(`source_items brief select: ${error.message}`);
+  return ((data || []) as Record<string, unknown>[]).map((row) => {
+    const sources = row.sources as { name?: string | null } | Array<{ name?: string | null }> | null;
+    const source = Array.isArray(sources) ? sources[0] : sources;
+    return {
+      sourceItemId: String(row.id),
+      creatorName: optionalText(source?.name),
+      title: optionalText(row.title),
+      publishedAt: row.published_at == null ? null : String(row.published_at),
+      sourceUrl: optionalText(row.canonical_url),
+      transcriptSource: null,
+    };
+  });
+}
+
+/**
+ * Read-only brief corpus. One newest successful run per episode, current extraction
+ * version preferred, editorial notes only. Does not call a model.
+ */
+export async function loadCreatorNotesBrief(): Promise<BriefEpisode[]> {
+  if (!intelDbConfigured()) return [];
+
+  const { data: recentRows, error: recentError } = await client()
+    .from('creator_note_runs')
+    .select(RUN_SELECT_COLUMNS)
+    .eq('status', 'success')
+    .order('completed_at', { ascending: false, nullsFirst: false })
+    .limit(CREATOR_NOTES_BRIEF_RUN_SCAN_LIMIT);
+  if (recentError) throw new Error(`creator_note_runs brief scan: ${recentError.message}`);
+
+  const recent = ((recentRows || []) as Record<string, unknown>[]).map(asRun);
+  const sourceItemIds: string[] = [];
+  for (const run of recent) {
+    if (!sourceItemIds.includes(run.sourceItemId)) sourceItemIds.push(run.sourceItemId);
+    if (sourceItemIds.length >= CREATOR_NOTES_BRIEF_EPISODE_LIMIT * 2) break;
+  }
+  if (!sourceItemIds.length) return [];
+
+  const { data: runRows, error: runsError } = await client()
+    .from('creator_note_runs')
+    .select(RUN_SELECT_COLUMNS)
+    .eq('status', 'success')
+    .in('source_item_id', sourceItemIds);
+  if (runsError) throw new Error(`creator_note_runs brief select: ${runsError.message}`);
+  const runs = ((runRows || []) as Record<string, unknown>[]).map(asRun);
+
+  const winningIds = sourceItemIds
+    .map((sourceItemId) => selectWinningSuccessRun(runs.filter((run) => run.sourceItemId === sourceItemId)))
+    .filter((run): run is CreatorNoteRun => Boolean(run))
+    .map((run) => run.id);
+  if (!winningIds.length) return [];
+
+  const { data: noteRows, error: notesError } = await client()
+    .from('creator_atomic_notes')
+    .select(NOTE_SELECT_COLUMNS)
+    .in('extraction_run_id', winningIds);
+  if (notesError) throw new Error(`creator_atomic_notes brief select: ${notesError.message}`);
+  const notes = ((noteRows || []) as Record<string, unknown>[]).map(asNote);
+  const metas = await loadBriefEpisodeMeta(sourceItemIds);
+
+  return selectBriefEpisodes({ runs, notes, metas, limit: CREATOR_NOTES_BRIEF_EPISODE_LIMIT });
 }
 
 export function reviewMemoryCreatorNotes(
