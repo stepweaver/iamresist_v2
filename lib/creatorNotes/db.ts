@@ -52,17 +52,45 @@ function statementRoleFromFeatures(value: unknown): StatementRole | undefined {
   return undefined;
 }
 
-function eventFeaturesForStorage(note: CreatorAtomicNote): CreatorAtomicNote['eventFeatures'] | { statementRole: StatementRole } | null {
-  const role = note.statementRole || resolveStatementRole(note);
-  const features = note.eventFeatures ? { ...note.eventFeatures } : null;
-  if (!features && !role) return null;
-  return { ...(features || {}), statementRole: role } as CreatorAtomicNote['eventFeatures'];
+type EventFeaturesStorage = NonNullable<CreatorAtomicNote['eventFeatures']> & {
+  statementRole?: StatementRole;
+  quotedSpeaker?: string;
+  referencedSource?: string;
+};
+
+function optionalFeatureString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
-function stripStatementRole(value: unknown): CreatorAtomicNote['eventFeatures'] {
+function eventFeaturesForStorage(
+  note: CreatorAtomicNote,
+): CreatorAtomicNote['eventFeatures'] | EventFeaturesStorage | null {
+  const role = note.statementRole || resolveStatementRole(note);
+  const features = note.eventFeatures ? { ...note.eventFeatures } : null;
+  const quotedSpeaker = String(note.quotedSpeaker || '').trim() || undefined;
+  const referencedSource = String(note.referencedSource || '').trim() || undefined;
+  if (!features && !role && !quotedSpeaker && !referencedSource) return null;
+  return {
+    ...(features || {}),
+    ...(role ? { statementRole: role } : {}),
+    ...(quotedSpeaker ? { quotedSpeaker } : {}),
+    ...(referencedSource ? { referencedSource } : {}),
+  } as EventFeaturesStorage;
+}
+
+function stripBriefFeatureExtras(value: unknown): CreatorAtomicNote['eventFeatures'] {
   if (!value || typeof value !== 'object') return null;
-  const { statementRole: _role, ...rest } = value as Record<string, unknown>;
+  const {
+    statementRole: _role,
+    quotedSpeaker: _quoted,
+    referencedSource: _ref,
+    ...rest
+  } = value as Record<string, unknown>;
   void _role;
+  void _quoted;
+  void _ref;
   if (!('actors' in rest) && !('action' in rest)) return null;
   return rest as unknown as CreatorAtomicNote['eventFeatures'];
 }
@@ -71,6 +99,16 @@ function asNote(row: Record<string, unknown>): CreatorAtomicNote {
   const indexes = Array.isArray(row.source_segment_indexes)
     ? row.source_segment_indexes.map((value) => Number(value)).filter((value) => Number.isFinite(value))
     : [];
+  const features = row.event_features;
+  const quotedSpeaker =
+    features && typeof features === 'object'
+      ? optionalFeatureString((features as EventFeaturesStorage).quotedSpeaker)
+      : undefined;
+  const referencedSource =
+    features && typeof features === 'object'
+      ? optionalFeatureString((features as EventFeaturesStorage).referencedSource)
+      : undefined;
+  const attribution = row.attribution == null ? null : String(row.attribution);
   return {
     id: String(row.id),
     sourceItemId: String(row.source_item_id),
@@ -79,18 +117,22 @@ function asNote(row: Record<string, unknown>): CreatorAtomicNote {
     endSeconds: row.end_seconds == null ? null : Number(row.end_seconds),
     kind: row.kind as CreatorAtomicNote['kind'],
     text: String(row.text || ''),
-    attribution: row.attribution == null ? null : String(row.attribution),
-    eventFeatures: stripStatementRole(row.event_features),
+    attribution,
+    eventFeatures: stripBriefFeatureExtras(row.event_features),
     sourceExcerpt: row.source_excerpt == null ? null : String(row.source_excerpt),
     sourceQuote: row.exact_quote == null ? null : String(row.exact_quote),
     exactQuote: row.exact_quote == null ? null : String(row.exact_quote),
     sourceSegmentIndexes: indexes,
     contentRole: row.content_role == null ? undefined : (String(row.content_role) as CreatorAtomicNote['contentRole']),
+    quotedSpeaker: quotedSpeaker || null,
+    referencedSource: referencedSource || null,
     statementRole:
       statementRoleFromFeatures(row.event_features) ||
       resolveStatementRole({
         kind: row.kind as CreatorAtomicNote['kind'],
-        attribution: row.attribution == null ? null : String(row.attribution),
+        attribution,
+        quotedSpeaker: quotedSpeaker || null,
+        referencedSource: referencedSource || null,
         text: String(row.text || ''),
       }),
     verificationStatus: row.verification_status as CreatorAtomicNote['verificationStatus'],

@@ -11,31 +11,17 @@ import {
   groupBriefEpisodes,
   referencedSourceLabel,
 } from '@/lib/creatorNotes/brief';
-
-const KIND_GLOSS = {
-  event: 'Recorded as an event note from this creator. Not an independent verification.',
-  claim: 'A claim stated by the creator. Source-derived, not established fact.',
-  new_development: 'Noted as a new development in this episode. Not independently verified.',
-  context: 'Context supplied by the creator. Not an independent finding.',
-  evidence_reference: 'The creator points at another source. The citation is not confirmed here.',
-  creator_analysis: 'The creator’s analysis. Editorial opinion, not established fact.',
-  why_it_matters: 'The creator’s stated significance. Not an independent conclusion.',
-};
-
-function kindLabel(kind) {
-  return String(kind || '').replace(/_/g, ' ').toUpperCase();
-}
+import {
+  briefContentRoleLabel,
+  briefKindLabel,
+  presentBriefNote,
+} from '@/lib/creatorNotes/briefPresentation';
 
 function formatWhen(value) {
   if (!value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC');
-}
-
-function verificationLabel(status) {
-  if (!status) return null;
-  return String(status).replace(/_/g, ' ').toUpperCase();
 }
 
 function isOpaqueEpisodeLabel(value) {
@@ -55,8 +41,10 @@ function episodeHeading(episode) {
 }
 
 function NoteCard({ note }) {
+  const presentation = presentBriefNote(note);
   const quote = note.sourceQuote || note.exactQuote || null;
   const referenced = referencedSourceLabel(note);
+  const contentRole = briefContentRoleLabel(note.contentRole);
   const hasEvidence = Boolean(note.sourceExcerpt) || (note.sourceSegmentIndexes || []).length > 0;
   const evidenceRange =
     note.startSeconds != null || note.endSeconds != null
@@ -66,28 +54,51 @@ function NoteCard({ note }) {
   return (
     <article
       className="min-w-0 break-words border border-border bg-background/40 p-3 sm:p-4"
-      data-note-kind={note.kind}
+      data-note-kind={presentation.dataAttrs.noteKind}
+      data-statement-role={presentation.dataAttrs.statementRole}
+      data-verification-status={presentation.dataAttrs.verificationStatus}
+      data-brief-lane={presentation.dataAttrs.briefLane}
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="kicker text-primary text-[10px] sm:text-xs tracking-[0.28em] font-bold">
-          {kindLabel(note.kind)}
+          {presentation.kindLabel}
         </span>
         <span className="font-mono text-[11px] sm:text-xs text-foreground/70">
           {formatBriefTimestampRange(note.startSeconds, note.endSeconds)}
         </span>
-        {verificationLabel(note.verificationStatus) && (
-          <span className="font-mono text-[10px] sm:text-xs tracking-wider text-foreground/50">
-            {verificationLabel(note.verificationStatus)}
+        {presentation.verificationLabel && (
+          <span
+            className="font-mono text-[10px] sm:text-xs tracking-wider text-foreground/50"
+            data-verification-badge
+          >
+            {presentation.verificationLabel}
+          </span>
+        )}
+        {presentation.statementRoleLabel && (
+          <span
+            className="font-mono text-[10px] sm:text-xs tracking-wider text-foreground/55"
+            data-statement-role-label
+          >
+            {presentation.statementRoleLabel}
           </span>
         )}
       </div>
-      <p className="mt-2 text-sm sm:text-base text-foreground/90 leading-relaxed">{note.text}</p>
-      <p className="mt-2 text-[11px] sm:text-xs text-foreground/55 leading-relaxed">{KIND_GLOSS[note.kind]}</p>
+      <p className="mt-2 text-sm sm:text-base text-foreground/90 leading-relaxed" data-note-text>
+        {presentation.displayText}
+      </p>
+      {presentation.interpretationAttribution && (
+        <p
+          className="mt-1 font-mono text-[11px] sm:text-xs text-foreground/55"
+          data-interpretation-attribution
+        >
+          Interpretation · {presentation.interpretationAttribution}
+        </p>
+      )}
       <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] sm:text-xs text-foreground/70">
-        {note.contentRole && (
+        {contentRole && (
           <div className="min-w-0">
             <dt className="text-foreground/45">Content role</dt>
-            <dd className="break-words">{note.contentRole}</dd>
+            <dd className="break-words">{contentRole}</dd>
           </div>
         )}
         {quote && (
@@ -215,7 +226,7 @@ export default function AtomicNotesBrief({ episodes, configured, loadError }) {
             <option value="">All kinds</option>
             {CREATOR_NOTE_KINDS.map((value) => (
               <option key={value} value={value}>
-                {kindLabel(value)}
+                {briefKindLabel(value)}
               </option>
             ))}
           </select>

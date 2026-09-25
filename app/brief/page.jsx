@@ -42,8 +42,9 @@ export default async function BriefPage() {
                 ATOMIC CREATOR NOTES
               </h1>
               <p className="mt-3 max-w-3xl text-sm sm:text-base text-foreground/70 leading-relaxed">
-                Read-only notebook of notes already stored from the ingestion pipeline. Claims and creator
-                analysis are source-derived. They are not independently verified fact.
+                Read-only notebook of stored Atomic Creator Notes. Note kind is a structural category;
+                statement role is attribution; verification status is stored separately and is never
+                inferred from kind alone.
               </p>
             </div>
           </div>
