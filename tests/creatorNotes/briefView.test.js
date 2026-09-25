@@ -93,5 +93,30 @@ describe('Atomic Creator Notes brief view', () => {
     expect(html).toContain('Time range');
     expect(html).toContain('NOT APPLICABLE');
     expect(html).toContain('David Pakman');
+    expect(html).toContain('Stay order');
+  });
+
+  it('omits opaque episode ids and filenames from the heading', async () => {
+    const opaqueId = 'Jjr199LfbBt7AHIEMSNCwrHXLHNqiKY';
+    const episodes = selectBriefEpisodes({
+      runs: [run({ sourceItemId: opaqueId })],
+      notes: [note({ sourceItemId: opaqueId })],
+      metas: [
+        {
+          sourceItemId: opaqueId,
+          creatorName: 'Mel Dastouch Network',
+          title: `${opaqueId}.mp3`,
+          publishedAt: null,
+          sourceUrl: 'https://example.com/audio',
+          transcriptSource: null,
+        },
+      ],
+    });
+    const html = await renderBrief({ episodes, configured: true, loadError: null });
+
+    expect(html).toContain('Mel Dastouch Network');
+    expect(html).not.toContain(`${opaqueId}.mp3`);
+    expect(html).not.toContain(`>${opaqueId}<`);
+    expect(html).not.toContain('<h4');
   });
 });

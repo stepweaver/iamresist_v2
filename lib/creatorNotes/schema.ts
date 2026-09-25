@@ -109,3 +109,38 @@ export const CREATOR_NOTES_BATCH_JSON_SCHEMA = {
   required: ['windows'],
   additionalProperties: false,
 } as const;
+
+export const CREATOR_NOTES_ENTAILMENT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    results: {
+      type: 'array',
+      maxItems: 8,
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', minLength: 1, maxLength: 8 },
+          entailed: { type: 'boolean' },
+          failureReason: {
+            type: 'string',
+            enum: [
+              'actor_mismatch',
+              'relation_reversed',
+              'attribution_mismatch',
+              'modality_strengthened',
+              'quantity_mismatch',
+              'unsupported_inference',
+              'other',
+            ],
+          },
+          confidence: { type: 'string', enum: ['high', 'low'] },
+          correctedNote: { type: 'string', maxLength: 500 },
+        },
+        required: ['id', 'entailed', 'confidence'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['results'],
+  additionalProperties: false,
+} as const;

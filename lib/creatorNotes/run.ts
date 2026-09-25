@@ -20,6 +20,7 @@ import {
   creatorNotesRecoveryReason,
   extractCreatorNotesChunk,
   extractCreatorNotesWindowBatch,
+  entailCreatorNotes,
   healthCheckCreatorNotesOllama,
   isCreatorNotesRecoverableInferenceError,
   isCreatorNotesTransportFailure,
@@ -46,6 +47,7 @@ import {
   emptyEvidenceDiagnostics,
   quoteDiagnosticsFromEvidence,
 } from '@/lib/creatorNotes/sourceEvidence';
+import { assessSemanticFidelity, type SemanticFailureReason } from '@/lib/creatorNotes/semanticFidelity';
 import { addKindDiagnostics, emptyKindDiagnostics, invalidRawKindValues } from '@/lib/creatorNotes/validate';
 import {
   assessWindowBatchCoverage,
@@ -104,6 +106,7 @@ export type CreatorNotesRunDeps = {
   aiConfig?: CreatorNotesAiConfig;
   log?: (prefix: string, event: string, extra?: Record<string, unknown>) => void;
   healthCheck?: (config: CreatorNotesAiConfig) => Promise<CreatorNotesHealthCheckResult>;
+  semanticEntailment?: typeof entailCreatorNotes | null;
   sleep?: (ms: number) => Promise<void>;
   transportBackoffMs?: number;
 };
@@ -148,6 +151,7 @@ export function emptyExtractionPerformance(
     cacheHits: 0,
     cacheMisses: 0,
     ollamaBatchRequests: 0,
+    semanticValidationRequests: 0,
     individualFallbackRequests: 0,
     batchWindowsSubmitted: 0,
     batchWindowsAccepted: 0,
@@ -220,6 +224,8 @@ export async function runCreatorNoteExtraction(
         : null;
   const log = deps.log;
   const healthCheck = deps.healthCheck || ((config: CreatorNotesAiConfig) => healthCheckCreatorNotesOllama(config));
+  const semanticEntailment =
+    deps.semanticEntailment !== undefined ? deps.semanticEntailment : deps.extractChunk ? null : entailCreatorNotes;
   const sleep = deps.sleep || sleepMs;
   const backoffMs = deps.transportBackoffMs ?? CREATOR_NOTES_TRANSPORT_BACKOFF_MS;
 
@@ -381,10 +387,25 @@ export async function runCreatorNoteExtraction(
     };
   }
 
-  function groundExtracted(
+  function recordSemanticRejection(
+    diagnostics: CreatorNoteEvidenceDiagnostics,
+    reason: SemanticFailureReason | null,
+  ) {
+    diagnostics.groundingRejected += 1;
+    diagnostics.semanticRejected += 1;
+    if (reason === 'actor_mismatch') diagnostics.semanticActorMismatch += 1;
+    else if (reason === 'relation_reversed') diagnostics.semanticRelationReversed += 1;
+    else if (reason === 'attribution_mismatch') diagnostics.semanticAttributionMismatch += 1;
+    else if (reason === 'modality_strengthened') diagnostics.semanticModalityStrengthened += 1;
+    else if (reason === 'quantity_mismatch') diagnostics.semanticQuantityMismatch += 1;
+    else if (reason === 'unsupported_inference') diagnostics.semanticUnsupportedInference += 1;
+    else diagnostics.semanticOther += 1;
+  }
+
+  async function groundExtracted(
     chunk: CreatorTranscriptChunk,
     extracted: CreatorNotesChunkExtractResult,
-  ): ChunkProcessResult {
+  ): Promise<ChunkProcessResult> {
     const attached = attachEvidenceWindowToNotes(extracted.notes, {
       segmentIndexes: chunk.segmentIndexes,
       startSeconds: chunk.startSeconds,
@@ -396,19 +417,53 @@ export async function runCreatorNoteExtraction(
       sourceUrl: transcript.sourceUrl,
       knownCreatorName: transcript.creatorName,
     });
+    let semanticRejected = 0;
+    let fidelityNotes = grounded.notes;
+    if (semanticEntailment && fidelityNotes.length) {
+      const ready: RawCreatorNote[] = [];
+      const review: RawCreatorNote[] = [];
+      for (const note of fidelityNotes) {
+        const decision = assessSemanticFidelity(note.sourceExcerpt || '', note.text, {
+          quotedSpeaker: note.quotedSpeaker,
+        });
+        if (decision.decision === 'review') review.push(note);
+        else ready.push(note);
+      }
+      const groups = new Map<string, RawCreatorNote[]>();
+      for (const note of review) {
+        const key = note.sourceExcerpt || '';
+        const list = groups.get(key) || [];
+        list.push(note);
+        groups.set(key, list);
+      }
+      for (const [evidenceText, group] of groups) {
+        performance.semanticValidationRequests += 1;
+        const outcome = await semanticEntailment({
+          evidenceText,
+          notes: group,
+          config: aiConfig,
+        });
+        ready.push(...outcome.notes);
+        for (const reason of outcome.rejections) {
+          semanticRejected += 1;
+          recordSemanticRejection(grounded.diagnostics, reason);
+        }
+      }
+      fidelityNotes = ready;
+    }
     const notes: RawCreatorNote[] = [];
     if (!isEditorialExtractionRole(chunk.contentRole)) {
-      contentRoles.nonEditorialNotesDropped += grounded.notes.length;
+      contentRoles.nonEditorialNotesDropped += fidelityNotes.length;
       return {
         notes,
-        rejected: extracted.rejected + grounded.rejected,
+        rejected: extracted.rejected + grounded.rejected + semanticRejected,
         diagnostics: grounded.diagnostics,
         kindDiagnostics: kindDiagnosticsFromExtracted(extracted),
         ok: true,
         error: null,
       };
     }
-    for (const note of grounded.notes) {
+    for (const note of fidelityNotes) {
       const role = resolveNoteContentRole({
         contentRole: chunk.contentRole,
         text: note.text,
@@ -424,7 +479,7 @@ export async function runCreatorNoteExtraction(
     }
     return {
       notes,
-      rejected: extracted.rejected + grounded.rejected,
+      rejected: extracted.rejected + grounded.rejected + semanticRejected,
       diagnostics: grounded.diagnostics,
       kindDiagnostics: kindDiagnosticsFromExtracted(extracted),
       ok: true,
@@ -465,7 +520,7 @@ export async function runCreatorNoteExtraction(
     });
     performance.totalAiMs += Date.now() - extractStarted;
     await writeWindowCache(chunk, extracted);
-    const grounded = groundExtracted(chunk, extracted);
+    const grounded = await groundExtracted(chunk, extracted);
     return {
       notes: grounded.notes,
       rejected: grounded.rejected,
@@ -747,7 +802,7 @@ export async function runCreatorNoteExtraction(
     extracted: CreatorNotesChunkExtractResult,
   ): Promise<void> {
     await writeWindowCache(chunk, extracted);
-    const firstGround = groundExtracted(chunk, extracted);
+    const firstGround = await groundExtracted(chunk, extracted);
     let result = firstGround;
     if (firstGround.notes.length === 0 && (extracted.notes.length > 0 || extracted.rejected > 0)) {
       const rejectedKinds = invalidRawKindValues(extracted.kindDiagnostics || emptyKindDiagnostics());
@@ -991,6 +1046,14 @@ export async function runCreatorNoteExtraction(
       unsupportedNumberRejected: evidenceDiagnostics.unsupportedNumberRejected,
       compoundRejected: evidenceDiagnostics.compoundRejected,
       wideEvidenceWindows: evidenceDiagnostics.wideEvidenceWindows,
+      semanticRejected: evidenceDiagnostics.semanticRejected,
+      semanticActorMismatch: evidenceDiagnostics.semanticActorMismatch,
+      semanticRelationReversed: evidenceDiagnostics.semanticRelationReversed,
+      semanticAttributionMismatch: evidenceDiagnostics.semanticAttributionMismatch,
+      semanticModalityStrengthened: evidenceDiagnostics.semanticModalityStrengthened,
+      semanticQuantityMismatch: evidenceDiagnostics.semanticQuantityMismatch,
+      semanticUnsupportedInference: evidenceDiagnostics.semanticUnsupportedInference,
+      semanticOther: evidenceDiagnostics.semanticOther,
     };
     const status = creatorNotesRunStatus({ failedChunks: ai.failedChunks, noteCount: notes.length });
 

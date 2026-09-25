@@ -27,7 +27,9 @@ import {
 } from '@/lib/creatorNotes/run';
 import {
   clampCreatorNotesBatchLimit,
+  clampCreatorNotesBatchScanLimit,
   clampCreatorNotesSinceHours,
+  defaultCreatorNotesBatchScanLimit,
   matchesCreatorSlug,
   voiceItemInRecencyWindow,
 } from '@/lib/creatorNotes/select';
@@ -98,9 +100,12 @@ function emptyStatuses(): Record<PodcastTranscriptStatus, number> {
   };
 }
 
-function emptySummary(dryRun: boolean): CreatorNotesPodcastBatchSummary {
+function emptySummary(dryRun: boolean, bounds?: { processLimit: number; scanLimit: number }): CreatorNotesPodcastBatchSummary {
   return {
     candidateEpisodes: 0,
+    processLimit: bounds?.processLimit ?? 0,
+    scanLimit: bounds?.scanLimit ?? 0,
+    scanLimitReached: false,
     processed: 0,
     alreadyProcessed: 0,
     transcriptUnavailable: 0,
@@ -139,14 +144,23 @@ function skippedResult(input: {
 
 export function selectEligiblePodcastEpisodes(
   episodes: PodcastEpisodeSource[],
-  opts: { limit?: number; creator?: string | null; sinceHours?: number; now?: Date | string } = {},
+  opts: {
+    limit?: number;
+    scanLimit?: number | null;
+    creator?: string | null;
+    sinceHours?: number;
+    now?: Date | string;
+  } = {},
 ): PodcastEpisodeSource[] {
   const now = opts.now instanceof Date ? opts.now : new Date(opts.now || Date.now());
   const sinceHours = clampCreatorNotesSinceHours(
     opts.sinceHours == null ? CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS : Number(opts.sinceHours),
   );
-  const limit = clampCreatorNotesBatchLimit(
+  const processLimit = clampCreatorNotesBatchLimit(
     opts.limit == null ? CREATOR_NOTES_BATCH_DEFAULT_LIMIT : Number(opts.limit),
+  );
+  const scanLimit = clampCreatorNotesBatchScanLimit(
+    opts.scanLimit == null ? defaultCreatorNotesBatchScanLimit(processLimit) : Number(opts.scanLimit),
   );
   return sortPodcastEpisodesNewestFirst(
     episodes.filter(
@@ -154,7 +168,7 @@ export function selectEligiblePodcastEpisodes(
         matchesCreatorSlug({ creatorId: episode.creatorId }, opts.creator) &&
         voiceItemInRecencyWindow({ publishedAt: episode.publishedAt }, sinceHours, now),
     ),
-  ).slice(0, limit);
+  ).slice(0, scanLimit);
 }
 
 function itemBase(episode: PodcastEpisodeSource): Pick<
@@ -295,8 +309,9 @@ function summarize(
   items: CreatorNotesPodcastBatchItemResult[],
   dryRun: boolean,
   durationMs: number,
+  bounds: { processLimit: number; scanLimit: number },
 ): CreatorNotesPodcastBatchSummary {
-  const summary = emptySummary(dryRun);
+  const summary = emptySummary(dryRun, bounds);
   summary.candidateEpisodes = items.length;
   let timed = 0;
   const creators = new Map<string, { creatorId: string | null; creatorName: string | null; items: number; notes: number }>();
@@ -336,6 +351,7 @@ function summarize(
   summary.creators = [...creators.values()].sort((a, b) => b.notes - a.notes);
   summary.duration.totalMs = durationMs;
   summary.duration.averagePerItemMs = timed > 0 ? durationMs / timed : null;
+  summary.scanLimitReached = items.length >= bounds.scanLimit && summary.processed < bounds.processLimit;
   return summary;
 }
 
@@ -374,9 +390,14 @@ export async function runCreatorNotesPodcastBatch(
       }
     }
 
+    const processLimit = clampCreatorNotesBatchLimit(args.limit ?? CREATOR_NOTES_BATCH_DEFAULT_LIMIT);
+    const scanLimit = clampCreatorNotesBatchScanLimit(
+      args.scanLimit == null ? defaultCreatorNotesBatchScanLimit(processLimit) : Number(args.scanLimit),
+    );
     const catalog = await loadPodcastCatalog(deps);
     const candidates = selectEligiblePodcastEpisodes(catalog, {
-      limit: args.limit ?? CREATOR_NOTES_BATCH_DEFAULT_LIMIT,
+      limit: processLimit,
+      scanLimit,
       creator: args.creator,
       sinceHours: args.sinceHours ?? CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS,
       now: deps.now ? deps.now() : undefined,
@@ -390,15 +411,20 @@ export async function runCreatorNotesPodcastBatch(
     }
     const items: CreatorNotesPodcastBatchItemResult[] = [];
     const extractionResults: CreatorNotesRunResult[] = [];
+    let processedCount = 0;
 
     for (const episode of candidates) {
       const processed = await processOne(episode, args, { ...deps, store, aiConfig, audioTranscription });
       items.push(processed.item);
       if (processed.result) extractionResults.push(processed.result);
+      if (processed.item.outcome === 'processed') {
+        processedCount += 1;
+        if (processedCount >= processLimit) break;
+      }
     }
 
     const finished = deps.now ? deps.now().getTime() : Date.now();
-    const summary = summarize(items, dryRun, Math.max(0, finished - started));
+    const summary = summarize(items, dryRun, Math.max(0, finished - started), { processLimit, scanLimit });
     const counts = emptyKindCounts();
     for (const result of extractionResults) {
       for (const kind of CREATOR_NOTE_KINDS) counts[kind] += result.kindCounts[kind];

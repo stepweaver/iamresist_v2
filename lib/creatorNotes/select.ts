@@ -3,6 +3,9 @@ import {
   CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS,
   CREATOR_NOTES_BATCH_HARD_MAX,
   CREATOR_NOTES_BATCH_MAX_SINCE_HOURS,
+  CREATOR_NOTES_BATCH_SCAN_FLOOR,
+  CREATOR_NOTES_BATCH_SCAN_HARD_MAX,
+  CREATOR_NOTES_BATCH_SCAN_MULTIPLIER,
   CREATOR_NOTES_YOUTUBE_BATCH_ENABLED,
 } from '@/lib/creatorNotes/constants';
 import {
@@ -28,6 +31,19 @@ export type CreatorNotesSelectDeps = {
 export function clampCreatorNotesBatchLimit(limit: number): number {
   if (!Number.isFinite(limit)) return CREATOR_NOTES_BATCH_DEFAULT_LIMIT;
   return Math.max(1, Math.min(CREATOR_NOTES_BATCH_HARD_MAX, Math.round(limit)));
+}
+
+export function clampCreatorNotesBatchScanLimit(scanLimit: number): number {
+  if (!Number.isFinite(scanLimit)) return CREATOR_NOTES_BATCH_SCAN_FLOOR;
+  return Math.max(1, Math.min(CREATOR_NOTES_BATCH_SCAN_HARD_MAX, Math.round(scanLimit)));
+}
+
+/** Inspect at least the floor, and at least multiplier times the processing quota. */
+export function defaultCreatorNotesBatchScanLimit(limit: number): number {
+  const processLimit = clampCreatorNotesBatchLimit(limit);
+  return clampCreatorNotesBatchScanLimit(
+    Math.max(CREATOR_NOTES_BATCH_SCAN_FLOOR, processLimit * CREATOR_NOTES_BATCH_SCAN_MULTIPLIER),
+  );
 }
 
 export function clampCreatorNotesSinceHours(hours: number): number {

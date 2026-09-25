@@ -44,6 +44,8 @@ npm run creator-notes:podcast-batch -- --limit 10 --transcribe-audio
 npm run creator-notes:review -- --limit 50
 ```
 
+`--limit` is how many episodes may be successfully processed in that invocation. Unusable episodes (already processed, `TRANSCRIPT_UNAVAILABLE`, or an explicit transcript/audio failure) are reported and skipped. The job keeps scanning until it fills `--limit` or reaches `--scan-limit` (default `max(10, limit * 5)`, hard max 250), still inside the recency window. The service and timer templates do not need a new flag; the default scan window covers the production `--limit 10` run.
+
 Without `--transcribe-audio`, missing publisher transcripts stay `TRANSCRIPT_UNAVAILABLE` and audio is not downloaded.
 
 Dry-run (extract + print, zero creator-note writes; a local transcript cache may still be written):

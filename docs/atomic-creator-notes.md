@@ -311,7 +311,7 @@ Flow: resolve episode from Voices RSS / official adapter feed → resolve transc
 npm run creator-notes:podcast-batch -- --limit 10 --transcribe-audio
 ```
 
-Defaults: limit 10 (hard max 50), 48-hour recency window, newest first. A publisher transcript is used when one exists. With `--transcribe-audio`, a missing publisher transcript falls through to the RSS audio enclosure and local faster-whisper. Without that flag, missing transcripts stay `TRANSCRIPT_UNAVAILABLE`. Episodes run sequentially. The batch report lists each episode's `transcriptSource`: `official_creator_page`, `podcast_namespace`, or `local_audio_transcription`.
+Defaults: `--limit 10` (hard max 50) is the maximum number of episodes successfully processed in one invocation, not the number of candidates inspected. `--scan-limit` defaults to `max(10, limit * 5)` (hard max 250) and caps how many eligible episodes are inspected while filling that quota. Already-processed, `TRANSCRIPT_UNAVAILABLE`, and transcript/audio failures are reported and skipped. The scan stops when `processed` reaches `--limit` or the scan limit is reached. The 48-hour recency window still applies, newest first. A publisher transcript is used when one exists. With `--transcribe-audio`, a missing publisher transcript falls through to the RSS audio enclosure and local faster-whisper. Without that flag, missing transcripts stay `TRANSCRIPT_UNAVAILABLE`. Episodes run sequentially. The batch report lists candidates inspected, scan-limit reached, and each episode's `transcriptSource`: `official_creator_page`, `podcast_namespace`, or `local_audio_transcription`.
 
 ### B. Automatic transcript retrieval from a supported source item
 

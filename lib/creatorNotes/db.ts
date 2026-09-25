@@ -12,6 +12,7 @@ import {
 } from '@/lib/creatorNotes/brief';
 import { persistableCreatorNotes } from '@/lib/creatorNotes/contentRole';
 import { isUuid } from '@/lib/creatorNotes/identity';
+import { resolveStatementRole, type StatementRole } from '@/lib/creatorNotes/semanticFidelity';
 import { reviewCreatorNotes, type CreatorNotesReviewQuery } from '@/lib/creatorNotes/review';
 import type {
   CreatorAtomicNote,
@@ -44,6 +45,28 @@ function asRun(row: Record<string, unknown>): CreatorNoteRun {
   };
 }
 
+function statementRoleFromFeatures(value: unknown): StatementRole | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const role = (value as { statementRole?: unknown }).statementRole;
+  if (role === 'creator' || role === 'quoted_speaker' || role === 'reported' || role === 'unknown') return role;
+  return undefined;
+}
+
+function eventFeaturesForStorage(note: CreatorAtomicNote): CreatorAtomicNote['eventFeatures'] | { statementRole: StatementRole } | null {
+  const role = note.statementRole || resolveStatementRole(note);
+  const features = note.eventFeatures ? { ...note.eventFeatures } : null;
+  if (!features && !role) return null;
+  return { ...(features || {}), statementRole: role } as CreatorAtomicNote['eventFeatures'];
+}
+
+function stripStatementRole(value: unknown): CreatorAtomicNote['eventFeatures'] {
+  if (!value || typeof value !== 'object') return null;
+  const { statementRole: _role, ...rest } = value as Record<string, unknown>;
+  void _role;
+  if (!('actors' in rest) && !('action' in rest)) return null;
+  return rest as unknown as CreatorAtomicNote['eventFeatures'];
+}
+
 function asNote(row: Record<string, unknown>): CreatorAtomicNote {
   const indexes = Array.isArray(row.source_segment_indexes)
     ? row.source_segment_indexes.map((value) => Number(value)).filter((value) => Number.isFinite(value))
@@ -57,12 +80,19 @@ function asNote(row: Record<string, unknown>): CreatorAtomicNote {
     kind: row.kind as CreatorAtomicNote['kind'],
     text: String(row.text || ''),
     attribution: row.attribution == null ? null : String(row.attribution),
-    eventFeatures: (row.event_features as CreatorAtomicNote['eventFeatures']) || null,
+    eventFeatures: stripStatementRole(row.event_features),
     sourceExcerpt: row.source_excerpt == null ? null : String(row.source_excerpt),
     sourceQuote: row.exact_quote == null ? null : String(row.exact_quote),
     exactQuote: row.exact_quote == null ? null : String(row.exact_quote),
     sourceSegmentIndexes: indexes,
     contentRole: row.content_role == null ? undefined : (String(row.content_role) as CreatorAtomicNote['contentRole']),
+    statementRole:
+      statementRoleFromFeatures(row.event_features) ||
+      resolveStatementRole({
+        kind: row.kind as CreatorAtomicNote['kind'],
+        attribution: row.attribution == null ? null : String(row.attribution),
+        text: String(row.text || ''),
+      }),
     verificationStatus: row.verification_status as CreatorAtomicNote['verificationStatus'],
     extractionRunId: String(row.extraction_run_id),
     noteFingerprint: String(row.note_fingerprint),
@@ -81,11 +111,11 @@ function noteToRow(note: CreatorAtomicNote) {
     kind: note.kind,
     text: note.text,
     attribution: note.attribution,
-    event_features: note.eventFeatures,
     source_excerpt: note.sourceExcerpt,
     exact_quote: note.sourceQuote || note.exactQuote,
     source_segment_indexes: note.sourceSegmentIndexes || [],
     content_role: note.contentRole === 'editorial' ? 'editorial' : null,
+    event_features: eventFeaturesForStorage(note),
     verification_status: note.verificationStatus,
     note_fingerprint: note.noteFingerprint,
     created_at: note.createdAt,

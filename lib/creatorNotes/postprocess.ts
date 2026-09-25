@@ -120,6 +120,7 @@ export function toAtomicNotes(input: {
     evidenceDurationSeconds: note.evidenceDurationSeconds ?? null,
     referencedSource: note.referencedSource || null,
     quotedSpeaker: note.quotedSpeaker || null,
+    statementRole: note.statementRole,
     anchorStartSeconds: note.anchorStartSeconds ?? null,
     contentRole: note.contentRole,
     verificationStatus: defaultVerificationStatus(note.kind),

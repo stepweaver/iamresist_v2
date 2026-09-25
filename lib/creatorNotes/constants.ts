@@ -4,8 +4,8 @@
  * filtering changes what can be written into the corpus.
  */
 
-export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.11';
-export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.9';
+export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.12';
+export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.10';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 export const CREATOR_NOTES_OLLAMA_KEEP_ALIVE_DEFAULT = '5m';
 /** Version the canonical transcript normalizer. Bump when segment merge/text rules change. */
@@ -76,6 +76,14 @@ export const CREATOR_NOTES_BATCH_DEFAULT_LIMIT = 10;
 export const CREATOR_NOTES_BATCH_HARD_MAX = 50;
 export const CREATOR_NOTES_BATCH_DEFAULT_SINCE_HOURS = 48;
 export const CREATOR_NOTES_BATCH_MAX_SINCE_HOURS = 168;
+/**
+ * Podcast batch --limit counts successful processing.
+ * The scan window is how many eligible episodes may be inspected to fill that quota.
+ * Default is max(floor, limit * multiplier), still inside the recency window.
+ */
+export const CREATOR_NOTES_BATCH_SCAN_FLOOR = 10;
+export const CREATOR_NOTES_BATCH_SCAN_MULTIPLIER = 5;
+export const CREATOR_NOTES_BATCH_SCAN_HARD_MAX = 250;
 
 /**
  * Automatic YouTube caption ingest is preserved in code but disabled from

@@ -120,6 +120,7 @@ export interface RawCreatorNote {
   evidenceDurationSeconds?: number | null;
   referencedSource?: string | null;
   quotedSpeaker?: string | null;
+  statementRole?: 'creator' | 'quoted_speaker' | 'reported' | 'unknown';
   anchorStartSeconds?: number | null;
   contentRole?: TranscriptContentRole;
 }
@@ -141,6 +142,7 @@ export interface CreatorAtomicNote {
   evidenceDurationSeconds?: number | null;
   referencedSource?: string | null;
   quotedSpeaker?: string | null;
+  statementRole?: 'creator' | 'quoted_speaker' | 'reported' | 'unknown';
   anchorStartSeconds?: number | null;
   contentRole?: TranscriptContentRole;
   verificationStatus: VerificationStatus;
@@ -195,6 +197,14 @@ export interface CreatorNoteEvidenceDiagnostics {
   unsupportedNumberRejected: number;
   compoundRejected: number;
   wideEvidenceWindows: number;
+  semanticRejected: number;
+  semanticActorMismatch: number;
+  semanticRelationReversed: number;
+  semanticAttributionMismatch: number;
+  semanticModalityStrengthened: number;
+  semanticQuantityMismatch: number;
+  semanticUnsupportedInference: number;
+  semanticOther: number;
 }
 
 export interface CreatorNotesRunResult {
@@ -353,6 +363,7 @@ export interface CreatorNotesExtractionPerformance {
   cacheHits: number;
   cacheMisses: number;
   ollamaBatchRequests: number;
+  semanticValidationRequests: number;
   individualFallbackRequests: number;
   batchWindowsSubmitted: number;
   batchWindowsAccepted: number;
@@ -405,6 +416,8 @@ export interface CreatorNotesPodcastExtractArgs {
 
 export interface CreatorNotesBatchArgs {
   limit: number;
+  /** Podcast batch only. Null uses max(10, limit * 5). YouTube batch ignores this. */
+  scanLimit?: number | null;
   dryRun: boolean;
   force: boolean;
   creator: string | null;
@@ -532,7 +545,13 @@ export interface CreatorNotesPodcastBatchItemResult {
 }
 
 export interface CreatorNotesPodcastBatchSummary {
+  /** Eligible episodes inspected this invocation. Not the size of the feed. */
   candidateEpisodes: number;
+  /** --limit: maximum successful Atomic Notes processing for this invocation. */
+  processLimit: number;
+  /** Maximum eligible episodes inspected while filling processLimit. */
+  scanLimit: number;
+  scanLimitReached: boolean;
   processed: number;
   alreadyProcessed: number;
   transcriptUnavailable: number;

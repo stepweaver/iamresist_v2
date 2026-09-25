@@ -7,13 +7,19 @@ import {
   creatorNotesOllamaKeepAlive,
 } from '@/lib/creatorNotes/constants';
 import { buildCreatorNoteBatchMessages, buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
-import { CREATOR_NOTES_BATCH_JSON_SCHEMA, CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
+import { CREATOR_NOTES_BATCH_JSON_SCHEMA, CREATOR_NOTES_ENTAILMENT_JSON_SCHEMA, CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
+import {
+  applyEntailmentItem,
+  parseSemanticEntailmentContent,
+  type SemanticFailureReason,
+} from '@/lib/creatorNotes/semanticFidelity';
 import { emptyKindDiagnostics, parseCreatorNotesBatchOutput, parseCreatorNotesOutput } from '@/lib/creatorNotes/validate';
 import type {
   CreatorNotesChunkExtractResult,
   CreatorNotesWindowBatchExtractResult,
   CreatorTranscriptChunk,
   CreatorTranscriptInput,
+  RawCreatorNote,
 } from '@/lib/creatorNotes/types';
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
 import { ollamaChatJson, probeOllama } from '@/lib/themeMemory/ai/ollama';
@@ -243,4 +249,61 @@ export async function extractCreatorNotesWindowBatch(input: {
     knownCreatorName: input.transcript.creatorName,
     expectedWindowIds,
   });
+}
+
+function entailmentMessages(evidenceText: string, notes: RawCreatorNote[]): Array<{ role: 'system' | 'user'; content: string }> {
+  const lines = notes.map((note, index) => `${index}\t${note.text}`);
+  return [
+    {
+      role: 'system',
+      content: [
+        'You check whether each atomic note is semantically entailed by the evidence.',
+        'You did not write the notes. Do not defend them.',
+        'entailed is true only when subject, object, actor, action, polarity, attribution, quantity, and modality are preserved.',
+        'A shared vocabulary is not entailment. Reversed winners, swapped agents, strengthened could/might/may into will/did, and mis-assigned sources are entailed false.',
+        'confidence is high only when the decision is unambiguous. Otherwise confidence is low and entailed is false.',
+        'correctedNote only when one unambiguous repair is directly supported by the evidence. Otherwise omit it.',
+        'Do not explain. Do not include reasoning.',
+      ].join(' '),
+    },
+    {
+      role: 'user',
+      content: `Evidence:\n${evidenceText}\n\nNotes:\n${lines.join('\n')}\n\nReturn JSON {"results":[{"id":"0","entailed":false,"failureReason":"relation_reversed","confidence":"high"}]}`,
+    },
+  ];
+}
+
+export async function entailCreatorNotes(input: {
+  evidenceText: string;
+  notes: RawCreatorNote[];
+  config?: CreatorNotesAiConfig;
+}): Promise<{ notes: RawCreatorNote[]; rejections: SemanticFailureReason[] }> {
+  const config = input.config || resolveCreatorNotesAiConfig();
+  assertCreatorNotesAiConfigured(config);
+  if (!input.notes.length) return { notes: [], rejections: [] };
+  const { content } = await ollamaChatJson({
+    messages: entailmentMessages(input.evidenceText, input.notes),
+    format: CREATOR_NOTES_ENTAILMENT_JSON_SCHEMA,
+    timeoutMs: config.timeoutMs,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    retries: config.retries,
+    logLabel: '[creator-notes-entailment]',
+    keepAlive: config.keepAlive || creatorNotesOllamaKeepAlive(),
+  });
+  const items = parseSemanticEntailmentContent(content);
+  const notes: RawCreatorNote[] = [];
+  const rejections: SemanticFailureReason[] = [];
+  input.notes.forEach((note, index) => {
+    const item = items?.find((row) => row.id === String(index));
+    const applied = applyEntailmentItem(input.evidenceText, note.text, item, {
+      quotedSpeaker: note.quotedSpeaker,
+    });
+    if (!applied.text) {
+      rejections.push(applied.failureReason || 'other');
+      return;
+    }
+    notes.push(applied.text === note.text ? note : { ...note, text: applied.text });
+  });
+  return { notes, rejections };
 }

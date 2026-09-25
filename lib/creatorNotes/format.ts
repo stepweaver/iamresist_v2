@@ -5,7 +5,12 @@ import {
   CREATOR_NOTES_REVIEW_DEFAULT_LIMIT,
   CREATOR_NOTES_REVIEW_HARD_MAX,
 } from '@/lib/creatorNotes/constants';
-import { clampCreatorNotesBatchLimit, clampCreatorNotesSinceHours } from '@/lib/creatorNotes/select';
+import {
+  clampCreatorNotesBatchLimit,
+  clampCreatorNotesBatchScanLimit,
+  clampCreatorNotesSinceHours,
+  defaultCreatorNotesBatchScanLimit,
+} from '@/lib/creatorNotes/select';
 import type {
   CreatorAtomicNote,
   CreatorNoteKind,
@@ -149,9 +154,12 @@ export function parseCreatorNotesPodcastExtractArgs(argv: string[]): CreatorNote
 
 export function parseCreatorNotesBatchArgs(argv: string[]): CreatorNotesBatchArgs {
   const limitRaw = parsePositiveInt(argValue(argv, '--limit'), '--limit');
+  const scanRaw = parsePositiveInt(argValue(argv, '--scan-limit'), '--scan-limit');
   const sinceRaw = parsePositiveInt(argValue(argv, '--since-hours'), '--since-hours');
+  const limit = clampCreatorNotesBatchLimit(limitRaw ?? CREATOR_NOTES_BATCH_DEFAULT_LIMIT);
   return {
-    limit: clampCreatorNotesBatchLimit(limitRaw ?? CREATOR_NOTES_BATCH_DEFAULT_LIMIT),
+    limit,
+    scanLimit: scanRaw == null ? defaultCreatorNotesBatchScanLimit(limit) : clampCreatorNotesBatchScanLimit(scanRaw),
     dryRun: argv.includes('--dry-run'),
     force: argv.includes('--force'),
     creator: parseOptionalFlag(argv, '--creator'),
@@ -441,6 +449,7 @@ export function formatNotePreview(note: CreatorAtomicNote): string {
   const quote = note.sourceQuote || note.exactQuote;
   const lines = [
     `${formatNoteTimestampRange(note.startSeconds, note.endSeconds)} ${kindLabel(note.kind)} — ${who}`,
+    `statement role: ${note.statementRole || 'unknown'}`,
     '',
     'Note:',
     note.text,
@@ -542,6 +551,7 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  cache hits: ${result.performance?.cacheHits ?? 0}`,
     `  cache misses: ${result.performance?.cacheMisses ?? 0}`,
     `  Ollama batch requests: ${result.performance?.ollamaBatchRequests ?? 0}`,
+    `  semantic validation requests: ${result.performance?.semanticValidationRequests ?? 0}`,
     `  individual fallback requests: ${result.performance?.individualFallbackRequests ?? 0}`,
     `  batch windows submitted: ${result.performance?.batchWindowsSubmitted ?? 0}`,
     `  batch windows accepted: ${result.performance?.batchWindowsAccepted ?? 0}`,
@@ -603,6 +613,14 @@ export function formatCreatorNotesReport(result: CreatorNotesRunResult): string 
     `  unsupported numbers rejected: ${result.evidenceDiagnostics.unsupportedNumberRejected ?? 0}`,
     `  compound notes rejected: ${result.evidenceDiagnostics.compoundRejected ?? 0}`,
     `  wide evidence windows: ${result.evidenceDiagnostics.wideEvidenceWindows ?? 0}`,
+    `  semantic rejected: ${result.evidenceDiagnostics.semanticRejected ?? 0}`,
+    `  semantic actor mismatch: ${result.evidenceDiagnostics.semanticActorMismatch ?? 0}`,
+    `  semantic relation reversed: ${result.evidenceDiagnostics.semanticRelationReversed ?? 0}`,
+    `  semantic attribution mismatch: ${result.evidenceDiagnostics.semanticAttributionMismatch ?? 0}`,
+    `  semantic modality strengthened: ${result.evidenceDiagnostics.semanticModalityStrengthened ?? 0}`,
+    `  semantic quantity mismatch: ${result.evidenceDiagnostics.semanticQuantityMismatch ?? 0}`,
+    `  semantic unsupported inference: ${result.evidenceDiagnostics.semanticUnsupportedInference ?? 0}`,
+    `  semantic other: ${result.evidenceDiagnostics.semanticOther ?? 0}`,
     `  exact quotes requested: ${result.evidenceDiagnostics.exactQuotesRequested}`,
     `  exact quotes verified: ${result.evidenceDiagnostics.exactQuotesVerified}`,
     `  exact quotes rejected: ${result.evidenceDiagnostics.exactQuotesRejected}`,
@@ -712,11 +730,13 @@ export function formatCreatorNotesPodcastBatchReport(result: CreatorNotesPodcast
     'Atomic Creator Notes Podcast Batch',
     '==================================',
     '',
-    `Candidate episodes: ${s.candidateEpisodes}`,
-    `Processed: ${s.processed}`,
+    `Candidates inspected: ${s.candidateEpisodes}`,
+    `Successfully processed: ${s.processed}`,
     `Already processed: ${s.alreadyProcessed}`,
     `Transcript unavailable: ${s.transcriptUnavailable}`,
     `Failed: ${s.failed}`,
+    `Scan limit: ${s.scanLimit}`,
+    `Scan limit reached: ${s.scanLimitReached ? 'yes' : 'no'}`,
     '',
     'Transcript statuses:',
     `  TRANSCRIPT_AVAILABLE: ${s.transcriptStatuses.TRANSCRIPT_AVAILABLE}`,

@@ -135,6 +135,10 @@ const GROUNDING_INSTRUCTIONS = [
   'Do not introduce a number, percentage, date, or currency amount that does not occur in this window.',
   'Do not use outside or world knowledge to fill missing facts.',
   'Preserve who performed each action. If actor A fired missiles and actor B intercepted them, those are two notes, not one merged proposition.',
+  'Preserve polarity. Do not swap who won, lost, or acted on whom. "They won against X" is not "X won against them."',
+  'Preserve the grammatical agent. Do not promote a location, ship, or unit into the actor of an action performed by people assigned to it.',
+  'Preserve attribution. "A letter from an official obtained by a newsroom" does not mean the official obtained the letter. A quoted or played speaker is not the creator.',
+  'Preserve modality. could, might, may, would, if, potentially, appears, believes, suggests, and "asks whether" must not become will, did, or an established fact.',
   'Do not compare quantities with different units or scopes. Distinguish per-unit cost from aggregate/total cost. Only state a cost comparison when this window itself makes that comparison.',
   'If nothing is notebook-worthy, return {"notes":[]}.',
 ].join('\n');

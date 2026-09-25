@@ -38,6 +38,22 @@ function verificationLabel(status) {
   return String(status).replace(/_/g, ' ').toUpperCase();
 }
 
+function isOpaqueEpisodeLabel(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  const filename = text.split(/[\\/]/).pop() || text;
+  if (/\.(mp3|m4a|mp4|wav|aac|ogg|webm|json|txt|vtt|srt)$/i.test(filename)) return true;
+  if (/^https?:\/\//i.test(text)) return true;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) return true;
+  return !/\s/.test(text) && text.length >= 16 && /^[A-Za-z0-9._-]+$/.test(text);
+}
+
+function episodeHeading(episode) {
+  const title = String(episode.title || '').trim();
+  if (!title || title === episode.sourceItemId || isOpaqueEpisodeLabel(title)) return null;
+  return title;
+}
+
 function NoteCard({ note }) {
   const quote = note.sourceQuote || note.exactQuote || null;
   const referenced = referencedSourceLabel(note);
@@ -237,7 +253,9 @@ export default function AtomicNotesBrief({ episodes, configured, loadError }) {
                     {creatorFilterLabel(creatorGroup)}
                   </h3>
                   <div className="space-y-6">
-                    {creatorGroup.episodes.map((episode) => (
+                    {creatorGroup.episodes.map((episode) => {
+                      const heading = episodeHeading(episode);
+                      return (
                       <section
                         key={episode.runId}
                         className="min-w-0 border-l-2 border-primary/70 pl-3 sm:pl-4"
@@ -245,9 +263,11 @@ export default function AtomicNotesBrief({ episodes, configured, loadError }) {
                         data-extraction-version={episode.extractionVersion}
                       >
                         <header className="mb-3">
-                          <h4 className="text-base sm:text-lg text-foreground break-words">
-                            {episode.title || episode.sourceItemId}
-                          </h4>
+                          {heading && (
+                            <h4 className="text-base sm:text-lg text-foreground break-words">
+                              {heading}
+                            </h4>
+                          )}
                           <dl className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] sm:text-xs text-foreground/65">
                             <div>
                               <dt className="text-foreground/40">Published</dt>
@@ -293,7 +313,8 @@ export default function AtomicNotesBrief({ episodes, configured, loadError }) {
                           ))}
                         </div>
                       </section>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}

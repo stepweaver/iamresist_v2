@@ -15,6 +15,7 @@ import {
   normalizeComparableNoteText,
   resolveCreatorVersusReferencedSource,
 } from '@/lib/creatorNotes/identity';
+import { assessSemanticFidelity, resolveStatementRole } from '@/lib/creatorNotes/semanticFidelity';
 import { noteTextHasStructuredOutputLeakage, repairStructuredOutputLeakage } from '@/lib/creatorNotes/validate';
 import {
   concatenateTranscriptSegments,
@@ -42,6 +43,14 @@ export function emptyEvidenceDiagnostics(): CreatorNoteEvidenceDiagnostics {
     unsupportedNumberRejected: 0,
     compoundRejected: 0,
     wideEvidenceWindows: 0,
+    semanticRejected: 0,
+    semanticActorMismatch: 0,
+    semanticRelationReversed: 0,
+    semanticAttributionMismatch: 0,
+    semanticModalityStrengthened: 0,
+    semanticQuantityMismatch: 0,
+    semanticUnsupportedInference: 0,
+    semanticOther: 0,
   };
 }
 
@@ -374,6 +383,14 @@ export function addEvidenceDiagnostics(
   target.unsupportedNumberRejected += extra.unsupportedNumberRejected;
   target.compoundRejected += extra.compoundRejected;
   target.wideEvidenceWindows += extra.wideEvidenceWindows;
+  target.semanticRejected += extra.semanticRejected;
+  target.semanticActorMismatch += extra.semanticActorMismatch;
+  target.semanticRelationReversed += extra.semanticRelationReversed;
+  target.semanticAttributionMismatch += extra.semanticAttributionMismatch;
+  target.semanticModalityStrengthened += extra.semanticModalityStrengthened;
+  target.semanticQuantityMismatch += extra.semanticQuantityMismatch;
+  target.semanticUnsupportedInference += extra.semanticUnsupportedInference;
+  target.semanticOther += extra.semanticOther;
   return target;
 }
 
@@ -550,10 +567,33 @@ export function acceptGroundedCreatorNotes(
       diagnostics.groundingRejected += 1;
       continue;
     }
+    const fidelity = assessSemanticFidelity(citedText, repairedText, {
+      quotedSpeaker: note.quotedSpeaker,
+    });
+    if (fidelity.decision === 'reject') {
+      rejected += 1;
+      diagnostics.groundingRejected += 1;
+      diagnostics.semanticRejected += 1;
+      if (fidelity.failureReason === 'actor_mismatch') diagnostics.semanticActorMismatch += 1;
+      else if (fidelity.failureReason === 'relation_reversed') diagnostics.semanticRelationReversed += 1;
+      else if (fidelity.failureReason === 'attribution_mismatch') diagnostics.semanticAttributionMismatch += 1;
+      else if (fidelity.failureReason === 'modality_strengthened') diagnostics.semanticModalityStrengthened += 1;
+      else if (fidelity.failureReason === 'quantity_mismatch') diagnostics.semanticQuantityMismatch += 1;
+      else if (fidelity.failureReason === 'unsupported_inference') diagnostics.semanticUnsupportedInference += 1;
+      else diagnostics.semanticOther += 1;
+      continue;
+    }
 
     accepted.push({
       ...note,
       text: repairedText,
+      statementRole: resolveStatementRole({
+        kind: note.kind,
+        attribution: note.attribution,
+        quotedSpeaker: note.quotedSpeaker,
+        referencedSource: note.referencedSource,
+        text: repairedText,
+      }),
       startSeconds: note.startSeconds ?? bounds.startSeconds,
       endSeconds: note.endSeconds ?? bounds.endSeconds,
       sourceQuote: quote,
