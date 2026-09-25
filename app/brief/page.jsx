@@ -1,13 +1,15 @@
 import PageContainer from '@/components/content/PageContainer';
 import AtomicNotesBrief from '@/components/brief/AtomicNotesBrief';
+import { buildBriefEventsCorpus } from '@/lib/briefEvents/presentation';
 import { loadCreatorNotesBrief } from '@/lib/creatorNotes/db';
 import { intelDbConfigured } from '@/lib/intel/db';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = {
   ...buildPageMetadata({
-    title: 'Atomic Creator Notes Brief',
-    description: 'Internal experimental viewer for persisted Atomic Creator Notes.',
+    title: 'Brief · Event Candidates',
+    description:
+      'Read-only event-centric timeline derived from persisted Atomic Creator Notes.',
     urlPath: '/brief',
   }),
   robots: { index: false, follow: false },
@@ -18,11 +20,19 @@ export const dynamic = 'force-dynamic';
 export default async function BriefPage() {
   const configured = intelDbConfigured();
   let episodes = [];
+  let corpus = {
+    days: [],
+    eventCount: 0,
+    noteCount: 0,
+    participatingNoteIds: [],
+    excludedNoteCount: 0,
+  };
   let loadError = null;
 
   if (configured) {
     try {
       episodes = await loadCreatorNotesBrief();
+      corpus = buildBriefEventsCorpus(episodes);
     } catch (error) {
       loadError = error instanceof Error ? error.message : 'Atomic Creator Notes could not be read.';
     }
@@ -39,19 +49,25 @@ export default async function BriefPage() {
                 EXPERIMENTAL
               </span>
               <h1 className="section-title text-2xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight break-words">
-                ATOMIC CREATOR NOTES
+                BRIEF
               </h1>
               <p className="mt-3 max-w-3xl text-sm sm:text-base text-foreground/70 leading-relaxed">
-                Read-only notebook of stored Atomic Creator Notes. Note kind is a structural category;
-                statement role is attribution; verification status is stored separately and is never
-                inferred from kind alone.
+                Event-centric timeline derived from Atomic Creator Notes. Notes are evidence atoms;
+                Event Candidates group notes that describe the same development. Creator analysis stays
+                attributed and separate from factual developments. Verification is never inferred from
+                note kind.
               </p>
             </div>
           </div>
         </div>
       </div>
       <PageContainer>
-        <AtomicNotesBrief episodes={episodes} configured={configured} loadError={loadError} />
+        <AtomicNotesBrief
+          episodes={episodes}
+          corpus={corpus}
+          configured={configured}
+          loadError={loadError}
+        />
       </PageContainer>
     </main>
   );

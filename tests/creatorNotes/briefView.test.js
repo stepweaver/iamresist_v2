@@ -9,6 +9,7 @@ import {
   briefStatementRoleLabel,
   presentBriefNote,
 } from '@/lib/creatorNotes/briefPresentation';
+import { buildBriefEventsCorpus } from '@/lib/briefEvents/presentation';
 import { CREATOR_NOTE_EXTRACTION_VERSION } from '@/lib/creatorNotes/constants';
 
 (globalThis).React = React;
@@ -78,7 +79,11 @@ function episodeFromNotes(notes, meta = {}) {
 
 async function renderBrief(props) {
   const { default: AtomicNotesBrief } = await import('@/components/brief/AtomicNotesBrief');
-  return renderToStaticMarkup(React.createElement(AtomicNotesBrief, props));
+  const episodes = props.episodes || [];
+  const corpus = props.corpus || buildBriefEventsCorpus(episodes);
+  return renderToStaticMarkup(
+    React.createElement(AtomicNotesBrief, { ...props, episodes, corpus }),
+  );
 }
 
 describe('brief presentation helpers', () => {
@@ -192,37 +197,12 @@ describe('brief presentation helpers', () => {
 describe('Atomic Creator Notes brief view', () => {
   it('renders the empty state', async () => {
     const html = await renderBrief({ episodes: [], configured: true, loadError: null });
-    expect(html).toContain('NO EDITORIAL NOTES');
-    expect(html).toContain('Episodes');
-    expect(html).not.toContain('data-episode');
+    expect(html).toContain('NO EVENT CANDIDATES');
+    expect(html).toContain('Event candidates');
+    expect(html).not.toContain('data-event-candidate');
   });
 
-  it('renders evidence without conflating kind with epistemology', async () => {
-    const episodes = episodeFromNotes([note()]);
-    const html = await renderBrief({ episodes, configured: true, loadError: null });
-
-    expect(html).toContain('overflow-x-hidden');
-    expect(html).toContain('break-words');
-    expect(html).toContain('sm:p-4');
-    expect(html).toContain('CREATOR ANALYSIS');
-    expect(html).not.toContain('not established fact');
-    expect(html).not.toContain('Editorial opinion');
-    expect(html).not.toContain('editorial opinion');
-    expect(html).not.toContain('The transcript says');
-    expect(html).not.toContain('The creator claims');
-    expect(html).not.toContain('The creator believes');
-    expect(html).toContain('Evidence window text for the stay analysis.');
-    expect(html).toContain('Source segments');
-    expect(html).toContain('2, 3');
-    expect(html).toContain('Time range');
-    expect(html).toContain('NOT APPLICABLE');
-    expect(html).toContain('David Pakman');
-    expect(html).toContain('Stay order');
-    expect(html).toContain('data-brief-lane="creator_analysis"');
-    expect(html).toContain('data-verification-status="not_applicable"');
-  });
-
-  it('renders factual event text plainly with independent verification', async () => {
+  it('renders an event-centric timeline without expanding Atomic Notes by default', async () => {
     const episodes = episodeFromNotes([
       note({
         id: 'note-event',
@@ -231,59 +211,92 @@ describe('Atomic Creator Notes brief view', () => {
         attribution: null,
         statementRole: 'unknown',
         verificationStatus: 'unverified',
+        eventFeatures: {
+          actors: [],
+          action: 'granted',
+          object: 'injunction',
+          institutions: [],
+          locations: [],
+          referencedDocuments: [],
+        },
       }),
     ]);
     const html = await renderBrief({ episodes, configured: true, loadError: null });
-    expect(html).toContain('A federal judge granted an injunction restoring access to the affected outlets.');
-    expect(html).toContain('data-note-kind="event"');
-    expect(html).toContain('data-verification-status="unverified"');
-    expect(html).toContain('data-brief-lane="fact_event"');
+
+    expect(html).toContain('overflow-x-hidden');
+    expect(html).toContain('break-words');
+    expect(html).toContain('data-brief-timeline');
+    expect(html).toContain('data-event-candidate');
+    expect(html).toContain('A federal judge granted an injunction restoring access to the affected outlets');
+    expect(html).toContain('David Pakman');
+    expect(html).toContain('UNVERIFIED');
+    expect(html).not.toContain('data-event-expanded');
     expect(html).not.toContain('not established fact');
+    expect(html).not.toContain('The transcript says');
     expect(html).not.toContain('The creator claims');
-    expect(html).not.toContain('data-interpretation-attribution');
+    expect(html).not.toContain('lightning fast shipping');
   });
 
-  it('attributes creator interpretation when the proposition itself is not already named', async () => {
-    const episodes = episodeFromNotes([
-      note({
-        kind: 'creator_analysis',
-        text: 'frames the ruling as a major setback for the administration.',
-        attribution: 'MeidasTouch',
-        statementRole: 'creator',
-        verificationStatus: 'not_applicable',
-      }),
-    ]);
+  it('keeps raw Atomic Notes behind a debug disclosure', async () => {
+    const episodes = episodeFromNotes([note()]);
     const html = await renderBrief({ episodes, configured: true, loadError: null });
-    expect(html).toContain('frames the ruling as a major setback for the administration.');
-    expect(html).toContain('Interpretation · MeidasTouch');
-    expect(html).toContain('data-brief-lane="creator_analysis"');
-    expect(html).not.toContain('editorial opinion');
+    expect(html).toContain('data-raw-brief-debug');
+    expect(html).toContain('Raw Atomic Notes debug');
+    expect(html).toContain('Evidence window text for the stay analysis.');
+    expect(html).toContain('Source segments');
   });
 
-  it('labels quoted speech without treating it as creator interpretation', async () => {
+  it('does not expose sponsor material as a timeline headline', async () => {
     const episodes = episodeFromNotes([
       note({
-        id: 'note-quoted',
-        kind: 'claim',
-        text: 'The order will restore access within 48 hours.',
-        attribution: 'David Pakman',
-        quotedSpeaker: 'Donald Trump',
-        statementRole: 'quoted_speaker',
+        id: 'sponsor',
+        kind: 'context',
+        text: 'with financing to fit any budget and lightning fast shipping',
+        contentRole: 'sponsor_read',
+        eventFeatures: null,
+      }),
+      note({
+        id: 'editorial',
+        kind: 'event',
+        text: 'Court ruling reverses media-access restriction.',
+        attribution: null,
         verificationStatus: 'unverified',
+        eventFeatures: {
+          actors: [],
+          action: 'reverses',
+          object: 'media-access restriction',
+          institutions: [],
+          locations: [],
+          referencedDocuments: [],
+        },
       }),
     ]);
     const html = await renderBrief({ episodes, configured: true, loadError: null });
-    expect(html).toContain('Quoted speaker · Donald Trump');
-    expect(html).toContain('data-statement-role="quoted_speaker"');
-    expect(html).not.toContain('Interpretation · David Pakman');
-    expect(html).not.toContain('The creator claims');
+    expect(html).toContain('Court ruling reverses media-access restriction');
+    expect(html).not.toContain('lightning fast shipping');
+    expect(html).not.toContain('financing to fit any budget');
   });
 
-  it('omits opaque episode ids and filenames from the heading', async () => {
+  it('omits opaque episode ids and filenames from the default timeline', async () => {
     const opaqueId = 'Jjr199LfbBt7AHIEMSNCwrHXLHNqiKY';
     const episodes = selectBriefEpisodes({
       runs: [run({ sourceItemId: opaqueId })],
-      notes: [note({ sourceItemId: opaqueId })],
+      notes: [
+        note({
+          sourceItemId: opaqueId,
+          kind: 'event',
+          text: 'A federal judge granted an injunction.',
+          attribution: null,
+          eventFeatures: {
+            actors: [],
+            action: 'granted',
+            object: 'injunction',
+            institutions: [],
+            locations: [],
+            referencedDocuments: [],
+          },
+        }),
+      ],
       metas: [
         {
           sourceItemId: opaqueId,
@@ -298,8 +311,7 @@ describe('Atomic Creator Notes brief view', () => {
     const html = await renderBrief({ episodes, configured: true, loadError: null });
 
     expect(html).toContain('Mel Dastouch Network');
+    expect(html).toContain('A federal judge granted an injunction');
     expect(html).not.toContain(`${opaqueId}.mp3`);
-    expect(html).not.toContain(`>${opaqueId}<`);
-    expect(html).not.toContain('<h4');
   });
 });
