@@ -7,10 +7,13 @@
 export const CREATOR_NOTE_EXTRACTION_VERSION = 'creator-notes-v1.12';
 export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.10';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
+export const CREATOR_NOTES_GROQ_DEFAULT_MODEL = 'openai/gpt-oss-20b';
+export const CREATOR_NOTES_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+export const CREATOR_NOTES_AI_PROVIDERS = ['groq', 'ollama'] as const;
 export const CREATOR_NOTES_OLLAMA_KEEP_ALIVE_DEFAULT = '5m';
 /** Version the canonical transcript normalizer. Bump when segment merge/text rules change. */
 export const CREATOR_NOTES_TRANSCRIPT_NORMALIZATION_VERSION = 'transcript-norm-v1';
-/** Production default: one evidence window per Ollama request. */
+/** Production default: one evidence window per text-inference request. */
 export const CREATOR_NOTES_WINDOW_BATCH_SIZE_DEFAULT = 1;
 export const CREATOR_NOTES_WINDOW_BATCH_MAX_INPUT_CHARS_DEFAULT = 9000;
 
@@ -116,9 +119,10 @@ function optString(name: string): string {
 }
 
 /**
- * Creator Notes model is independent of Theme Memory.
- * Production value: CREATOR_NOTES_MODEL=gemma3:4b
- * Falls back to OLLAMA_MODEL, then gemma3:4b.
+ * Ollama and legacy model resolution. Independent of Theme Memory.
+ * An explicit CREATOR_NOTES_MODEL wins.
+ * Otherwise the shared Ollama model (OLLAMA_MODEL), then gemma3:4b.
+ * Groq does not use this fallback; creatorNotesModelForProvider() applies openai/gpt-oss-20b.
  */
 export function creatorNotesModel(sharedOllamaModel?: string | null): string {
   const dedicated = optString('CREATOR_NOTES_MODEL');
@@ -126,6 +130,36 @@ export function creatorNotesModel(sharedOllamaModel?: string | null): string {
   const shared = String(sharedOllamaModel || '').trim();
   if (shared) return shared;
   return CREATOR_NOTES_DEFAULT_MODEL;
+}
+
+export type CreatorNotesAiProviderName = (typeof CREATOR_NOTES_AI_PROVIDERS)[number];
+
+/**
+ * CREATOR_NOTES_AI_PROVIDER selects Creator Notes text inference (`groq` or `ollama`).
+ * An explicit value does not consult THEME_AI_PROVIDER, so Theme Memory does not need to be ollama when Groq is selected.
+ * When CREATOR_NOTES_AI_PROVIDER is unset, THEME_AI_PROVIDER=ollama keeps the legacy local path.
+ * Any other Theme Memory provider is not a Creator Notes provider.
+ */
+export function creatorNotesAiProvider(themeAiProvider?: string | null): string {
+  const dedicated = optString('CREATOR_NOTES_AI_PROVIDER').toLowerCase();
+  if (dedicated) return dedicated;
+  const fromEnv = optString('THEME_AI_PROVIDER').toLowerCase();
+  const theme = fromEnv || String(themeAiProvider || '').trim().toLowerCase();
+  if (theme === 'ollama') return 'ollama';
+  return '';
+}
+
+/**
+ * Model for the selected text provider.
+ * An explicit CREATOR_NOTES_MODEL wins for groq and ollama.
+ * Groq falls back to openai/gpt-oss-20b and does not inherit an Ollama model name.
+ * Ollama falls back through creatorNotesModel(): OLLAMA_MODEL, then gemma3:4b.
+ */
+export function creatorNotesModelForProvider(provider: string, sharedOllamaModel?: string | null): string {
+  const dedicated = optString('CREATOR_NOTES_MODEL');
+  if (dedicated) return dedicated;
+  if (String(provider || '').toLowerCase() === 'groq') return CREATOR_NOTES_GROQ_DEFAULT_MODEL;
+  return creatorNotesModel(sharedOllamaModel);
 }
 
 export function creatorNotesChunkChars(): number {

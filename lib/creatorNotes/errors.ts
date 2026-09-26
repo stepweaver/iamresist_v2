@@ -1,3 +1,5 @@
+import type { CreatorNotesRateLimitSnapshot } from '@/lib/creatorNotes/ai/types';
+
 export class CreatorTranscriptError extends Error {
   constructor(message: string) {
     super(message);
@@ -21,6 +23,59 @@ export function isCreatorNotesProviderUnavailableError(error: unknown): boolean 
   if (!error || typeof error !== 'object') return false;
   const code = 'code' in error ? String((error as { code: unknown }).code || '') : '';
   return code === AI_PROVIDER_UNAVAILABLE;
+}
+
+/** HTTP 429 from the selected Creator Notes text provider. Not an ordinary failure. */
+export const CREATOR_NOTES_RATE_LIMITED = 'CREATOR_NOTES_RATE_LIMITED';
+
+export class CreatorNotesInferenceError extends Error {
+  readonly code: string;
+  readonly provider: string;
+  readonly status: number | null;
+
+  constructor(
+    message: string,
+    code: string,
+    details: { provider?: string; status?: number | null } = {},
+  ) {
+    super(message);
+    this.name = 'CreatorNotesInferenceError';
+    this.code = code;
+    this.provider = details.provider || 'unknown';
+    this.status = details.status ?? null;
+  }
+}
+
+export class CreatorNotesRateLimitError extends Error {
+  readonly code = CREATOR_NOTES_RATE_LIMITED;
+  readonly status = 429;
+  readonly provider: string;
+  readonly retryAfter: string | null;
+  readonly rateLimit: CreatorNotesRateLimitSnapshot | null;
+
+  constructor(
+    message: string,
+    details: {
+      provider: string;
+      retryAfter?: string | null;
+      rateLimit?: CreatorNotesRateLimitSnapshot | null;
+    },
+  ) {
+    super(message.startsWith(CREATOR_NOTES_RATE_LIMITED) ? message : `${CREATOR_NOTES_RATE_LIMITED}: ${message}`);
+    this.name = 'CreatorNotesRateLimitError';
+    this.provider = details.provider;
+    this.retryAfter = details.retryAfter ?? details.rateLimit?.retryAfter ?? null;
+    this.rateLimit = details.rateLimit ?? null;
+  }
+}
+
+export function isCreatorNotesRateLimitError(error: unknown): boolean {
+  if (error instanceof CreatorNotesRateLimitError) return true;
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? String((error as { code?: unknown }).code || '') : '';
+  if (code === CREATOR_NOTES_RATE_LIMITED) return true;
+  const status = 'status' in error ? Number((error as { status?: unknown }).status) : NaN;
+  return status === 429;
 }
 
 export function sourceItemNotFoundError(id: string): CreatorTranscriptError {

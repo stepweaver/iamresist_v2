@@ -12,7 +12,7 @@ WorkingDirectory=/path/to/iamresist_v2
 EnvironmentFile=/path/to/iamresist_v2/.env.local
 ExecStart=/usr/bin/npm run creator-notes:podcast-batch -- --limit 10 --transcribe-audio
 Nice=10
-# Sequential local faster-whisper plus Ollama. Raise this if a 10-episode CPU run is killed.
+# Local faster-whisper transcription plus sequential text inference. Raise this if a 10-episode run is killed.
 TimeoutStartSec=14400
 # Application lock in the CLI prevents overlapping npm runs.
 # Optional extra host lock:

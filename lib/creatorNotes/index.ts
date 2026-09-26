@@ -61,8 +61,12 @@ export { selectEligibleCreatorNotesItems } from '@/lib/creatorNotes/select';
 export { acquireCreatorNotesRunLock, CreatorNotesLockBusyError } from '@/lib/creatorNotes/runLock';
 export {
   AI_PROVIDER_UNAVAILABLE,
+  CREATOR_NOTES_RATE_LIMITED,
+  CreatorNotesInferenceError,
   CreatorNotesProviderUnavailableError,
+  CreatorNotesRateLimitError,
   isCreatorNotesProviderUnavailableError,
+  isCreatorNotesRateLimitError,
 } from '@/lib/creatorNotes/errors';
 export { preparePodcastCreatorNotesTranscript } from '@/lib/creatorNotes/podcastPrepare';
 export { listPodcastSources, resolvePodcastEpisode, loadPodcastCatalog, diagnosePodcastFeeds } from '@/lib/creatorNotes/podcastCatalog';

@@ -139,10 +139,18 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 **Atomic Creator Notes** (`lib/creatorNotes/`)
 
 - Milestone 1 structured notebook notes from **one** creator transcript. Not a public UI and not Theme Memory linking.
-- Reuses Theme AI / Ollama env (`THEME_AI_PROVIDER=ollama`). Production extraction model: `CREATOR_NOTES_MODEL=gemma3:4b` (falls back to `OLLAMA_MODEL`). Live extraction has no deterministic fallback.
-- Optional: `CREATOR_NOTES_AI_TIMEOUT_MS` (default `300000`) for Atomic Notes Ollama calls, independent of `THEME_AI_TIMEOUT_MS`
-- Optional: `CREATOR_NOTES_OLLAMA_KEEP_ALIVE` (default `5m`) for Atomic Notes, independent of Theme Memory's 30m keep-alive
-- Optional: `CREATOR_NOTES_WINDOW_BATCH_SIZE` (default `1`; one evidence window per Ollama request)
+- `CREATOR_NOTES_AI_PROVIDER` selects `groq` or `ollama`.
+- Production Creator Notes text inference is configured for Groq with `openai/gpt-oss-20b`.
+- `GROQ_API_KEY` is required when Groq is selected. It is read from the runtime environment and is never committed.
+- Ollama remains supported as the local alternative.
+- If `CREATOR_NOTES_AI_PROVIDER` is unset and `THEME_AI_PROVIDER=ollama`, the legacy local Ollama path remains available for compatibility.
+- `THEME_AI_PROVIDER` does not need to be `ollama` when Creator Notes explicitly selects Groq.
+- `CREATOR_NOTES_MODEL` defaults by provider: Groq uses `openai/gpt-oss-20b`; Ollama uses `OLLAMA_MODEL`, then `gemma3:4b`. An explicit `CREATOR_NOTES_MODEL` wins for either provider.
+- Groq failures, including HTTP 429, never silently fall back to Ollama. Live extraction has no deterministic fallback.
+- Transcription (local faster-whisper) is separate from this text-inference provider.
+- Optional: `CREATOR_NOTES_AI_TIMEOUT_MS` (default `300000`) for provider inference calls, independent of `THEME_AI_TIMEOUT_MS`
+- Optional: `CREATOR_NOTES_OLLAMA_KEEP_ALIVE` (default `5m`) for the local Ollama provider, independent of Theme Memory's 30m keep-alive
+- Optional: `CREATOR_NOTES_WINDOW_BATCH_SIZE` (default `1`; one evidence window per inference request)
 - Optional: `CREATOR_NOTES_CHUNK_CHARS` (default `1500`), `CREATOR_NOTES_MAX_NOTES_PER_CHUNK` (default `8`)
 - Apply intel SQL migrations through `20260919200000_creator_notes_evidence_windows.sql`
 - CLI: `npm run creator-notes:extract -- --source-item <id> --transcript-file ./tmp/transcript.json --creator-name "David Pakman" --dry-run`
