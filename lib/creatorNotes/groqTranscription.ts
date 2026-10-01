@@ -3,7 +3,7 @@ import 'server-only';
 import { readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import { Agent, fetch as undiciFetch } from 'undici';
+import { Agent, FormData, fetch as undiciFetch } from 'undici';
 
 import { creatorNotesGroqApiKey, readCreatorNotesRateLimitHeaders } from '@/lib/creatorNotes/ai/groq';
 import type { CreatorNotesRateLimitSnapshot } from '@/lib/creatorNotes/ai/types';
@@ -76,7 +76,10 @@ type TranscriptionResponse = {
 
 type TranscriptionFetch = (
   url: string,
-  init: RequestInit & { dispatcher?: Agent },
+  init: Omit<RequestInit, 'body'> & {
+    body?: RequestInit['body'] | FormData;
+    dispatcher?: Agent;
+  },
 ) => Promise<TranscriptionResponse>;
 
 export type GroqVerboseSegmentBounds = {
@@ -377,6 +380,8 @@ async function postGroqTranscription(input: {
       method: 'POST',
       cache: 'no-store',
       signal: controller.signal,
+      // Undici adds multipart/form-data and the matching boundary when the body is its FormData.
+      // A hand-written Content-Type header would not include that boundary.
       headers: { Authorization: `Bearer ${input.apiKey}` },
       body: form,
       dispatcher,

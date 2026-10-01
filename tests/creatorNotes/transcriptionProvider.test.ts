@@ -1,7 +1,9 @@
 import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
+import { FormData as UndiciFormData, fetch as undiciFetch } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { downloadPodcastAudio, ffmpegAudioChunkArgs, parseFfmpegDurationSeconds } from '@/lib/creatorNotes/audioDownload';
@@ -105,13 +107,20 @@ function downloadBytes(bytes: number, contentType = 'audio/mpeg') {
 }
 
 function groqProvider(input: {
-  fetchImpl: ReturnType<typeof vi.fn>;
+  fetchImpl: ReturnType<typeof vi.fn> | typeof undiciFetch;
   bytes?: number;
   maxUploadBytes?: number;
   cacheDir?: string;
   workRoot?: string;
   model?: string;
+  baseUrl?: string;
   requestTimeoutMs?: number;
+  download?: (input: { audioUrl: string; destPath: string }) => Promise<{
+    destPath: string;
+    bytes: number;
+    contentType: string | null;
+    elapsedMs: number;
+  }>;
   probeDuration?: (inputPath: string) => Promise<number>;
   encodeChunk?: (chunk: {
     inputPath: string;
@@ -126,8 +135,9 @@ function groqProvider(input: {
     model: input.model || CREATOR_NOTES_GROQ_TRANSCRIPTION_MODEL_DEFAULT,
     maxUploadBytes: input.maxUploadBytes,
     requestTimeoutMs: input.requestTimeoutMs,
+    baseUrl: input.baseUrl,
     fetchImpl: input.fetchImpl as never,
-    download: downloadBytes(input.bytes ?? 128),
+    download: input.download || downloadBytes(input.bytes ?? 128),
     probeDuration: input.probeDuration,
     encodeChunk: input.encodeChunk,
   });
@@ -282,11 +292,13 @@ describe('Creator Notes transcription providers', () => {
     expect(transcript.segments[0]).toMatchObject({ startSeconds: 1.2, endSeconds: 4.8, text: CANONICAL });
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [
       string,
-      { headers?: { Authorization?: string }; body?: FormData },
+      { headers?: { Authorization?: string }; body?: UndiciFormData },
     ];
     expect(url).toBe(`${CREATOR_NOTES_GROQ_BASE_URL}/audio/transcriptions`);
     expect(init.headers?.Authorization).toBe(`Bearer ${API_KEY}`);
-    expect(init.body).toBeInstanceOf(FormData);
+    expect(Object.keys(init.headers ?? {}).map((key) => key.toLowerCase())).not.toContain('content-type');
+    expect(init.body).toBeInstanceOf(UndiciFormData);
+    expect(init.body instanceof globalThis.FormData).toBe(false);
     expect(init.body?.get('model')).toBe('whisper-large-v3-turbo');
     expect(init.body?.get('response_format')).toBe('verbose_json');
     expect(init.body?.get('timestamp_granularities[]')).toBe('segment');
@@ -295,6 +307,68 @@ describe('Creator Notes transcription providers', () => {
     expect(init.body?.get('file')).toBeTruthy();
     expect(infoLogs.join('\n')).toContain('provider=groq model=whisper-large-v3-turbo');
     expect(infoLogs.join('\n')).not.toContain(API_KEY);
+  });
+
+  it('encodes the Groq upload as multipart/form-data through undici fetch', async () => {
+    setEnv('GROQ_API_KEY', API_KEY);
+    const marker = 'groq-multipart-audio-marker';
+    const captured: { contentType: string; body: string; authorization: string } = {
+      contentType: '',
+      body: '',
+      authorization: '',
+    };
+    const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+      }
+      captured.contentType = String(req.headers['content-type'] || '');
+      captured.authorization = String(req.headers.authorization || '');
+      captured.body = Buffer.concat(chunks).toString('latin1');
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(verboseBody()));
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve());
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('expected a tcp port');
+    try {
+      const provider = groqProvider({
+        fetchImpl: undiciFetch,
+        baseUrl: `http://127.0.0.1:${address.port}`,
+        requestTimeoutMs: 10_000,
+        download: async ({ destPath }) => {
+          writeFileSync(destPath, marker);
+          return { destPath, bytes: Buffer.byteLength(marker), contentType: 'audio/mpeg', elapsedMs: 1 };
+        },
+      });
+      const transcript = await provider.transcribe({
+        audioUrl: 'https://creator.example/audio/episode.mp3',
+        sourceItemId: 'guid-multipart',
+      });
+      expect(transcript.transcriptionModel).toBe('whisper-large-v3-turbo');
+      expect(captured.contentType.startsWith('multipart/form-data; boundary=')).toBe(true);
+      const boundary = captured.contentType
+        .slice('multipart/form-data; boundary='.length)
+        .replace(/^"|"$/g, '')
+        .trim();
+      expect(boundary.length).toBeGreaterThan(8);
+      expect(captured.body).toContain(`--${boundary}`);
+      expect(captured.body).toContain('name="file"');
+      expect(captured.body).toContain(marker);
+      expect(captured.body).toContain('name="model"');
+      expect(captured.body).toContain('whisper-large-v3-turbo');
+      expect(captured.authorization).toBe(`Bearer ${API_KEY}`);
+      expect(captured.body).not.toContain(API_KEY);
+      expect(captured.contentType).not.toContain(API_KEY);
+      expect(infoLogs.join('\n')).not.toContain(API_KEY);
+      expect(infoLogs.join('\n')).not.toContain('Authorization');
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   it('offsets chunk timestamps into episode time and covers the full duration', async () => {
