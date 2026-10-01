@@ -587,6 +587,11 @@ export interface CreatorNotesPodcastBatchResult {
   skipReason: string | null;
   summary: CreatorNotesPodcastBatchSummary;
   items: CreatorNotesPodcastBatchItemResult[];
+  /** Set when this run created the --transcribe-audio provider. Not a persisted column. */
+  audioTranscription?: {
+    provider: string;
+    model: string;
+  } | null;
 }
 
 export interface PodcastSourceListRow {

@@ -69,6 +69,37 @@ export class CreatorNotesRateLimitError extends Error {
   }
 }
 
+/**
+ * Audio-transcription failure for the selected Creator Notes transcription provider.
+ * A Groq failure, including HTTP 429, stays on this type and must not switch to local Whisper.
+ */
+export class CreatorNotesTranscriptionError extends Error {
+  readonly code: string;
+  readonly provider: string;
+  readonly httpStatus: number | null;
+  readonly retryAfter: string | null;
+  readonly rateLimit: CreatorNotesRateLimitSnapshot | null;
+
+  constructor(
+    message: string,
+    code: string,
+    details: {
+      provider?: string;
+      httpStatus?: number | null;
+      retryAfter?: string | null;
+      rateLimit?: CreatorNotesRateLimitSnapshot | null;
+    } = {},
+  ) {
+    super(message);
+    this.name = 'CreatorNotesTranscriptionError';
+    this.code = code;
+    this.provider = details.provider || 'unknown';
+    this.httpStatus = details.httpStatus ?? null;
+    this.retryAfter = details.retryAfter ?? details.rateLimit?.retryAfter ?? null;
+    this.rateLimit = details.rateLimit ?? null;
+  }
+}
+
 export function isCreatorNotesRateLimitError(error: unknown): boolean {
   if (error instanceof CreatorNotesRateLimitError) return true;
   if (!error || typeof error !== 'object') return false;

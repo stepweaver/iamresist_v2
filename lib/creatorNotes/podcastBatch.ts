@@ -405,9 +405,14 @@ export async function runCreatorNotesPodcastBatch(
 
     const store = dryRun ? undefined : deps.store || createSupabaseCreatorNotesStore();
     let audioTranscription = deps.audioTranscription;
+    let audioTranscriptionSelection: { provider: string; model: string } | null = null;
     if (args.transcribeAudio && !audioTranscription) {
-      const { createFasterWhisperTranscriptionProvider } = await import('@/lib/creatorNotes/whisperProvider');
-      audioTranscription = createFasterWhisperTranscriptionProvider();
+      const { createConfiguredAudioTranscriptionProvider, resolveCreatorNotesTranscriptionSelection } = await import(
+        '@/lib/creatorNotes/transcriptionProvider'
+      );
+      const selection = resolveCreatorNotesTranscriptionSelection();
+      audioTranscriptionSelection = { provider: selection.provider, model: selection.model };
+      audioTranscription = createConfiguredAudioTranscriptionProvider();
     }
     const items: CreatorNotesPodcastBatchItemResult[] = [];
     const extractionResults: CreatorNotesRunResult[] = [];
@@ -445,6 +450,7 @@ export async function runCreatorNotesPodcastBatch(
       skipReason: null,
       summary,
       items,
+      ...(audioTranscriptionSelection ? { audioTranscription: audioTranscriptionSelection } : {}),
     };
   } catch (error) {
     if (error instanceof CreatorNotesLockBusyError) {

@@ -47,8 +47,8 @@ export async function preparePodcastCreatorNotesTranscript(
   const resolveTranscript = deps.resolveTranscript || resolvePodcastTranscript;
   let audioTranscription = deps.audioTranscription;
   if (args.transcribeAudio && !audioTranscription) {
-    const { createFasterWhisperTranscriptionProvider } = await import('@/lib/creatorNotes/whisperProvider');
-    audioTranscription = createFasterWhisperTranscriptionProvider();
+    const { createConfiguredAudioTranscriptionProvider } = await import('@/lib/creatorNotes/transcriptionProvider');
+    audioTranscription = createConfiguredAudioTranscriptionProvider();
   }
   const resolved = await resolveTranscript(episode, {
     get: deps.get,

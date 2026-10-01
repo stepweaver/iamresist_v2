@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMemoryCreatorNotesStore } from '@/lib/creatorNotes/db';
 import { audioDownloadFailedError } from '@/lib/creatorNotes/errors';
@@ -107,8 +107,21 @@ function batchDeps(extra: CreatorNotesPodcastBatchDeps = {}): CreatorNotesPodcas
 }
 
 describe('podcast batch --transcribe-audio', () => {
+  const previousEnv: Record<string, string | undefined> = {};
+
   beforeEach(() => {
+    previousEnv.CREATOR_NOTES_TRANSCRIPTION_PROVIDER = process.env.CREATOR_NOTES_TRANSCRIPTION_PROVIDER;
+    previousEnv.CREATOR_NOTES_TRANSCRIPTION_MODEL = process.env.CREATOR_NOTES_TRANSCRIPTION_MODEL;
+    delete process.env.CREATOR_NOTES_TRANSCRIPTION_PROVIDER;
+    delete process.env.CREATOR_NOTES_TRANSCRIPTION_MODEL;
     vi.mocked(createFasterWhisperTranscriptionProvider).mockReset();
+  });
+
+  afterEach(() => {
+    if (previousEnv.CREATOR_NOTES_TRANSCRIPTION_PROVIDER == null) delete process.env.CREATOR_NOTES_TRANSCRIPTION_PROVIDER;
+    else process.env.CREATOR_NOTES_TRANSCRIPTION_PROVIDER = previousEnv.CREATOR_NOTES_TRANSCRIPTION_PROVIDER;
+    if (previousEnv.CREATOR_NOTES_TRANSCRIPTION_MODEL == null) delete process.env.CREATOR_NOTES_TRANSCRIPTION_MODEL;
+    else process.env.CREATOR_NOTES_TRANSCRIPTION_MODEL = previousEnv.CREATOR_NOTES_TRANSCRIPTION_MODEL;
   });
 
   it('parseCreatorNotesBatchArgs recognizes --transcribe-audio only when present', () => {

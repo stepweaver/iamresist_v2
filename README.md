@@ -147,7 +147,7 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - `THEME_AI_PROVIDER` does not need to be `ollama` when Creator Notes explicitly selects Groq.
 - `CREATOR_NOTES_MODEL` defaults by provider: Groq uses `openai/gpt-oss-20b`; Ollama uses `OLLAMA_MODEL`, then `gemma3:4b`. An explicit `CREATOR_NOTES_MODEL` wins for either provider.
 - Groq failures, including HTTP 429, never silently fall back to Ollama. Live extraction has no deterministic fallback.
-- Transcription (local faster-whisper) is separate from this text-inference provider.
+- Transcription (local faster-whisper, or Groq speech-to-text when `CREATOR_NOTES_TRANSCRIPTION_PROVIDER=groq`) is separate from the text-inference provider. Groq transcription failures do not fall back to local Whisper.
 - Optional: `CREATOR_NOTES_AI_TIMEOUT_MS` (default `300000`) for provider inference calls, independent of `THEME_AI_TIMEOUT_MS`
 - Optional: `CREATOR_NOTES_OLLAMA_KEEP_ALIVE` (default `5m`) for the local Ollama provider, independent of Theme Memory's 30m keep-alive
 - Optional: `CREATOR_NOTES_WINDOW_BATCH_SIZE` (default `1`; one evidence window per inference request)

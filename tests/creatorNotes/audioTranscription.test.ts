@@ -553,6 +553,8 @@ describe('Theme Memory isolation for local audio transcription', () => {
       'audioDownload.ts',
       'audioTranscriptCache.ts',
       'whisperProvider.ts',
+      'transcriptionProvider.ts',
+      'groqTranscription.ts',
     ]) {
       const src = readFileSync(path.join(dir, file), 'utf8');
       expect(src).not.toMatch(/@\/lib\/themeMemory/);

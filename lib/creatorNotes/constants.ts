@@ -9,6 +9,7 @@ export const CREATOR_NOTE_PROMPT_VERSION = 'creator-notes-prompt-v1.10';
 export const CREATOR_NOTES_DEFAULT_MODEL = 'gemma3:4b';
 export const CREATOR_NOTES_GROQ_DEFAULT_MODEL = 'openai/gpt-oss-20b';
 export const CREATOR_NOTES_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+export const CREATOR_NOTES_GROQ_TRANSCRIPTION_MODEL_DEFAULT = 'whisper-large-v3-turbo';
 export const CREATOR_NOTES_AI_PROVIDERS = ['groq', 'ollama'] as const;
 export const CREATOR_NOTES_OLLAMA_KEEP_ALIVE_DEFAULT = '5m';
 /** Version the canonical transcript normalizer. Bump when segment merge/text rules change. */
@@ -147,6 +148,23 @@ export function creatorNotesAiProvider(themeAiProvider?: string | null): string 
   const theme = fromEnv || String(themeAiProvider || '').trim().toLowerCase();
   if (theme === 'ollama') return 'ollama';
   return '';
+}
+
+/**
+ * Podcast audio fallback selected by --transcribe-audio.
+ * Unset, blank, `local`, and `whisper` keep the existing faster-whisper path.
+ * `groq` is returned for Groq speech-to-text. Any other value is returned unchanged
+ * so the caller can reject it instead of silently running local Whisper.
+ */
+export function creatorNotesTranscriptionProvider(): string {
+  const raw = optString('CREATOR_NOTES_TRANSCRIPTION_PROVIDER').toLowerCase();
+  if (!raw || raw === 'local' || raw === 'whisper') return 'local';
+  return raw;
+}
+
+/** Groq speech-to-text model. CREATOR_NOTES_TRANSCRIPTION_MODEL wins; otherwise whisper-large-v3-turbo. */
+export function creatorNotesGroqTranscriptionModel(): string {
+  return optString('CREATOR_NOTES_TRANSCRIPTION_MODEL') || CREATOR_NOTES_GROQ_TRANSCRIPTION_MODEL_DEFAULT;
 }
 
 /**

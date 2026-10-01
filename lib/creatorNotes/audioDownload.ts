@@ -14,6 +14,7 @@ import {
   audioDownloadFailedError,
   audioTooLargeError,
   audioTranscodeFailedError,
+  PodcastTranscriptError,
 } from '@/lib/creatorNotes/errors';
 
 export const DEFAULT_AUDIO_WORK_ROOT = path.join(process.cwd(), 'tmp', 'creator-notes-audio-work');
@@ -238,6 +239,138 @@ export async function transcodePodcastAudio(input: {
     throw audioTranscodeFailedError(detail);
   }
   return { destPath: input.outputPath, elapsedMs: Date.now() - started };
+}
+
+export function parseFfmpegDurationSeconds(stderr: string): number | null {
+  const match = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(String(stderr || ''));
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  if (![hours, minutes, seconds].every((value) => Number.isFinite(value))) return null;
+  const total = hours * 3600 + minutes * 60 + seconds;
+  return total > 0 ? total : null;
+}
+
+export function formatFfmpegSeconds(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0.000';
+  return (Math.round(seconds * 1000) / 1000).toFixed(3);
+}
+
+/**
+ * Sample-accurate speech chunk for Groq upload.
+ * `-ss`/`-t` come after `-i` so the cut is decoded, not keyframe-aligned.
+ * 16 kHz mono 64 kbps MP3 matches Groq's internal downsample and stays under the direct-upload cap.
+ */
+export function ffmpegAudioChunkArgs(input: {
+  inputPath: string;
+  outputPath: string;
+  startSeconds: number;
+  durationSeconds: number;
+}): string[] {
+  return [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    input.inputPath,
+    '-ss',
+    formatFfmpegSeconds(input.startSeconds),
+    '-t',
+    formatFfmpegSeconds(input.durationSeconds),
+    '-vn',
+    '-ac',
+    '1',
+    '-ar',
+    String(AUDIO_SAMPLE_RATE),
+    '-c:a',
+    'libmp3lame',
+    '-b:a',
+    '64k',
+    input.outputPath,
+  ];
+}
+
+function runCommandCaptured(input: {
+  command: string;
+  args: string[];
+  timeoutMs: number;
+  label: string;
+}): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(input.command, input.args, {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${input.label} timed out after ${input.timeoutMs}ms`));
+    }, input.timeoutMs);
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+export async function probeAudioDurationSeconds(input: {
+  inputPath: string;
+  ffmpegBin?: string;
+  timeoutMs?: number;
+}): Promise<number> {
+  const timeoutMs = input.timeoutMs ?? AUDIO_TRANSCODE_TIMEOUT_MS;
+  const ffmpegBin = input.ffmpegBin || process.env.CREATOR_NOTES_FFMPEG || 'ffmpeg';
+  try {
+    const result = await runCommandCaptured({
+      command: ffmpegBin,
+      args: ['-hide_banner', '-i', input.inputPath],
+      timeoutMs,
+      label: 'ffmpeg',
+    });
+    const duration = parseFfmpegDurationSeconds(`${result.stderr}\n${result.stdout}`);
+    if (duration == null) throw audioTranscodeFailedError('audio duration unavailable');
+    return duration;
+  } catch (error) {
+    if (error instanceof PodcastTranscriptError) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    if (/enoent/i.test(detail)) throw audioTranscodeFailedError('ffmpeg not found');
+    throw audioTranscodeFailedError(detail);
+  }
+}
+
+export async function encodeAudioChunk(input: {
+  inputPath: string;
+  outputPath: string;
+  startSeconds: number;
+  durationSeconds: number;
+  ffmpegBin?: string;
+  timeoutMs?: number;
+}): Promise<void> {
+  const timeoutMs = input.timeoutMs ?? AUDIO_TRANSCODE_TIMEOUT_MS;
+  const ffmpegBin = input.ffmpegBin || process.env.CREATOR_NOTES_FFMPEG || 'ffmpeg';
+  const args = ffmpegAudioChunkArgs(input);
+  try {
+    await runCommand({ command: ffmpegBin, args, timeoutMs, label: 'ffmpeg' });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (/enoent/i.test(detail)) throw audioTranscodeFailedError('ffmpeg not found');
+    throw audioTranscodeFailedError(detail);
+  }
 }
 
 export async function withTemporaryAudioWorkspace<T>(

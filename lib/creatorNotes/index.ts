@@ -65,6 +65,7 @@ export {
   CreatorNotesInferenceError,
   CreatorNotesProviderUnavailableError,
   CreatorNotesRateLimitError,
+  CreatorNotesTranscriptionError,
   isCreatorNotesProviderUnavailableError,
   isCreatorNotesRateLimitError,
 } from '@/lib/creatorNotes/errors';
@@ -79,6 +80,10 @@ export {
   type AudioTranscriptionProvider,
 } from '@/lib/creatorNotes/audioTranscription';
 export { createFasterWhisperTranscriptionProvider } from '@/lib/creatorNotes/whisperProvider';
+export {
+  createConfiguredAudioTranscriptionProvider,
+  resolveCreatorNotesTranscriptionSelection,
+} from '@/lib/creatorNotes/transcriptionProvider';
 
 export type {
   CreatorAtomicNote,
