@@ -1,15 +1,13 @@
 import PageContainer from '@/components/content/PageContainer';
-import AtomicNotesBrief from '@/components/brief/AtomicNotesBrief';
-import { buildBriefEventsCorpus } from '@/lib/briefEvents/presentation';
-import { loadCreatorNotesBrief } from '@/lib/creatorNotes/db';
-import { intelDbConfigured } from '@/lib/intel/db';
+import HeadlineTimeline from '@/components/brief/HeadlineTimeline';
+import { loadHeadlineTimeline } from '@/lib/headlineTimeline/load';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = {
   ...buildPageMetadata({
-    title: 'Brief · Event Candidates',
+    title: 'Brief',
     description:
-      'Read-only event-centric timeline derived from persisted Atomic Creator Notes.',
+      'A scannable timeline of stories drawing attention across creators and news sources. Ranking follows source convergence, not an AI importance score.',
     urlPath: '/brief',
   }),
   robots: { index: false, follow: false },
@@ -17,25 +15,16 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function BriefPage() {
-  const configured = intelDbConfigured();
-  let episodes = [];
-  let corpus = {
-    days: [],
-    eventCount: 0,
-    noteCount: 0,
-    participatingNoteIds: [],
-    excludedNoteCount: 0,
-  };
-  let loadError = null;
+export default async function BriefPage({ searchParams }) {
+  const params = typeof searchParams?.then === 'function' ? await searchParams : searchParams ?? {};
+  const debug = String(params.debug || '') === '1';
 
-  if (configured) {
-    try {
-      episodes = await loadCreatorNotesBrief();
-      corpus = buildBriefEventsCorpus(episodes);
-    } catch (error) {
-      loadError = error instanceof Error ? error.message : 'Atomic Creator Notes could not be read.';
-    }
+  let timeline = null;
+  let loadError = null;
+  try {
+    timeline = await loadHeadlineTimeline({ newswire: 'uncached' });
+  } catch (error) {
+    loadError = error instanceof Error ? error.message : 'The brief could not be loaded.';
   }
 
   return (
@@ -46,28 +35,23 @@ export default async function BriefPage() {
           <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-4 lg:px-6">
             <div className="border-l-4 border-primary pl-4 sm:pl-6">
               <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.28em] block mb-3 text-primary">
-                EXPERIMENTAL
+                I AM [RESIST]
               </span>
               <h1 className="section-title text-2xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight break-words">
                 BRIEF
               </h1>
               <p className="mt-3 max-w-3xl text-sm sm:text-base text-foreground/70 leading-relaxed">
-                Event-centric timeline derived from Atomic Creator Notes. Notes are evidence atoms;
-                Event Candidates group notes that describe the same development. Creator analysis stays
-                attributed and separate from factual developments. Verification is never inferred from
-                note kind.
+                Stories drawing attention across the sources already coming in. Headlines group when recent titles
+                overlap. A story appears here when at least two creators, two news sources, or a creator and a news
+                source are covering it. More distinct creators and more distinct news sources raise a story. Creator
+                discussion is attention, not verification.
               </p>
             </div>
           </div>
         </div>
       </div>
       <PageContainer>
-        <AtomicNotesBrief
-          episodes={episodes}
-          corpus={corpus}
-          configured={configured}
-          loadError={loadError}
-        />
+        <HeadlineTimeline timeline={timeline} debug={debug} loadError={loadError} />
       </PageContainer>
     </main>
   );

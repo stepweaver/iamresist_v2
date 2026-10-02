@@ -428,6 +428,46 @@ export async function loadCreatorNotesBrief(): Promise<BriefEpisode[]> {
   return selectBriefEpisodes({ runs, notes, metas, limit: CREATOR_NOTES_BRIEF_EPISODE_LIMIT });
 }
 
+/**
+ * Winning-run Atomic Notes for specific source items.
+ * Provenance is source_item_id. Does not call a model.
+ */
+export async function loadWinningNotesForSourceItems(sourceItemIds: string[]): Promise<CreatorAtomicNote[]> {
+  if (!intelDbConfigured()) return [];
+  const ids = [...new Set(sourceItemIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (!ids.length) return [];
+
+  const runs: CreatorNoteRun[] = [];
+  for (let i = 0; i < ids.length; i += 80) {
+    const chunk = ids.slice(i, i + 80);
+    const { data, error } = await client()
+      .from('creator_note_runs')
+      .select(RUN_SELECT_COLUMNS)
+      .eq('status', 'success')
+      .in('source_item_id', chunk);
+    if (error) throw new Error(`creator_note_runs headline select: ${error.message}`);
+    runs.push(...((data || []) as Record<string, unknown>[]).map(asRun));
+  }
+
+  const winningIds = ids
+    .map((sourceItemId) => selectWinningSuccessRun(runs.filter((run) => run.sourceItemId === sourceItemId)))
+    .filter((run): run is CreatorNoteRun => Boolean(run))
+    .map((run) => run.id);
+  if (!winningIds.length) return [];
+
+  const notes: CreatorAtomicNote[] = [];
+  for (let i = 0; i < winningIds.length; i += 80) {
+    const chunk = winningIds.slice(i, i + 80);
+    const { data, error } = await client()
+      .from('creator_atomic_notes')
+      .select(NOTE_SELECT_COLUMNS)
+      .in('extraction_run_id', chunk);
+    if (error) throw new Error(`creator_atomic_notes headline select: ${error.message}`);
+    notes.push(...((data || []) as Record<string, unknown>[]).map(asNote));
+  }
+  return notes;
+}
+
 export function reviewMemoryCreatorNotes(
   store: { notes: CreatorAtomicNote[]; runs: CreatorNoteRun[] },
   query: CreatorNotesReviewQuery,
