@@ -1,0 +1,62 @@
+{
+  "sourceItemIds": ["source-item-1"],
+  "notes": {
+    "00000000-0000-4000-8000-0000000000a1": {
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "sourceItemId": "source-item-1",
+      "creatorId": "professor-jiang",
+      "creatorName": "Professor Jiang",
+      "kind": "event",
+      "contentRole": "editorial",
+      "statementRole": "creator",
+      "attribution": "Professor Jiang",
+      "quotedSpeaker": null,
+      "text": "Russia launched missiles toward Estonia.",
+      "sourceQuote": "Russia launched missiles toward Estonia.",
+      "sourceExcerpt": "Full transcript window: Russia launched missiles toward Estonia.",
+      "startSeconds": 12,
+      "endSeconds": 18,
+      "sourceSegmentIndexes": [3, 4],
+      "status": "usable",
+      "reviewReason": "speaker is named in the excerpt"
+    },
+    "00000000-0000-4000-8000-0000000000b1": {
+      "id": "00000000-0000-4000-8000-0000000000b1",
+      "sourceItemId": "source-item-2",
+      "creatorId": "meidastouch-network",
+      "creatorName": "MeidasTouch Network",
+      "kind": "event",
+      "contentRole": "editorial",
+      "statementRole": "quoted_speaker",
+      "attribution": "MeidasTouch Network",
+      "quotedSpeaker": "A guest",
+      "text": "A committee scheduled a hearing on voting machines.",
+      "sourceQuote": "A committee scheduled a hearing on voting machines.",
+      "sourceExcerpt": "Full transcript window: a committee scheduled a hearing on voting machines.",
+      "startSeconds": 40,
+      "endSeconds": 55,
+      "sourceSegmentIndexes": [9],
+      "status": "usable",
+      "reviewReason": null
+    }
+  },
+  "retrieval": [
+    {
+      "noteId": "00000000-0000-4000-8000-0000000000a1",
+      "retrievedCandidateIds": ["00000000-0000-4000-8000-0000000000b1"],
+      "jevCandidateIds": ["00000000-0000-4000-8000-0000000000b1"]
+    }
+  ],
+  "rows": [
+    {
+      "noteId": "00000000-0000-4000-8000-0000000000a1",
+      "candidateId": "00000000-0000-4000-8000-0000000000b1",
+      "relation": "unrelated",
+      "correctCandidateId": "00000000-0000-4000-8000-0000000000c1",
+      "v1SameThread": false,
+      "overlapScore": 2,
+      "retrievedRank": 1,
+      "inJevSet": true
+    }
+  ]
+}

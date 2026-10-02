@@ -119,7 +119,13 @@ export function isDistinctiveIdentityToken(token: string, exclude: Iterable<stri
   return normalized.length >= 4;
 }
 
-export function isDistinctiveEventPhrase(phrase: string, exclude: Iterable<string> = []): boolean {
+function excludeIsEmpty(exclude: Iterable<string>): boolean {
+  if (Array.isArray(exclude)) return exclude.length === 0;
+  if (exclude instanceof Set) return exclude.size === 0;
+  return false;
+}
+
+function computeDistinctiveEventPhrase(phrase: string, exclude: Iterable<string>): boolean {
   const parts = normalizeMatchText(phrase).split(' ').filter(Boolean);
   if (parts.length < 2) return false;
   if (isGenericEntity(phrase)) return false;
@@ -127,6 +133,17 @@ export function isDistinctiveEventPhrase(phrase: string, exclude: Iterable<strin
   if (strong.length >= 1 && parts.length >= 3) return true;
   if (strong.length >= 1 && parts.some((part) => !isGenericEntity(part) && !STOP_SET.has(part))) return true;
   return strong.length >= 2;
+}
+
+const distinctiveEventPhraseCache = new Map<string, boolean>();
+
+export function isDistinctiveEventPhrase(phrase: string, exclude: Iterable<string> = []): boolean {
+  if (!excludeIsEmpty(exclude)) return computeDistinctiveEventPhrase(phrase, exclude);
+  const cached = distinctiveEventPhraseCache.get(phrase);
+  if (cached !== undefined) return cached;
+  const result = computeDistinctiveEventPhrase(phrase, exclude);
+  distinctiveEventPhraseCache.set(phrase, result);
+  return result;
 }
 
 function collapseDuplicateNgrams(phrases: string[]): string[] {
@@ -225,17 +242,35 @@ function overlap(a: string[], b: string[]): string[] {
   return a.filter((value) => bSet.has(normalizeMatchText(value)));
 }
 
+type OverlapPhrase = { text: string; distinctive: boolean };
+
+function overlapPhrase(text: string): OverlapPhrase | null {
+  const distinctive = isDistinctiveEventPhrase(text);
+  if (!distinctive && text.split(' ').length < 2) return null;
+  return { text, distinctive };
+}
+
 function phrasesOverlap(a: string[], b: string[]): string[] {
+  const lefts: OverlapPhrase[] = [];
+  for (const phrase of a) {
+    const parsed = overlapPhrase(phrase);
+    if (parsed) lefts.push(parsed);
+  }
+  const rights: OverlapPhrase[] = [];
+  for (const phrase of b) {
+    const parsed = overlapPhrase(phrase);
+    if (parsed) rights.push(parsed);
+  }
+
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const left of a) {
-    if (!isDistinctiveEventPhrase(left) && left.split(' ').length < 2) continue;
-    for (const right of b) {
-      if (!isDistinctiveEventPhrase(right) && right.split(' ').length < 2) continue;
-      if (left === right || left.includes(right) || right.includes(left)) {
-        const key = left.length >= right.length ? left : right;
+  for (const left of lefts) {
+    for (const right of rights) {
+      if (left.text === right.text || left.text.includes(right.text) || right.text.includes(left.text)) {
+        const key = left.text.length >= right.text.length ? left.text : right.text;
         if (seen.has(key)) continue;
-        if (!isDistinctiveEventPhrase(key) && !isDistinctiveEventPhrase(left) && !isDistinctiveEventPhrase(right)) continue;
+        const keyDistinctive = key === left.text ? left.distinctive : right.distinctive;
+        if (!keyDistinctive && !left.distinctive && !right.distinctive) continue;
         seen.add(key);
         out.push(key);
       }
@@ -253,7 +288,23 @@ export function sharedDistinctiveEvidence(
   return { terms, phrases };
 }
 
+const overlapScoreCache = new WeakMap<ThreadIdentity, WeakMap<ThreadIdentity, number>>();
+
 function eventOverlapScore(a: ThreadIdentity, b: ThreadIdentity): number {
+  // The numeric score is symmetric, so the reverse pair reuses the same value.
+  const cached = overlapScoreCache.get(a)?.get(b) ?? overlapScoreCache.get(b)?.get(a);
+  if (cached !== undefined) return cached;
+  const score = scoreIdentities(a, b);
+  let row = overlapScoreCache.get(a);
+  if (!row) {
+    row = new WeakMap();
+    overlapScoreCache.set(a, row);
+  }
+  row.set(b, score);
+  return score;
+}
+
+function scoreIdentities(a: ThreadIdentity, b: ThreadIdentity): number {
   const shared = sharedDistinctiveEvidence(a, b);
   const objects = overlap(a.objects, b.objects).filter((value) => !isGenericEntity(value));
   const institutions = overlap(a.institutions, b.institutions).filter((value) => !isGenericEntity(value));
@@ -533,6 +584,30 @@ export function clusterEntriesIntoThreads(
       intelLinks: [],
     };
   });
+}
+
+/**
+ * Rank pool identities by the frozen overlap score.
+ * This is candidate retrieval only: a low score is not dropped, and merge
+ * thresholds are not applied.
+ */
+export function rankIdentityCandidates<T extends { id: string; identity: ThreadIdentity }>(
+  query: ThreadIdentity,
+  pool: readonly T[],
+  limit: number,
+): Array<T & { score: number; rank: number }> {
+  const cap = Math.max(0, Math.floor(limit));
+  const ranked = pool
+    .map((candidate) => ({
+      candidate,
+      score: eventOverlapScore(query, candidate.identity),
+    }))
+    .sort((left, right) => right.score - left.score || left.candidate.id.localeCompare(right.candidate.id));
+  return ranked.slice(0, cap).map((row, index) => ({
+    ...row.candidate,
+    score: row.score,
+    rank: index + 1,
+  }));
 }
 
 export { EMPTY_ANCHORS };

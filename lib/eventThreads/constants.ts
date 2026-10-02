@@ -1,6 +1,10 @@
 /**
  * Event Threads V1 — interpretive layer above Atomic Creator Notes.
  * Bump EVENT_THREADS_VERSION when prompt or identity/resolution semantics change.
+ *
+ * V1 identity heuristics are a frozen baseline. Do not add merge weights here.
+ * Jev shadow evaluation reuses the existing overlap score for candidate retrieval
+ * and does not treat that score as the same-event decision.
  */
 
 export const EVENT_THREADS_VERSION = 'event-threads-v1.1';
