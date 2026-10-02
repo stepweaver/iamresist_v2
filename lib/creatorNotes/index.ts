@@ -61,8 +61,13 @@ export { selectEligibleCreatorNotesItems } from '@/lib/creatorNotes/select';
 export { acquireCreatorNotesRunLock, CreatorNotesLockBusyError } from '@/lib/creatorNotes/runLock';
 export {
   AI_PROVIDER_UNAVAILABLE,
+  CREATOR_NOTES_RATE_LIMITED,
+  CreatorNotesInferenceError,
   CreatorNotesProviderUnavailableError,
+  CreatorNotesRateLimitError,
+  CreatorNotesTranscriptionError,
   isCreatorNotesProviderUnavailableError,
+  isCreatorNotesRateLimitError,
 } from '@/lib/creatorNotes/errors';
 export { preparePodcastCreatorNotesTranscript } from '@/lib/creatorNotes/podcastPrepare';
 export { listPodcastSources, resolvePodcastEpisode, loadPodcastCatalog, diagnosePodcastFeeds } from '@/lib/creatorNotes/podcastCatalog';
@@ -75,6 +80,10 @@ export {
   type AudioTranscriptionProvider,
 } from '@/lib/creatorNotes/audioTranscription';
 export { createFasterWhisperTranscriptionProvider } from '@/lib/creatorNotes/whisperProvider';
+export {
+  createConfiguredAudioTranscriptionProvider,
+  resolveCreatorNotesTranscriptionSelection,
+} from '@/lib/creatorNotes/transcriptionProvider';
 
 export type {
   CreatorAtomicNote,

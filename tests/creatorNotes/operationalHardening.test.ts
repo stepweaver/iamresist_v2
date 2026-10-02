@@ -100,7 +100,7 @@ function groundedExtract(chunkIndex: number, quote: string) {
 }
 
 describe('Creator Notes operational hardening', () => {
-  const envKeys = ['CREATOR_NOTES_OLLAMA_KEEP_ALIVE'] as const;
+  const envKeys = ['CREATOR_NOTES_OLLAMA_KEEP_ALIVE', 'CREATOR_NOTES_AI_PROVIDER'] as const;
   const previousEnv: Partial<Record<(typeof envKeys)[number], string | undefined>> = {};
 
   afterEach(() => {
@@ -156,7 +156,7 @@ describe('Creator Notes operational hardening', () => {
     expect(calls).not.toContain(windows[2].windowId);
     expect(events).toContain('transport failure');
     expect(events).toContain('health check');
-    expect(events).toContain('ollama unavailable abort');
+    expect(events).toContain('provider unavailable abort');
     expect(events).not.toContain('transport retry');
   });
 
@@ -238,13 +238,14 @@ describe('Creator Notes operational hardening', () => {
 
     expect(calls[0]).toBe(calls[1]);
     expect(events.some((row) => row.event === 'transport retry' && row.extra?.sameWindow === true)).toBe(true);
-    expect(events.some((row) => row.event === 'ollama unavailable abort')).toBe(false);
+    expect(events.some((row) => row.event === 'provider unavailable abort')).toBe(false);
     expect(result.persistence.status).toBe('success');
   });
 
   it('defaults Creator Notes keep-alive to 5m and does not inherit Theme Memory 30m', () => {
     expect(CREATOR_NOTES_OLLAMA_KEEP_ALIVE_DEFAULT).toBe('5m');
     expect('CREATOR_NOTES_OLLAMA_KEEP_ALIVE' in themeMemoryEnv).toBe(false);
+    setEnv('CREATOR_NOTES_AI_PROVIDER', 'ollama');
     setEnv('CREATOR_NOTES_OLLAMA_KEEP_ALIVE', '');
     expect(creatorNotesOllamaKeepAlive()).toBe('5m');
     expect(resolveCreatorNotesAiConfig().keepAlive).toBe('5m');

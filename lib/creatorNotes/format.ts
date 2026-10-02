@@ -729,6 +729,13 @@ export function formatCreatorNotesPodcastBatchReport(result: CreatorNotesPodcast
   const lines = [
     'Atomic Creator Notes Podcast Batch',
     '==================================',
+  ];
+  if (result.audioTranscription) {
+    lines.push(
+      `Audio transcription: ${result.audioTranscription.provider} / ${result.audioTranscription.model}`,
+    );
+  }
+  lines.push(
     '',
     `Candidates inspected: ${s.candidateEpisodes}`,
     `Successfully processed: ${s.processed}`,
@@ -754,7 +761,7 @@ export function formatCreatorNotesPodcastBatchReport(result: CreatorNotesPodcast
     'Persistence:',
     `  runs created: ${s.persistence.dryRun ? 0 : s.persistence.runsCreated}`,
     `  notes written: ${s.persistence.dryRun ? 0 : s.persistence.notesWritten}`,
-  ];
+  );
   if (result.items.length) {
     lines.push('', 'Episodes:');
     for (const item of result.items) {

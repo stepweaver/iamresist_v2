@@ -1,6 +1,6 @@
 # Atomic Creator Notes VPS batch
 
-Run Atomic Creator Notes **on the same machine as Ollama**, isolated from Theme Memory. The public Next.js deployment cannot reach `127.0.0.1:11434` on this host. Do not expose Ollama publicly.
+Run Atomic Creator Notes isolated from Theme Memory. Production text inference uses Groq (`openai/gpt-oss-20b`). Podcast audio transcription is separate: `CREATOR_NOTES_TRANSCRIPTION_PROVIDER=groq` sends enclosure audio to Groq speech-to-text, and unset or `local` keeps faster-whisper. Ollama remains the local text-inference alternative; do not expose it publicly. The public Next.js deployment cannot reach `127.0.0.1:11434` on this host.
 
 This job only writes:
 
@@ -16,15 +16,18 @@ Notion Voices + existing Voice RSS
 eligible recent podcast episodes
         ↓
 publisher transcript when one exists
-        otherwise local faster-whisper on the RSS audio enclosure
+        otherwise the selected audio transcription provider on the RSS enclosure
         (--transcribe-audio; production batch enables this)
+        groq: Groq speech-to-text, or local: faster-whisper
         ↓
-localhost:11434  (Ollama / gemma3:4b)
+text inference
+  production: Groq / openai/gpt-oss-20b
+  local alternative: Ollama (CREATOR_NOTES_MODEL, then OLLAMA_MODEL, then gemma3:4b)
         ↓
 existing Supabase project  (creator-notes tables only)
 ```
 
-Most podcast RSS feeds do not include a publisher transcript. The production batch therefore passes `--transcribe-audio` so those episodes can use the existing local faster-whisper fallback. A publisher transcript still wins. Episodes are processed one at a time. YouTube caption batch selection is disabled. Do not expose Ollama or Whisper on a public port.
+Most podcast RSS feeds do not include a publisher transcript. The production batch therefore passes `--transcribe-audio`. A publisher transcript still wins. With `CREATOR_NOTES_TRANSCRIPTION_PROVIDER=groq`, missing transcripts are sent to Groq speech-to-text (`whisper-large-v3-turbo` unless `CREATOR_NOTES_TRANSCRIPTION_MODEL` is set). Unset or `local` keeps faster-whisper. A Groq transcription failure, including HTTP 429, does not fall back to local Whisper. Episodes are processed one at a time. YouTube caption batch selection is disabled. Do not expose Ollama or Whisper on a public port. Groq text-inference failures, including HTTP 429, do not fall back to Ollama.
 
 Do **not** call the public website over HTTP.
 
@@ -56,22 +59,37 @@ npm run creator-notes:podcast-batch -- --limit 10 --transcribe-audio --dry-run
 
 ## Environment
 
-Reuse the Theme Memory / Ollama environment. Copy [env.example](./env.example) into the repository `.env.local` (or `EnvironmentFile=` in systemd). Never commit real secrets.
+Copy [env.example](./env.example) into the repository `.env.local` (or `EnvironmentFile=` in systemd). Never commit real secrets. `GROQ_API_KEY` must exist in that runtime environment when Groq is selected. This repository does not store it.
+
+`CREATOR_NOTES_AI_PROVIDER` selects `groq` or `ollama`. Production text inference is Groq with `CREATOR_NOTES_MODEL=openai/gpt-oss-20b`. `THEME_AI_PROVIDER` does not need to be `ollama` when Creator Notes explicitly selects Groq. If `CREATOR_NOTES_AI_PROVIDER` is unset and `THEME_AI_PROVIDER=ollama`, the legacy local Ollama path remains available.
 
 Required:
 
 - Supabase URL + service role (`POSTGRES_SUPABASE_URL` / `SUPABASE_URL` and service role key)
 - Notion Voices (`NOTION_API_KEY`, `NOTION_VOICES_DB_ID`)
-- `THEME_AI_PROVIDER=ollama`
-- `OLLAMA_BASE_URL=http://127.0.0.1:11434`
-- `CREATOR_NOTES_MODEL=gemma3:4b` (intended production model; independent of Theme Memory)
-- `OLLAMA_MODEL=gemma3:4b` (fallback if `CREATOR_NOTES_MODEL` is unset)
-- `THEME_AI_TIMEOUT_MS=45000`
-- `THEME_AI_STARTUP_TIMEOUT_MS=180000` for the Ollama readiness warm-up only
-- `CREATOR_NOTES_AI_TIMEOUT_MS=300000` for Atomic Notes extraction (independent of Theme Memory)
-- `CREATOR_NOTES_OLLAMA_KEEP_ALIVE=5m` for Atomic Notes (independent of Theme Memory's 30m keep-alive)
+- `CREATOR_NOTES_AI_PROVIDER=groq`
+- `CREATOR_NOTES_MODEL=openai/gpt-oss-20b` (Groq production model; an explicit value wins for either provider)
+- `CREATOR_NOTES_TRANSCRIPTION_PROVIDER=groq`
+- `CREATOR_NOTES_TRANSCRIPTION_MODEL=whisper-large-v3-turbo` (Groq speech-to-text; an explicit value wins)
+- `GROQ_API_KEY` in the runtime environment when either Groq provider is selected (never committed)
+- `CREATOR_NOTES_AI_TIMEOUT_MS=300000` for provider inference (Groq or Ollama), independent of Theme Memory
 
-Local audio transcription (required for the production batch, because most feeds have no publisher transcript):
+`CREATOR_NOTES_MODEL` defaults by provider when unset: Groq uses `openai/gpt-oss-20b`; Ollama uses `OLLAMA_MODEL`, then `gemma3:4b`.
+
+Local Ollama alternative (not used by the Groq production path):
+
+- `CREATOR_NOTES_AI_PROVIDER=ollama`
+- `OLLAMA_BASE_URL=http://127.0.0.1:11434`
+- `OLLAMA_MODEL=gemma3:4b` (used only when `CREATOR_NOTES_MODEL` is unset)
+- `CREATOR_NOTES_OLLAMA_KEEP_ALIVE=5m` (independent of Theme Memory's 30m keep-alive)
+- `THEME_AI_PROVIDER=ollama` only for the compatibility path when `CREATOR_NOTES_AI_PROVIDER` is unset
+- `THEME_AI_TIMEOUT_MS` and `THEME_AI_STARTUP_TIMEOUT_MS` belong to Theme Memory, not Creator Notes Groq inference
+
+Audio transcription (required for the production batch, because most feeds have no publisher transcript):
+
+`CREATOR_NOTES_TRANSCRIPTION_PROVIDER=groq` uploads the RSS enclosure to Groq `POST /openai/v1/audio/transcriptions` with `response_format=verbose_json`. Files over 25 MB are split into gapless 16 kHz mono MP3 chunks and their timestamps are offset to episode time. Audio is not truncated. `ffmpeg` is required for that split. `CREATOR_NOTES_TRANSCRIPTION_MODEL` defaults to `whisper-large-v3-turbo`. Failures stay on Groq.
+
+Local faster-whisper remains available when the provider is `local` or unset:
 
 - `ffmpeg` on `PATH`, or `CREATOR_NOTES_FFMPEG` set to the ffmpeg binary (default `ffmpeg`)
 - Python 3 on `PATH`. The existing interpreter override is `CREATOR_NOTES_PYTHON` (default `python3`; `PYTHON` is also recognized)
@@ -81,10 +99,10 @@ Local audio transcription (required for the production batch, because most feeds
 python3 -m pip install -r scripts/audio-transcription/requirements.txt
 ```
 
-- `CREATOR_NOTES_WHISPER_MODEL` (default `small`; leave this unless a measured run shows a reason to change it)
+- `CREATOR_NOTES_WHISPER_MODEL` (default `small`; leave this unless a measured run shows a reason to change it). This does not change the Groq model.
 - `CREATOR_NOTES_TRANSCRIBE_LANGUAGE` (default `en`)
 
-Audio is downloaded to a temporary directory, transcoded to 16 kHz mono, and discarded. Successful transcripts are reused from `tmp/creator-notes-audio-transcripts/`. Whole podcast audio is not stored in Supabase. Whisper runs only as a local subprocess. Do not publish it.
+Audio is downloaded to a temporary directory and discarded. Successful transcripts are reused from `tmp/creator-notes-audio-transcripts/`. Whole podcast audio is not stored in Supabase. The batch report and log line name the transcription provider and model. `GROQ_API_KEY` is never logged.
 
 Optional:
 
@@ -94,7 +112,7 @@ Optional:
 
 The CLI acquires an exclusive lock file (`tmp/creator-notes-batch.lock`, overridable with `CREATOR_NOTES_LOCK_FILE`). A second start exits **0** with `creator-notes podcast batch already running` while the first run is alive. Stale locks from dead PIDs are replaced.
 
-This lock is **separate** from `theme-memory-daily.lock`. Failures in creator-notes do not fail Theme Memory, and the two services should still be scheduled so they do not contend for the same CPU-only Ollama process.
+This lock is **separate** from `theme-memory-daily.lock`. Failures in creator-notes do not fail Theme Memory. Production Creator Notes text inference does not use Theme Memory's Ollama process. If the local Ollama provider is selected, schedule the two services so they do not contend for that process.
 
 systemd `Type=oneshot` also avoids overlapping units. Optional extra wrapping:
 
@@ -114,4 +132,4 @@ Suggested cadence: **4 runs per day**, offset from Theme Memory's 06:15 timer.
 
 Prefer the timer over cron. `Persistent=true` catches missed runs.
 
-`TimeoutStartSec` is 4 hours. Local transcription plus sequential `gemma3:4b` extraction is CPU-bound. If a 10-episode run is killed, raise `TimeoutStartSec` on the installed unit. The example unit does not enable the timer.
+`TimeoutStartSec` is 4 hours. Local transcription plus sequential text inference can still outlast a short unit timeout. If a 10-episode run is killed, raise `TimeoutStartSec` on the installed unit. The example unit does not enable the timer.

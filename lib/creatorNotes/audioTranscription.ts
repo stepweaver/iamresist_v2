@@ -16,6 +16,8 @@ import type {
 export const CREATOR_NOTES_WHISPER_PROVIDER = 'faster-whisper';
 export const CREATOR_NOTES_WHISPER_MODEL_DEFAULT = 'small';
 export const CREATOR_NOTES_WHISPER_VERSION = 'creator-notes-whisper-v1';
+export const CREATOR_NOTES_GROQ_TRANSCRIPTION_PROVIDER = 'groq';
+export const CREATOR_NOTES_GROQ_TRANSCRIPTION_VERSION = 'creator-notes-groq-transcription-v1';
 export const AUDIO_DOWNLOAD_TIMEOUT_MS = 180_000;
 export const AUDIO_MAX_BYTES = 200 * 1024 * 1024;
 export const AUDIO_TRANSCODE_TIMEOUT_MS = 180_000;

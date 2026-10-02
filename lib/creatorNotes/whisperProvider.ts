@@ -179,6 +179,7 @@ function transcriptFromLocalAudio(input: {
   return asAudioTranscriptionResult(transcript);
 }
 
+/** Local faster-whisper. Used when CREATOR_NOTES_TRANSCRIPTION_PROVIDER is `local`, `whisper`, or unset. */
 export function createFasterWhisperTranscriptionProvider(
   deps: FasterWhisperProviderDeps = {},
 ): AudioTranscriptionProvider {

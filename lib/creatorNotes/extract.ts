@@ -1,11 +1,26 @@
 import 'server-only';
 
+import { createCreatorNotesTextProvider, healthCheckCreatorNotesAi } from '@/lib/creatorNotes/ai/provider';
 import {
+  CREATOR_NOTES_SCHEMA_NAMES,
+  type CreatorNotesAiConfig,
+  type CreatorNotesChatMessage,
+  type CreatorNotesSchemaName,
+} from '@/lib/creatorNotes/ai/types';
+import { creatorNotesGroqApiKey } from '@/lib/creatorNotes/ai/groq';
+import {
+  CREATOR_NOTES_GROQ_BASE_URL,
   CREATOR_NOTES_TRANSPORT_BACKOFF_MS,
+  creatorNotesAiProvider,
   creatorNotesAiTimeoutMs,
-  creatorNotesModel,
+  creatorNotesModelForProvider,
   creatorNotesOllamaKeepAlive,
 } from '@/lib/creatorNotes/constants';
+import {
+  CreatorNotesInferenceError,
+  CreatorNotesRateLimitError,
+  isCreatorNotesRateLimitError,
+} from '@/lib/creatorNotes/errors';
 import { buildCreatorNoteBatchMessages, buildCreatorNoteMessages } from '@/lib/creatorNotes/prompt';
 import { CREATOR_NOTES_BATCH_JSON_SCHEMA, CREATOR_NOTES_ENTAILMENT_JSON_SCHEMA, CREATOR_NOTES_JSON_SCHEMA } from '@/lib/creatorNotes/schema';
 import {
@@ -22,43 +37,43 @@ import type {
   RawCreatorNote,
 } from '@/lib/creatorNotes/types';
 import { themeMemoryEnv } from '@/lib/env/themeMemory';
-import { ollamaChatJson, probeOllama } from '@/lib/themeMemory/ai/ollama';
-import { ThemeAIUnavailableError } from '@/lib/themeMemory/ai/types';
+import { probeOllama } from '@/lib/themeMemory/ai/ollama';
 
-export type CreatorNotesAiConfig = {
-  provider: string;
-  model: string;
-  baseUrl: string;
-  timeoutMs: number;
-  retries: number;
-  keepAlive?: string;
-};
-
-export type CreatorNotesHealthCheckResult = {
-  ok: boolean;
-  reachable: boolean;
-  error?: string;
-};
+export type { CreatorNotesAiConfig, CreatorNotesHealthCheckResult } from '@/lib/creatorNotes/ai/types';
+export { healthCheckCreatorNotesOllama } from '@/lib/creatorNotes/ai/ollama';
+export { healthCheckCreatorNotesAi };
 
 export function resolveCreatorNotesAiConfig(): CreatorNotesAiConfig {
-  const provider = String(themeMemoryEnv.THEME_AI_PROVIDER || 'none').toLowerCase();
-  const model = creatorNotesModel(themeMemoryEnv.OLLAMA_MODEL);
+  const provider = creatorNotesAiProvider(themeMemoryEnv.THEME_AI_PROVIDER);
+  const model = creatorNotesModelForProvider(provider, themeMemoryEnv.OLLAMA_MODEL);
+  const groq = provider === 'groq';
   return {
     provider,
     model,
-    baseUrl: themeMemoryEnv.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
+    baseUrl: groq ? CREATOR_NOTES_GROQ_BASE_URL : themeMemoryEnv.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
     timeoutMs: creatorNotesAiTimeoutMs(),
     retries: 0,
-    keepAlive: creatorNotesOllamaKeepAlive(),
+    keepAlive: groq ? undefined : creatorNotesOllamaKeepAlive(),
   };
 }
 
-export function isCreatorNotesOllamaTimeout(error: unknown): boolean {
-  if (!error) return false;
+export function isCreatorNotesInferenceTimeout(error: unknown): boolean {
+  if (!error || isCreatorNotesRateLimitError(error)) return false;
   const code =
     typeof error === 'object' && error && 'code' in error ? String((error as { code: unknown }).code || '') : '';
   const message = error instanceof Error ? error.message : String(error);
-  return code === 'ollama_timeout' || message === 'ollama_timeout' || /ollama_timeout/i.test(message);
+  return (
+    code === 'ollama_timeout' ||
+    code === 'inference_timeout' ||
+    message === 'ollama_timeout' ||
+    message === 'inference_timeout' ||
+    /ollama_timeout|inference_timeout/i.test(message)
+  );
+}
+
+/** @deprecated Prefer isCreatorNotesInferenceTimeout. Still matches Ollama and provider-neutral timeouts. */
+export function isCreatorNotesOllamaTimeout(error: unknown): boolean {
+  return isCreatorNotesInferenceTimeout(error);
 }
 
 export function isCreatorNotesTokenRepeatError(error: unknown): boolean {
@@ -68,7 +83,7 @@ export function isCreatorNotesTokenRepeatError(error: unknown): boolean {
 }
 
 export function isCreatorNotesConnectionError(error: unknown): boolean {
-  if (!error) return false;
+  if (!error || isCreatorNotesRateLimitError(error)) return false;
   const code =
     typeof error === 'object' && error && 'code' in error ? String((error as { code: unknown }).code || '') : '';
   const message = error instanceof Error ? error.message : String(error);
@@ -79,7 +94,9 @@ export function isCreatorNotesConnectionError(error: unknown): boolean {
         : String((error as { cause?: unknown }).cause || '')
       : '';
   const haystack = `${code} ${message} ${cause}`;
-  if (/ollama_http_/i.test(haystack)) return false;
+  if (/ollama_http_|provider_http_|groq_http_|groq_auth_failed|groq_api_key_missing|inference_timeout/i.test(haystack)) {
+    return false;
+  }
   return (
     /^fetch failed$/i.test(message.trim()) ||
     /ECONNRESET|ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|EAI_AGAIN|UND_ERR_CONNECT|UND_ERR_SOCKET|socket hang up/i.test(
@@ -92,8 +109,9 @@ export function isCreatorNotesConnectionError(error: unknown): boolean {
 export type CreatorNotesRecoveryReason = 'timeout' | 'token_repeat' | 'connection';
 
 export function creatorNotesRecoveryReason(error: unknown): CreatorNotesRecoveryReason | null {
+  if (isCreatorNotesRateLimitError(error)) return null;
   if (isCreatorNotesTokenRepeatError(error)) return 'token_repeat';
-  if (isCreatorNotesOllamaTimeout(error)) return 'timeout';
+  if (isCreatorNotesInferenceTimeout(error)) return 'timeout';
   if (isCreatorNotesConnectionError(error)) return 'connection';
   return null;
 }
@@ -108,17 +126,19 @@ export function isCreatorNotesTransportFailure(error: unknown): boolean {
 }
 
 export function assertCreatorNotesAiConfigured(config: CreatorNotesAiConfig = resolveCreatorNotesAiConfig()): void {
-  if (config.provider !== 'ollama') {
-    throw new ThemeAIUnavailableError(
-      'Creator notes extraction requires THEME_AI_PROVIDER=ollama',
-      'provider_not_ollama',
+  const provider = String(config.provider || '').toLowerCase();
+  if (provider !== 'groq' && provider !== 'ollama') {
+    throw new CreatorNotesInferenceError(
+      provider ? `Unknown CREATOR_NOTES_AI_PROVIDER=${provider}` : 'CREATOR_NOTES_AI_PROVIDER is not configured',
+      provider ? 'provider_unknown' : 'provider_not_configured',
+      { provider: provider || 'none' },
     );
   }
   if (!config.model) {
-    throw new ThemeAIUnavailableError(
-      'CREATOR_NOTES_MODEL or OLLAMA_MODEL is not configured',
-      'model_not_configured',
-    );
+    throw new CreatorNotesInferenceError('CREATOR_NOTES_MODEL is not configured', 'model_not_configured', { provider });
+  }
+  if (provider === 'groq' && !creatorNotesGroqApiKey()) {
+    throw new CreatorNotesInferenceError('GROQ_API_KEY is not configured', 'groq_api_key_missing', { provider: 'groq' });
   }
 }
 
@@ -126,40 +146,53 @@ export async function warmupCreatorNotesAi(
   config: CreatorNotesAiConfig = resolveCreatorNotesAiConfig(),
 ): Promise<void> {
   assertCreatorNotesAiConfigured(config);
-  const probe = await probeOllama({
-    baseUrl: config.baseUrl,
-    model: config.model,
-  });
+  if (config.provider === 'ollama') {
+    const probe = await probeOllama({
+      baseUrl: config.baseUrl,
+      model: config.model,
+    });
+    if (!probe.ok) {
+      throw new CreatorNotesInferenceError(
+        `Ollama is not ready: ${probe.error || 'unknown error'}`,
+        'ollama_not_ready',
+        { provider: 'ollama' },
+      );
+    }
+    return;
+  }
+  const probe = await healthCheckCreatorNotesAi(config);
+  if (probe.rateLimited) {
+    throw new CreatorNotesRateLimitError(probe.error || 'groq_http_429', { provider: config.provider });
+  }
   if (!probe.ok) {
-    throw new ThemeAIUnavailableError(
-      `Ollama is not ready: ${probe.error || 'unknown error'}`,
-      'ollama_not_ready',
+    throw new CreatorNotesInferenceError(
+      `Creator Notes provider is not ready: ${probe.error || 'unknown error'}`,
+      probe.error || 'provider_not_ready',
+      { provider: config.provider },
     );
   }
 }
 
-export async function healthCheckCreatorNotesOllama(
-  config: CreatorNotesAiConfig = resolveCreatorNotesAiConfig(),
-): Promise<CreatorNotesHealthCheckResult> {
-  const baseUrl = (config.baseUrl || 'http://127.0.0.1:11434').replace(/\/$/, '');
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4000);
-  try {
-    const res = await fetch(`${baseUrl}/api/tags`, {
-      method: 'GET',
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      return { ok: false, reachable: true, error: `ollama_http_${res.status}` };
-    }
-    return { ok: true, reachable: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, reachable: false, error: message === 'The operation was aborted' ? 'ollama_timeout' : message };
-  } finally {
-    clearTimeout(timer);
-  }
+async function invokeCreatorNotesModel(
+  config: CreatorNotesAiConfig,
+  input: {
+    messages: CreatorNotesChatMessage[];
+    schema: unknown;
+    schemaName: CreatorNotesSchemaName;
+    logLabel: string;
+  },
+): Promise<string> {
+  const provider = createCreatorNotesTextProvider(config);
+  const result = await provider.chatJson({
+    messages: input.messages,
+    schema: input.schema,
+    schemaName: input.schemaName,
+    timeoutMs: config.timeoutMs,
+    model: config.model,
+    logLabel: input.logLabel,
+  });
+  // Token usage stays on the provider result for a later telemetry pass. It is not persisted.
+  return result.content;
 }
 
 export function creatorNotesTransportBackoffMs(): number {
@@ -177,7 +210,7 @@ export async function extractCreatorNotesChunk(input: {
   const config = input.config || resolveCreatorNotesAiConfig();
   assertCreatorNotesAiConfigured(config);
 
-  const { content } = await ollamaChatJson({
+  const content = await invokeCreatorNotesModel(config, {
     messages: buildCreatorNoteMessages({
       transcript: input.transcript,
       chunk: input.chunk,
@@ -185,13 +218,9 @@ export async function extractCreatorNotesChunk(input: {
       repair: Boolean(input.repair),
       rejectedKinds: input.rejectedKinds,
     }),
-    format: CREATOR_NOTES_JSON_SCHEMA,
-    timeoutMs: config.timeoutMs,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    retries: config.retries,
+    schema: CREATOR_NOTES_JSON_SCHEMA,
+    schemaName: CREATOR_NOTES_SCHEMA_NAMES.notes,
     logLabel: '[creator-notes-ai]',
-    keepAlive: config.keepAlive || creatorNotesOllamaKeepAlive(),
   });
 
   return parseCreatorNotesOutput(content, {
@@ -229,20 +258,16 @@ export async function extractCreatorNotesWindowBatch(input: {
   }
 
   const expectedWindowIds = input.windows.map((window) => window.windowId);
-  const { content } = await ollamaChatJson({
+  const content = await invokeCreatorNotesModel(config, {
     messages: buildCreatorNoteBatchMessages({
       transcript: input.transcript,
       windows: input.windows,
       chunkCount: input.chunkCount,
       repair: Boolean(input.repair),
     }),
-    format: CREATOR_NOTES_BATCH_JSON_SCHEMA,
-    timeoutMs: config.timeoutMs,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    retries: config.retries,
+    schema: CREATOR_NOTES_BATCH_JSON_SCHEMA,
+    schemaName: CREATOR_NOTES_SCHEMA_NAMES.batch,
     logLabel: '[creator-notes-ai]',
-    keepAlive: config.keepAlive || creatorNotesOllamaKeepAlive(),
   });
 
   return parseCreatorNotesBatchOutput(content, {
@@ -281,15 +306,11 @@ export async function entailCreatorNotes(input: {
   const config = input.config || resolveCreatorNotesAiConfig();
   assertCreatorNotesAiConfigured(config);
   if (!input.notes.length) return { notes: [], rejections: [] };
-  const { content } = await ollamaChatJson({
+  const content = await invokeCreatorNotesModel(config, {
     messages: entailmentMessages(input.evidenceText, input.notes),
-    format: CREATOR_NOTES_ENTAILMENT_JSON_SCHEMA,
-    timeoutMs: config.timeoutMs,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    retries: config.retries,
+    schema: CREATOR_NOTES_ENTAILMENT_JSON_SCHEMA,
+    schemaName: CREATOR_NOTES_SCHEMA_NAMES.entailment,
     logLabel: '[creator-notes-entailment]',
-    keepAlive: config.keepAlive || creatorNotesOllamaKeepAlive(),
   });
   const items = parseSemanticEntailmentContent(content);
   const notes: RawCreatorNote[] = [];
