@@ -156,6 +156,13 @@ Values are read through **`lib/env/*`** (merged in **`lib/env.js`**). Below is a
 - CLI: `npm run creator-notes:extract -- --source-item <id> --transcript-file ./tmp/transcript.json --creator-name "David Pakman" --dry-run`
 - See [`docs/atomic-creator-notes.md`](docs/atomic-creator-notes.md)
 
+**Headline Jev shadow eval** (`lib/headlineTimeline/jev/`)
+
+- Milestone 1 only. It does not change `/brief` clustering or ranking.
+- `TYPESAFE_API_KEY` — server-side TypeSafe key for `npm run brief:jev-eval`. Never commit it and never expose it to the client.
+- Optional: `TYPESAFE_JEV_MODEL` (default `jev-latest`), `TYPESAFE_JEV_TIMEOUT_MS` (default `20000`)
+- See [`docs/headline-jev.md`](docs/headline-jev.md)
+
 **Stripe / Printify / email** (`lib/env/shop.js`, `lib/env/site.js`)
 
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`

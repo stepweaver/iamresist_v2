@@ -41,6 +41,9 @@ Thumbs.db
 # Local calibration / diagnostics artifacts (may contain live URLs)
 tmp/
 
+# Shadow Jev headline-pair eval artifacts (also covered by tmp/)
+tmp/headline-jev-eval/
+
 # Editors
 .idea/
 

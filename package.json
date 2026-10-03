@@ -23,7 +23,8 @@
     "creator-notes:extract-podcast": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-extract-podcast.ts",
     "creator-notes:podcast-batch": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/creator-notes-podcast-batch.ts",
     "event-threads:build": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/event-threads-build.ts",
-    "brief:timeline": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/brief-timeline.ts"
+    "brief:timeline": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/brief-timeline.ts",
+    "brief:jev-eval": "node --require ./scripts/theme-memory-preload.cjs --import tsx scripts/headline-jev-eval.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",

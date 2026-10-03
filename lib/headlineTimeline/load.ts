@@ -105,11 +105,24 @@ async function loadNewswireCandidates(
   }
 }
 
-export async function loadHeadlineTimeline(opts?: {
+export type LoadedHeadlineCandidates = {
+  candidates: HeadlineCandidate[];
+  warnings: string[];
+  windowHours: number;
+  generatedAt: string;
+  counts: {
+    intel: number;
+    voices: number;
+    newswire: number;
+  };
+};
+
+/** Read-only candidate load shared by /brief and the Jev shadow eval. */
+export async function loadHeadlineCandidates(opts?: {
   now?: Date;
   newswire?: 'cached' | 'uncached';
   windowHours?: number;
-}): Promise<HeadlineTimeline> {
+}): Promise<LoadedHeadlineCandidates> {
   const now = opts?.now instanceof Date ? opts.now : new Date();
   const windowHours = opts?.windowHours ?? HEADLINE_TIMELINE_WINDOW_HOURS;
   const cutoffMs = now.getTime() - windowHours * 3600000;
@@ -130,9 +143,31 @@ export async function loadHeadlineTimeline(opts?: {
     return Number.isFinite(stamp) && stamp >= cutoffMs;
   });
 
+  return {
+    candidates,
+    warnings,
+    windowHours,
+    generatedAt: now.toISOString(),
+    counts: {
+      intel: sourceItems.length,
+      voices: voices.length,
+      newswire: newswire.length,
+    },
+  };
+}
+
+export async function loadHeadlineTimeline(opts?: {
+  now?: Date;
+  newswire?: 'cached' | 'uncached';
+  windowHours?: number;
+}): Promise<HeadlineTimeline> {
+  const now = opts?.now instanceof Date ? opts.now : new Date();
+  const loaded = await loadHeadlineCandidates({ ...opts, now });
+  const { candidates, warnings, windowHours } = loaded;
+
   if (process.env.NODE_ENV !== 'production') {
     console.info(
-      `[brief] intel ${sourceItems.length} voices ${voices.length} newswire ${newswire.length} kept ${candidates.length}`,
+      `[brief] intel ${loaded.counts.intel} voices ${loaded.counts.voices} newswire ${loaded.counts.newswire} kept ${candidates.length}`,
     );
   }
 
@@ -140,8 +175,8 @@ export async function loadHeadlineTimeline(opts?: {
   const intelIds = candidates.filter((item) => item.channel !== 'newswire').map((item) => item.id);
   if (intelIds.length && intelDbConfigured()) {
     try {
-      const loaded = await loadWinningNotesForSourceItems(intelIds);
-      notes = loaded.map(noteSeed);
+      const noteRows = await loadWinningNotesForSourceItems(intelIds);
+      notes = noteRows.map(noteSeed);
     } catch (error) {
       warnings.push(error instanceof Error ? error.message : 'Atomic Creator Notes could not be read.');
     }
