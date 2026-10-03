@@ -1,17 +1,27 @@
 import type { HeadlineCandidate, HeadlineSourceKind } from '@/lib/headlineTimeline/types';
 
+/**
+ * Relation schema 2.
+ * Schema 1 used `same_broader_topic` in place of `same_story` and `related_context`.
+ * Do not remap that retired label onto either new label.
+ */
 export type HeadlineRelation =
   | 'same_event'
-  | 'same_broader_topic'
+  | 'same_story'
+  | 'related_context'
   | 'different'
   | 'unclear';
 
 export const HEADLINE_RELATIONS: readonly HeadlineRelation[] = [
   'same_event',
-  'same_broader_topic',
+  'same_story',
+  'related_context',
   'different',
   'unclear',
 ];
+
+/** Retired schema-1 choice. Kept only so callers can reject it instead of remapping it. */
+export const RETIRED_HEADLINE_RELATION = 'same_broader_topic';
 
 export type PairPrefilterDecision =
   | { action: 'deterministic_match'; reason: string }
@@ -20,6 +30,8 @@ export type PairPrefilterDecision =
 
 export type JevPairPolicyDecision =
   | { action: 'join'; reason: string }
+  /** Evaluation report only. Not an event-cluster join and not a persisted story edge. */
+  | { action: 'story_link'; reason: string }
   | { action: 'do_not_join'; reason: string }
   | { action: 'review'; reason: string };
 

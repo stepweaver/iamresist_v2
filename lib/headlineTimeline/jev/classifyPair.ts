@@ -6,6 +6,7 @@ import {
 } from '@/lib/headlineTimeline/jev/constants';
 import {
   HEADLINE_RELATIONS,
+  RETIRED_HEADLINE_RELATION,
   type HeadlineJevStateItem,
   type HeadlineRelation,
   type JevCallOptions,
@@ -92,6 +93,13 @@ export function parseJevSystemOneResponse(
     return { ok: false, error: 'jev response did not include a relation choice', elapsedMs };
   }
   const choice = answer as { type?: unknown; choice?: unknown; probabilities?: unknown; confidence?: unknown };
+  if (choice.choice === RETIRED_HEADLINE_RELATION) {
+    return {
+      ok: false,
+      error: 'retired relation same_broader_topic is not remapped',
+      elapsedMs,
+    };
+  }
   if (choice.type !== 'choice' || !isRelation(choice.choice)) {
     return { ok: false, error: 'jev response did not include a relation choice', elapsedMs };
   }

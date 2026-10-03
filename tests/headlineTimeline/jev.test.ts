@@ -1,20 +1,31 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { buildJevRelationRequest, classifyHeadlinePair, parseJevSystemOneResponse } from '@/lib/headlineTimeline/jev/classifyPair';
-import { JEV_RELATION_INSTRUCTIONS, JEV_SAME_EVENT_JOIN_THRESHOLD } from '@/lib/headlineTimeline/jev/constants';
+import {
+  HEADLINE_JEV_RELATION_SCHEMA_VERSION,
+  JEV_RELATION_CRITERIA,
+  JEV_RELATION_INSTRUCTIONS,
+  JEV_SAME_EVENT_JOIN_THRESHOLD,
+} from '@/lib/headlineTimeline/jev/constants';
 import {
   buildHeadlineJevCandidateSnapshot,
   headlineJevCandidateSnapshotPath,
   parseHeadlineJevCandidateSnapshot,
 } from '@/lib/headlineTimeline/jev/candidateSnapshot';
-import { parseHeadlineJevEvalArgs } from '@/lib/headlineTimeline/jev/evalArgs';
+import { headlineJevEvalUsage, parseHeadlineJevEvalArgs } from '@/lib/headlineTimeline/jev/evalArgs';
 import { evaluateHeadlinePairs } from '@/lib/headlineTimeline/jev/evaluate';
 import { decideJevPairPolicy } from '@/lib/headlineTimeline/jev/policy';
 import { prefilterHeadlinePair } from '@/lib/headlineTimeline/jev/prefilter';
 import { formatJevEvaluationReport, formatJevPair, jevEvaluationArtifact } from '@/lib/headlineTimeline/jev/report';
 import { selectSkippedSamples, SKIPPED_SAMPLE_SOURCE_CAP, type SkippedPairDraft } from '@/lib/headlineTimeline/jev/sampleSkipped';
 import { jevPairSourceBucket } from '@/lib/headlineTimeline/jev/sourcePriority';
-import type { HeadlineRelation, JevClassificationSuccess } from '@/lib/headlineTimeline/jev/types';
+import {
+  HEADLINE_RELATIONS,
+  RETIRED_HEADLINE_RELATION,
+  type HeadlineRelation,
+  type JevClassificationSuccess,
+  type JevPairPolicyDecision,
+} from '@/lib/headlineTimeline/jev/types';
 import type { HeadlineCandidate } from '@/lib/headlineTimeline/types';
 
 const NOW = '2026-10-02T18:00:00.000Z';
@@ -35,13 +46,9 @@ function candidate(overrides: Partial<HeadlineCandidate> & Pick<HeadlineCandidat
 }
 
 function distribution(choice: HeadlineRelation, probability: number): Record<HeadlineRelation, number> {
-  const rest = Number(((1 - probability) / 3).toFixed(4));
-  const probabilities: Record<HeadlineRelation, number> = {
-    same_event: rest,
-    same_broader_topic: rest,
-    different: rest,
-    unclear: rest,
-  };
+  const rest = Number(((1 - probability) / (HEADLINE_RELATIONS.length - 1)).toFixed(4));
+  const probabilities = {} as Record<HeadlineRelation, number>;
+  for (const relation of HEADLINE_RELATIONS) probabilities[relation] = rest;
   probabilities[choice] = probability;
   return probabilities;
 }
@@ -177,13 +184,43 @@ describe('Jev response parsing', () => {
     });
     expect(decideJevPairPolicy(parsed).action).toBe('review');
   });
+
+  it('does not remap a schema-1 same_broader_topic choice', () => {
+    const parsed = parseJevSystemOneResponse({
+      model: 'jev-1.13.0',
+      answers: {
+        relation: {
+          type: 'choice',
+          choice: RETIRED_HEADLINE_RELATION,
+          probabilities: {
+            same_broader_topic: 0.9,
+            same_event: 0.04,
+            different: 0.03,
+            unclear: 0.03,
+          },
+          confidence: 0.9,
+        },
+      },
+    }, 10);
+    expect(parsed).toMatchObject({
+      ok: false,
+      error: 'retired relation same_broader_topic is not remapped',
+    });
+    expect(decideJevPairPolicy(parsed).action).toBe('review');
+  });
 });
 
 describe('Jev confidence policy', () => {
-  it('does not join same_broader_topic even at certainty', () => {
-    const decision = decideJevPairPolicy(success('same_broader_topic', 0.99, 0.99), 0);
+  it('reports same_story as a story-link and does not join the event cluster', () => {
+    const decision = decideJevPairPolicy(success('same_story', 0.99, 0.99), 0);
+    expect(decision.action).toBe('story_link');
+    expect(decision.reason).toContain('does not join');
+  });
+
+  it('does not join related_context and does not make it a story-link', () => {
+    const decision = decideJevPairPolicy(success('related_context', 0.99, 0.99), 0);
     expect(decision.action).toBe('do_not_join');
-    expect(decision.reason).toContain('same_broader_topic');
+    expect(decision.reason).toContain('not a story-link');
   });
 
   it('does not join different items', () => {
@@ -329,7 +366,7 @@ describe('Jev pair classification calls', () => {
   it('calls the API only for ask_jev pairs and stops at the limit', async () => {
     const fetchImpl = vi.fn(async (_input: unknown, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { state: { a: { title: string } } };
-      const relation: HeadlineRelation = body.state.a.title.includes('Bondi') ? 'same_event' : 'same_broader_topic';
+      const relation: HeadlineRelation = body.state.a.title.includes('Bondi') ? 'same_event' : 'same_story';
       return jsonResponse(systemOneBody(success(relation, relation === 'same_event' ? 0.91 : 0.84, 0.9)));
     });
     const items = [
@@ -353,8 +390,13 @@ describe('Jev pair classification calls', () => {
     expect(evaluation.askJevPairs).toBeGreaterThan(1);
     expect(evaluation.jevEvaluated).toBe(1);
     expect(evaluation.jevNotSent).toBe(evaluation.askJevPairs - 1);
-    expect(evaluation.joins + evaluation.sameBroaderTopic + evaluation.different + evaluation.unclearOrReview)
-      .toBe(evaluation.jevEvaluated);
+    expect(
+      evaluation.sameEvent
+      + evaluation.sameStory
+      + evaluation.relatedContext
+      + evaluation.different
+      + evaluation.unclearOrReview,
+    ).toBe(evaluation.jevEvaluated);
 
     const full = await evaluateHeadlinePairs([left, right], {
       apiKey: 'test-key',
@@ -513,6 +555,20 @@ describe('ask_jev source priority', () => {
   it('keeps encounter order inside a source bucket', async () => {
     const { keys } = await evaluatedCallOrder(10);
     expect(keys.indexOf('pakman')).toBeLessThan(keys.indexOf('bondi'));
+  });
+
+  it('replays the same ask_jev prefix when the snapshot and --limit are unchanged', async () => {
+    const shuffled = priorityCandidates().slice().reverse();
+    const full = await evaluatedCallOrder(20);
+    const prefix = await evaluatedCallOrder(2);
+    const replay = await evaluateHeadlinePairs(shuffled, {
+      apiKey: 'test-key',
+      fetchImpl: vi.fn(async () => jsonResponse(systemOneBody(success('different', 0.8, 0.8)))),
+      limit: 20,
+    });
+    expect(full.titles).toHaveLength(5);
+    expect(prefix.titles).toEqual(full.titles.slice(0, 2));
+    expect(replay.pairs.map((pair) => `${pair.a.title} || ${pair.b.title}`)).toEqual(full.titles);
   });
 
   it('classifies same outlet name as same-source even when source ids differ', () => {
@@ -940,6 +996,21 @@ describe('headline jev eval args', () => {
     });
   });
 
+  it('treats --limit on a snapshot as the pair prefix and does not add --pair-limit', () => {
+    expect(parseHeadlineJevEvalArgs([
+      '--limit',
+      '20',
+      '--input',
+      'tmp/headline-jev-eval/candidates-20261002.json',
+    ])).toMatchObject({
+      limit: 20,
+      inputPath: 'tmp/headline-jev-eval/candidates-20261002.json',
+    });
+    expect(headlineJevEvalUsage()).toContain('No separate --pair-limit');
+    expect(headlineJevEvalUsage()).toContain('candidates-20261002.json');
+    expect(() => parseHeadlineJevEvalArgs(['--pair-limit', '20'])).toThrow('Unknown argument');
+  });
+
   it('rejects combining --input with --save-candidates and rejects a missing snapshot path', () => {
     expect(() => parseHeadlineJevEvalArgs(['--input', 'snap.json', '--save-candidates']))
       .toThrow('--save-candidates reads live feeds');
@@ -989,5 +1060,284 @@ describe('headline jev candidate snapshots', () => {
     expect(() => parseHeadlineJevCandidateSnapshot('{"kind":"headline-jev-candidates"}')).toThrow(
       'candidates must be an array',
     );
+  });
+});
+
+describe('headline relation taxonomy', () => {
+  const flydubaiAttack = candidate({
+    id: 'flydubai-attack',
+    title: 'Flydubai aircraft hit in attack',
+    summary: 'A Flydubai aircraft was struck during the attack. The report covers that strike, the crew, and the passengers aboard.',
+    sourceName: 'Reuters',
+  });
+  const gazaHostages = candidate({
+    id: 'gaza-hostages',
+    title: 'Gaza hostage negotiations resume',
+    summary: 'Mediators are again discussing the Gaza hostage negotiations and a possible exchange.',
+    sourceName: 'AP',
+  });
+
+  function described(id: string, title: string, summary: string, sourceName: string): HeadlineCandidate {
+    return candidate({ id, title, summary, sourceName });
+  }
+
+  async function mockedClassification(
+    a: HeadlineCandidate,
+    b: HeadlineCandidate,
+    relation: HeadlineRelation,
+    probability: number,
+    confidence: number,
+  ) {
+    const fetchImpl = vi.fn(async (_input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        questions: { relation: { criteria: Record<string, string>; instructions: string } };
+      };
+      expect(Object.keys(body.questions.relation.criteria)).toEqual([...HEADLINE_RELATIONS]);
+      expect(body.questions.relation.criteria).not.toHaveProperty(RETIRED_HEADLINE_RELATION);
+      expect(body.questions.relation.instructions).toBe(JEV_RELATION_INSTRUCTIONS);
+      expect(body.questions.relation.criteria.same_event).toContain('same occurrence');
+      expect(body.questions.relation.criteria.same_story).toContain('story dossier');
+      expect(body.questions.relation.criteria.related_context).toContain('must not be linked into the same story timeline');
+      expect(body.questions.relation.instructions).toContain('Do not treat all Israel/Gaza items as one story');
+      expect(body.questions.relation.instructions).toContain('Do not treat all Trump items as one story');
+      return jsonResponse(systemOneBody(success(relation, probability, confidence)));
+    });
+    const result = await classifyHeadlinePair(a, b, { apiKey: 'test-key', fetchImpl });
+    return { result, policy: decideJevPairPolicy(result) };
+  }
+
+  const cases: Array<{
+    name: string;
+    a: HeadlineCandidate;
+    b: HeadlineCandidate;
+    relation: HeadlineRelation;
+    probability: number;
+    confidence: number;
+    action: JevPairPolicyDecision['action'];
+  }> = [
+    {
+      name: 'same exact event: Drop Site and Democracy Now on the Minab school bombing',
+      a: described(
+        'dropsite-minab',
+        'Israeli strike bombs a school in Minab',
+        'Drop Site reports the bombing of a school in Minab and the casualties from that strike.',
+        'Drop Site News',
+      ),
+      b: described(
+        'democracynow-minab',
+        'School bombing in Minab',
+        'Democracy Now reports the same school bombing in Minab.',
+        'Democracy Now',
+      ),
+      relation: 'same_event',
+      probability: 0.93,
+      confidence: 0.91,
+      action: 'join',
+    },
+    {
+      name: 'same story: Flydubai attack and the airline suspending flights',
+      a: flydubaiAttack,
+      b: described(
+        'flydubai-suspend',
+        'Airline suspends flights after the Flydubai attack',
+        'The carrier suspended flights because of the Flydubai attack.',
+        'BBC',
+      ),
+      relation: 'same_story',
+      probability: 0.88,
+      confidence: 0.86,
+      action: 'story_link',
+    },
+    {
+      name: 'same story: Flydubai attack and plans to question the co-pilot',
+      a: flydubaiAttack,
+      b: described(
+        'flydubai-copilot',
+        'Israel plans to question the Flydubai co-pilot',
+        'Investigators plan to question the co-pilot about the Flydubai attack.',
+        'Haaretz',
+      ),
+      relation: 'same_story',
+      probability: 0.84,
+      confidence: 0.83,
+      action: 'story_link',
+    },
+    {
+      name: 'same story: Flydubai attack and analysis of the Netanyahu response',
+      a: flydubaiAttack,
+      b: described(
+        'flydubai-analysis',
+        "Analysis of Netanyahu's response to the Flydubai attack",
+        'Political analysis of how Netanyahu responded to the Flydubai attack.',
+        'MeidasTouch',
+      ),
+      relation: 'same_story',
+      probability: 0.81,
+      confidence: 0.8,
+      action: 'story_link',
+    },
+    {
+      name: 'related context: Gaza hostage negotiations and West Bank settler sanctions',
+      a: gazaHostages,
+      b: described(
+        'settler-sanctions',
+        'US announces West Bank settler sanctions',
+        'The sanctions target West Bank settlers and are not part of the hostage talks.',
+        'Reuters',
+      ),
+      relation: 'related_context',
+      probability: 0.9,
+      confidence: 0.88,
+      action: 'do_not_join',
+    },
+    {
+      name: 'related context: Gaza hostage negotiations and students unable to leave',
+      a: gazaHostages,
+      b: described(
+        'gaza-students',
+        'Gaza students unable to leave for university',
+        'Students in Gaza cannot travel to universities abroad. The piece does not cover the hostage negotiations.',
+        'Al Jazeera',
+      ),
+      relation: 'related_context',
+      probability: 0.87,
+      confidence: 0.85,
+      action: 'do_not_join',
+    },
+    {
+      name: 'different: Flydubai attack and Israeli election integrity',
+      a: flydubaiAttack,
+      b: described(
+        'election-integrity',
+        'Israeli election integrity dispute',
+        'A dispute over election procedures and ballot integrity inside Israel.',
+        'Times of Israel',
+      ),
+      relation: 'different',
+      probability: 0.92,
+      confidence: 0.9,
+      action: 'do_not_join',
+    },
+    {
+      name: 'thin clickbait: generic Trump lawsuit and generic Trump jobs',
+      a: described('trump-lawsuit', 'Trump lawsuit shocks nation', 'You will not believe this.', 'Outlet A'),
+      b: described('trump-jobs', 'Trump jobs bombshell', 'What happens next will surprise you.', 'Outlet B'),
+      relation: 'unclear',
+      probability: 0.7,
+      confidence: 0.41,
+      action: 'review',
+    },
+  ];
+
+  it('sends the schema-2 choice criteria', () => {
+    expect([...HEADLINE_RELATIONS]).toEqual([
+      'same_event',
+      'same_story',
+      'related_context',
+      'different',
+      'unclear',
+    ]);
+    expect(JEV_RELATION_CRITERIA).not.toHaveProperty(RETIRED_HEADLINE_RELATION);
+    expect(JEV_RELATION_CRITERIA.same_story).toContain('Shared geography or a shared conflict alone does not create this label');
+    expect(JEV_RELATION_INSTRUCTIONS).toContain('Do not treat all surveillance items as one story');
+    expect(JEV_RELATION_INSTRUCTIONS).toContain('Do not treat all election items as one story');
+    expect(JEV_SAME_EVENT_JOIN_THRESHOLD).toBe(0.8);
+  });
+
+  it.each(cases)('$name', async ({ a, b, relation, probability, confidence, action }) => {
+    const { result, policy } = await mockedClassification(a, b, relation, probability, confidence);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.relation).toBe(relation);
+    expect(policy.action).toBe(action);
+    if (relation !== 'same_event') expect(policy.action).not.toBe('join');
+    if (relation !== 'same_story') expect(policy.action).not.toBe('story_link');
+  });
+
+  it('does not join a low-confidence reading of thin Trump headlines', async () => {
+    const { policy } = await mockedClassification(
+      described('trump-lawsuit', 'Trump lawsuit shocks nation', 'You will not believe this.', 'Outlet A'),
+      described('trump-jobs', 'Trump jobs bombshell', 'What happens next will surprise you.', 'Outlet B'),
+      'same_event',
+      0.9,
+      0.35,
+    );
+    expect(policy.action).toBe('review');
+  });
+
+  it('stores the five-way distribution and prints story links separately from joins', async () => {
+    const byStory: Record<string, HeadlineRelation> = {
+      pakman: 'same_event',
+      bondi: 'same_story',
+      schiff: 'related_context',
+      zelensky: 'different',
+      netanyahu: 'unclear',
+    };
+    const fetchImpl = vi.fn(async (_input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { state: { a: { title: string }; b: { title: string } } };
+      const relation = byStory[storyKey(`${body.state.a.title} || ${body.state.b.title}`)];
+      const probability = relation === 'same_event' ? 0.91 : 0.86;
+      const confidence = relation === 'unclear' ? 0.42 : 0.9;
+      return jsonResponse(systemOneBody(success(relation, probability, confidence)));
+    });
+    const evaluation = await evaluateHeadlinePairs(priorityCandidates(), {
+      apiKey: 'test-key',
+      fetchImpl,
+      limit: 20,
+    });
+
+    expect(evaluation.jevEvaluated).toBe(5);
+    expect(evaluation.sameEvent).toBe(1);
+    expect(evaluation.sameStory).toBe(1);
+    expect(evaluation.relatedContext).toBe(1);
+    expect(evaluation.different).toBe(1);
+    expect(evaluation.unclear).toBe(1);
+    expect(evaluation.unclearOrReview).toBe(1);
+    expect(evaluation.joins).toBe(1);
+    expect(evaluation.storyLinks).toBe(1);
+    expect(
+      evaluation.sameEvent
+      + evaluation.sameStory
+      + evaluation.relatedContext
+      + evaluation.different
+      + evaluation.unclearOrReview,
+    ).toBe(evaluation.jevEvaluated);
+
+    const storyPair = evaluation.pairs.find((pair) => pair.jev.ok && pair.jev.relation === 'same_story');
+    expect(storyPair?.policy.action).toBe('story_link');
+    const text = formatJevPair(storyPair!, evaluation.pairs.indexOf(storyPair!) + 1);
+    const jevBlock = text.split('JEV\n')[1]?.split('\nPOLICY')[0] ?? '';
+    expect(jevBlock).toContain('same_event');
+    expect(jevBlock).toContain('same_story');
+    expect(jevBlock).toContain('related_context');
+    expect(jevBlock).toContain('different');
+    expect(jevBlock).toContain('unclear');
+    expect(jevBlock).toContain('confidence');
+    expect(text).toContain('POLICY\nSTORY LINK');
+    expect(text).not.toContain('same_broader_topic');
+
+    const report = formatJevEvaluationReport(evaluation, { limit: 20 });
+    expect(report).toContain('relation schema: 2');
+    expect(report).toContain('same event: 1');
+    expect(report).toContain('same story: 1');
+    expect(report).toContain('story links: 1');
+    expect(report).toContain('related context: 1');
+    expect(report).toContain('different: 1');
+    expect(report).toContain('unclear/review: 1');
+    expect(report).not.toContain('same broader topic');
+
+    const artifact = jevEvaluationArtifact(evaluation, { limit: 20 });
+    expect(artifact.schemaVersion).toBe(2);
+    expect(artifact.schemaVersion).toBe(HEADLINE_JEV_RELATION_SCHEMA_VERSION);
+    expect(artifact.totals.relations).toEqual({
+      same_event: 1,
+      same_story: 1,
+      related_context: 1,
+      different: 1,
+      unclear: 1,
+    });
+    expect(artifact.totals).not.toHaveProperty('sameBroaderTopic');
+    expect(artifact.totals.storyLinks).toBe(1);
+    expect(artifact.totals.jevProposedJoins).toBe(1);
   });
 });

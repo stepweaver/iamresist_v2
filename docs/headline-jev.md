@@ -25,20 +25,55 @@ For a pair the prefilter marks `ask_jev`, Jev receives only:
 - publishedAt
 - sourceType (`creator` or `news`)
 
-It answers one Choice question: are these the same specific event, the same broader topic, different, or unclear?
+It answers one Choice question. Relation schema 2 asks whether the pair is the same event, the same evolving story, related context, different, or unclear.
 
 It does not receive database ids, URLs, internal scores, or editorial metadata. It does not generate headlines. It does not see the rest of the corpus.
 
 ## What code keeps
 
 - The prefilter decides which pairs are already a lexical match, which are worth asking, and which are skipped.
-- A named threshold, `JEV_SAME_EVENT_JOIN_THRESHOLD` (currently 0.80), decides whether a `same_event` answer may *propose* a join. Both the `same_event` probability and the reported confidence must clear it.
-- `same_broader_topic` does not join an event cluster.
+- A named threshold, `JEV_SAME_EVENT_JOIN_THRESHOLD` (currently 0.80), decides whether a `same_event` answer may *propose* a join. Both the `same_event` probability and the reported confidence must clear it. The threshold is unchanged in this pass.
+- `same_story` does not join an event cluster. It is reported separately as a potential future story-link. No story edge is written.
+- `related_context` does not join and does not become a story-link.
 - `different` does not join.
-- `unclear`, low confidence, a missing API key, a timeout, a rate limit, malformed output, or a network failure produce review / no automatic join.
+- `unclear`, a `same_event` below the threshold, a missing API key, a timeout, a rate limit, malformed output, or a network failure produce review / no automatic join.
 - Ranking stays on distinct creator counts, distinct news-source counts, and recency. Creator convergence is attention, not factual corroboration. News-source counts stay a separate number.
 
 If Jev is absent or failing, the existing deterministic pipeline is unchanged and still usable. Milestone 1 has no production dependency on Jev.
+
+## Why `same_broader_topic` was split
+
+Relation schema 1 had four labels: `same_event`, `same_broader_topic`, `different`, and `unclear`. Run 02 showed that `same_broader_topic` was too coarse. It grouped items that share Israel/Gaza, Trump, surveillance, or elections even when an editor would not keep them in one chronological dossier.
+
+Schema 2 replaces that label with two labels. Event clustering stays stricter than story linking, and related context is not a story edge.
+
+| Label | Meaning | Eval policy |
+| --- | --- | --- |
+| `same_event` | Effectively the same occurrence: the same attack, filing, ruling, vote, announcement, or other discrete development. | May propose JOIN only when probability and confidence are both at least 0.80. |
+| `same_story` | Different developments in one evolving sequence. An editor maintaining one chronological story dossier would file both items in that thread. An attack and the airline that suspends flights because of it belong here. A ruling and the appeal of that ruling belong here. | Do not join an event cluster. Report as a potential future story-link. |
+| `related_context` | Shared country, conflict, institution, person, or policy domain, without one identifiable event sequence. Hostage talks and West Bank settler sanctions belong here. Two unrelated Trump developments belong here. | Do not join. Do not create a story-link. |
+| `different` | Unrelated subjects or developments. | Do not join. |
+| `unclear` | Title and description are too thin, generic, or clickbait-heavy to classify. | Review. No automatic join. |
+
+Shared geography or a shared conflict does not create `same_story`. All Israel/Gaza items are not one story. All Trump items are not one story. All surveillance items are not one story. All election items are not one story.
+
+**AI interprets. Code counts.** Jev chooses the label. Deterministic code applies the threshold, counts the five-way distribution, and refuses to join anything except a `same_event` that clears 0.80 on both scores.
+
+### Schema version
+
+New `--json` artifacts set `schemaVersion` to `2` and store the five-way distribution on `totals.relations`:
+
+- `same_event`
+- `same_story`
+- `related_context`
+- `different`
+- `unclear`
+
+`totals.unclearOrReview` is unclear choices plus failed calls. `totals.storyLinks` counts `same_story` reports. Those reports are not persisted edges.
+
+Schema 1 artifacts have no `schemaVersion` and use `totals.sameBroaderTopic`. Leave them as schema 1. Do not remap `same_broader_topic` to `same_story` or `related_context`. A live Jev response that still returns `same_broader_topic` is a failed classification (`retired relation same_broader_topic is not remapped`), which routes to review.
+
+This pass remains shadow-only. It does not change `/brief`, persistence, ranking, the deterministic prefilter, or historical timeline tables.
 
 ## How to run
 
@@ -120,8 +155,20 @@ npm run brief:jev-eval -- --limit 25 --input tmp/headline-jev-eval/candidates-20
 
 The text report and the `--json` artifact record `corpus` as `live` or `snapshot`, plus the snapshot path when one was saved or read.
 
+### Replaying the same pairs
+
+Pair order does not depend on the clock. Candidates are ordered by `publishedAt`, then id. Pairs are enumerated in that order, then ranked by source bucket, keeping encounter order inside each bucket. The headline window compares the two timestamps with each other. It does not use the time of the rerun.
+
+`--limit` is that stable prefix. There is no `--pair-limit` flag. The same frozen file and the same limit call Jev on the same pairs in the same order:
+
+```bash
+npm run brief:jev-eval -- --limit 20 --input tmp/headline-jev-eval/candidates-20261002.json --json tmp/headline-jev-eval/run-03.json
+```
+
+That replays the first 20 ask-Jev pairs from the 75-candidate snapshot used for Run 02. Use a new `--json` path when comparing schema 2 with an older schema 1 artifact. Do not overwrite the schema 1 file, and do not reinterpret its `same_broader_topic` counts.
+
 ## Activation later
 
-A later milestone may let a high-confidence `same_event` proposal feed the existing union-find step. That requires a human-reviewed eval set and a threshold chosen from those labels. Until that review exists, Jev stays off the `/brief` path.
+A later milestone may let a high-confidence `same_event` proposal feed the existing union-find step. That requires a human-reviewed eval set and a threshold chosen from those labels. Story links are a separate later question. `related_context` is not a candidate for that edge. Until that review exists, Jev stays off the `/brief` path.
 
 **AI interprets. Code counts.**

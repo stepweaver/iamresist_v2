@@ -18,9 +18,16 @@ export type JevEvaluation = {
   jevEvaluated: number;
   jevNotSent: number;
   joins: number;
-  sameBroaderTopic: number;
+  /** Policy count of same_story pairs. Not an event join. */
+  storyLinks: number;
+  sameEvent: number;
+  sameStory: number;
+  relatedContext: number;
   different: number;
+  /** Unclear choices plus failed Jev calls. */
   unclearOrReview: number;
+  /** Unclear choices only. Failures stay in failures and unclearOrReview. */
+  unclear: number;
   failures: number;
   inputTokens: number;
   outputTokens: number;
@@ -163,8 +170,12 @@ export async function evaluateHeadlinePairs(
   const baselineSamples = skippedSamples.filter((sample) => sample.sampleKind === 'baseline').length;
 
   let joins = 0;
-  let sameBroaderTopic = 0;
+  let storyLinks = 0;
+  let sameEvent = 0;
+  let sameStory = 0;
+  let relatedContext = 0;
   let different = 0;
+  let unclear = 0;
   let unclearOrReview = 0;
   let failures = 0;
   let inputTokens = 0;
@@ -184,9 +195,29 @@ export async function evaluateHeadlinePairs(
       usageMissing += 1;
     }
     if (pair.policy.action === 'join') joins += 1;
-    if (pair.jev.relation === 'same_broader_topic') sameBroaderTopic += 1;
-    else if (pair.jev.relation === 'different') different += 1;
-    else if (pair.policy.action === 'review' || pair.jev.relation === 'unclear') unclearOrReview += 1;
+    if (pair.policy.action === 'story_link') storyLinks += 1;
+    switch (pair.jev.relation) {
+      case 'same_event':
+        sameEvent += 1;
+        break;
+      case 'same_story':
+        sameStory += 1;
+        break;
+      case 'related_context':
+        relatedContext += 1;
+        break;
+      case 'different':
+        different += 1;
+        break;
+      case 'unclear':
+        unclear += 1;
+        unclearOrReview += 1;
+        break;
+      default: {
+        const unexpected: never = pair.jev.relation;
+        throw new Error(`unexpected relation ${String(unexpected)}`);
+      }
+    }
   }
 
   const possiblePairs = items.length < 2 ? 0 : (items.length * (items.length - 1)) / 2;
@@ -201,9 +232,13 @@ export async function evaluateHeadlinePairs(
     jevEvaluated: pairs.length,
     jevNotSent: Math.max(0, rankedAsks.length - pairs.length),
     joins,
-    sameBroaderTopic,
+    storyLinks,
+    sameEvent,
+    sameStory,
+    relatedContext,
     different,
     unclearOrReview,
+    unclear,
     failures,
     inputTokens,
     outputTokens,

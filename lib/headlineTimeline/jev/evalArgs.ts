@@ -16,6 +16,10 @@ export function headlineJevEvalUsage(): string {
     'Usage: npm run brief:jev-eval -- [--limit <n>] [--sample-skipped <n>] [--json <path>] [--save-candidates [path]] [--input <snapshot.json>]',
     '',
     '--limit <n>            Jev calls to make. Default 25. 0 runs the prefilter and does not call Jev.',
+    '                       On a frozen --input snapshot this is a stable prefix of the',
+    '                       ask_jev queue: the same pairs, in the same order, on every replay.',
+    '                       --limit 20 --input tmp/headline-jev-eval/candidates-20261002.json',
+    '                       reruns that snapshot\'s first 20 Jev pairs. No separate --pair-limit.',
     '--sample-skipped <n>   Skipped pairs to print for false-negative review. Default 0. Does not call Jev.',
     '--json <path>          Write a local JSON artifact. Does not write to Supabase.',
     '--save-candidates [path]',
@@ -33,6 +37,7 @@ export function headlineJevEvalUsage(): string {
     '  npm run brief:jev-eval -- --limit 0 --save-candidates',
     '  npm run brief:jev-eval -- --limit 0 --sample-skipped 25 --input tmp/headline-jev-eval/candidates-20261002.json',
     '  npm run brief:jev-eval -- --limit 10 --sample-skipped 25 --json tmp/headline-jev-eval/run-02.json',
+    '  npm run brief:jev-eval -- --limit 20 --input tmp/headline-jev-eval/candidates-20261002.json --json tmp/headline-jev-eval/run-03.json',
   ].join('\n');
 }
 

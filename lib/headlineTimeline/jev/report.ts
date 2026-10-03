@@ -1,13 +1,7 @@
+import { HEADLINE_JEV_RELATION_SCHEMA_VERSION } from '@/lib/headlineTimeline/jev/constants';
 import type { JevEvaluation } from '@/lib/headlineTimeline/jev/evaluate';
-import type { HeadlineRelation, JevEvalPairRecord, SkippedPairSample } from '@/lib/headlineTimeline/jev/types';
+import { HEADLINE_RELATIONS, type JevEvalPairRecord, type SkippedPairSample } from '@/lib/headlineTimeline/jev/types';
 import type { HeadlineCandidate } from '@/lib/headlineTimeline/types';
-
-const RELATION_LABELS: HeadlineRelation[] = [
-  'same_event',
-  'same_broader_topic',
-  'different',
-  'unclear',
-];
 
 function metric(label: string, value: string): string {
   return `${label.padEnd(20)}${value}`;
@@ -20,6 +14,7 @@ function summaryLine(value: string | null): string {
 
 function policyLabel(action: JevEvalPairRecord['policy']['action']): string {
   if (action === 'join') return 'JOIN';
+  if (action === 'story_link') return 'STORY LINK';
   if (action === 'do_not_join') return 'DO NOT JOIN';
   return 'REVIEW';
 }
@@ -81,7 +76,7 @@ export function formatJevPair(record: JevEvalPairRecord, index: number): string 
   if (!record.jev.ok) {
     lines.push(`unavailable: ${record.jev.error}`);
   } else {
-    for (const relation of RELATION_LABELS) {
+    for (const relation of HEADLINE_RELATIONS) {
       lines.push(metric(relation, record.jev.probabilities[relation].toFixed(2)));
     }
     lines.push(metric('confidence', record.jev.confidence.toFixed(2)));
@@ -112,6 +107,7 @@ export function formatJevEvaluationReport(evaluation: JevEvaluation, opts?: {
   const header = [
     'Headline Jev evaluation (shadow)',
     'Read only. No headline, note, thread, theme, or ranking rows are written.',
+    `relation schema: ${HEADLINE_JEV_RELATION_SCHEMA_VERSION}`,
   ];
   if (opts?.corpus?.mode === 'snapshot' && opts.corpus.snapshot) {
     header.push(`corpus: snapshot ${opts.corpus.snapshot}`);
@@ -145,7 +141,10 @@ export function formatJevEvaluationReport(evaluation: JevEvaluation, opts?: {
     ...(opts?.limit != null ? [`jev call limit: ${opts.limit}`] : []),
     `jev not sent (limit): ${evaluation.jevNotSent}`,
     `jev proposed joins: ${evaluation.joins}`,
-    `same broader topic: ${evaluation.sameBroaderTopic}`,
+    `same event: ${evaluation.sameEvent}`,
+    `same story: ${evaluation.sameStory}`,
+    `story links: ${evaluation.storyLinks}`,
+    `related context: ${evaluation.relatedContext}`,
     `different: ${evaluation.different}`,
     `unclear/review: ${evaluation.unclearOrReview}`,
     `api input tokens: ${evaluation.inputTokens}`,
@@ -179,6 +178,7 @@ export function jevEvaluationArtifact(evaluation: JevEvaluation, opts?: {
   return {
     milestone: 1 as const,
     shadow: true as const,
+    schemaVersion: HEADLINE_JEV_RELATION_SCHEMA_VERSION,
     generatedAt: opts?.generatedAt ?? new Date().toISOString(),
     windowHours: opts?.windowHours ?? null,
     limit: opts?.limit ?? null,
@@ -201,9 +201,19 @@ export function jevEvaluationArtifact(evaluation: JevEvaluation, opts?: {
       jevEvaluated: evaluation.jevEvaluated,
       jevNotSent: evaluation.jevNotSent,
       jevProposedJoins: evaluation.joins,
-      sameBroaderTopic: evaluation.sameBroaderTopic,
+      storyLinks: evaluation.storyLinks,
+      sameEvent: evaluation.sameEvent,
+      sameStory: evaluation.sameStory,
+      relatedContext: evaluation.relatedContext,
       different: evaluation.different,
       unclearOrReview: evaluation.unclearOrReview,
+      relations: {
+        same_event: evaluation.sameEvent,
+        same_story: evaluation.sameStory,
+        related_context: evaluation.relatedContext,
+        different: evaluation.different,
+        unclear: evaluation.unclear,
+      },
       inputTokens: evaluation.inputTokens,
       outputTokens: evaluation.outputTokens,
       usageMissing: evaluation.usageMissing,
