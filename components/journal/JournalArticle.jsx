@@ -55,14 +55,6 @@ export default function JournalArticle({ title, dates, tags = [], author = '', c
             <Link href="/journal">Return to archive</Link>
           </p>
         </article>
-
-        <aside className="journal-aside" aria-hidden="true">
-          <span className="journal-aside__line" />
-          <span className="journal-aside__ring" />
-          <span className="journal-aside__ring journal-aside__ring--inner" />
-          <span className="journal-aside__cross" />
-          <span className="journal-aside__hub" />
-        </aside>
       </div>
     </div>
   );

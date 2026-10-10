@@ -5,10 +5,6 @@ export default function FeaturedRecord({ record }) {
 
   return (
     <section className="journal-feature" aria-labelledby="journal-featured-title">
-      <span className="journal-tick journal-tick--tl" aria-hidden="true" />
-      <span className="journal-tick journal-tick--tr" aria-hidden="true" />
-      <span className="journal-tick journal-tick--bl" aria-hidden="true" />
-      <span className="journal-tick journal-tick--br" aria-hidden="true" />
       <div className="journal-feature__main">
         <p className="journal-kicker">
           <span>Latest record</span>
@@ -36,13 +32,6 @@ export default function FeaturedRecord({ record }) {
         <Link className="journal-text-link" href={record.href}>
           Open record
         </Link>
-      </div>
-      <div className="journal-feature__mark" aria-hidden="true">
-        <span className="journal-feature__orbit journal-feature__orbit--outer" />
-        <span className="journal-feature__orbit journal-feature__orbit--inner" />
-        <span className="journal-feature__axis journal-feature__axis--h" />
-        <span className="journal-feature__axis journal-feature__axis--v" />
-        <span className="journal-feature__dot" />
       </div>
     </section>
   );

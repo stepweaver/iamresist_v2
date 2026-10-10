@@ -16,20 +16,6 @@ export default function ArchiveHero() {
           Browse the index
         </a>
       </div>
-      <div className="journal-radar" aria-hidden="true">
-        <span className="journal-radar__ticks" />
-        <span className="journal-radar__ring journal-radar__ring--outer" />
-        <span className="journal-radar__ring journal-radar__ring--mid" />
-        <span className="journal-radar__ring journal-radar__ring--inner" />
-        <span className="journal-radar__cross journal-radar__cross--h" />
-        <span className="journal-radar__cross journal-radar__cross--v" />
-        <span className="journal-radar__sweep" />
-        <span className="journal-radar__hub" />
-        <span className="journal-radar__bracket journal-radar__bracket--tl" />
-        <span className="journal-radar__bracket journal-radar__bracket--tr" />
-        <span className="journal-radar__bracket journal-radar__bracket--bl" />
-        <span className="journal-radar__bracket journal-radar__bracket--br" />
-      </div>
     </header>
   );
 }
