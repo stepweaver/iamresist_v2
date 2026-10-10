@@ -18,12 +18,7 @@ export default async function IntelSourcesPage() {
   return (
     <main
       id="main-content"
-      className="min-h-screen overflow-x-clip"
-      style={{
-        backgroundImage:
-          'linear-gradient(rgba(211, 47, 47, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(211, 47, 47, 0.03) 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-      }}
+      className="hero-page-bg min-h-screen overflow-x-clip"
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
         <IntelTabs description="Ingest registry health: DB mirrors the manifest when ingest runs (GET /api/cron/ingest-signal). Covers OSINT, Defense, Watchdogs, and Voices." />

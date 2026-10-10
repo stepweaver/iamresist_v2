@@ -505,7 +505,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
         role="dialog"
         aria-modal="true"
         aria-labelledby="inline-player-title"
-        className="relative flex h-full max-h-dvh w-full min-h-0 flex-col overflow-hidden border-0 border-white/10 bg-background machine-panel md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-sm md:border"
+        className="relative flex h-full max-h-dvh w-full min-h-0 flex-col overflow-hidden border-0 border-white/10 bg-background machine-panel hud-stage md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-sm md:border"
         onClick={(e) => e.stopPropagation()}
         {...swipeHandlers}
       >

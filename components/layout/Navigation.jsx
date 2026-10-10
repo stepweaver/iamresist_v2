@@ -21,13 +21,13 @@ function CartNavLink({ totalQuantity, cartBounce }) {
   return (
     <Link
       href="/shop/cart"
-      className="relative p-2 text-foreground/60 hover:text-foreground"
+      className="relative p-2 text-chrome-muted hover:text-chrome-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chrome-accent rounded-sm"
       aria-label={`Cart${totalQuantity > 0 ? ` (${totalQuantity} items)` : ''}`}
     >
       <ShoppingCart className="w-5 h-5" />
       {totalQuantity > 0 && (
         <span
-          className={`absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 flex items-center justify-center bg-primary text-background text-[10px] font-bold rounded-full ${cartBounce ? 'animate-cart-bounce' : ''}`}
+          className={`absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 flex items-center justify-center bg-chrome-badge text-on-chrome text-[10px] font-bold rounded-full ${cartBounce ? 'animate-cart-bounce' : ''}`}
         >
           {totalQuantity > 99 ? '99+' : totalQuantity}
         </span>
@@ -106,14 +106,14 @@ export default function Navigation() {
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border"
+      className="fixed top-0 left-0 right-0 z-50 bg-chrome/95 backdrop-blur-sm border-b border-chrome-border text-chrome-fg"
       aria-label="Main navigation"
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3">
         <div className="flex items-center justify-between h-16 sm:h-20">
           <Link href="/" className="flex items-center gap-2 sm:gap-4 group flex-shrink-0">
-            <span className="font-display text-2xl sm:text-3xl font-bold tracking-[0.15em] text-foreground group-hover:text-primary transition-colors block leading-tight">
-              I AM <span className="text-primary font-mono">[RESIST]</span>
+            <span className="font-display text-2xl sm:text-3xl font-bold tracking-[0.15em] text-chrome-fg group-hover:text-chrome-accent transition-colors block leading-tight">
+              I AM <span className="text-chrome-accent font-mono">[RESIST]</span>
             </span>
           </Link>
 
@@ -124,10 +124,10 @@ export default function Navigation() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`nav-label relative px-5 py-2 text-sm font-bold tracking-[0.15em] transition-all duration-200 border-b-2 ${
+                  className={`nav-label relative px-5 py-2 text-sm font-bold tracking-[0.15em] transition-all duration-200 border-b-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chrome-accent ${
                     isActive
-                      ? 'text-primary border-primary'
-                      : 'text-foreground/60 hover:text-foreground border-transparent hover:border-foreground/30'
+                      ? 'text-chrome-accent border-chrome-accent'
+                      : 'text-chrome-muted hover:text-chrome-fg border-transparent hover:border-chrome-fg/30'
                   }`}
                 >
                   {link.label}
@@ -145,25 +145,25 @@ export default function Navigation() {
             <ThemeToggle />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="flex flex-col gap-1.5 w-8 h-8 justify-center items-center cursor-pointer"
+              className="flex flex-col gap-1.5 w-8 h-8 justify-center items-center cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chrome-accent rounded-sm"
               aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-menu"
             >
               <span
-                className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${
+                className={`w-6 h-0.5 bg-chrome-fg transition-all duration-300 ${
                   mobileMenuOpen ? 'rotate-45 translate-y-2' : ''
                 }`}
                 aria-hidden
               />
               <span
-                className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${
+                className={`w-6 h-0.5 bg-chrome-fg transition-all duration-300 ${
                   mobileMenuOpen ? 'opacity-0' : ''
                 }`}
                 aria-hidden
               />
               <span
-                className={`w-6 h-0.5 bg-foreground transition-all duration-300 ${
+                className={`w-6 h-0.5 bg-chrome-fg transition-all duration-300 ${
                   mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''
                 }`}
                 aria-hidden
@@ -173,7 +173,7 @@ export default function Navigation() {
         </div>
 
         {mobileMenuOpen && (
-          <div id="mobile-menu" className="md:hidden border-t border-border py-4" role="menu">
+          <div id="mobile-menu" className="md:hidden border-t border-chrome-border py-4" role="menu">
             {NAV_LINKS.map((link) => {
               const isActive = isNavLinkActive(link, pathname);
               return (
@@ -181,10 +181,10 @@ export default function Navigation() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`nav-label block px-4 py-3 text-sm font-bold tracking-[0.15em] transition-all duration-200 border-l-2 ${
+                  className={`nav-label block px-4 py-3 text-sm font-bold tracking-[0.15em] transition-all duration-200 border-l-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chrome-accent ${
                     isActive
-                      ? 'text-primary border-primary bg-primary/5'
-                      : 'text-foreground/60 hover:text-foreground border-transparent hover:border-foreground/30'
+                      ? 'text-chrome-accent border-chrome-accent bg-chrome-accent/5'
+                      : 'text-chrome-muted hover:text-chrome-fg border-transparent hover:border-chrome-fg/30'
                   }`}
                 >
                   {link.label}

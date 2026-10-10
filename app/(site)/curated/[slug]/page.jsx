@@ -76,12 +76,7 @@ export default async function CuratedVideoPage({ params }) {
 
   return (
     <main
-      className="min-h-screen overflow-x-hidden"
-      style={{
-        backgroundImage:
-          'linear-gradient(rgba(211, 47, 47, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(211, 47, 47, 0.03) 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-      }}
+      className="hero-page-bg min-h-screen overflow-x-hidden"
     >
       <StructuredData data={schema} />
       <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-12 py-12 sm:py-16">

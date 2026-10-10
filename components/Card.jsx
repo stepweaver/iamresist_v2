@@ -1,5 +1,5 @@
 export default function Card({ children, className = '', variant = 'default', ...props }) {
-    const baseStyles = 'bg-transparent border transition-all duration-300';
+    const baseStyles = 'press-surface bg-transparent border transition-all duration-300';
   
     const variants = {
       default: 'border-border hover:border-primary',

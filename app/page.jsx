@@ -40,7 +40,7 @@ export default function Home() {
       {/* Compact Header Section - Hero + Mission Combined */}
       <div className="border-b border-border pt-0 pb-3">
         <div className="w-full">
-          <div className="relative overflow-hidden machine-panel scanline">
+          <div className="relative overflow-hidden machine-panel scanline hud-stage">
             <HudOverlay title="RESISTANCE SIGNAL" code="IAMR-BRIEF-01" />
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[400px_1fr] xl:grid-cols-[450px_1fr] gap-4 sm:gap-6 lg:gap-10 xl:gap-12 items-center py-6 px-4 sm:px-6 lg:px-8">
               {/* Left: Flag Logo */}

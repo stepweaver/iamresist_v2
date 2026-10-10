@@ -34,6 +34,19 @@
   --hud-text: rgba(255, 255, 255, 0.45);
   --hud-text-dim: rgba(255, 255, 255, 0.3);
   --warning-amber: #c98b2e;
+  /* Site chrome. Dark values match the existing nav (#0a0a0a) and footer (#1a1a1a). */
+  --chrome-bg: #0a0a0a;
+  --chrome-footer-bg: #1a1a1a;
+  --chrome-fg: #e8e8e8;
+  --chrome-muted: color-mix(in oklab, #e8e8e8 60%, transparent);
+  --chrome-faint: color-mix(in oklab, #e8e8e8 70%, transparent);
+  --chrome-border: #333333;
+  --chrome-accent: #d32f2f;
+  --chrome-accent-hover: #ff5252;
+  --chrome-badge-bg: #d32f2f;
+  --chrome-badge: #0a0a0a;
+  --reading: transparent;
+  --on-primary: #0a0a0a;
   /* Semantic font roles */
   --font-display: var(--font-orbitron);
   --font-ui: var(--font-rajdhani);
@@ -42,33 +55,46 @@
 }
 
 :root.light {
-  /* Light Mode Theme - Softer, Muted Colors */
-  --background: #f0f0f0;
-  --foreground: #2a2a2a;
-  --antifa-red: #d32f2f;
-  --antifa-red-dark: #b71c1c;
-  --antifa-red-light: #ff5252;
-  --military-black: #e8e8e8;
-  --military-grey: #d8d8d8;
-  --border-color: #c0c0c0;
-  --accent-glow: rgba(211, 47, 47, 0.08);
-  /* Briefing packet tokens */
-  --paper: #f4f1e8;
-  --ink: #111111;
-  --muted-ink: #3b3b3b;
-  --rule: rgba(0, 0, 0, 0.22);
-  --stamp: #8b0000;
-  --olive: #2f3b2f;
-  /* Skynet / hero panel - light mode */
-  --steel-900: #e4e8ec;
-  --steel-800: #d8dde4;
-  --steel-700: #c8cfd8;
-  --grid-line: rgba(0, 0, 0, 0.08);
-  --hud-red: #b71c1c;
-  --hud-red-dim: rgba(183, 28, 28, 0.15);
-  --hud-red-glow: rgba(183, 28, 28, 0.22);
-  --hud-text: rgba(0, 0, 0, 0.5);
-  --hud-text-dim: rgba(0, 0, 0, 0.35);
+  /* Resistance Press — warm paper, black type, brand red. */
+  color-scheme: light;
+  --background: #f7f3eb;
+  --foreground: #171717;
+  --antifa-red: #b91c24;
+  --antifa-red-dark: #8e1219;
+  --antifa-red-light: #8e1219;
+  /* Inset fields and dialogs. Footer uses --chrome-footer-bg, not this token. */
+  --military-black: #fffdfa;
+  --military-grey: #e7ddd2;
+  --border-color: #d9cec4;
+  --accent-glow: rgba(185, 28, 36, 0.12);
+  --paper: #f7f3eb;
+  --ink: #171717;
+  --muted-ink: #49433f;
+  --rule: #cdb8a4;
+  --stamp: #b91c24;
+  --olive: #3d342c;
+  /* Editorial panels. Dark command surfaces opt in with .hud-stage. */
+  --steel-900: #f3ede4;
+  --steel-800: #fffdfa;
+  --steel-700: #e7ddd2;
+  --grid-line: rgba(185, 28, 36, 0.09);
+  --hud-red: #b91c24;
+  --hud-red-dim: rgba(185, 28, 36, 0.12);
+  --hud-red-glow: rgba(185, 28, 36, 0.22);
+  --hud-text: #49433f;
+  --hud-text-dim: #5e564f;
+  --reading: #fffdfa;
+  --on-primary: #ffffff;
+  --chrome-bg: #121212;
+  --chrome-footer-bg: #121212;
+  --chrome-fg: #ffffff;
+  --chrome-muted: rgba(255, 255, 255, 0.78);
+  --chrome-faint: rgba(255, 255, 255, 0.68);
+  --chrome-border: rgba(255, 255, 255, 0.16);
+  --chrome-accent: #ff5c5c;
+  --chrome-accent-hover: #ffb4b4;
+  --chrome-badge-bg: #b91c24;
+  --chrome-badge: #ffffff;
 }
 
 /* Tailwind v4 Theme Integration */
@@ -90,6 +116,18 @@
   --color-hud-red: var(--hud-red);
   --color-hud-dim: var(--hud-text-dim);
   --color-hud-red-dim: var(--hud-red-dim);
+  --color-chrome: var(--chrome-bg);
+  --color-chrome-fg: var(--chrome-fg);
+  --color-chrome-muted: var(--chrome-muted);
+  --color-chrome-faint: var(--chrome-faint);
+  --color-chrome-border: var(--chrome-border);
+  --color-chrome-accent: var(--chrome-accent);
+  --color-chrome-accent-hover: var(--chrome-accent-hover);
+  --color-chrome-footer: var(--chrome-footer-bg);
+  --color-on-chrome: var(--chrome-badge);
+  --color-chrome-badge: var(--chrome-badge-bg);
+  --color-reading: var(--reading);
+  --color-on-primary: var(--on-primary);
 }
 
 /* Briefing packet - subtle paper texture */
@@ -101,7 +139,7 @@
 
 :root.light .paper {
   background:
-    radial-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+    radial-gradient(rgba(73, 36, 28, 0.045) 1px, transparent 1px) 0 0 / 22px 22px,
     var(--paper);
 }
 
@@ -256,9 +294,9 @@
 :root.light .scanline::after {
   background: linear-gradient(
     to bottom,
-    rgba(183, 28, 28, 0),
-    rgba(183, 28, 28, 0.06),
-    rgba(183, 28, 28, 0)
+    rgba(185, 28, 36, 0),
+    rgba(185, 28, 36, 0.07),
+    rgba(185, 28, 36, 0)
   );
 }
 
@@ -271,8 +309,191 @@
 }
 :root.light .hero-page-bg {
   background-image:
-    linear-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(185, 28, 36, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(185, 28, 36, 0.055) 1px, transparent 1px);
+}
+
+/* ============================================
+   RESISTANCE PRESS — light theme only
+   Dark command surfaces stay on .hud-stage.
+   ============================================ */
+
+:root.light .machine-panel {
+  background: linear-gradient(180deg, var(--reading) 0%, #f8f4ec 100%);
+  color: var(--foreground);
+}
+
+:root.light .machine-panel::before,
+:root.light .machine-panel::after {
+  opacity: 0.55;
+}
+
+:root.light .machine-panel.hud-stage {
+  --foreground: #e8e8e8;
+  --color-foreground: #e8e8e8;
+  --background: #0a0a0a;
+  --color-background: #0a0a0a;
+  --border-color: #333333;
+  --color-border: #333333;
+  --military-black: #1a1a1a;
+  --color-military-black: #1a1a1a;
+  --military-grey: #2a2a2a;
+  --color-military-grey: #2a2a2a;
+  --antifa-red: #d32f2f;
+  --color-primary: #d32f2f;
+  --antifa-red-dark: #b71c1c;
+  --color-primary-dark: #b71c1c;
+  --antifa-red-light: #ff5252;
+  --color-primary-light: #ff5252;
+  --hud-red: #ff3b3b;
+  --color-hud-red: #ff3b3b;
+  --hud-red-dim: rgba(255, 59, 59, 0.18);
+  --color-hud-red-dim: rgba(255, 59, 59, 0.18);
+  --hud-red-glow: rgba(255, 59, 59, 0.28);
+  --hud-text: rgba(255, 255, 255, 0.45);
+  --hud-text-dim: rgba(255, 255, 255, 0.3);
+  --color-hud-dim: rgba(255, 255, 255, 0.3);
+  --grid-line: rgba(255, 255, 255, 0.06);
+  color: #e8e8e8;
+  background: linear-gradient(135deg, #121821, #0b0f14);
+}
+
+:root.light .machine-panel.hud-stage::before,
+:root.light .machine-panel.hud-stage::after {
+  opacity: 0.75;
+}
+
+:root.light .hud-stage.scanline::after {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 59, 59, 0),
+    rgba(255, 59, 59, 0.12),
+    rgba(255, 59, 59, 0)
+  );
+}
+
+:root.light .hud-stage .logo-shadow-hero {
+  filter: drop-shadow(0 0 16px rgba(211, 47, 47, 0.3))
+          drop-shadow(0 0 32px rgba(211, 47, 47, 0.2))
+          drop-shadow(0 10px 24px rgba(211, 47, 47, 0.25))
+          drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+}
+
+.press-surface {
+  background-color: transparent;
+}
+
+:root.light .press-surface {
+  background-color: var(--reading);
+}
+
+:root.light nav[aria-label="Main navigation"] {
+  border-bottom: 2px solid var(--antifa-red);
+}
+
+:root.light .doc-masthead {
+  background-color: var(--reading);
+  border-bottom: 2px solid var(--antifa-red);
+}
+
+:root.light .kicker,
+:root.light .doc-id {
+  color: var(--antifa-red);
+}
+
+:root.light .hud-stage .kicker,
+:root.light .hud-stage .doc-id {
+  color: var(--antifa-red);
+}
+
+:root.light nav[aria-label="Intel sections"] a.text-foreground {
+  color: var(--antifa-red);
+  box-shadow: inset 0 -2px 0 var(--antifa-red);
+}
+
+/* Opacity utilities below 4.5:1 on paper. Hover and dark stages restore themselves. */
+:root.light .text-foreground\/40,
+:root.light .text-foreground\/45,
+:root.light .text-foreground\/50,
+:root.light .text-foreground\/55,
+:root.light .text-foreground\/60 {
+  color: var(--muted-ink);
+}
+
+:root.light .hud-stage .text-foreground\/40 { color: color-mix(in oklab, var(--foreground) 40%, transparent); }
+:root.light .hud-stage .text-foreground\/45 { color: color-mix(in oklab, var(--foreground) 45%, transparent); }
+:root.light .hud-stage .text-foreground\/50 { color: color-mix(in oklab, var(--foreground) 50%, transparent); }
+:root.light .hud-stage .text-foreground\/55 { color: color-mix(in oklab, var(--foreground) 55%, transparent); }
+:root.light .hud-stage .text-foreground\/60 { color: color-mix(in oklab, var(--foreground) 60%, transparent); }
+
+:root.light :is(.hover\:text-foreground:hover, .group:hover .group-hover\:text-foreground) {
+  color: var(--foreground);
+}
+
+:root.light :is(.hover\:text-primary:hover, .group:hover .group-hover\:text-primary) {
+  color: var(--antifa-red);
+}
+
+:root.light :is(.hover\:text-primary-light:hover, .group:hover .group-hover\:text-primary-light) {
+  color: var(--antifa-red-light);
+}
+
+:root.light :is(a, button).bg-primary,
+:root.light :is(a, button).bg-primary:hover {
+  color: var(--on-primary);
+}
+
+:root.light .hover\:text-background:hover,
+:root.light .group:hover .group-hover\:text-background {
+  color: #ffffff;
+}
+
+:root.light .text-green-400,
+:root.light .text-green-500 {
+  color: #166534;
+}
+
+:root.light .text-yellow-400,
+:root.light .text-yellow-500 {
+  color: #92400e;
+}
+
+:root.light .text-red-300,
+:root.light .text-red-400,
+:root.light .text-red-500 {
+  color: #991b1b;
+}
+
+:root.light .text-purple-500 {
+  color: #6b21a8;
+}
+
+:root.light :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  textarea,
+  select
+) {
+  background-color: var(--reading);
+  color: var(--foreground);
+}
+
+:root.light .hud-stage :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  textarea,
+  select
+) {
+  background-color: var(--military-grey);
+  color: var(--foreground);
+}
+
+:root.light input:-webkit-autofill {
+  -webkit-text-fill-color: #171717;
+  box-shadow: 0 0 0 1000px var(--reading) inset;
+}
+
+:root.light ::selection {
+  background: rgba(185, 28, 36, 0.22);
+  color: #171717;
 }
 
 /* ============================================

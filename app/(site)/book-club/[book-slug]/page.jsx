@@ -102,12 +102,7 @@ export default async function BookDetailPage({ params }) {
   return (
     <main
       id="main-content"
-      className="min-h-screen overflow-x-clip"
-      style={{
-        backgroundImage:
-          'linear-gradient(rgba(211, 47, 47, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(211, 47, 47, 0.03) 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-      }}
+      className="hero-page-bg min-h-screen overflow-x-clip"
     >
       <StructuredData data={schema} />
       <div className="max-w-[1100px] mx-auto px-2 sm:px-3 lg:px-4 pt-6 pb-10">

@@ -19,12 +19,7 @@ export default function ShopPage() {
   return (
     <main
       id="main-content"
-      className="min-h-screen overflow-x-hidden"
-      style={{
-        backgroundImage:
-          'linear-gradient(rgba(211, 47, 47, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(211, 47, 47, 0.03) 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-      }}
+      className="hero-page-bg min-h-screen overflow-x-hidden"
     >
       <div className="border-b border-border pt-2 pb-10 sm:pb-14">
         <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3">
