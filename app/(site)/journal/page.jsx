@@ -1,6 +1,9 @@
-import PageContainer from '@/components/content/PageContainer';
-import JournalCard from '@/components/journal/JournalCard';
-import { getJournalIndexPayload } from '@/lib/journal';
+import ArchiveHero from '@/components/journal/ArchiveHero';
+import FeaturedRecord from '@/components/journal/FeaturedRecord';
+import JournalIndex from '@/components/journal/JournalIndex';
+import { journalLeadExcerpt, toJournalRecord } from '@/components/journal/journalFormat';
+import { getAllJournalEntries, getJournalIndexPayload } from '@/lib/journal';
+import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
@@ -13,95 +16,77 @@ export const metadata = buildPageMetadata({
 export const revalidate = 300;
 
 export default async function JournalPage() {
-  const { entries, listKind, apiError } = await getJournalIndexPayload(15);
+  const payload = await getJournalIndexPayload(15);
+  let entries = payload.entries;
+  let searchCoversArchive = false;
+
+  if (payload.listKind === 'ok') {
+    const all = await getAllJournalEntries();
+    if (all.length > 0) {
+      entries = all;
+      searchCoversArchive = true;
+    }
+  }
+
+  const featuredEntry = entries[0];
+  let featuredExcerpt = '';
+  if (featuredEntry?.id) {
+    const blocks = await getCachedPageBlocks(featuredEntry.id);
+    featuredExcerpt = journalLeadExcerpt(blocks);
+  }
+
+  const records = entries.map((entry) => toJournalRecord(entry));
+  const featured = featuredEntry
+    ? toJournalRecord(featuredEntry, { excerpt: featuredExcerpt })
+    : null;
 
   return (
-    <main className="min-h-screen">
-      <div className="machine-panel py-8 mb-8">
-        <div className="hud-grid opacity-30"></div>
-        <div className="relative z-10">
-          <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
-            <div className="border-l-4 border-primary pl-4 sm:pl-6">
-              <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.4em] block mb-3 text-primary">
-                DOC ID: IAMR-JOURNAL-02
-              </span>
-              <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                RESISTANCE JOURNAL
-              </h1>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <PageContainer>
-        <div className="mb-8">
-          <p className="mission-copy text-lg text-foreground/80 max-w-3xl">
-            Editorial notes, reflections, and field observations collected in
-            the resistance journal archive. Open any entry for the full
-            published note.
-          </p>
-        </div>
-
-        {entries.length === 0 ? (
-          <div className="machine-panel border border-border p-8 text-center">
-            <p className="nav-label text-primary mb-4">[ NO ENTRIES ]</p>
-            {listKind === 'unconfigured' && (
-              <p className="prose-copy text-foreground/70 max-w-xl mx-auto">
-                Set{' '}
-                <span className="font-mono text-sm text-primary/90">
-                  NOTION_API_KEY
-                </span>{' '}
-                and{' '}
-                <span className="font-mono text-sm text-primary/90">
-                  NOTION_JOURNAL_DB_ID
-                </span>{' '}
-                in the environment, redeploy or restart the dev server, then
-                reload.
-              </p>
-            )}
-            {listKind === 'api_error' && (
-              <>
-                <p className="prose-copy text-foreground/70 max-w-xl mx-auto">
-                  The journal database could not be read from Notion. Confirm
-                  the integration is connected to the journal database and has
-                  access.
-                </p>
-                {apiError && (
-                  <p className="mt-4 font-mono text-xs text-foreground/50 max-w-xl mx-auto break-words">
-                    {apiError}
-                  </p>
-                )}
-                {process.env.NODE_ENV === 'development' && (
-                  <p className="mt-4 prose-copy text-foreground/50 max-w-xl mx-auto text-sm">
-                    Dev hint: token typo, wrong DB id, or integration not
-                    invited to the database often show up as Notion API errors
-                    above.
-                  </p>
-                )}
-              </>
-            )}
-            {listKind === 'empty' && (
-              <p className="prose-copy text-foreground/70 max-w-xl mx-auto">
-                Notion is configured, but no rows match{' '}
-                <span className="font-mono text-sm text-primary/90">
-                  Status = Published
-                </span>
-                . Publish a row or adjust the Status option name to match
-                what the site filters on.
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {entries.map((entry) => (
-              <JournalCard
-                key={entry.id}
-                entry={{ ...entry, slug: entry.slug || entry.id }}
-              />
-            ))}
-          </div>
-        )}
-      </PageContainer>
+    <main className="journal-archive">
+      <ArchiveHero />
+      {entries.length === 0 ? (
+        <JournalEmpty listKind={payload.listKind} apiError={payload.apiError} />
+      ) : (
+        <>
+          <FeaturedRecord record={featured} />
+          <JournalIndex records={records} searchCoversArchive={searchCoversArchive} />
+        </>
+      )}
     </main>
+  );
+}
+
+function JournalEmpty({ listKind, apiError }) {
+  return (
+    <div className="journal-status">
+      <p className="journal-status__label">No entries</p>
+      {listKind === 'unconfigured' && (
+        <p>
+          Set <code>NOTION_API_KEY</code> and <code>NOTION_JOURNAL_DB_ID</code> in
+          the environment, redeploy or restart the dev server, then reload.
+        </p>
+      )}
+      {listKind === 'api_error' && (
+        <>
+          <p>
+            The journal database could not be read from Notion. Confirm the
+            integration is connected to the journal database and has access.
+          </p>
+          {apiError && <p className="journal-status__detail">{apiError}</p>}
+          {process.env.NODE_ENV === 'development' && (
+            <p>
+              Dev hint: token typo, wrong DB id, or integration not invited to
+              the database often show up as Notion API errors above.
+            </p>
+          )}
+        </>
+      )}
+      {listKind === 'empty' && (
+        <p>
+          Notion is configured, but no rows match <code>Status = Published</code>.
+          Publish a row or adjust the Status option name to match what the site
+          filters on.
+        </p>
+      )}
+    </div>
   );
 }

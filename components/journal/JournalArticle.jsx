@@ -1,0 +1,69 @@
+import Link from 'next/link';
+
+export default function JournalArticle({ title, dates, tags = [], author = '', children }) {
+  const tagList = Array.isArray(tags) ? tags.filter(Boolean) : [];
+
+  return (
+    <div className="journal-article">
+      <p className="journal-return">
+        <Link href="/journal">Return to archive</Link>
+      </p>
+      <div className="journal-article__grid">
+        <aside className="journal-rail" aria-label="Record details">
+          {dates?.displayLabel ? (
+            <div className="journal-rail__block">
+              <p className="journal-rail__label">Published</p>
+              <time dateTime={dates.dateTime || undefined}>{dates.displayLabel}</time>
+            </div>
+          ) : (
+            <div className="journal-rail__block">
+              <p className="journal-rail__label">Record</p>
+              <p>Journal</p>
+            </div>
+          )}
+          {dates?.showUpdated && dates.updatedLabel ? (
+            <div className="journal-rail__block">
+              <p className="journal-rail__label">Updated</p>
+              <time dateTime={dates.updatedDateTime || undefined}>{dates.updatedLabel}</time>
+            </div>
+          ) : null}
+          {tagList.length > 0 ? (
+            <div className="journal-rail__block">
+              <p className="journal-rail__label">Tags</p>
+              <ul className="journal-tags">
+                {tagList.map((tag) => (
+                  <li key={tag}>{tag}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {author ? (
+            <div className="journal-rail__block">
+              <p className="journal-rail__label">Author</p>
+              <p>{author}</p>
+            </div>
+          ) : null}
+        </aside>
+
+        <article className="journal-reading">
+          <header className="journal-reading__header">
+            <p className="journal-kicker">Journal record</p>
+            <h1 className="journal-article__title">{title}</h1>
+          </header>
+          {children}
+          <p className="journal-return journal-return--end">
+            <Link href="/journal">Return to archive</Link>
+          </p>
+        </article>
+
+        <aside className="journal-aside" aria-hidden="true">
+          <span className="journal-aside__line" />
+          <span className="journal-aside__ring" />
+          <span className="journal-aside__ring journal-aside__ring--inner" />
+          <span className="journal-aside__cross" />
+          <span className="journal-aside__hub" />
+        </aside>
+      </div>
+    </div>
+  );
+}
