@@ -59,7 +59,7 @@ Repository-specific Codex/editorial guidance lives in [AGENTS.md](./AGENTS.md).
 | `GET /api/voices-more` | Per-voice or curated bucket extras for inline player |
 | `POST /api/revalidate` | On-demand tag revalidation (`Authorization: Bearer CRON_SECRET`) |
 | `GET /api/cron/ingest-signal` | Main recurring ingest job for external cron; updates intel source items and revalidates `intel-live` |
-| `GET /api/cron/warm-home` | Lightweight homepage warmer; primes the cached homepage payload only |
+| `GET /api/cron/warm-home` | Lightweight homepage warmer; primes homepage intel, live briefing, and protest music caches. Returns 500 when a required warm throws |
 | `GET /api/cron/keep-alive` | Lightweight connectivity check for external cron or manual maintenance |
 | `GET /api/cron/intel-rescore` | Manual or maintenance rescore endpoint; not part of the lightweight homepage warmer |
 | `GET /api/orders/[id]` | Order status (token-gated) |
@@ -234,7 +234,7 @@ Open [http://localhost:3000](http://localhost:3000). Turbopack is enabled in the
 
 - Production scheduling is handled by **external cron**, not by a GitHub Actions schedule in this repo.
 - `GET /api/cron/ingest-signal` is the main recurring job.
-- `GET /api/cron/warm-home` is intentionally narrow and warms only the cached homepage payload path.
+- `GET /api/cron/warm-home` warms the homepage intel, live briefing, and protest music caches. It returns 500 when a required warm throws. Run it after cache invalidation so visitors do not hit a cold window. It does not change the external schedule.
 - `GET /api/cron/intel-rescore` and `POST /api/revalidate` are maintenance/manual tools unless you deliberately automate them outside the repo.
 - `GET /api/cron/keep-alive` remains a lightweight operational ping.
 

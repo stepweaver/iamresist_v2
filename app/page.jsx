@@ -3,9 +3,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import RotatingWord from '@/components/home/RotatingWord';
 import HudOverlay from '@/components/home/HudOverlay';
-import JournalSection from '@/components/home/JournalSection';
+import JournalSection, { JournalSectionSkeleton } from '@/components/home/JournalSection';
 import HomeFeed from '@/components/home/HomeFeed.server';
-import HomeFeedSkeleton from '@/components/home/HomeFeedSkeleton';
 import StructuredData from '@/components/seo/StructuredData';
 import { buildPageMetadata } from '@/lib/metadata';
 import { buildOrganizationSchema, buildWebSiteSchema } from '@/lib/seo/schema';
@@ -98,10 +97,10 @@ export default function Home() {
           <div className="text-hud-dim font-mono text-xs mb-6 pl-1">
             // FIELD CHANNELS // UPDATES BY SECTION
           </div>
-          <Suspense fallback={<HomeFeedSkeleton />}>
-            <HomeFeed />
+          <HomeFeed />
+          <Suspense fallback={<JournalSectionSkeleton />}>
+            <JournalSection limit={3} />
           </Suspense>
-          <JournalSection limit={3} />
         </div>
       </div>
     </main>

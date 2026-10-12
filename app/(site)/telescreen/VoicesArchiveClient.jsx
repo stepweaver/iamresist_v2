@@ -10,6 +10,7 @@ import InlinePlayerModal from "@/components/voices/InlinePlayerModalClean";
 import { useMediaKeepAlive } from "@/components/useMediaKeepAlive";
 import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
 import { buildTelescreenHref, TELESCREEN_MODES, TELESCREEN_MODE_OPTIONS } from "@/lib/telescreen";
+import { beginCollectionRefresh, finishCollectionRefresh } from "@/lib/telescreen/refreshLifecycle";
 
 const MODE_COPY = {
   [TELESCREEN_MODES.curated]: {
@@ -51,6 +52,7 @@ export default function VoicesArchiveClient({
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const refreshRef = useRef({ requestId: 0, refreshing: false });
   const sentinelRef = useRef(null);
   const shouldScrollResultsRef = useRef(false);
 
@@ -60,10 +62,30 @@ export default function VoicesArchiveClient({
   const activeMode = currentMode || modeParam || TELESCREEN_MODES.voices;
 
   const handleRefresh = useCallback(() => {
+    const next = beginCollectionRefresh(refreshRef.current);
+    refreshRef.current = next;
     setRefreshing(true);
     router.refresh();
-    setTimeout(() => setRefreshing(false), 1500);
   }, [router]);
+
+  useEffect(() => {
+    const next = finishCollectionRefresh(refreshRef.current, refreshRef.current.requestId);
+    if (next !== refreshRef.current) {
+      refreshRef.current = next;
+      setRefreshing(next.refreshing);
+    }
+  }, [initialItems, initialHasMore]);
+
+  useEffect(() => {
+    if (!refreshing) return undefined;
+    const requestId = refreshRef.current.requestId;
+    const timer = window.setTimeout(() => {
+      const next = finishCollectionRefresh(refreshRef.current, requestId);
+      refreshRef.current = next;
+      setRefreshing(next.refreshing);
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [refreshing]);
 
   useEffect(() => {
     setItems(initialItems);
@@ -225,6 +247,7 @@ export default function VoicesArchiveClient({
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
+            aria-busy={refreshing}
             className="button-label inline-flex items-center gap-1.5 text-xs font-bold text-foreground/70 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Refresh collection"
           >

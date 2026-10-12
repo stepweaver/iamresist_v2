@@ -3,8 +3,10 @@
 // standalone mode, iOS grants it a proper audio session that survives screen
 // lock, enabling lock-screen playback and controls.
 //
-// Strategy: network-first for everything. Cache navigation responses so the
-// shell loads instantly on subsequent opens and works offline.
+// Strategy: network-first for navigations. A successful response is shown and
+// then stored. The cache is used only when the network request fails, so an
+// online visit is not stuck on an older HTML document. Other requests are not
+// intercepted.
 
 const CACHE = "resist-shell-v1";
 

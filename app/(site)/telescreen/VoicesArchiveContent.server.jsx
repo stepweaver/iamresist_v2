@@ -1,7 +1,9 @@
 import { getAllVoicesCached } from "@/lib/notion/voices.repo";
-import { getProtestMusicArtists } from "@/lib/notion/protestMusic.repo";
+import { getProtestMusicArtistsCached } from "@/lib/notion/protestMusic.repo";
 import { getUnifiedArchivePage } from "@/lib/feeds/unifiedArchive.service";
 import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
+import { loadTelescreenArchiveDeps } from "@/lib/telescreen/loadArchiveDeps";
+import { timeAsync } from "@/lib/ops/perfTiming";
 
 import VoicesArchiveClient from "./VoicesArchiveClient";
 
@@ -11,20 +13,26 @@ export default async function VoicesArchiveContent({
   currentMode = null,
   currentArtist = null,
 }) {
-  // Get all voices for filter dropdown (only enabled ones with feedUrl)
-  const voices = (await getAllVoicesCached()).sort((a, b) => a.title.localeCompare(b.title));
+  const deps = await timeAsync("telescreen-archive", () =>
+    loadTelescreenArchiveDeps({
+      loadVoices: () => getAllVoicesCached(),
+      loadArtists: () => getProtestMusicArtistsCached(),
+      loadArchive: () => getUnifiedArchivePage(1, VOICES_ARCHIVE_PAGE_SIZE, filters),
+    })
+  );
 
-  const artists = await getProtestMusicArtists({ limit: 400 });
+  if (deps.voicesFailed) console.warn("[telescreen] voices directory failed");
+  if (deps.artistsFailed) console.warn("[telescreen] protest music artists failed");
 
-  // Fetch the first page of archive items
-  const { items, hasMore } = await getUnifiedArchivePage(1, VOICES_ARCHIVE_PAGE_SIZE, filters);
+  const voices = [...deps.voices].sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
+  const { items, hasMore } = deps.archive;
 
   return (
     <VoicesArchiveClient
       initialItems={items}
       initialHasMore={hasMore}
       voices={voices}
-      artists={artists}
+      artists={deps.artists}
       currentVoice={currentVoice}
       currentMode={currentMode}
       currentArtist={currentArtist}

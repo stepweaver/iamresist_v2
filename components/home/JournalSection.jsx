@@ -2,6 +2,22 @@ import JournalCard from '@/components/journal/JournalCard';
 import { getRecentJournalEntries } from '@/lib/journal';
 import Link from 'next/link';
 
+export function JournalSectionSkeleton() {
+  return (
+    <section className="mb-8 sm:mb-12" role="status" aria-label="Loading journal">
+      <div className="flex items-center justify-between mb-4">
+        <div className="h-3 w-28 bg-foreground/10 rounded animate-pulse" />
+        <div className="h-3 w-24 bg-foreground/10 rounded animate-pulse" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-40 border border-border bg-foreground/5 animate-pulse" />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default async function JournalSection({ limit = 1 }) {
   const entries = await getRecentJournalEntries(limit);
 

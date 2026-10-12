@@ -70,6 +70,56 @@ describe('homepage voices pool', () => {
     const { getHomepageVoicesPool } = await import('@/lib/voices');
     const items = await getHomepageVoicesPool();
 
-    expect(items.map((item) => item.id)).toEqual(['voice-b-new', 'voice-a-old']);
+    expect(items.map((item: { id: string }) => item.id)).toEqual(['voice-b-new', 'voice-a-old']);
+  });
+
+  it('does not cache a total upstream failure and replays the last good pool', async () => {
+    vi.resetModules();
+
+    vi.doMock('next/cache', () => ({
+      unstable_cache: (cb: unknown) => cb,
+    }));
+
+    let fail = false;
+    vi.doMock('@/lib/notion/voices.repo', () => ({
+      getAllVoicesCached: vi.fn(async () => [
+        {
+          id: 'voice-a',
+          slug: 'voice-a',
+          title: 'Voice A',
+          homeUrl: null,
+          platform: 'YouTube',
+          feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=abc',
+        },
+      ]),
+      getVoiceBySlug: vi.fn(),
+    }));
+
+    vi.doMock('@/lib/feeds/rss', () => ({
+      fetchFeedItemsWithMeta: vi.fn(async () => {
+        if (fail) return { ok: false, reason: 'http_404', items: [] };
+        return {
+          ok: true,
+          reason: null,
+          items: [
+            {
+              id: 'voice-a-post',
+              sourceId: 'voice-a-post',
+              title: 'Known post',
+              url: 'https://www.youtube.com/watch?v=abcdefghijk',
+              publishedAt: '2026-04-18T09:00:00.000Z',
+            },
+          ],
+        };
+      }),
+    }));
+
+    const { getHomepageVoicesPool } = await import('@/lib/voices');
+    const first = await getHomepageVoicesPool();
+    expect(first.map((item: { id: string }) => item.id)).toEqual(['voice-a-post']);
+
+    fail = true;
+    const second = await getHomepageVoicesPool();
+    expect(second.map((item: { id: string }) => item.id)).toEqual(['voice-a-post']);
   });
 });

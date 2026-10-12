@@ -5,11 +5,69 @@ import CurrentlyReadingCardSkeleton from '@/components/home/CurrentlyReadingCard
 import HomeLiveBriefingSection from '@/components/home/HomeLiveBriefingSection';
 import VoicesFeedSection from '@/components/voices/VoicesFeedSection';
 import ProtestMusicSection from '@/components/home/ProtestMusicSection';
-import { getHomepagePayload } from '@/lib/feeds/homepagePayload.service';
+import {
+  HomeLiveBriefingSkeleton,
+  HomeProtestMusicSkeleton,
+  HomeTelescreenSkeleton,
+} from '@/components/home/HomeFeedSkeleton';
+import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
+import { getHomeLiveBriefing } from '@/lib/feeds/homepageBriefing.service';
+import { getRecentProtestMusicItemsWithFallback } from '@/lib/feeds/protestMusicFeed.service';
+import { isUpstreamFailure } from '@/lib/feeds/upstreamResult';
+import { timeAsync } from '@/lib/ops/perfTiming';
 
-export default async function HomeFeed() {
-  const { feedItems, protestMusicItems, briefing } = await getHomepagePayload();
+export const TELESCREEN_SECTION_CLASS = 'order-1 mb-6 sm:mb-8 lg:order-2';
 
+export async function HomeLiveBriefingSlot() {
+  try {
+    const briefing = await timeAsync('homepage-section:live-briefing', () => getHomeLiveBriefing());
+    return <HomeLiveBriefingSection briefing={briefing} />;
+  } catch (err) {
+    if (!isUpstreamFailure(err)) {
+      console.warn('[homepage-section:live-briefing] failed');
+    }
+    return null;
+  }
+}
+
+export async function HomeTelescreenSlot() {
+  try {
+    const feedItems = await timeAsync('homepage-section:telescreen', () => getHomepageIntelFeed());
+    if (!feedItems?.length) return null;
+
+    return (
+      <div className={TELESCREEN_SECTION_CLASS}>
+        <VoicesFeedSection
+          items={feedItems}
+          title="Telescreen"
+          showViewAll={true}
+          description="Commentary and media — how people are framing events, not the same pool as the live briefing desk."
+        />
+      </div>
+    );
+  } catch (err) {
+    if (!isUpstreamFailure(err)) {
+      console.warn('[homepage-section:telescreen] failed');
+    }
+    return null;
+  }
+}
+
+export async function HomeProtestMusicSlot() {
+  try {
+    const items = await timeAsync('homepage-section:protest-music', () =>
+      getRecentProtestMusicItemsWithFallback(),
+    );
+    return <ProtestMusicSection items={items || []} />;
+  } catch (err) {
+    if (!isUpstreamFailure(err)) {
+      console.warn('[homepage-section:protest-music] failed');
+    }
+    return null;
+  }
+}
+
+export default function HomeFeed() {
   return (
     <div className="w-full max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-4 sm:py-6">
       <ShopPromoSection />
@@ -20,22 +78,18 @@ export default async function HomeFeed() {
 
       <div className="flex flex-col">
         <div className="order-2 lg:order-1">
-          <HomeLiveBriefingSection briefing={briefing} />
+          <Suspense fallback={<HomeLiveBriefingSkeleton />}>
+            <HomeLiveBriefingSlot />
+          </Suspense>
         </div>
-
-        {feedItems?.length > 0 && (
-          <div className="order-1 mb-6 sm:mb-8 lg:order-2">
-            <VoicesFeedSection
-              items={feedItems}
-              title="Telescreen"
-              showViewAll={true}
-              description="Commentary and media — how people are framing events, not the same pool as the live briefing desk."
-            />
-          </div>
-        )}
+        <Suspense fallback={<HomeTelescreenSkeleton className={TELESCREEN_SECTION_CLASS} />}>
+          <HomeTelescreenSlot />
+        </Suspense>
       </div>
 
-      <ProtestMusicSection items={protestMusicItems} />
+      <Suspense fallback={<HomeProtestMusicSkeleton />}>
+        <HomeProtestMusicSlot />
+      </Suspense>
     </div>
   );
 }

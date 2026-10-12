@@ -4,6 +4,7 @@ import {
   isYoutubeRssUrl,
   YOUTUBE_RSS_RETRY_DELAYS_MS,
 } from '@/lib/feeds/rss.js';
+import { clearLastKnownGoodForTests } from '@/lib/feeds/lastKnownGood.js';
 
 const YT_CHANNEL_RSS =
   'https://www.youtube.com/feeds/videos.xml?channel_id=UCvixJtaXuNdMPUGdOPcY8Ag';
@@ -57,6 +58,7 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    clearLastKnownGoodForTests();
   });
 
   it('retries a YouTube 404 then succeeds', async () => {
@@ -167,5 +169,49 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       next: { revalidate: 300, tags: ['theme-memory-feed'] },
     });
+  });
+
+  it('keeps a successful empty feed distinct from a failed request', async () => {
+    const emptyFeed = `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>`;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(emptyFeed, { status: 200 })));
+    const result = await fetchFeedItemsWithMeta(NON_YT_RSS, { sleep: mockSleep() });
+    expect(result).toEqual({ items: [], ok: true, reason: null });
+  });
+
+  it('serves the last good YouTube items without the retry delay when a snapshot exists', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okFeedResponse()));
+    await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, { sleep: mockSleep() });
+
+    const fetchMock = vi.fn().mockResolvedValue(statusResponse(404));
+    vi.stubGlobal('fetch', fetchMock);
+    const sleep = mockSleep();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, {
+      sleep,
+      onFailure: 'snapshot',
+      youtubeRetry: 'if-no-snapshot',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.stale).toBe(true);
+    expect(result.reason).toBe('upstream_failed_used_snapshot');
+    expect(result.items.map((item: { title?: string }) => item.title)).toEqual(['Test episode']);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not substitute a snapshot unless the caller opts in', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okFeedResponse()));
+    await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, { sleep: mockSleep() });
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(statusResponse(404)));
+    const sleep = mockSleep();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, { sleep });
+    expect(result.ok).toBe(false);
+    expect(result.items).toEqual([]);
+    expect(result.reason).toBe('http_404');
   });
 });

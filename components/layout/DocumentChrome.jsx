@@ -1,7 +1,6 @@
-export default function DocumentChrome({ children, className = '' }) {
-  const now = new Date();
-  const timestamp = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+import MastheadClock from '@/components/layout/MastheadClock';
 
+export default function DocumentChrome({ children, className = '' }) {
   return (
     <div className={`paper min-h-dvh pt-16 sm:pt-20 ${className}`}>
       {/* Metadata Banner (sticky, below nav) - mono for DOC ID, timestamps */}
@@ -10,7 +9,7 @@ export default function DocumentChrome({ children, className = '' }) {
       >
         <div className="flex items-baseline justify-between gap-3 font-mono px-1 sm:px-2 py-1.5 text-[10px] sm:text-xs tracking-widest text-foreground/80">
           <span className="min-w-0 truncate">DOC ID: IAMR-BRIEF</span>
-          <span className="shrink-0 text-right text-hud-dim tabular-nums">{timestamp}</span>
+          <MastheadClock />
         </div>
       </div>
 
