@@ -9,6 +9,7 @@ import { getNewswireStories } from '@/lib/newswire';
 import { getHomepageVoicesPool } from '@/lib/voices';
 import { fetchIntelSourcesRegistry, intelDbConfigured } from '@/lib/intel/db';
 import { getAllVoicesCached } from '@/lib/notion/voices.repo';
+import { isUpstreamFailure } from '@/lib/feeds/upstreamResult';
 import type { AuditAction, FeedAuditMatchShape, FeedImageAuditRow } from '@/lib/feeds/feedImageAudit.shared';
 import { buildFeedImageAuditRow } from '@/lib/feeds/feedImageAudit.shared';
 
@@ -264,7 +265,13 @@ async function buildIntelSection(liveDeskPerLane: number) {
 
 async function buildVoicesSection(voicesSample: number) {
   const pool = ((await getHomepageVoicesPool()) as AuditedVoiceItem[]).slice(0, voicesSample);
-  const voices = ((await getAllVoicesCached({ limit: 16 })) as AuditedVoiceRecord[]).slice(0, 16);
+  let voices: AuditedVoiceRecord[] = [];
+  try {
+    voices = ((await getAllVoicesCached({ limit: 16 })) as AuditedVoiceRecord[]).slice(0, 16);
+  } catch (err) {
+    if (!isUpstreamFailure(err)) throw err;
+    voices = [];
+  }
   const voiceBySlug = new Map(voices.map((voice) => [voice.slug, voice]));
   const missingItems = pool.filter((item) => !item.image);
 

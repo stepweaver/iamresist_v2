@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { upstreamFailure } from '@/lib/feeds/upstreamResult';
+import { createFailureCooldown, upstreamFailure } from '@/lib/feeds/upstreamResult';
 import {
   SHARED_FAILURE_BACKOFF_MS,
   assertUpstreamAvailable,
@@ -287,5 +287,23 @@ describe('aggregate failure versus empty content', () => {
     fail = true;
     const duringOutage = await getUnifiedArchivePage(1, 20, {});
     expect(duringOutage.items.map((item: { id: string }) => item.id)).toEqual(['voice-1']);
+  });
+
+  it('keeps a tripped local cooldown for the rest of the 60 second window after the shared marker is cleared', async () => {
+    const shared = createSharedFailureMemory();
+    configureSharedFailureCacheForTests(shared);
+    const cooldown = createFailureCooldown();
+    const now = 10_000;
+    await noteUpstreamFailure(cooldown, 'homepage-intel', { now, partial: [{ id: 'partial' }] });
+    shared.invalidate('homepage-intel');
+    clearProcessFailureMirrorForTests();
+
+    await expect(assertUpstreamAvailable(cooldown, 'homepage-intel', now + 10)).rejects.toMatchObject({
+      code: 'UPSTREAM_FAILED',
+    });
+    await expect(assertUpstreamAvailable(createFailureCooldown(), 'homepage-intel', now + 10)).resolves.toBeUndefined();
+    await expect(
+      assertUpstreamAvailable(cooldown, 'homepage-intel', now + SHARED_FAILURE_BACKOFF_MS),
+    ).resolves.toBeUndefined();
   });
 });
