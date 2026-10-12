@@ -14,11 +14,8 @@
   --journal-grid: rgba(169, 182, 198, 0.045);
   --journal-link-hover: #ffd0d0;
   --journal-rule: rgba(240, 68, 68, 0.45);
-  --journal-feature-border: rgba(240, 68, 68, 0.38);
-  --journal-feature-bg:
-    linear-gradient(115deg, rgba(240, 68, 68, 0.18), transparent 46%),
-    radial-gradient(circle at 86% 48%, rgba(240, 68, 68, 0.16), transparent 34%),
-    linear-gradient(180deg, #161016 0%, #100c10 100%);
+  --journal-feature-border: var(--journal-border);
+  --journal-feature-bg: var(--journal-panel);
   --journal-excerpt: #ddd9d2;
   --journal-quote: #e4e0d8;
   --journal-placeholder: #93a0b0;
@@ -77,10 +74,8 @@
   --journal-grid: rgba(185, 28, 36, 0.045);
   --journal-link-hover: var(--antifa-red-dark);
   --journal-rule: rgba(185, 28, 36, 0.55);
-  --journal-feature-border: var(--antifa-red);
-  --journal-feature-bg:
-    linear-gradient(115deg, rgba(185, 28, 36, 0.1), transparent 46%),
-    linear-gradient(180deg, var(--reading) 0%, var(--background) 100%);
+  --journal-feature-border: var(--journal-border);
+  --journal-feature-bg: var(--journal-panel);
   --journal-excerpt: #2a2624;
   --journal-quote: #2a2624;
   --journal-placeholder: #5c554e;
@@ -95,10 +90,6 @@
 
 :root.light .journal-index__intro {
   padding-bottom: 0.75rem;
-}
-
-:root.light .journal-feature {
-  border-width: 1px 1px 1px 4px;
 }
 
 :root.light .journal-search button {
