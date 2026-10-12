@@ -94,6 +94,18 @@
   line-height: 1.45;
 }
 
+.statement-signoff {
+  display: inline-block;
+  margin: 2.5rem 0 0;
+  padding-bottom: 0.2rem;
+  border-bottom: 2px solid var(--statement-accent);
+  color: var(--statement-accent);
+  font-family: var(--font-mono), ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 1.25rem;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+}
+
 @media (min-width: 720px) {
   .statement {
     padding: 3.25rem 0.5rem 5.5rem;

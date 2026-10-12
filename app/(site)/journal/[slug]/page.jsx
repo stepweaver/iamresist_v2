@@ -106,7 +106,7 @@ export default async function JournalEntryPage({ params }) {
           <NotionBlocksBody blocks={blocks} variant="journal" />
         ) : (
           <p className="journal-empty-copy">
-            [ NO BODY BLOCKS ] — The entry is published in Notion but has no
+            [ NO BODY BLOCKS ] - The entry is published in Notion but has no
             block content yet, or blocks could not be loaded.
           </p>
         )}

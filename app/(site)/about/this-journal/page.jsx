@@ -98,6 +98,7 @@ export default function AboutThisJournalPage() {
           </p>
         ))}
       </article>
+      <p className="statement-signoff">[RESIST]</p>
     </main>
   );
 }
