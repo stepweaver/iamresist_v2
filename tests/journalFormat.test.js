@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  compareJournalEntries,
   filterJournalRecords,
   journalDates,
   journalLeadExcerpt,
@@ -19,14 +20,44 @@ describe('journalDates', () => {
     expect(dates.showUpdated).toBe(false);
   });
 
-  it('shows an update only when the edit falls on a later calendar day', () => {
+  it('does not treat a Notion page open as an update', () => {
     const dates = journalDates({
-      date: '2026-10-01',
-      lastEditedTime: '2026-10-08T12:00:00.000Z',
+      date: '2026-01-05',
+      lastEditedTime: '2026-10-12T15:00:00.000Z',
+    });
+
+    expect(dates.showUpdated).toBe(false);
+    expect(dates.updatedLabel).toBe('');
+  });
+
+  it('shows an update only when the body was edited on a later calendar day', () => {
+    const dates = journalDates({
+      date: '2026-01-05',
+      lastEditedTime: '2026-10-12T15:00:00.000Z',
+      bodyEditedTime: '2026-10-08T12:00:00.000Z',
     });
 
     expect(dates.showUpdated).toBe(true);
     expect(dates.updatedLabel).toBe('08-OCT-2026');
+  });
+});
+
+describe('compareJournalEntries', () => {
+  it('ranks the newest publication first, even if an older page was opened later', () => {
+    const opened = {
+      title: 'America is Dead',
+      date: '2026-01-05',
+      lastEditedTime: '2026-10-12T15:00:00.000Z',
+    };
+    const newest = {
+      title: 'Justice in the Open',
+      date: '2026-10-12',
+    };
+
+    expect([opened, newest].sort(compareJournalEntries).map((entry) => entry.title)).toEqual([
+      'Justice in the Open',
+      'America is Dead',
+    ]);
   });
 });
 
