@@ -4,7 +4,6 @@ export default function ArchiveHero() {
       <div className="journal-hero__copy-block">
         <p className="journal-kicker">
           <span>I AM [RESIST]</span>
-          <span className="journal-kicker__mark" aria-hidden="true" />
           <span>Journal</span>
         </p>
         <h1 className="journal-hero__title">The Resistance Archive</h1>

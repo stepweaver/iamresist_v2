@@ -137,12 +137,6 @@
   color: var(--journal-muted);
 }
 
-.journal-kicker__mark {
-  width: 1.5rem;
-  height: 1px;
-  background: var(--journal-accent);
-}
-
 .journal-hero {
   display: grid;
   gap: 2rem;
