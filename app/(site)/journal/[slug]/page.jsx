@@ -7,7 +7,6 @@ import {
   getJournalEntryBySlug,
   getJournalEntryById,
   getAllJournalEntries,
-  journalEntryBodyEditedTime,
 } from '@/lib/journal';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { buildPageMetadata, defaultOgImage } from '@/lib/metadata';
@@ -77,8 +76,7 @@ export default async function JournalEntryPage({ params }) {
   const blocks = await getCachedPageBlocks(entry.id);
   const canonicalPath = getJournalCanonicalPath(entry);
   const description = buildJournalDescription(entry, blocks);
-  const bodyEditedTime = await journalEntryBodyEditedTime(entry, blocks);
-  const dates = journalDates({ ...entry, bodyEditedTime });
+  const dates = journalDates(entry);
   const schema = [
     buildBreadcrumbListSchema([
       { name: 'Home', url: '/' },
@@ -91,7 +89,7 @@ export default async function JournalEntryPage({ params }) {
       url: canonicalPath,
       image: defaultOgImage,
       datePublished: entry.date || entry.createdTime || undefined,
-      dateModified: dates.showUpdated ? bodyEditedTime || undefined : entry.date || entry.createdTime || undefined,
+      dateModified: entry.lastEditedTime || undefined,
     }),
   ];
 

@@ -2,7 +2,7 @@ import ArchiveHero from '@/components/journal/ArchiveHero';
 import FeaturedRecord from '@/components/journal/FeaturedRecord';
 import JournalIndex from '@/components/journal/JournalIndex';
 import { journalLeadExcerpt, toJournalRecord } from '@/components/journal/journalFormat';
-import { getAllJournalEntries, getJournalIndexPayload, presentJournalEntries } from '@/lib/journal';
+import { getAllJournalEntries, getJournalIndexPayload } from '@/lib/journal';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { buildPageMetadata } from '@/lib/metadata';
 
@@ -27,8 +27,6 @@ export default async function JournalPage() {
       searchCoversArchive = true;
     }
   }
-
-  entries = await presentJournalEntries(entries);
 
   const featuredEntry = entries[0];
   let featuredExcerpt = '';

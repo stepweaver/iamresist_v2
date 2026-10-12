@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  compareJournalEntries,
   filterJournalRecords,
   journalDates,
   journalLeadExcerpt,
@@ -20,56 +19,14 @@ describe('journalDates', () => {
     expect(dates.showUpdated).toBe(false);
   });
 
-  it('does not treat a Notion page open as an update', () => {
+  it('shows an update only when the edit falls on a later calendar day', () => {
     const dates = journalDates({
-      date: '2026-01-05',
-      lastEditedTime: '2026-10-12T15:00:00.000Z',
-    });
-
-    expect(dates.showUpdated).toBe(false);
-    expect(dates.updatedLabel).toBe('');
-  });
-
-  it('shows an update only when the body was edited on a later calendar day', () => {
-    const dates = journalDates({
-      date: '2026-01-05',
-      lastEditedTime: '2026-10-12T15:00:00.000Z',
-      bodyEditedTime: '2026-10-08T12:00:00.000Z',
+      date: '2026-10-01',
+      lastEditedTime: '2026-10-08T12:00:00.000Z',
     });
 
     expect(dates.showUpdated).toBe(true);
     expect(dates.updatedLabel).toBe('08-OCT-2026');
-    expect(dates.updatedDateTime).toBe('2026-10-08');
-  });
-
-  it('hides a body edit that falls on the publication day', () => {
-    const dates = journalDates({
-      date: '2026-10-10',
-      bodyEditedTime: '2026-10-10T18:00:00.000Z',
-    });
-
-    expect(dates.showUpdated).toBe(false);
-  });
-});
-
-describe('compareJournalEntries', () => {
-  it('orders by publication date, so opening a page does not promote it', () => {
-    const opened = {
-      title: 'America is Dead',
-      date: '2026-01-05',
-      lastEditedTime: '2026-10-12T15:00:00.000Z',
-    };
-    const publishedToday = {
-      title: 'Justice in the Open',
-      date: '2026-10-12',
-      lastEditedTime: '2026-10-12T02:00:00.000Z',
-    };
-
-    expect(compareJournalEntries(opened, publishedToday)).toBeGreaterThan(0);
-    expect([opened, publishedToday].sort(compareJournalEntries).map((entry) => entry.title)).toEqual([
-      'Justice in the Open',
-      'America is Dead',
-    ]);
   });
 });
 

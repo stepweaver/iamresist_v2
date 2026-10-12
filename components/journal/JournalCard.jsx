@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { journalDates } from '@/components/journal/journalFormat';
 import { formatDate, formatJournalMetaDate } from '@/lib/utils/date';
 
 function calendarYmd(value) {
@@ -26,10 +25,14 @@ export default function JournalCard({ entry }) {
       : formatDate(dateRaw)
     : null;
   const primaryKey = primaryYmd(entry);
-  const dates = journalDates(entry);
-  const showUpdated = dates.showUpdated;
-  const updatedLabel = showUpdated ? dates.updatedLabel : null;
-  const editedKey = dates.updatedDateTime;
+  const editedKey = entry.lastEditedTime
+    ? String(entry.lastEditedTime).slice(0, 10)
+    : '';
+  const showUpdated =
+    Boolean(primaryKey && editedKey && editedKey > primaryKey && entry.lastEditedTime);
+  const updatedLabel = showUpdated
+    ? formatJournalMetaDate(entry.lastEditedTime)
+    : null;
   const excerpt = entry.excerpt;
   const author = entry.author;
   const legacyCategory = entry.category;
@@ -74,7 +77,7 @@ export default function JournalCard({ entry }) {
                   <time
                     className="font-mono text-[10px] text-primary/90 tracking-wider uppercase"
                     dateTime={editedKey}
-                    title="Body revised after publication"
+                    title="Last edited in Notion"
                   >
                     Updated: {updatedLabel}
                   </time>
