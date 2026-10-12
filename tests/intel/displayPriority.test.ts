@@ -258,7 +258,6 @@ describe('off-topic mission leakage', () => {
   it('suppresses obvious entertainment-only wire items too', () => {
     const profile = computeRelevanceProfile(
       baseItem({
-        id: 'ent-1',
         canonicalUrl: 'https://example.test/ent-1',
         title: 'Celebrity fashion dominates the red carpet',
         summary: 'Streaming gossip and wellness chatter lead the day',

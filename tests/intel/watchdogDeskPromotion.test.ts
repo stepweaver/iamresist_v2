@@ -70,6 +70,11 @@ describe('applyAnecdotalIndicatorClassCaps', () => {
         displayPriority: 90,
         displayExplanations: [],
         indicator_class: 'anecdotal',
+        sourceSlug: 'watchdog',
+        provenanceClass: 'PRIMARY',
+        missionTags: [],
+        clusterKeys: {},
+        publishedAt: '2026-04-17T00:00:00.000Z',
       },
     ];
     const out = applyAnecdotalIndicatorClassCaps(items);

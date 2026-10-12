@@ -2,6 +2,15 @@ import Link from 'next/link';
 import VoicesGridWithPlayerClient from '@/components/voices/VoicesGridWithPlayerClient';
 import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 
+/**
+ * @param {{
+ *   limit?: number,
+ *   title?: string,
+ *   showViewAll?: boolean,
+ *   items?: Array<{ id?: string, title?: string }>,
+ *   description?: string | null,
+ * }} [props]
+ */
 export default async function VoicesFeedSection({
   limit = 8,
   title = 'Latest Voices',

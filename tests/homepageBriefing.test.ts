@@ -219,6 +219,18 @@ describe('Prompt 3 homepage merge behavior', () => {
         provenanceClass,
         promotionReasons: promotionReasons ?? [],
         promotionEventType: promotionEventType ?? 'generic_report',
+        globalPromotion: null as null | {
+          contributions?: { code: string; delta?: number; message?: string }[];
+          creatorConvergence?: {
+            active?: boolean;
+            itemCount?: number;
+            sourceCount?: number;
+            supportingItemCount?: number;
+            supportingLaneCount?: number;
+            sharedTokens?: string[];
+            latestHours?: number;
+          };
+        },
       },
     };
   }
@@ -492,7 +504,7 @@ describe('Prompt 3 homepage merge behavior', () => {
     expect(out[0].briefingExplain?.creatorConvergence?.active).toBe(true);
     expect(
       out[0].briefingExplain?.promotionContributions?.some(
-        (contribution) => contribution.code === 'trusted_creator_convergence',
+        (contribution: { code?: string }) => contribution.code === 'trusted_creator_convergence',
       ),
     ).toBe(true);
 

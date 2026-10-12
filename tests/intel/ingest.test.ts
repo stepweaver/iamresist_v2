@@ -8,7 +8,7 @@ vi.mock('@/lib/intel/fetchText', () => ({
   fetchTextNoStore: vi.fn(),
 }));
 
-function rssCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig {
+function rssCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig & { endpointUrl: string } {
   return {
     slug: 'wh-news',
     name: 'Test WH',
@@ -17,7 +17,6 @@ function rssCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig {
     deskLane: 'osint',
     sourceFamily: 'general',
     contentUseMode: 'feed_summary',
-    endpointUrl: 'https://example.com/feed',
     isEnabled: true,
     purpose: 'p',
     trustedFor: 't',
@@ -29,6 +28,7 @@ function rssCfg(over: Partial<SignalSourceConfig> = {}): SignalSourceConfig {
     heroEligibilityMode: 'demote_low_substance',
     trustWarningText: 'Test trust note',
     ...over,
+    endpointUrl: over.endpointUrl || 'https://example.com/feed',
   };
 }
 
@@ -56,6 +56,7 @@ describe('ingestOneSource', () => {
       )}</channel></rss>`,
       finalUrl: 'https://example.com/feed',
       contentType: 'application/rss+xml',
+      redirects: [],
     });
 
     const out = await ingestOneSource(rssCfg({ slug: 'wh-news' }));
@@ -72,6 +73,7 @@ describe('ingestOneSource', () => {
       text: '<?xml version="1.0"?><rss version="2.0"><channel><title>T</title></channel></rss>',
       finalUrl: 'https://example.com/feed',
       contentType: 'application/rss+xml',
+      redirects: [],
     });
     const out = await ingestOneSource(rssCfg());
     expect(out.status).toBe('partial');
@@ -86,6 +88,7 @@ describe('ingestOneSource', () => {
       text: 'nope',
       finalUrl: 'https://example.com/x',
       contentType: 'text/plain',
+      redirects: [],
     });
     const out = await ingestOneSource(rssCfg({ endpointUrl: 'https://example.com/x' }));
     expect(out.status).toBe('partial');
@@ -102,6 +105,7 @@ describe('ingestOneSource', () => {
       </item></channel></rss>`,
       finalUrl: 'https://example.com/feed',
       contentType: 'application/rss+xml',
+      redirects: [],
     });
     const out = await ingestOneSource(rssCfg({ contentUseMode: 'metadata_only' }));
     expect(out.status).toBe('success');
@@ -121,6 +125,7 @@ describe('ingestOneSource', () => {
       </item></channel></rss>`,
       finalUrl: 'https://example.com/feed',
       contentType: 'application/rss+xml',
+      redirects: [],
     });
     const out = await ingestOneSource(rssCfg({ contentUseMode: 'preview_and_link' }));
     expect(out.status).toBe('success');
@@ -135,6 +140,7 @@ describe('ingestOneSource', () => {
       text: '<html><title>blocked</title><body>cf challenge</body></html>',
       finalUrl: 'https://example.com/feed',
       contentType: 'text/html; charset=UTF-8',
+      redirects: [],
     });
     const out = await ingestOneSource(rssCfg());
     expect(out.status).toBe('failed');
@@ -152,6 +158,7 @@ describe('ingestOneSource', () => {
       </item></channel></rss>`,
       finalUrl: 'https://example.com/feed',
       contentType: 'application/rss+xml',
+      redirects: [],
     });
     const out = await ingestOneSource(rssCfg());
     expect(out.status).toBe('success');
@@ -177,6 +184,7 @@ describe('ingestOneSource', () => {
         </rss>`,
       finalUrl: 'https://example.com/podcast.xml',
       contentType: 'application/rss+xml',
+      redirects: [],
     });
 
     const out = await ingestOneSource(
@@ -202,6 +210,7 @@ describe('ingestOneSource', () => {
       </channel></rss>`,
       finalUrl: 'https://example.com/feed',
       contentType: 'application/rss+xml',
+      redirects: [],
     });
 
     const out = await ingestOneSource(rssCfg({ slug: 'wh-news', trustWarningMode: 'none' }));

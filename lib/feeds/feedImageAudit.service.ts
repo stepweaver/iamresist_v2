@@ -14,6 +14,26 @@ import { buildFeedImageAuditRow } from '@/lib/feeds/feedImageAudit.shared';
 
 type ArticleProbe = Awaited<ReturnType<typeof inspectArticleImageCandidates>>;
 
+type AuditedNewswireStory = {
+  image?: string | null;
+  title?: string;
+  url?: string;
+  source?: string;
+  sourceSlug?: string;
+};
+
+type AuditedVoiceItem = {
+  image?: string | null;
+  title?: string;
+  url?: string;
+  voice?: { slug?: string; title?: string };
+};
+
+type AuditedVoiceRecord = {
+  slug?: string;
+  feedUrl?: string;
+};
+
 function isAuditableRssSource(
   source: { slug: string; endpoint_url?: string | null; fetch_kind?: string } | undefined,
 ): source is { slug: string; endpoint_url: string; fetch_kind: string } {
@@ -110,7 +130,7 @@ async function probeArticles(rows: Array<{ canonicalUrl: string }>) {
 }
 
 async function buildNewswireSection(sampleLimit: number) {
-  const stories = (await getNewswireStories()).slice(0, sampleLimit);
+  const stories = ((await getNewswireStories()) as AuditedNewswireStory[]).slice(0, sampleLimit);
   const feedMaps = await Promise.all(
     NEWSWIRE_SOURCES.filter((source) => source.automation === 'rss' && source.status === 'active').map(
       async (source) => {
@@ -131,7 +151,7 @@ async function buildNewswireSection(sampleLimit: number) {
   );
   const feedBySource = new Map(feedMaps.map((entry) => [entry.slug, entry.map]));
   const missingStories = stories.filter((story) => !story.image);
-  const probes = await probeArticles(missingStories.map((story) => ({ canonicalUrl: story.url })));
+  const probes = await probeArticles(missingStories.map((story) => ({ canonicalUrl: story.url || '' })));
 
   const items = missingStories.map((story) =>
     buildFeedImageAuditRow({
@@ -146,7 +166,7 @@ async function buildNewswireSection(sampleLimit: number) {
         feedBySource.get(story.sourceSlug || '')?.get(normalizeUrlForMatch(story.url)) ?? null,
       articleProbe:
         probes.get(normalizeUrlForMatch(story.url)) ?? {
-          articleUrl: story.url,
+          articleUrl: story.url || null,
           fetchOk: false,
           fetchStatus: null,
           fetchErrorCategory: 'not_probed',
@@ -243,14 +263,14 @@ async function buildIntelSection(liveDeskPerLane: number) {
 }
 
 async function buildVoicesSection(voicesSample: number) {
-  const pool = (await getHomepageVoicesPool()).slice(0, voicesSample);
-  const voices = (await getAllVoicesCached({ limit: 16 })).slice(0, 16);
+  const pool = ((await getHomepageVoicesPool()) as AuditedVoiceItem[]).slice(0, voicesSample);
+  const voices = ((await getAllVoicesCached({ limit: 16 })) as AuditedVoiceRecord[]).slice(0, 16);
   const voiceBySlug = new Map(voices.map((voice) => [voice.slug, voice]));
   const missingItems = pool.filter((item) => !item.image);
 
   const feedByVoice = new Map<string, Map<string, FeedAuditMatchShape>>();
   await Promise.all(
-    [...new Set(missingItems.map((item) => item.voice?.slug).filter(Boolean))].map(async (slug) => {
+    [...new Set(missingItems.map((item) => item.voice?.slug).filter((slug): slug is string => Boolean(slug)))].map(async (slug) => {
       const voice = voiceBySlug.get(slug);
       if (!voice?.feedUrl) return;
       const items = await fetchFeedItemsForAudit(voice.feedUrl, {
@@ -261,7 +281,7 @@ async function buildVoicesSection(voicesSample: number) {
     }),
   );
 
-  const probes = await probeArticles(missingItems.map((item) => ({ canonicalUrl: item.url })));
+  const probes = await probeArticles(missingItems.map((item) => ({ canonicalUrl: item.url || '' })));
 
   const items = missingItems.map((item) =>
     buildFeedImageAuditRow({
@@ -276,7 +296,7 @@ async function buildVoicesSection(voicesSample: number) {
         feedByVoice.get(item.voice?.slug || '')?.get(normalizeUrlForMatch(item.url)) ?? null,
       articleProbe:
         probes.get(normalizeUrlForMatch(item.url)) ?? {
-          articleUrl: item.url,
+          articleUrl: item.url || null,
           fetchOk: false,
           fetchStatus: null,
           fetchErrorCategory: 'not_probed',
@@ -357,7 +377,8 @@ export async function getFeedImageAudit(opts?: {
   } satisfies Record<AuditAction, number>;
 
   for (const row of allRows) {
-    byAction[row.recommendedAction] += 1;
+    const action = row.recommendedAction;
+    if (action in byAction) byAction[action] += 1;
   }
 
   return {

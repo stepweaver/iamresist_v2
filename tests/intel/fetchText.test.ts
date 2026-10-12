@@ -20,8 +20,7 @@ describe('fetchTextNoStore', () => {
       );
 
     const oldFetch = globalThis.fetch;
-    // @ts-expect-error test override
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as typeof fetch;
     try {
       await expect(fetchTextNoStore('https://example.com/a')).rejects.toThrow(/redirect loop/i);
     } finally {
@@ -46,8 +45,7 @@ describe('fetchTextNoStore', () => {
       );
 
     const oldFetch = globalThis.fetch;
-    // @ts-expect-error test override
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as typeof fetch;
     try {
       try {
         await fetchTextNoStore('https://example.com/a');
@@ -59,7 +57,10 @@ describe('fetchTextNoStore', () => {
             : null;
         expect(Array.isArray(redirects)).toBe(true);
         expect((redirects || []).length).toBeGreaterThanOrEqual(1);
-        expect(String(((redirects || [])[0] || {}).from || '')).toContain('example.com');
+        const first = (redirects || [])[0];
+        const from =
+          first && typeof first === 'object' && 'from' in first ? String((first as { from?: unknown }).from || '') : '';
+        expect(from).toContain('example.com');
       }
     } finally {
       globalThis.fetch = oldFetch;
@@ -74,8 +75,7 @@ describe('fetchTextNoStore', () => {
       .mockResolvedValueOnce(new Response('', { status: 302, headers: { location: '/d' } }));
 
     const oldFetch = globalThis.fetch;
-    // @ts-expect-error test override
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as typeof fetch;
     try {
       await expect(fetchTextNoStore('https://example.com/a', { maxRedirects: 2 })).rejects.toThrow(
         /redirect count exceeded/i,

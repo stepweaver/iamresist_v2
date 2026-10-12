@@ -272,9 +272,9 @@ export async function loadVoiceCatalogItems(): Promise<CreatorVoiceCatalogItem[]
           limit: VOICE_ITEMS_PER_FEED,
           tags: ['creator-notes-voices', `creator-notes-voice:${optionalText(voice.slug) || 'unknown'}`],
         });
-        const items = Array.isArray(result.items) ? result.items : [];
+        const items = (Array.isArray(result.items) ? result.items : []) as VoiceFeedItem[];
         return items
-          .map((item) => toCatalogItem(item as VoiceFeedItem, voice))
+          .map((item) => toCatalogItem(item, voice))
           .filter((item): item is CreatorVoiceCatalogItem => Boolean(item));
       }),
     ),

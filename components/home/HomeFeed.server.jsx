@@ -23,6 +23,9 @@ export async function HomeLiveBriefingSlot() {
     const briefing = await timeAsync('homepage-section:live-briefing', () => getHomeLiveBriefing());
     return <HomeLiveBriefingSection briefing={briefing} />;
   } catch (err) {
+    if (isUpstreamFailure(err) && Array.isArray(err.fallback) && err.fallback.length > 0) {
+      return <HomeLiveBriefingSection briefing={{ items: err.fallback }} />;
+    }
     if (!isUpstreamFailure(err)) {
       console.warn('[homepage-section:live-briefing] failed');
     }
@@ -32,7 +35,16 @@ export async function HomeLiveBriefingSlot() {
 
 export async function HomeTelescreenSlot() {
   try {
-    const feedItems = await timeAsync('homepage-section:telescreen', () => getHomepageIntelFeed());
+    let feedItems;
+    try {
+      feedItems = await timeAsync('homepage-section:telescreen', () => getHomepageIntelFeed());
+    } catch (err) {
+      if (!isUpstreamFailure(err)) {
+        console.warn('[homepage-section:telescreen] failed');
+        return null;
+      }
+      feedItems = Array.isArray(err.fallback) ? err.fallback : [];
+    }
     if (!feedItems?.length) return null;
 
     return (

@@ -17,6 +17,23 @@ import type { ThemeCandidateItem } from '@/lib/themeMemory/types';
 
 const VOICE_FETCH_CONCURRENCY = 6;
 
+type VoiceRegistryRow = {
+  id?: string;
+  slug?: string;
+  title?: string;
+  homeUrl?: string | null;
+  platform?: string;
+  feedUrl?: string;
+};
+
+type VoiceFeedItem = {
+  id?: string;
+  title?: string;
+  url?: string;
+  publishedAt?: string | null;
+  sourceId?: string | null;
+};
+
 export type VoiceCollectResult = {
   candidates: ThemeCandidateItem[];
   sourcesAttempted: number;
@@ -47,7 +64,7 @@ export async function collectVoiceThemeCandidates(opts: {
     Math.min(50, Number(opts.perVoiceLimit) || THEME_MEMORY_ITEMS_PER_VOICE),
   );
 
-  const voices = await getAllVoices();
+  const voices = (await getAllVoices()) as VoiceRegistryRow[];
   if (!voices.length) {
     return {
       candidates: [],
@@ -65,11 +82,11 @@ export async function collectVoiceThemeCandidates(opts: {
     voices.map((voice) =>
       limiter(async () => {
         const slug = voice.slug || voice.id || 'unknown';
-        const result = await fetchFeedItemsWithMeta(voice.feedUrl, {
+        const result = await fetchFeedItemsWithMeta(voice.feedUrl || '', {
           limit: perVoiceLimit,
           tags: ['theme-memory-feed', `theme-memory-voice:${slug}`],
         });
-        const rawItems = result.items || [];
+        const rawItems = (result.items || []) as VoiceFeedItem[];
         const candidates = dedupeThemeCandidates(
           rawItems
             .map((item) =>

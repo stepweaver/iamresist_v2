@@ -26,6 +26,8 @@ describe('upstream failure versus empty results', () => {
     expect(shouldDiscardBriefingResult({ itemCount: 0, upstreamFailed: true })).toBe(true);
     expect(shouldDiscardBriefingResult({ itemCount: 0, upstreamFailed: false })).toBe(false);
     expect(shouldDiscardBriefingResult({ itemCount: 3, upstreamFailed: true })).toBe(false);
+    expect(shouldDiscardBriefingResult({ itemCount: 3, upstreamFailed: true, newswireFailed: true })).toBe(true);
+    expect(shouldDiscardBriefingResult({ itemCount: 3, newswireFailed: false })).toBe(false);
   });
 
   it('ignores unconfigured desks and flags a total live-read failure', () => {

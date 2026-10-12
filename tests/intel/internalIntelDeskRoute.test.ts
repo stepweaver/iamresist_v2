@@ -12,19 +12,23 @@ vi.mock('@/lib/feeds/liveIntel.service', () => ({
   getLiveIntelDeskDebug,
 }));
 
+function setNodeEnv(value: 'development' | 'production' | 'test' | undefined) {
+  (process.env as { NODE_ENV?: string }).NODE_ENV = value;
+}
+
 describe('internal intel desk route', () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalFlag = process.env.INTERNAL_INTEL_DESK_DEBUG;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NODE_ENV = originalNodeEnv;
+    setNodeEnv(originalNodeEnv);
     if (originalFlag == null) delete process.env.INTERNAL_INTEL_DESK_DEBUG;
     else process.env.INTERNAL_INTEL_DESK_DEBUG = originalFlag;
   });
 
   it('returns 404 when not enabled', async () => {
-    process.env.NODE_ENV = 'production';
+    setNodeEnv('production');
     delete process.env.INTERNAL_INTEL_DESK_DEBUG;
 
     const { GET } = await import('@/app/api/internal/intel-desk/route');
@@ -36,7 +40,7 @@ describe('internal intel desk route', () => {
   });
 
   it('uses osint as the safe default lane in development', async () => {
-    process.env.NODE_ENV = 'development';
+    setNodeEnv('development');
     delete process.env.INTERNAL_INTEL_DESK_DEBUG;
 
     const { GET } = await import('@/app/api/internal/intel-desk/route');
@@ -48,7 +52,7 @@ describe('internal intel desk route', () => {
   });
 
   it('allows explicit lane selection behind the env flag', async () => {
-    process.env.NODE_ENV = 'production';
+    setNodeEnv('production');
     process.env.INTERNAL_INTEL_DESK_DEBUG = '1';
 
     const { GET } = await import('@/app/api/internal/intel-desk/route');

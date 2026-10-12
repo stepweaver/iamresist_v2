@@ -13,23 +13,33 @@ function primaryYmd(entry) {
   return '';
 }
 
+export function journalPageTouchedAfterPublish(entry) {
+  const primaryKey = primaryYmd(entry);
+  const editedKey = entry?.lastEditedTime ? String(entry.lastEditedTime).slice(0, 10) : '';
+  return Boolean(primaryKey && editedKey && editedKey > primaryKey);
+}
+
+export function compareJournalEntries(a, b) {
+  const aKey = primaryYmd(a);
+  const bKey = primaryYmd(b);
+  if (aKey !== bKey) return aKey < bKey ? 1 : -1;
+  const aCreated = String(a?.createdTime || '');
+  const bCreated = String(b?.createdTime || '');
+  if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
+  return String(a?.title || '').localeCompare(String(b?.title || ''));
+}
+
 export function journalDates(entry) {
   const primaryKey = primaryYmd(entry);
-  const editedKey = entry?.lastEditedTime
-    ? String(entry.lastEditedTime).slice(0, 10)
-    : '';
-  const showUpdated = Boolean(
-    primaryKey && editedKey && editedKey > primaryKey && entry.lastEditedTime,
-  );
+  const editedKey = entry?.bodyEditedTime ? String(entry.bodyEditedTime).slice(0, 10) : '';
+  const showUpdated = Boolean(primaryKey && editedKey && editedKey > primaryKey);
 
   let primaryLabel = '';
   if (entry?.date) primaryLabel = formatJournalMetaDate(entry.date);
   else if (entry?.createdTime) primaryLabel = formatJournalMetaDate(entry.createdTime);
 
   const updatedLabel =
-    showUpdated && entry.lastEditedTime
-      ? formatJournalMetaDate(entry.lastEditedTime)
-      : '';
+    showUpdated && entry.bodyEditedTime ? formatJournalMetaDate(entry.bodyEditedTime) : '';
 
   const fallbackSingle =
     !primaryLabel && entry?.lastEditedTime

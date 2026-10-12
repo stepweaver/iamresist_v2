@@ -9,8 +9,9 @@ import {
 } from '@/lib/briefEvents';
 import { selectBriefEpisodes } from '@/lib/creatorNotes/brief';
 import { CREATOR_NOTE_EXTRACTION_VERSION } from '@/lib/creatorNotes/constants';
+import type { CreatorAtomicNote, CreatorNoteRun } from '@/lib/creatorNotes/types';
 
-function run(overrides = {}) {
+function run(overrides: Partial<CreatorNoteRun> = {}): CreatorNoteRun {
   return {
     id: 'run-1',
     sourceItemId: 'episode-1',
@@ -43,7 +44,7 @@ function casualtyFeatures(overrides = {}) {
   };
 }
 
-function note(overrides = {}) {
+function note(overrides: Partial<CreatorAtomicNote> = {}): CreatorAtomicNote {
   return {
     id: 'note-1',
     sourceItemId: 'episode-1',
@@ -67,7 +68,7 @@ function note(overrides = {}) {
   };
 }
 
-function episodesFromNotes(notes, meta = {}) {
+function episodesFromNotes(notes: CreatorAtomicNote[], meta: Record<string, unknown> = {}) {
   return selectBriefEpisodes({
     runs: [run()],
     notes,
@@ -85,7 +86,7 @@ function episodesFromNotes(notes, meta = {}) {
   });
 }
 
-function eventsFromNotes(notes, meta = {}) {
+function eventsFromNotes(notes: CreatorAtomicNote[], meta: Record<string, unknown> = {}) {
   return buildBriefEventsCorpus(episodesFromNotes(notes, meta));
 }
 

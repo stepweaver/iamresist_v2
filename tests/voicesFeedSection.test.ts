@@ -4,6 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 const { Children, isValidElement } = React;
 (globalThis as typeof globalThis & { React?: typeof React }).React = React;
 
+type SectionProps = { children?: React.ReactNode; className?: string };
+
+function asElement(node: React.ReactNode, label: string): React.ReactElement<SectionProps> {
+  if (!isValidElement<SectionProps>(node)) {
+    throw new Error(label);
+  }
+  return node;
+}
+
 vi.mock('server-only', () => ({}));
 
 vi.mock('@/components/voices/VoicesGridWithPlayerClient', () => ({
@@ -20,31 +29,14 @@ describe('VoicesFeedSection header sizing', () => {
       description: 'Commentary and media.',
     });
 
-    if (!isValidElement(element)) {
-      throw new Error('Expected VoicesFeedSection to return a valid React element');
-    }
-
-    const sectionChildren = Children.toArray(element.props.children);
-    const headerRow = sectionChildren[0];
-
-    if (!isValidElement(headerRow)) {
-      throw new Error('Expected section header row to be a valid React element');
-    }
-
+    const section = asElement(element, 'Expected VoicesFeedSection to return a valid React element');
+    const sectionChildren = Children.toArray(section.props.children);
+    const headerRow = asElement(sectionChildren[0], 'Expected section header row to be a valid React element');
     const headerChildren = Children.toArray(headerRow.props.children);
-    const copyBlock = headerChildren[0];
-
-    if (!isValidElement(copyBlock)) {
-      throw new Error('Expected section copy block to be a valid React element');
-    }
-
+    const copyBlock = asElement(headerChildren[0], 'Expected section copy block to be a valid React element');
     const copyChildren = Children.toArray(copyBlock.props.children);
-    const title = copyChildren[0];
-    const description = copyChildren[1];
-
-    if (!isValidElement(title) || !isValidElement(description)) {
-      throw new Error('Expected section title and description to be valid React elements');
-    }
+    const title = asElement(copyChildren[0], 'Expected section title and description to be valid React elements');
+    const description = asElement(copyChildren[1], 'Expected section title and description to be valid React elements');
 
     expect(title.props.className).toBe('kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block');
     expect(description.props.className).toBe(
