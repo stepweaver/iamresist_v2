@@ -1,0 +1,105 @@
+/* Personal statement. Independent of the journal archive styles. */
+
+.statement {
+  --statement-text: #f4f0e8;
+  --statement-muted: #d2cbc2;
+  --statement-accent: #f04444;
+  --statement-display: var(--font-journal-display), "Arial Narrow", "Segoe UI", sans-serif;
+  --statement-body: var(--font-journal-body), "Segoe UI", "Helvetica Neue", sans-serif;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2.5rem 0.85rem 4.5rem;
+  color: var(--statement-text);
+  font-family: var(--statement-body);
+}
+
+:root.light .statement {
+  --statement-text: #171412;
+  --statement-muted: #3f3934;
+  --statement-accent: #b91c24;
+}
+
+.statement ::selection {
+  background: rgba(240, 68, 68, 0.35);
+  color: var(--statement-text);
+}
+
+:root.light .statement ::selection {
+  background: rgba(185, 28, 36, 0.22);
+  color: #171412;
+}
+
+.statement-header {
+  margin: 0 0 2.25rem;
+}
+
+.statement-kicker {
+  margin: 0;
+  color: var(--statement-accent);
+  font-family: var(--font-ui), Arial, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.statement-title {
+  margin: 0.7rem 0 0;
+  color: var(--statement-text);
+  font-family: var(--statement-display);
+  font-size: clamp(2.45rem, 6vw, 3.65rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.statement-subtitle {
+  max-width: 38rem;
+  margin: 0.9rem 0 0;
+  color: var(--statement-muted);
+  font-size: 1.125rem;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.statement-rule {
+  width: 4.25rem;
+  height: 2px;
+  margin: 1.45rem 0 0;
+  border: 0;
+  background: var(--statement-accent);
+}
+
+.statement-body {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+.statement-body p {
+  margin: 0 0 1.15em;
+}
+
+.statement-body p:last-child {
+  margin-bottom: 0;
+}
+
+.statement-beat {
+  border-left: 2px solid var(--statement-accent);
+  padding-left: 0.85rem;
+  font-size: 1.15em;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+@media (min-width: 720px) {
+  .statement {
+    padding: 3.25rem 0.5rem 5.5rem;
+  }
+
+  .statement-body {
+    font-size: 1.125rem;
+  }
+}

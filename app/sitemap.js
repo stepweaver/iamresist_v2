@@ -10,6 +10,7 @@ import { getAllProtestSongs } from '@/lib/notion/protestMusic.repo';
 const STATIC_PATHS = [
   '/',
   '/about',
+  '/about/this-journal',
   '/timeline',
   '/telescreen',
   '/journal',

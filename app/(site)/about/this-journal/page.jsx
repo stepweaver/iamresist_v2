@@ -1,0 +1,103 @@
+import { barlowCondensed, sourceSans3 } from '@/app/fonts';
+import { buildPageMetadata } from '@/lib/metadata';
+import './statement.css';
+
+export const metadata = buildPageMetadata({
+  title: 'About This Journal',
+  description:
+    'A personal statement on freedom of expression, changing my mind, AI-assisted writing, and authorship.',
+  urlPath: '/about/this-journal',
+});
+
+const PARAGRAPHS = [
+  {
+    text: "First and foremost, this is my little corner of the internet. It's a place where I get to think, question, criticize, explore ideas, and share whatever happens to be on my mind. I don't need anyone's permission to have an opinion, and I don't need anyone's approval to express it. You don't have to agree with me. You don't even have to like me. That's perfectly fine.",
+  },
+  {
+    emphasis: true,
+    text: 'First Amendment. Period.',
+  },
+  {
+    text: "Of course, the freedom to express an opinion doesn't make that opinion correct, nor does it exempt me from criticism or responsibility for what I publish. And that's an important distinction, because I don't consider the things I write here to be immutable declarations of truth. They're expressions of what I think, based on what I understand, at the time I write them.",
+  },
+  {
+    text: "I have strong opinions. Some of them are the product of years of education, experience, observation, and deliberate consideration. Others begin as questions, frustrations, or observations that I haven't fully worked through. Part of the reason this journal exists is to give those thoughts somewhere to go.",
+  },
+  {
+    text: "I reserve the right to change my mind. What I publish reflects what I think at the time, not a position I'm obligated to defend forever. If someone presents compelling evidence or a better argument, I'm willing to reconsider my position. I see nothing wrong with changing my mind when I've been given a good reason to do so.",
+  },
+  {
+    text: "With that established, let's talk about artificial intelligence.",
+  },
+  {
+    text: "Of course I use AI to help write the essays published here. I'm not a professional writer. I don't pretend to be one. But I have opinions. Strong opinions. Educated and considered opinions. Until recently, most of those thoughts existed only in my head, occasionally escaping into conversations with people willing to listen.",
+  },
+  {
+    text: 'AI has given me a means of articulating them in ways I might never have accomplished otherwise.',
+  },
+  {
+    text: "My process usually begins with something resembling a stream of consciousness. I write what I'm thinking, sometimes at considerable length, and feed it into a large language model. Those initial prompts are essentially my rough drafts. I ask the model to help organize my thoughts, develop arguments, and turn them into coherent prose.",
+  },
+  {
+    text: 'Then I read what it produces.',
+  },
+  {
+    text: "I question it, disagree with it, add context, correct interpretations, expand arguments, and request revisions. Sometimes the discussion itself leads to ideas I hadn't considered when I started. I also request fact-checking, verification, and supporting sources, preferably primary sources wherever practical. I recognize that AI can get things wrong, including confidently presenting inaccurate information or nonexistent citations. That's precisely why the material requires scrutiny.",
+  },
+  {
+    text: "By the time something appears here, I've read it, considered it, and decided that it represents what I actually think. I may not have personally composed every sentence in its final form, but the ideas, arguments, editorial judgments, and decision to publish are mine. I author these essays, and I accept responsibility for their content, including correcting errors when they're brought to my attention.",
+  },
+  {
+    text: "I'm also a software developer. My relationship with artificial intelligence extends well beyond asking a chatbot to write something for me. These technologies are directly changing my profession, the tools I build, and the skills that influence my ability to find employment. Understanding how to work effectively with AI is increasingly a professional necessity, and I intend to embrace that reality rather than pretend it isn't happening.",
+  },
+  {
+    text: "History is full of technological developments that transformed how people create, communicate, and work. Word processors changed writing. Digital photography transformed photography. Software changed engineering, design, and countless other professions. AI raises its own legitimate questions about originality, accuracy, ownership, and responsibility, and those questions deserve serious consideration. But dismissing work solely because a new technology was involved tells us very little about the quality or merit of the work itself.",
+  },
+  {
+    text: "And frankly, I don't give a shit whether someone thinks using AI discredits me.",
+  },
+  {
+    text: "You're welcome to disagree with my opinions. You're welcome to challenge my reasoning, question my sources, or show me where I've gotten something wrong. I welcome substantive criticism, particularly when it gives me something worth reconsidering. But dismissing an argument simply because artificial intelligence helped organize and articulate it doesn't address the argument.",
+  },
+  {
+    text: "Ultimately, this journal is mine. It isn't a newspaper, an academic publication, or an attempt to establish myself as some unquestionable authority. It's a record of my thinking, my observations, my frustrations, and my evolving understanding of the world. Some entries may be carefully researched essays. Others may be little more than ideas I'm still trying to understand. I may revisit something I've written months or years later and wonder how I ever believed it. If that happens, I hope I'll have the intellectual integrity to say so.",
+  },
+  {
+    text: "Without AI, there's a good chance I never would have written or shared much of anything. I have a family, a job, responsibilities, and a limited amount of time. I've had thoughts worth exploring for years, but turning those thoughts into something coherent enough to publish hasn't always been practical.",
+  },
+  {
+    text: 'Now I have a tool that makes it possible.',
+  },
+  {
+    text: 'Some people may wish I\'d continued keeping my opinions to myself. My grandpa used to say, "You can wish in one hand and shit in the other; see which one fills up first."',
+  },
+  {
+    emphasis: true,
+    text: 'Alas, here I am.',
+  },
+];
+
+export default function AboutThisJournalPage() {
+  return (
+    <main className={`statement ${barlowCondensed.variable} ${sourceSans3.variable}`}>
+      <header className="statement-header">
+        <p className="statement-kicker">I AM [RESIST] / Personal statement</p>
+        <h1 className="statement-title">About This Journal</h1>
+        <p className="statement-subtitle">
+          On freedom of expression, changing my mind, AI, and authorship.
+        </p>
+        <hr className="statement-rule" />
+      </header>
+      <article className="statement-body">
+        {PARAGRAPHS.map((paragraph) => (
+          <p
+            key={paragraph.text}
+            className={paragraph.emphasis ? 'statement-beat' : undefined}
+          >
+            {paragraph.text}
+          </p>
+        ))}
+      </article>
+    </main>
+  );
+}

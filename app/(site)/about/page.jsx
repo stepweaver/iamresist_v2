@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import PageContainer from '@/components/content/PageContainer';
 import Divider from '@/components/ui/Divider';
 import { buildPageMetadata } from '@/lib/metadata';
@@ -49,6 +50,17 @@ export default function AboutPage() {
               of democracy, and a celebration of the journalists, artists, and citizens who
               resist authoritarianism.
             </p>
+            <Link
+              href="/about/this-journal"
+              className="group mt-6 inline-block max-w-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+            >
+              <span className="block font-semibold text-primary underline decoration-primary/30 underline-offset-4 transition-colors group-hover:text-primary-light group-hover:decoration-primary">
+                About this journal
+              </span>
+              <span className="prose-copy mt-1.5 block text-sm italic leading-relaxed text-foreground/70">
+                A little more about why I write, how I use AI, and why I reserve the right to change my mind.
+              </span>
+            </Link>
           </div>
 
           <Divider className="my-2" />

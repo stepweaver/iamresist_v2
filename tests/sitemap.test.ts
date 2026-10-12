@@ -61,6 +61,7 @@ describe('sitemap', () => {
     const entries = await sitemap();
     const urls = entries.map((entry) => entry.url);
 
+    expect(urls).toContain('https://iamresist.test/about/this-journal');
     expect(urls).toContain('https://iamresist.test/journal/journal-entry');
     expect(urls).toContain('https://iamresist.test/telescreen');
     expect(urls).toContain('https://iamresist.test/resources');
