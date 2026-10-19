@@ -10,8 +10,7 @@ import {
   journalEntryBodyEditedTime,
 } from '@/lib/journal';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
-import { buildPageMetadata } from '@/lib/metadata';
-import { journalOgImage } from '@/lib/seo/journalOg';
+import { buildPageMetadata, defaultOgImage } from '@/lib/metadata';
 import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
 import { buildSeoExcerptFromBlocks, pickSeoDescription } from '@/lib/seo/text';
 
@@ -61,12 +60,11 @@ export async function generateMetadata({ params }) {
   const blocks = await getCachedPageBlocks(entry.id);
   const title = entry.title || 'Journal Entry';
   const description = buildJournalDescription(entry, blocks);
-  const image = journalOgImage(entry);
   return buildPageMetadata({
     title: `${title} | Journal`,
     description,
     urlPath: getJournalCanonicalPath(entry),
-    images: [image],
+    images: [defaultOgImage],
   });
 }
 
@@ -79,7 +77,6 @@ export default async function JournalEntryPage({ params }) {
   const blocks = await getCachedPageBlocks(entry.id);
   const canonicalPath = getJournalCanonicalPath(entry);
   const description = buildJournalDescription(entry, blocks);
-  const image = journalOgImage(entry);
   const bodyEditedTime = await journalEntryBodyEditedTime(entry, blocks);
   const dates = journalDates({ ...entry, bodyEditedTime });
   const schema = [
@@ -92,7 +89,7 @@ export default async function JournalEntryPage({ params }) {
       headline: entry.title || 'Journal Entry',
       description,
       url: canonicalPath,
-      image,
+      image: defaultOgImage,
       datePublished: entry.date || entry.createdTime || undefined,
       dateModified: dates.showUpdated
         ? bodyEditedTime || undefined
