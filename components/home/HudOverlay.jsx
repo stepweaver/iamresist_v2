@@ -1,6 +1,6 @@
 export default function HudOverlay({ title, code }) {
   return (
-    <div className="absolute inset-0 pointer-events-none">
+    <div className="pointer-events-none absolute inset-0 z-20" aria-hidden="true">
       {/* Top corners */}
       <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-hud-red opacity-60"></div>
       <div className="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-hud-red opacity-60"></div>
@@ -9,9 +9,9 @@ export default function HudOverlay({ title, code }) {
       <div className="absolute bottom-0 left-0 w-16 h-16 border-b-2 border-l-2 border-hud-red opacity-60"></div>
       <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-hud-red opacity-60"></div>
 
-      {/* Horizontal crosshairs */}
-      <div className="absolute top-1/2 left-8 right-8 h-px bg-hud-red/20"></div>
-      <div className="absolute top-8 bottom-8 left-1/2 w-px bg-hud-red/20"></div>
+      {/* Crosshairs */}
+      <div className="absolute top-1/2 right-8 left-8 h-px bg-hud-red/55"></div>
+      <div className="absolute top-8 bottom-8 left-1/2 w-px bg-hud-red/55"></div>
 
       {/* Text labels: offset past machine-panel inset corners + border stroke */}
       <div className="absolute top-[14px] left-[14px] font-mono text-[10px] text-hud-dim">
