@@ -41,6 +41,28 @@ function textOf(node: React.ReactNode, acc: string[] = []) {
   return acc;
 }
 
+function classNamesOf(node: React.ReactNode, acc: string[] = []) {
+  const current = expand(node);
+  if (Array.isArray(current)) current.forEach((child) => classNamesOf(child, acc));
+  else if (isValidElement(current)) {
+    const className = (current.props as { className?: string }).className;
+    if (typeof className === 'string') acc.push(className);
+    Children.forEach((current.props as { children?: React.ReactNode }).children, (child) => classNamesOf(child, acc));
+  }
+  return acc;
+}
+
+function testIdsOf(node: React.ReactNode, acc: string[] = []) {
+  const current = expand(node);
+  if (Array.isArray(current)) current.forEach((child) => testIdsOf(child, acc));
+  else if (isValidElement(current)) {
+    const testId = (current.props as { 'data-testid'?: string })['data-testid'];
+    if (testId) acc.push(testId);
+    Children.forEach((current.props as { children?: React.ReactNode }).children, (child) => testIdsOf(child, acc));
+  }
+  return acc;
+}
+
 function hrefsOf(node: React.ReactNode, acc: string[] = []) {
   const current = expand(node);
   if (Array.isArray(current)) current.forEach((child) => hrefsOf(child, acc));
@@ -93,7 +115,17 @@ describe('homepage editorial section', () => {
     const text = textOf(section).join(' ');
     const hrefs = hrefsOf(section);
 
+    const classes = classNamesOf(section).join(' ');
+    const testIds = testIdsOf(section);
+
     expect(section?.props['data-testid']).toBe('home-essays');
+    expect(classes).toContain('max-w-[1600px]');
+    expect(classes).toContain('lg:grid-cols-3');
+    expect(classes).toContain('lg:col-span-2');
+    expect(classes).toContain('max-w-[62ch]');
+    expect(classes).not.toContain('max-w-5xl');
+    expect(testIds.indexOf('home-featured-essay')).toBeGreaterThanOrEqual(0);
+    expect(testIds.indexOf('home-featured-essay')).toBeLessThan(testIds.indexOf('home-recent-essays'));
     expect(text).toContain('Latest Essay');
     expect(text.indexOf('Latest Essay Title')).toBeLessThan(text.indexOf('Middle Essay'));
     expect(text.indexOf('Middle Essay')).toBeLessThan(text.indexOf('Older Essay'));

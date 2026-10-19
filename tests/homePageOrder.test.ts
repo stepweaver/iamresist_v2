@@ -25,7 +25,16 @@ vi.mock('@/components/home/RotatingWord', () => ({
 
 vi.mock('@/components/home/HudOverlay', () => ({
   default: function HudOverlay() {
-    return null;
+    return React.createElement('div', { 'data-testid': 'hero-hud-frame' });
+  },
+  TargetReticle: function TargetReticle() {
+    return React.createElement('div', { 'data-testid': 'hero-reticle' });
+  },
+}));
+
+vi.mock('@/components/home/HeroEssayLink', () => ({
+  default: function HeroEssayLink() {
+    return React.createElement('a', { href: '/journal/latest-essay', 'data-testid': 'hero-latest-essay' }, 'Read Latest Essay');
   },
 }));
 
@@ -49,6 +58,22 @@ vi.mock('@/components/home/JournalSection', () => ({
     return React.createElement('div', { 'data-testid': 'home-essays-skeleton' }, 'Loading essays');
   },
 }));
+
+function textOf(node: React.ReactNode, acc: string[] = []) {
+  if (typeof node === 'string' || typeof node === 'number') {
+    acc.push(String(node));
+    return acc;
+  }
+  if (Array.isArray(node)) {
+    node.forEach((child) => textOf(child, acc));
+    return acc;
+  }
+  if (!isValidElement(node)) return acc;
+  const props = node.props as { children?: React.ReactNode };
+  if (typeof node.type === 'function') textOf((node.type as (props: unknown) => React.ReactNode)(node.props), acc);
+  else textOf(props.children, acc);
+  return acc;
+}
 
 function walk(node: React.ReactNode, found: React.ReactElement[] = []) {
   if (!isValidElement(node)) return found;
@@ -74,10 +99,47 @@ describe('homepage editorial order', () => {
       .filter(Boolean);
 
     expect(ids.indexOf('home-masthead')).toBeGreaterThanOrEqual(0);
-    expect(ids.indexOf('home-masthead')).toBeLessThan(ids.indexOf('home-essays'));
+    expect(ids.indexOf('home-masthead')).toBeLessThan(ids.indexOf('hero-hud-frame'));
+    expect(ids.indexOf('hero-hud-frame')).toBeLessThan(ids.indexOf('hero-reticle'));
+    expect(ids.indexOf('hero-reticle')).toBeLessThan(ids.indexOf('hero-latest-essay'));
+    expect(ids.indexOf('hero-latest-essay')).toBeLessThan(ids.indexOf('home-essays'));
     expect(ids.indexOf('home-essays')).toBeLessThan(ids.indexOf('home-essays-skeleton'));
     expect(ids.indexOf('home-essays-skeleton')).toBeLessThan(ids.indexOf('home-channels'));
     expect(ids.indexOf('home-channels')).toBeLessThan(ids.indexOf('home-feed'));
     expect(elements.some((element) => element.type === Suspense)).toBe(true);
+  });
+
+  it('keeps the mission readable on narrow screens and links to the full mission', async () => {
+    const { default: Home } = await import('@/app/page');
+    const page = Home();
+    const elements = walk(page);
+    const text = textOf(page).join(' ');
+    const mastheadAt = elements.findIndex(
+      (element) => (element.props as { 'data-testid'?: string })['data-testid'] === 'home-masthead',
+    );
+    const channelsAt = elements.findIndex(
+      (element) => (element.props as { 'data-testid'?: string })['data-testid'] === 'home-channels',
+    );
+    const hero = elements.slice(mastheadAt, channelsAt);
+    const heroClassNames = hero
+      .map((element) => String((element.props as { className?: string }).className || ''))
+      .join(' ');
+
+    expect(text).toContain('RESISTANCE SIGNAL // PUBLIC RELEASE');
+    expect(text).toContain('I AM');
+    expect(text).toContain('RESIST');
+    expect(text).toContain('A call to awareness. A chronicle of resistance.');
+    expect(text).toContain('Silence in the face of fascism is surrender.');
+    expect(text).toContain('Read Full Mission');
+    expect(heroClassNames).not.toContain('whitespace-nowrap');
+    expect(heroClassNames).toContain('order-1');
+    expect(heroClassNames).toContain('order-2');
+    expect(heroClassNames).toContain('order-3');
+    expect(heroClassNames).toContain('lg:col-start-1');
+    expect(heroClassNames).toContain('lg:col-start-2');
+    expect(heroClassNames).toContain('z-10');
+    expect(
+      hero.some((element) => (element.props as { href?: string }).href === '/about'),
+    ).toBe(true);
   });
 });

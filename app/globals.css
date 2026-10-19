@@ -633,6 +633,13 @@ body {
   animation: terminal-blink var(--glitch-dur, 150ms) steps(1, end);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .scanline::after,
+  .glitch-active {
+    animation: none;
+  }
+}
+
 /* ============================================
    OPTIMIZED SHADOWS
    GPU-accelerated shadow effects

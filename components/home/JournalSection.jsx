@@ -49,15 +49,24 @@ function EssayDate({ entry }) {
   );
 }
 
+const sectionShell = 'px-1 pt-6 sm:px-2 sm:pt-8 lg:px-3';
+
 export function JournalSectionSkeleton() {
   return (
-    <section className="mx-auto mb-2 max-w-5xl px-3 pt-5 sm:px-4 sm:pt-8 lg:px-6" role="status" aria-label="Loading essays">
-      <div className="mb-5 h-3 w-28 animate-pulse bg-foreground/10" />
-      <div className="h-16 max-w-3xl animate-pulse bg-foreground/10 sm:h-24" />
-      <div className="mt-4 h-16 max-w-2xl animate-pulse bg-foreground/5" />
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="h-36 animate-pulse border border-border bg-foreground/5" />
-        <div className="h-36 animate-pulse border border-border bg-foreground/5" />
+    <section className={sectionShell} role="status" aria-label="Loading essays">
+      <div className="mx-auto max-w-[1600px]">
+        <div className="mb-5 h-3 w-28 animate-pulse bg-foreground/10" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-10">
+          <div className="lg:col-span-2">
+            <div className="h-8 w-40 animate-pulse bg-foreground/10" />
+            <div className="mt-4 h-16 max-w-xl animate-pulse bg-foreground/10 sm:h-24" />
+            <div className="mt-4 h-16 max-w-lg animate-pulse bg-foreground/5" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-1">
+            <div className="h-36 animate-pulse border border-border bg-foreground/5" />
+            <div className="h-36 animate-pulse border border-border bg-foreground/5" />
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -70,14 +79,18 @@ function LatestEssay({ entry }) {
   const tags = essayTags(entry);
 
   return (
-    <article>
+    <article
+      data-testid="home-featured-essay"
+      className="relative border border-border bg-foreground/[0.03] px-4 py-5 sm:px-7 sm:py-7 lg:px-8 lg:py-9"
+    >
+      <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-primary" />
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <EssayDate entry={entry} />
         <EssayTags tags={tags} />
       </div>
       <h2
         id="home-latest-essay"
-        className="text-[2rem] font-semibold leading-[0.92] text-foreground sm:text-5xl lg:text-6xl"
+        className="max-w-3xl text-[1.85rem] font-semibold leading-[0.94] text-foreground sm:text-4xl lg:text-5xl xl:text-6xl"
         style={displayFont}
       >
         <Link href={href} className="transition-colors hover:text-primary">
@@ -85,7 +98,7 @@ function LatestEssay({ entry }) {
         </Link>
       </h2>
       {excerpt ? (
-        <p className="mt-4 max-w-3xl text-base leading-relaxed text-foreground/80 sm:text-lg" style={bodyFont}>
+        <p className="mt-4 max-w-[62ch] text-base leading-relaxed text-foreground/80 sm:text-lg" style={bodyFont}>
           {excerpt}
         </p>
       ) : null}
@@ -106,24 +119,24 @@ function RecentEssay({ entry }) {
   const tags = essayTags(entry);
 
   return (
-    <article className="flex flex-col border border-border bg-foreground/[0.03] px-4 py-4 sm:px-5 sm:py-5">
+    <article className="flex h-full flex-col border border-border bg-foreground/[0.03] px-4 py-4 sm:px-5 sm:py-5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <EssayDate entry={entry} />
         <EssayTags tags={tags} />
       </div>
-      <h3 className="mt-2 text-2xl font-semibold leading-[1.02] text-foreground sm:text-[1.7rem]" style={displayFont}>
+      <h3 className="mt-2 text-xl font-semibold leading-[1.05] text-foreground sm:text-2xl" style={displayFont}>
         <Link href={href} className="transition-colors hover:text-primary">
           {title}
         </Link>
       </h3>
       {excerpt ? (
-        <p className="mt-3 line-clamp-3 text-base leading-relaxed text-foreground/75" style={bodyFont}>
+        <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-foreground/75 sm:text-base" style={bodyFont}>
           {excerpt}
         </p>
       ) : null}
       <Link
         href={href}
-        className="mt-4 inline-flex min-h-11 items-center self-start font-mono text-[11px] uppercase tracking-[0.16em] text-primary"
+        className="mt-auto inline-flex min-h-11 items-center self-start pt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-primary"
       >
         Read Essay
       </Link>
@@ -156,25 +169,36 @@ export default async function JournalSection() {
     <section
       data-testid="home-essays"
       aria-labelledby="home-latest-essay"
-      className={`mx-auto mb-2 max-w-5xl px-3 pt-5 sm:px-4 sm:pt-8 lg:px-6 ${barlowCondensed.variable} ${sourceSans3.variable}`}
+      className={`${sectionShell} ${barlowCondensed.variable} ${sourceSans3.variable}`}
     >
-      <div className="mb-5 flex items-end justify-between gap-4 border-b border-primary/70 pb-3">
-        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">Latest Essay</p>
-        <Link
-          href="/journal"
-          className="nav-label whitespace-nowrap text-xs text-foreground/60 transition-colors hover:text-primary"
-        >
-          Essays & Analysis
-        </Link>
-      </div>
-      <LatestEssay entry={feature} />
-      {recent.length > 0 ? (
-        <div className="mt-8 grid grid-cols-1 gap-4 border-t border-border pt-6 sm:grid-cols-2">
-          {recent.map((entry) => (
-            <RecentEssay key={entry.id || entry.slug} entry={entry} />
-          ))}
+      <div className="mx-auto max-w-[1600px]">
+        <div className="mb-5 flex items-end justify-between gap-4 border-b border-primary/70 pb-3">
+          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">Latest Essay</p>
+          <Link
+            href="/journal"
+            className="nav-label shrink-0 text-xs text-foreground/60 transition-colors hover:text-primary"
+          >
+            Essays & Analysis
+          </Link>
         </div>
-      ) : null}
+        <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3 lg:gap-10 xl:gap-12">
+          <div className="min-w-0 lg:col-span-2">
+            <LatestEssay entry={feature} />
+          </div>
+          {recent.length > 0 ? (
+            <div
+              data-testid="home-recent-essays"
+              className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:flex lg:h-full lg:flex-col"
+            >
+              {recent.map((entry) => (
+                <div key={entry.id || entry.slug} className="min-w-0 lg:flex-1">
+                  <RecentEssay entry={entry} />
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </section>
   );
 }
