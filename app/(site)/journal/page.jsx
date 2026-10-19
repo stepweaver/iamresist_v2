@@ -1,15 +1,25 @@
 import ArchiveHero from '@/components/journal/ArchiveHero';
 import FeaturedRecord from '@/components/journal/FeaturedRecord';
-import JournalIndex from '@/components/journal/JournalIndex';
-import { journalLeadExcerpt, toJournalRecord } from '@/components/journal/journalFormat';
-import { getAllJournalEntries, getJournalIndexPayload, presentJournalEntries } from '@/lib/journal';
-import { getCachedPageBlocks } from '@/lib/notion-blocks';
+import JournalBrowser from '@/components/journal/JournalBrowser';
+import JournalRecent from '@/components/journal/JournalRecent';
+import {
+  compareJournalEntries,
+  composeJournalLanding,
+  journalDisplayExcerpt,
+  toJournalRecord,
+} from '@/components/journal/journalFormat';
+import {
+  featuredEssayExcerpt,
+  getAllJournalEntries,
+  getJournalIndexPayload,
+  presentJournalEntries,
+} from '@/lib/journal';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
-  title: 'Resistance Journal and Editorial Notes',
+  title: 'Essays & Analysis',
   description:
-    'Resistance journal with editorial notes, reflections, and field observations from I AM [RESIST].',
+    'Original writing on power, propaganda, democratic accountability, and the responsibility to question what we believe.',
   urlPath: '/journal',
 });
 
@@ -21,36 +31,52 @@ export default async function JournalPage() {
   let searchCoversArchive = false;
 
   if (payload.listKind === 'ok') {
-    const all = await getAllJournalEntries();
-    if (all.length > 0) {
-      entries = all;
-      searchCoversArchive = true;
+    try {
+      const all = await getAllJournalEntries();
+      if (all.length > 0) {
+        entries = all;
+        searchCoversArchive = true;
+      }
+    } catch {
+      searchCoversArchive = false;
     }
   }
 
-  entries = await presentJournalEntries(entries);
-
-  const featuredEntry = entries[0];
-  let featuredExcerpt = '';
-  if (featuredEntry?.id) {
-    const blocks = await getCachedPageBlocks(featuredEntry.id);
-    featuredExcerpt = journalLeadExcerpt(blocks);
+  try {
+    entries = await presentJournalEntries(entries);
+  } catch {
+    entries = [...(entries || [])].sort(compareJournalEntries);
   }
 
-  const records = entries.map((entry) => toJournalRecord(entry));
-  const featured = featuredEntry
-    ? toJournalRecord(featuredEntry, { excerpt: featuredExcerpt })
+  const landing = composeJournalLanding(entries);
+  const featuredExcerpt = landing.featured ? await featuredEssayExcerpt(landing.featured) : '';
+  const records = landing.ordered.map((entry) =>
+    toJournalRecord(
+      entry,
+      entry?.id && entry.id === landing.featured?.id ? { excerpt: featuredExcerpt } : {},
+    ),
+  );
+  const featured = landing.featured
+    ? toJournalRecord(landing.featured, { excerpt: featuredExcerpt })
     : null;
+  const recent = landing.recent.map((entry) =>
+    toJournalRecord(entry, { excerpt: journalDisplayExcerpt(entry) }),
+  );
 
   return (
     <main className="journal-archive">
       <ArchiveHero />
-      {entries.length === 0 ? (
+      {landing.ordered.length === 0 ? (
         <JournalEmpty listKind={payload.listKind} apiError={payload.apiError} />
       ) : (
         <>
           <FeaturedRecord record={featured} />
-          <JournalIndex records={records} searchCoversArchive={searchCoversArchive} />
+          <JournalRecent records={recent} />
+          <JournalBrowser
+            subjects={landing.subjects}
+            records={records}
+            searchCoversArchive={searchCoversArchive}
+          />
         </>
       )}
     </main>
@@ -60,7 +86,7 @@ export default async function JournalPage() {
 function JournalEmpty({ listKind, apiError }) {
   return (
     <div className="journal-status">
-      <p className="journal-status__label">No entries</p>
+      <p className="journal-status__label">No essays</p>
       {listKind === 'unconfigured' && (
         <p>
           Set <code>NOTION_API_KEY</code> and <code>NOTION_JOURNAL_DB_ID</code> in

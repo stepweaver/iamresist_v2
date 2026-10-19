@@ -5,8 +5,8 @@ export default function JournalArticle({ title, dates, tags = [], author = '', c
 
   return (
     <div className="journal-article">
-      <p className="journal-return">
-        <Link href="/journal">Return to archive</Link>
+        <p className="journal-return">
+        <Link href="/journal">Essays & Analysis</Link>
       </p>
       <div className="journal-article__grid">
         <aside className="journal-rail" aria-label="Record details">
@@ -17,7 +17,7 @@ export default function JournalArticle({ title, dates, tags = [], author = '', c
             </div>
           ) : (
             <div className="journal-rail__block">
-              <p className="journal-rail__label">Record</p>
+              <p className="journal-rail__label">Essay</p>
               <p>Journal</p>
             </div>
           )}
@@ -47,12 +47,12 @@ export default function JournalArticle({ title, dates, tags = [], author = '', c
 
         <article className="journal-reading">
           <header className="journal-reading__header">
-            <p className="journal-kicker">Journal record</p>
+            <p className="journal-kicker">Essay</p>
             <h1 className="journal-article__title">{title}</h1>
           </header>
           {children}
           <p className="journal-return journal-return--end">
-            <Link href="/journal">Return to archive</Link>
+            <Link href="/journal">Essays & Analysis</Link>
           </p>
         </article>
       </div>

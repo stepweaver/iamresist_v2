@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import NotionBlocksBody from '@/components/content/NotionBlocksBody';
 import JournalArticle from '@/components/journal/JournalArticle';
-import { journalDates } from '@/components/journal/journalFormat';
+import { journalDates, journalEntryPath } from '@/components/journal/journalFormat';
 import StructuredData from '@/components/seo/StructuredData';
 import {
   getJournalEntryBySlug,
@@ -10,7 +10,8 @@ import {
   journalEntryBodyEditedTime,
 } from '@/lib/journal';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
-import { buildPageMetadata, defaultOgImage } from '@/lib/metadata';
+import { buildPageMetadata } from '@/lib/metadata';
+import { journalOgImage } from '@/lib/seo/journalOg';
 import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
 import { buildSeoExcerptFromBlocks, pickSeoDescription } from '@/lib/seo/text';
 
@@ -23,7 +24,7 @@ async function resolveJournalEntry(slug) {
 }
 
 function getJournalCanonicalPath(entry) {
-  return `/journal/${entry?.slug || entry?.id}`;
+  return journalEntryPath(entry);
 }
 
 function buildJournalDescription(entry, blocks) {
@@ -33,7 +34,7 @@ function buildJournalDescription(entry, blocks) {
       : 'Journal entry on authoritarian drift, democratic accountability, and resistance.';
 
   return pickSeoDescription(
-    [buildSeoExcerptFromBlocks(blocks, { maxBlocks: 4, maxLength: 180 })],
+    [entry?.summary, buildSeoExcerptFromBlocks(blocks, { maxBlocks: 4, maxLength: 180 })],
     tagLine,
     180,
   );
@@ -60,11 +61,12 @@ export async function generateMetadata({ params }) {
   const blocks = await getCachedPageBlocks(entry.id);
   const title = entry.title || 'Journal Entry';
   const description = buildJournalDescription(entry, blocks);
+  const image = journalOgImage(entry);
   return buildPageMetadata({
     title: `${title} | Journal`,
     description,
     urlPath: getJournalCanonicalPath(entry),
-    images: [defaultOgImage],
+    images: [image],
   });
 }
 
@@ -77,6 +79,7 @@ export default async function JournalEntryPage({ params }) {
   const blocks = await getCachedPageBlocks(entry.id);
   const canonicalPath = getJournalCanonicalPath(entry);
   const description = buildJournalDescription(entry, blocks);
+  const image = journalOgImage(entry);
   const bodyEditedTime = await journalEntryBodyEditedTime(entry, blocks);
   const dates = journalDates({ ...entry, bodyEditedTime });
   const schema = [
@@ -89,7 +92,7 @@ export default async function JournalEntryPage({ params }) {
       headline: entry.title || 'Journal Entry',
       description,
       url: canonicalPath,
-      image: defaultOgImage,
+      image,
       datePublished: entry.date || entry.createdTime || undefined,
       dateModified: dates.showUpdated
         ? bodyEditedTime || undefined

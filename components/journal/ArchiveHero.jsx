@@ -6,13 +6,13 @@ export default function ArchiveHero() {
           <span>I AM [RESIST]</span>
           <span>Journal</span>
         </p>
-        <h1 className="journal-hero__title">The Resistance Archive</h1>
+        <h1 className="journal-hero__title">Essays & Analysis</h1>
         <p className="journal-hero__lede">
-          Editorial notes, reflections, and field observations from I AM
-          [RESIST]. Published writing, collected as a record.
+          Original writing on power, propaganda, democratic accountability, and
+          the responsibility to question what we believe.
         </p>
         <a className="journal-hero__jump" href="#records">
-          Browse the index
+          Browse the archive
         </a>
       </div>
     </header>

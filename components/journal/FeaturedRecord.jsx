@@ -7,7 +7,7 @@ export default function FeaturedRecord({ record }) {
     <section className="journal-feature" aria-labelledby="journal-featured-title">
       <div className="journal-feature__main">
         <p className="journal-kicker">
-          <span>Latest record</span>
+          <span>Featured essay</span>
           {record.dateLabel ? (
             <time dateTime={record.dateTime || undefined}>{record.dateLabel}</time>
           ) : null}
@@ -30,7 +30,7 @@ export default function FeaturedRecord({ record }) {
           </p>
         ) : null}
         <Link className="journal-text-link" href={record.href}>
-          Open record
+          Read essay
         </Link>
       </div>
     </section>
