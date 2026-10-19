@@ -40,43 +40,78 @@ export default function Home() {
       <header data-testid="home-masthead" className="border-b border-border pt-0 pb-3">
         <div className="machine-panel scanline hud-stage relative isolate overflow-hidden">
           <HudOverlay title="RESISTANCE SIGNAL" code="IAMR-BRIEF-01" />
-          <div className="relative z-10 grid grid-cols-1 items-center gap-4 px-4 pt-9 pb-5 sm:gap-5 sm:px-6 sm:pt-10 sm:pb-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-x-12 lg:gap-y-3 lg:px-8 lg:py-10 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:gap-x-16 xl:px-10">
-            <div className="order-1 min-w-0 lg:col-start-2 lg:row-start-1 lg:self-end">
-              <div className="inline-block max-w-full border-l-4 border-primary pl-3 sm:pl-4">
-                <span className="doc-id mb-2 block max-w-full text-[10px] leading-relaxed tracking-[0.14em] text-primary sm:text-xs sm:tracking-[0.24em] lg:text-sm lg:tracking-[0.28em]">
-                  RESISTANCE SIGNAL // PUBLIC RELEASE
-                </span>
-                <h1 className="hero-title max-w-full text-[clamp(1.65rem,4.8vw,3.75rem)] font-bold leading-[0.95]">
-                  <span className="inline-block">I AM</span> <RotatingWord />
-                </h1>
-              </div>
-              <p className="mission-copy mt-3 max-w-[40rem] text-sm leading-relaxed text-foreground/70 sm:mt-4 sm:text-base lg:text-lg xl:text-xl">
-                A call to awareness. A chronicle of resistance.
-              </p>
+          {/*
+            Mobile stacks a landscape flag masthead. Desktop keeps the two-column
+            reticle. `contents` lets the shared heading and links reorder below lg
+            without a second accessible copy.
+          */}
+          <div className="relative z-10 grid grid-cols-1 items-center gap-2 px-4 pt-9 pb-4 sm:gap-3 sm:px-6 sm:pt-10 sm:pb-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-x-12 lg:gap-y-3 lg:px-8 lg:py-10 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:gap-x-16 xl:px-10">
+            <div className="order-1 min-w-0 lg:hidden">
+              <span className="doc-id block max-w-full border-l-4 border-primary pl-3 text-[10px] leading-snug text-primary sm:pl-4 sm:text-xs">
+                RESISTANCE SIGNAL // PUBLIC RELEASE
+              </span>
             </div>
 
-            <div className="order-2 flex min-w-0 justify-center lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-center lg:justify-start lg:pl-2">
-              <div className="relative aspect-square w-[9.25rem] sm:w-44 md:w-52 lg:w-full lg:max-w-[22rem] xl:max-w-[24rem]">
-                <TargetReticle />
-                <div className="logo-shadow-hero absolute inset-[18%] z-10">
-                  <Image
-                    src="/resist_sticker.png"
-                    alt="I AM [RESIST] - The flag of resistance"
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 640px) 120px, (max-width: 768px) 144px, (max-width: 1024px) 168px, 320px"
-                    priority
-                    quality={90}
-                  />
+            <div className="order-2 flex w-full min-w-0 justify-center lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-center lg:justify-start lg:pl-2">
+              <div className="relative w-full md:max-w-[42rem] lg:max-w-[22rem] xl:max-w-[24rem]">
+                <div className="mb-2 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-hud-dim sm:text-[10px] lg:hidden" aria-hidden="true">
+                  <span className="h-px min-w-3 flex-1 bg-hud-red/50" />
+                  <span className="shrink-0">IAMR-FLAG-01</span>
+                  <span className="h-px min-w-3 flex-1 bg-hud-red/50" />
+                </div>
+
+                <div className="relative w-full lg:aspect-square">
+                  <span className="pointer-events-none absolute -top-2 left-0 h-2 w-2 border-t border-l border-hud-red/80 lg:hidden" aria-hidden="true" />
+                  <span className="pointer-events-none absolute -top-2 right-0 h-2 w-2 border-t border-r border-hud-red/80 lg:hidden" aria-hidden="true" />
+                  <span className="pointer-events-none absolute -bottom-2 left-0 h-2 w-2 border-b border-l border-hud-red/80 lg:hidden" aria-hidden="true" />
+                  <span className="pointer-events-none absolute right-0 -bottom-2 h-2 w-2 border-r border-b border-hud-red/80 lg:hidden" aria-hidden="true" />
+
+                  <div className="hidden lg:contents">
+                    <TargetReticle />
+                  </div>
+
+                  <div className="logo-shadow-hero relative z-10 aspect-[1500/839] w-full lg:absolute lg:inset-[18%] lg:aspect-auto lg:h-auto lg:w-auto">
+                    <Image
+                      src="/resist_sticker.png"
+                      alt="I AM [RESIST] - The flag of resistance"
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 1023px) 92vw, 320px"
+                      priority
+                      quality={90}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-2 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-hud-dim sm:text-[10px] lg:hidden" aria-hidden="true">
+                  <span className="h-px min-w-3 flex-1 bg-hud-red/50" />
+                  <span className="shrink-0">PUBLIC MARK</span>
+                  <span className="h-px min-w-3 flex-1 bg-hud-red/50" />
                 </div>
               </div>
             </div>
 
-            <div className="order-3 min-w-0 lg:col-start-2 lg:row-start-2 lg:self-start">
-              <p className="mission-copy max-w-[36rem] text-base leading-snug font-bold text-primary sm:text-lg lg:text-xl xl:text-2xl">
+            <div className="contents lg:order-1 lg:col-start-2 lg:row-start-1 lg:block lg:min-w-0 lg:self-end">
+              <div className="order-3 min-w-0">
+                <div className="inline-block max-w-full border-l-4 border-primary pl-3 sm:pl-4">
+                  <span className="doc-id mb-2 hidden max-w-full text-[10px] leading-relaxed tracking-[0.14em] text-primary sm:text-xs sm:tracking-[0.24em] lg:block lg:text-sm lg:tracking-[0.28em]">
+                    RESISTANCE SIGNAL // PUBLIC RELEASE
+                  </span>
+                  <h1 className="hero-title max-w-full text-[clamp(1.35rem,7.2vw,2.4rem)] font-bold sm:text-[clamp(1.75rem,5vw,3rem)] lg:text-[clamp(1.65rem,4.8vw,3.75rem)]">
+                    <span className="inline-block">I AM</span> <RotatingWord />
+                  </h1>
+                </div>
+              </div>
+              <p className="mission-copy order-4 max-w-[40rem] text-sm leading-relaxed text-foreground/70 sm:text-base lg:mt-4 lg:text-lg xl:text-xl">
+                A call to awareness. A chronicle of resistance.
+              </p>
+            </div>
+
+            <div className="contents lg:order-3 lg:col-start-2 lg:row-start-2 lg:block lg:min-w-0 lg:self-start">
+              <p className="mission-copy order-5 max-w-[36rem] text-base leading-snug font-bold text-primary sm:text-lg lg:text-xl xl:text-2xl">
                 Silence in the face of fascism is surrender.
               </p>
-              <div className="mt-3 flex flex-col items-start gap-1 sm:mt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2">
+              <div className="order-6 mt-1 flex flex-col items-start gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2 lg:mt-4">
                 <Link
                   href="/about"
                   className="nav-label inline-flex min-h-11 items-center text-xs text-foreground/60 transition-colors hover:text-primary sm:text-sm"

@@ -65,6 +65,21 @@ function intelUrlForCreator(item) {
   return buildTelescreenHref({ mode: TELESCREEN_MODES.voices, voice: slug });
 }
 
+const SHORT_FORM_MAX_SECONDS = 180;
+
+function isShortForm(url, title, duration) {
+  if (typeof url === "string" && /\/shorts\//i.test(url)) return true;
+  if (typeof title === "string" && /#shorts\b/i.test(title)) return true;
+  return duration > 0 && duration <= SHORT_FORM_MAX_SECONDS;
+}
+
+function formatClock(seconds) {
+  const total = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(total / 60);
+  const remain = total % 60;
+  return `${minutes}:${String(remain).padStart(2, "0")}`;
+}
+
 function descriptionLabel(item) {
   if (!item?.description) return null;
   if (item.isCurated === true || item.sourceType === "protest-music") {
@@ -89,6 +104,13 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
   const mainScrollRef = useRef(null);
   const railScrollRef = useRef(null);
   const ytIframeRef = useRef(null);
+  const progressBarRef = useRef(null);
+  const progressFillRef = useRef(null);
+  const ytProgressRef = useRef({ current: 0, duration: 0, at: 0, playing: false });
+  const itemUrlRef = useRef(item?.url);
+  const itemTitleRef = useRef(item?.title);
+  itemUrlRef.current = item?.url;
+  itemTitleRef.current = item?.title;
 
   useModalFocusTrap(dialogRef, closeButtonRef);
 
@@ -263,11 +285,63 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       try { iframe.contentWindow.postMessage(msg, "*"); } catch {}
     }
 
+    const sample = ytProgressRef.current;
+    sample.current = 0;
+    sample.duration = 0;
+    sample.at = performance.now();
+    sample.playing = false;
+
+    function paintProgress() {
+      const bar = progressBarRef.current;
+      const fill = progressFillRef.current;
+      if (!bar || !fill) return;
+      const elapsed = sample.playing ? (performance.now() - sample.at) / 1000 : 0;
+      const duration = sample.duration;
+      const time = duration > 0 ? Math.min(duration, Math.max(0, sample.current + elapsed)) : 0;
+      const visible = isShortForm(itemUrlRef.current, itemTitleRef.current, duration) && duration > 0;
+      bar.style.opacity = visible ? "1" : "0";
+      fill.style.transform = `scaleX(${duration > 0 ? time / duration : 0})`;
+      const second = String(Math.floor(time));
+      const shown = visible ? "1" : "0";
+      if (bar.dataset.second !== second || bar.dataset.visible !== shown) {
+        bar.dataset.second = second;
+        bar.dataset.visible = shown;
+        bar.setAttribute("aria-hidden", visible ? "false" : "true");
+        bar.setAttribute("aria-valuemax", String(Math.round(duration) || 0));
+        bar.setAttribute("aria-valuenow", String(Math.round(time)));
+        bar.setAttribute(
+          "aria-valuetext",
+          duration > 0 ? `${formatClock(time)} of ${formatClock(duration)}` : "",
+        );
+      }
+    }
+
+    function noteTime(currentTime) {
+      if (typeof currentTime !== "number" || !Number.isFinite(currentTime)) return;
+      sample.current = currentTime;
+      sample.at = performance.now();
+    }
+
+    function noteDuration(duration) {
+      if (typeof duration !== "number" || !Number.isFinite(duration) || duration <= 0) return;
+      sample.duration = duration;
+    }
+
     function onMessage(e) {
       if (!YOUTUBE_ORIGINS.includes(e.origin)) return;
       let data = e.data;
       if (typeof data === "string") {
         try { data = JSON.parse(data); } catch { return; }
+      }
+      const info = data?.info;
+      if (info && typeof info === "object") {
+        noteDuration(info.duration);
+        noteTime(info.currentTime);
+        if (typeof info.playerState === "number") {
+          const playing = info.playerState === 1;
+          if (playing !== sample.playing) sample.at = performance.now();
+          sample.playing = playing;
+        }
       }
       // Re-subscribe and unmute as soon as the player signals it is ready.
       if (data?.event === "onReady" || data?.event === "initialDelivery") {
@@ -277,15 +351,20 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       if (data?.event === "onStateChange") {
         const state = data?.info;
         setYtPlayerState(state);
+        sample.playing = state === 1;
+        sample.at = performance.now();
         if (state === 1) {
           unmute(); // confirmed playing — unmute if not already done
           onPlayStartRef.current?.();
         }
         if (state === 0) {
+          if (sample.duration > 0) sample.current = sample.duration;
+          sample.playing = false;
           const nxt = nextItemRef.current;
           if (nxt) onSelectItem?.(nxt);
         }
       }
+      paintProgress();
     }
 
     window.addEventListener("message", onMessage);
@@ -294,6 +373,13 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     if (iframe) iframe.addEventListener("load", subscribe);
 
     subscribe();
+    paintProgress();
+    let raf = 0;
+    const frame = () => {
+      paintProgress();
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
     // Subscription retries to cover slow networks and delayed player.js init.
     const subTimers = [200, 500, 1000, 2000, 3500, 5000].map((ms) =>
       setTimeout(subscribe, ms),
@@ -304,12 +390,16 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     const unmuteTimers = [400, 800, 1500, 2500].map((ms) =>
       setTimeout(unmute, ms),
     );
+    // YouTube pushes duration once, then only updates currentTime after a poll.
+    const progressPoll = setInterval(() => sendCmd("getCurrentTime"), 500);
 
     return () => {
       window.removeEventListener("message", onMessage);
       if (iframe) iframe.removeEventListener("load", subscribe);
       subTimers.forEach(clearTimeout);
       unmuteTimers.forEach(clearTimeout);
+      clearInterval(progressPoll);
+      cancelAnimationFrame(raf);
     };
   }, [isYouTube, videoId, onSelectItem]);
 
@@ -553,6 +643,24 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
                   No embeddable video for this item.
                 </div>
               )}
+              {isYouTube ? (
+                <div
+                  ref={progressBarRef}
+                  className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-1 bg-white/35 opacity-0"
+                  role="progressbar"
+                  aria-label="Video progress"
+                  aria-hidden="true"
+                  aria-valuemin={0}
+                  aria-valuemax={0}
+                  aria-valuenow={0}
+                >
+                  <div
+                    ref={progressFillRef}
+                    className="h-full w-full origin-left bg-white"
+                    style={{ transform: "scaleX(0)" }}
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="shrink-0 border-b border-border px-4 py-3">

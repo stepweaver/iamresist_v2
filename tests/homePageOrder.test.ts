@@ -138,8 +138,23 @@ describe('homepage editorial order', () => {
     expect(heroClassNames).toContain('lg:col-start-1');
     expect(heroClassNames).toContain('lg:col-start-2');
     expect(heroClassNames).toContain('z-10');
+    expect(heroClassNames).toContain('aspect-[1500/839]');
+    expect(heroClassNames).toContain('object-contain');
+    expect(heroClassNames).toContain('lg:aspect-square');
+    expect(heroClassNames).toContain('lg:inset-[18%]');
+    expect(heroClassNames).toContain('hidden lg:contents');
+    expect(hero.filter((element) => element.type === 'h1')).toHaveLength(1);
     expect(
-      hero.some((element) => (element.props as { href?: string }).href === '/about'),
-    ).toBe(true);
+      hero.filter(
+        (element) =>
+          element.type === 'a' && (element.props as { href?: string }).href === '/about',
+      ),
+    ).toHaveLength(1);
+    expect(
+      hero.filter(
+        (element) =>
+          (element.props as { 'data-testid'?: string })['data-testid'] === 'hero-latest-essay',
+      ),
+    ).toHaveLength(1);
   });
 });
