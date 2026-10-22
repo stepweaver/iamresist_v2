@@ -6,6 +6,10 @@ function calendarYmd(value) {
   return match ? match[1] : '';
 }
 
+export function journalPublishedOn(entry) {
+  return primaryYmd(entry);
+}
+
 function primaryYmd(entry) {
   const fromProp = calendarYmd(entry?.date);
   if (fromProp) return fromProp;
