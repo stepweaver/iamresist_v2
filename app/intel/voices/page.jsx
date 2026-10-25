@@ -1,52 +1,17 @@
-import { Suspense } from 'react';
-import Link from 'next/link';
-import IntelTabs from '@/components/IntelTabs';
-import IntelLaneWarning from '@/components/intel/IntelLaneWarning';
-import LiveDeskSection from '@/components/intel/LiveDeskSection';
-import { getLiveIntelDesk } from '@/lib/feeds/liveIntel.service';
-import { buildPageMetadata } from '@/lib/metadata';
+import { permanentRedirect } from 'next/navigation';
 
-export const revalidate = 45;
-
-export const metadata = buildPageMetadata({
-  title: 'Intel // Voices | I AM [RESIST]',
-  description:
-    'Creator and commentary from public feeds — previews with links to sources. For video and music, see Telescreen.',
-  urlPath: '/intel/voices',
-});
-
-async function VoicesDeskContent() {
-  const desk = await getLiveIntelDesk('voices');
-  return <LiveDeskSection desk={desk} laneWarningSlot={<IntelLaneWarning deskLane="voices" />} />;
-}
-
-export default function IntelVoicesDeskPage() {
-  return (
-    <main
-      id="main-content"
-      className="hero-page-bg min-h-screen overflow-x-clip"
-    >
-      <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs
-          description={
-            <>
-              <strong className="text-foreground/90">Intel voices</strong> — text and audio from public feeds. Curated
-              video and music live on{' '}
-              <Link href="/telescreen" scroll className="text-primary hover:underline font-bold">
-                Telescreen
-              </Link>
-              .
-            </>
-          }
-        />
-        <Suspense
-          fallback={
-            <p className="text-foreground/70 uppercase tracking-wider text-sm">Loading Voices desk…</p>
-          }
-        >
-          <VoicesDeskContent />
-        </Suspense>
-      </div>
-    </main>
-  );
+/** Retired Intel Voices desk. Preserves query string for bookmarks that pointed at Telescreen filters. */
+export default async function IntelVoicesRedirectPage({ searchParams }) {
+  const params = typeof searchParams?.then === 'function' ? await searchParams : searchParams ?? {};
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      for (const v of value) q.append(key, String(v));
+    } else {
+      q.set(key, String(value));
+    }
+  }
+  const suffix = q.toString() ? `?${q.toString()}` : '';
+  permanentRedirect(`/telescreen${suffix}`);
 }

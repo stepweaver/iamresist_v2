@@ -202,9 +202,9 @@ describe('live desk composition (Milestone 2)', () => {
     const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
     await getLiveIntelDesk('osint');
 
-    expect(fetchSourceIdsForDeskLane).toHaveBeenCalledTimes(2);
+    expect(fetchSourceIdsForDeskLane).toHaveBeenCalledTimes(1);
     expect(fetchSourceIdsForDeskLane).toHaveBeenNthCalledWith(1, 'osint');
-    expect(fetchSourceIdsForDeskLane).toHaveBeenNthCalledWith(2, 'voices');
+    expect(fetchSourceIdsForDeskLane).not.toHaveBeenCalledWith('voices');
     expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('osint', {
       laneSourceIds: ['osint-source-id'],
     });
@@ -217,9 +217,11 @@ describe('live desk composition (Milestone 2)', () => {
     expect(fetchSuppressedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'osint', {
       laneSourceIds: ['osint-source-id'],
     });
-    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'voices', {
-      laneSourceIds: ['voices-source-id'],
-    });
+    expect(fetchSurfacedSourceItemsForLive).not.toHaveBeenCalledWith(
+      expect.any(Number),
+      'voices',
+      expect.anything(),
+    );
   });
 });
 
@@ -804,10 +806,24 @@ describe('live desk creator corroboration bridge', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-17T12:00:00.000Z'));
     fetchSurfacedSourceItemsForLive.mockClear();
+    fetchSourceIdsForDeskLane.mockClear();
     fetchIntelFreshnessForDeskLane.mockClear();
   });
 
-  it('gives an already-eligible watchdog item a small boost from trusted creator convergence', async () => {
+  it('does not read the retired voices desk or its snapshot', async () => {
+    const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
+    const desk = await getLiveIntelDesk('voices');
+
+    expect(desk.deskLane).toBe('voices');
+    expect(desk.configured).toBe(true);
+    expect(desk.liveReadOk).toBe(true);
+    expect(desk.snapshotFallback).toBe(false);
+    expect(desk.items).toEqual([]);
+    expect(fetchSourceIdsForDeskLane).not.toHaveBeenCalled();
+    expect(fetchSurfacedSourceItemsForLive).not.toHaveBeenCalled();
+  });
+
+  it('does not let historical intel voices rows boost an already-eligible watchdog item', async () => {
     fetchSurfacedSourceItemsForLive.mockImplementation(async (limit: number, lane: string) => {
       if (lane === 'watchdogs') {
         return [
@@ -886,10 +902,14 @@ describe('live desk creator corroboration bridge', () => {
     const desk = await getLiveIntelDesk('watchdogs');
     const bridged = desk.items.find((item: any) => item.id === 'watchdog-ice');
 
-    expect(bridged?.creatorCorroborationBoost).toBeGreaterThan(0);
-    expect(bridged?.creatorCorroborationBoost).toBeLessThanOrEqual(4);
-    expect(bridged?.baseDisplayPriority).toBeLessThan(bridged?.displayPriority);
-    expect(bridged?.creatorCorroboration?.reasons).toContain('trusted_creator_convergence');
+    expect(fetchSurfacedSourceItemsForLive).not.toHaveBeenCalledWith(
+      expect.any(Number),
+      'voices',
+      expect.anything(),
+    );
+    expect(bridged?.creatorCorroborationBoost).toBe(0);
+    expect(bridged?.creatorCorroboration).toBeNull();
+    expect(bridged?.displayPriority).toBe(bridged?.baseDisplayPriority);
   });
 
   it('does not let unsupported creator-heavy chatter dominate the desk', async () => {
@@ -975,7 +995,7 @@ describe('live desk creator corroboration bridge', () => {
     const softItem = desk.preCapCandidates.find((item: any) => item.id === 'soft-item');
 
     expect(rankedIds[0]).toBe('hard-item');
-    expect(softItem?.creatorCorroborationBoost).toBeGreaterThan(0);
+    expect(softItem?.creatorCorroborationBoost).toBe(0);
     expect(softItem?.displayPriority).toBeLessThan(
       desk.preCapCandidates.find((item: any) => item.id === 'hard-item')?.displayPriority,
     );
@@ -1186,14 +1206,14 @@ describe('live desk creator corroboration bridge', () => {
     const debugDesk = await getLiveIntelDeskDebug('watchdogs');
     const debugItem = debugDesk.items.preCapCandidates.find((item: any) => item.id === 'watchdog-debug');
 
-    expect(debugItem?.creatorCorroborationBoost).toBeGreaterThan(0);
-    expect(debugItem?.creatorCorroboration?.applied).toBe(true);
-    expect(debugItem?.creatorCorroboration?.reasons).toContain('trusted_creator_convergence');
+    expect(debugItem?.creatorCorroborationBoost).toBe(0);
+    expect(debugItem?.creatorCorroboration).toBeNull();
+    const display = Array.isArray(debugItem?.shortExplanations?.display)
+      ? debugItem.shortExplanations.display
+      : [];
     expect(
-      debugItem?.shortExplanations?.display?.some(
-        (entry: any) => entry?.ruleId === 'live_desk:creator_corroboration_bridge',
-      ),
-    ).toBe(true);
+      display.some((entry: any) => entry?.ruleId === 'live_desk:creator_corroboration_bridge'),
+    ).toBe(false);
   });
 });
 

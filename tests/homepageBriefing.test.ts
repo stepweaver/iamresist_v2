@@ -14,7 +14,6 @@ import {
 import {
   FALLBACK_MAX_AGE_HOURS,
   hoursSincePublished,
-  VOICES_COMMENTARY_FALLBACK_MAX_AGE_H,
 } from '@/lib/feeds/homepageBriefing.policy';
 import { BRIEFING_LANE_WEIGHT, BRIEFING_TOTAL_SLOTS } from '@/lib/feeds/homepageBriefing.weights';
 
@@ -27,13 +26,14 @@ describe('bridgeNewswireStoryScore', () => {
 });
 
 describe('weightedBriefingScore', () => {
-  it('applies lower weight for voices lane', () => {
+  it('keeps osint, watchdogs, defense, and newswire weights and drops the retired voices lane', () => {
     const raw = 80;
-    const os = weightedBriefingScore({ briefLane: 'osint', rawScore: raw });
-    const vo = weightedBriefingScore({ briefLane: 'voices', rawScore: raw });
-    expect(vo).toBeLessThan(os);
-    expect(os).toBe(raw * BRIEFING_LANE_WEIGHT.osint);
-    expect(vo).toBe(raw * BRIEFING_LANE_WEIGHT.voices);
+    expect(weightedBriefingScore({ briefLane: 'osint', rawScore: raw })).toBe(raw * BRIEFING_LANE_WEIGHT.osint);
+    expect(BRIEFING_LANE_WEIGHT.osint).toBe(1);
+    expect(BRIEFING_LANE_WEIGHT.watchdogs).toBe(1.02);
+    expect(BRIEFING_LANE_WEIGHT.defense_ops).toBe(1);
+    expect(BRIEFING_LANE_WEIGHT.newswire).toBe(0.98);
+    expect(BRIEFING_LANE_WEIGHT).not.toHaveProperty('voices');
   });
 });
 
@@ -204,7 +204,7 @@ describe('Prompt 3 homepage merge behavior', () => {
       briefLane: lane,
       briefingOrigin: origin as 'promoted' | 'lane_backstop',
       rawScore,
-      weightedScore: rawScore * BRIEFING_LANE_WEIGHT[lane],
+      weightedScore: rawScore * (BRIEFING_LANE_WEIGHT[lane as keyof typeof BRIEFING_LANE_WEIGHT] ?? 1),
       intelItem: {
         id,
         canonicalUrl: `https://example.test/${id}`,
@@ -303,7 +303,7 @@ describe('Prompt 3 homepage merge behavior', () => {
     vi.useRealTimers();
   });
 
-  it('2. no longer crushes a strong voices-backed promoted story', () => {
+  it('2. drops a retired intel voices item instead of ranking it on the rail', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(now));
 
@@ -328,8 +328,7 @@ describe('Prompt 3 homepage merge behavior', () => {
     });
 
     const out = mergeAndRankBriefingCandidates([backstop, voicesPromoted]);
-    expect(out[0].intelItem.id).toBe('voices-promo');
-    expect(out[0].briefingExplain?.weightedLaneScore).toBeCloseTo(72 * BRIEFING_LANE_WEIGHT.voices, 2);
+    expect(out.map((item) => item.intelItem.id)).toEqual(['backstop']);
 
     vi.useRealTimers();
   });
@@ -536,9 +535,7 @@ describe('Prompt 3 homepage merge behavior', () => {
     });
 
     const out = mergeAndRankBriefingCandidates([promoted, offMissionishVoice]);
-    expect(out[0].intelItem.id).toBe('mission-top');
-    expect(out.some((item) => item.kind === 'intel' && item.intelItem.id === 'voice-noise')).toBe(true);
-    expect(out[1]?.briefingExplain?.homepageBriefingScore).toBeLessThan(out[0].briefingExplain?.homepageBriefingScore ?? 0);
+    expect(out.map((item) => (item.kind === 'intel' ? item.intelItem.id : item.story.id))).toEqual(['mission-top']);
 
     vi.useRealTimers();
   });
@@ -554,7 +551,7 @@ describe('ranking tightening (deterministic clock)', () => {
       briefLane: 'voices' as const,
       briefingOrigin: 'lane_backstop' as const,
       rawScore: 88,
-      weightedScore: 88 * BRIEFING_LANE_WEIGHT.voices,
+      weightedScore: 88,
       intelItem: {
         id: 'v1',
         canonicalUrl: 'https://voice.test/old',
@@ -587,12 +584,8 @@ describe('ranking tightening (deterministic clock)', () => {
       },
     };
 
-    const sv = computeHomepageBriefingScore(staleVoice);
-    const fw = computeHomepageBriefingScore(freshWatch);
-    expect(fw).toBeGreaterThan(sv);
-
     const out = mergeAndRankBriefingCandidates([staleVoice, freshWatch]);
-    expect(out[0].intelItem.id).toBe('w1');
+    expect(out.map((item) => item.intelItem.id)).toEqual(['w1']);
 
     vi.useRealTimers();
   });
@@ -634,7 +627,7 @@ describe('ranking tightening (deterministic clock)', () => {
       briefLane: 'voices' as const,
       briefingOrigin: 'promoted' as const,
       rawScore: 92,
-      weightedScore: 92 * BRIEFING_LANE_WEIGHT.voices,
+      weightedScore: 92,
       intelItem: {
         id: 'oc',
         canonicalUrl: 'https://c.test/old',
@@ -663,9 +656,8 @@ describe('ranking tightening (deterministic clock)', () => {
       },
     };
 
-    expect(computeHomepageBriefingScore(freshAcct)).toBeGreaterThan(computeHomepageBriefingScore(oldCommentary));
     const out = mergeAndRankBriefingCandidates([oldCommentary, freshAcct]);
-    expect(out[0].intelItem.id).toBe('fa');
+    expect(out.map((item) => item.intelItem.id)).toEqual(['fa']);
 
     vi.useRealTimers();
   });
@@ -726,7 +718,7 @@ describe('ranking tightening (deterministic clock)', () => {
       briefLane: 'voices' as const,
       briefingOrigin: 'lane_backstop' as const,
       rawScore: 70,
-      weightedScore: 70 * BRIEFING_LANE_WEIGHT.voices,
+      weightedScore: 70,
       intelItem: {
         id: 'st',
         canonicalUrl: 'https://v.test/stale',
@@ -738,8 +730,7 @@ describe('ranking tightening (deterministic clock)', () => {
       },
     };
 
-    const hp = computeHomepageBriefingScore(staleOnly);
-    expect(passesFallbackGate(staleOnly, hp)).toBe(false);
+    expect(passesFallbackGate(staleOnly, 80)).toBe(false);
 
     const out = mergeAndRankBriefingCandidates([staleOnly]);
     expect(out.length).toBe(0);
@@ -748,33 +739,26 @@ describe('ranking tightening (deterministic clock)', () => {
   });
 });
 
-describe('passesFallbackGate (voices commentary)', () => {
-  it('blocks voices commentary when older than VOICES_COMMENTARY window and raw is below threshold', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-15T12:00:00.000Z'));
-
+describe('passesFallbackGate (retired intel voices)', () => {
+  it('rejects the retired voices lane even when the item is fresh and strongly scored', () => {
     const voiceCommentary = {
       kind: 'intel' as const,
       briefLane: 'voices' as const,
       briefingOrigin: 'lane_backstop' as const,
-      rawScore: 68,
-      weightedScore: 68 * BRIEFING_LANE_WEIGHT.voices,
+      rawScore: 96,
+      weightedScore: 96,
       intelItem: {
         id: 'vc',
         canonicalUrl: 'https://v.test/x',
         title: 'X',
         sourceSlug: 'v',
-        publishedAt: '2026-04-13T11:00:00.000Z',
+        publishedAt: new Date().toISOString(),
         deskLane: 'voices',
         provenanceClass: 'COMMENTARY',
       },
     };
 
-    const age = hoursSincePublished(voiceCommentary.intelItem.publishedAt);
-    expect(age).toBeGreaterThan(VOICES_COMMENTARY_FALLBACK_MAX_AGE_H);
-    expect(passesFallbackGate(voiceCommentary, 80)).toBe(false);
-
-    vi.useRealTimers();
+    expect(passesFallbackGate(voiceCommentary, 96)).toBe(false);
   });
 });
 
@@ -791,10 +775,10 @@ describe('homepage briefing payload shape', () => {
     vi.doMock('@/lib/feeds/liveIntel.service', () => {
       return {
         getLiveIntelDeskForHomepageBriefing: vi.fn(async (lane: string) => {
-          if (lane === 'watchdogs') return { configured: true, items: [{ id: 'w1' }] };
-          if (lane === 'defense_ops') return { configured: true, items: [{ id: 'd1' }, { id: 'd2' }] };
-          if (lane === 'voices') return { configured: true, items: [] };
-          return { configured: true, items: [{ id: 'o1' }] };
+          if (lane === 'voices') throw new Error('retired voices desk must not be loaded');
+          if (lane === 'watchdogs') return { configured: true, liveReadOk: true, items: [{ id: 'w1' }] };
+          if (lane === 'defense_ops') return { configured: true, liveReadOk: true, items: [{ id: 'd1' }, { id: 'd2' }] };
+          return { configured: true, liveReadOk: true, items: [{ id: 'o1' }] };
         }),
       };
     });
@@ -812,10 +796,12 @@ describe('homepage briefing payload shape', () => {
     expect(payload.explain.pool.briefingDesk.desks.osint).toBe(1);
     expect(payload.explain.pool.briefingDesk.desks.watchdogs).toBe(1);
     expect(payload.explain.pool.briefingDesk.desks.defense_ops).toBe(2);
-    expect(payload.explain.pool.briefingDesk.desks.voices).toBe(0);
+    expect(payload.explain.pool.briefingDesk.desks).not.toHaveProperty('voices');
+    const { getLiveIntelDeskForHomepageBriefing } = await import('@/lib/feeds/liveIntel.service');
+    expect(getLiveIntelDeskForHomepageBriefing).not.toHaveBeenCalledWith('voices');
   });
 
-  it('uses voices as signal but does not directly rank voices items into the briefing rail', async () => {
+  it('does not load the intel voices desk or let a voices representative into the rail', async () => {
     vi.resetModules();
 
     vi.doMock('next/cache', () => {
@@ -827,25 +813,8 @@ describe('homepage briefing payload shape', () => {
     vi.doMock('@/lib/feeds/liveIntel.service', () => {
       return {
         getLiveIntelDeskForHomepageBriefing: vi.fn(async (lane: string) => {
-          if (lane === 'voices') {
-            return {
-              configured: true,
-              items: [
-                {
-                  id: 'voice-1',
-                  canonicalUrl: 'https://voice.test/post',
-                  title: 'Creator post',
-                  sourceName: 'Creator',
-                  sourceSlug: 'creator',
-                  publishedAt: '2026-04-17T10:00:00.000Z',
-                  deskLane: 'voices',
-                  displayPriority: 88,
-                  provenanceClass: 'COMMENTARY',
-                },
-              ],
-            };
-          }
-          return { configured: true, items: [] };
+          if (lane === 'voices') throw new Error('retired voices desk must not be loaded');
+          return { configured: true, liveReadOk: true, items: [] };
         }),
       };
     });
@@ -856,7 +825,9 @@ describe('homepage briefing payload shape', () => {
     });
 
     vi.doMock('@/lib/intel/globalPromotion', () => ({
-      promoteGlobally: vi.fn(() => [
+      promoteGlobally: vi.fn((items: Array<{ deskLane?: string }>) => {
+        expect(items.some((item) => item?.deskLane === 'voices')).toBe(false);
+        return [
         {
           representative: {
             id: 'voice-1',
@@ -876,7 +847,8 @@ describe('homepage briefing payload shape', () => {
             corroboration: { itemCount: 1 },
           },
         },
-      ]),
+      ];
+      }),
     }));
 
     const { getHomeLiveBriefingWithExplain } = await import('@/lib/feeds/homepageBriefing.service');
@@ -884,7 +856,9 @@ describe('homepage briefing payload shape', () => {
 
     expect(payload.items).toEqual([]);
     expect(payload.explain.pool.promotedIntel).toBe(0);
-    expect(payload.explain.pool.briefingDesk.desks.voices).toBe(1);
+    expect(payload.explain.pool.briefingDesk.desks).not.toHaveProperty('voices');
+    const { getLiveIntelDeskForHomepageBriefing } = await import('@/lib/feeds/liveIntel.service');
+    expect(getLiveIntelDeskForHomepageBriefing).not.toHaveBeenCalledWith('voices');
   });
 });
 

@@ -29,7 +29,7 @@ Additional related surfaces reviewed:
 - `components/newswire/NewswireHeadlineCard.jsx`
 - `components/home/HomeLiveBriefingSection.jsx`
 - `app/intel/newswire/page.jsx`
-- `app/intel/voices/page.jsx`
+- `app/intel/voices/page.jsx` (retired; redirects to `/telescreen`)
 - `app/(site)/curated/[slug]/page.jsx`
 - `app/(site)/music/[slug]/page.jsx`
 - `app/(site)/telescreen/page.jsx`
@@ -44,7 +44,7 @@ Additional related surfaces reviewed:
 - `components/voices/InlinePlayerModalClean.jsx` uses `https://www.youtube-nocookie.com/embed/...` for inline playback inside the modal.
 - `app/(site)/curated/[slug]/page.jsx` and `app/(site)/music/[slug]/page.jsx` use `https://www.youtube.com/embed/...` on item detail pages.
 - `next.config.mjs` explicitly allows YouTube and `youtube-nocookie` in CSP `frame-src` and `connect-src`.
-- Voices page copy already says "text and audio from public feeds" in `app/intel/voices/page.jsx`, but most actual inline embed behavior observed in this pass is video-oriented rather than native audio player embedding.
+- The Intel Voices desk no longer renders feed copy. Inline embed behavior observed in this pass is video-oriented, on Telescreen and catalog pages, rather than a native audio player.
 
 ### 2. Source headlines
 

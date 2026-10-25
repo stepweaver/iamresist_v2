@@ -4,13 +4,12 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const TABS = [
+export const INTEL_NAV_TABS = [
   { href: "/intel/osint", label: "OSINT" },
   { href: "/intel/defense", label: "Defense" },
   { href: "/intel/watchdogs", label: "Watchdogs" },
   { href: "/intel/claims", label: "Claims" },
   { href: "/telescreen", label: "Telescreen" },
-  { href: "/intel/voices", label: "Voices" },
   { href: "/intel/newswire", label: "Newswire" },
   { href: "/intel/sources", label: "Sources" },
 ];
@@ -30,7 +29,6 @@ export default function IntelTabs({ description }) {
     pathname === "/telescreen" || pathname?.startsWith("/telescreen/");
   const isSources = pathname?.startsWith("/intel/sources");
   const isNewswire = pathname?.startsWith("/intel/newswire");
-  const isVoices = pathname?.startsWith("/intel/voices");
   const isClaims = pathname?.startsWith("/intel/claims");
 
   return (
@@ -42,7 +40,7 @@ export default function IntelTabs({ description }) {
         className="flex flex-wrap items-baseline gap-2 sm:gap-4 mb-1"
         aria-label="Intel sections"
       >
-        {TABS.map((tab, i) => {
+        {INTEL_NAV_TABS.map((tab, i) => {
           const isActive =
             (tab.href === "/intel/osint" && isOsint) ||
             (tab.href === "/intel/defense" && isDefense) ||
@@ -50,8 +48,7 @@ export default function IntelTabs({ description }) {
             (tab.href === "/intel/claims" && isClaims) ||
             (tab.href === "/telescreen" && isTelescreen) ||
             (tab.href === "/intel/sources" && isSources) ||
-            (tab.href === "/intel/newswire" && isNewswire) ||
-            (tab.href === "/intel/voices" && isVoices);
+            (tab.href === "/intel/newswire" && isNewswire);
           return (
             <span key={tab.href} className="flex items-baseline gap-2 sm:gap-4">
               {i > 0 && (

@@ -32,9 +32,9 @@ This document mirrors the **version-controlled manifest** in [`lib/intel/signal-
 | `watchdogs` | `/intel/watchdogs` | Foreign independent and investigative outlets; lead slots require corroboration rules. |
 | `indicators` | `/intel/indicators` | Scheduled macro/statistical releases (BLS/BEA HTML index), placeholders (SAM/OFAC), anecdotal registry rows. |
 | `statements` | `/intel/statements` | Direct political claims / public-import scaffold; isolated ranking; not evidence by itself. |
-| `voices` | `/intel/voices` | Ingested creator/commentary from **public** RSS/podcast feeds. |
+| `voices` | retired (`/intel/voices` → `/telescreen`) | Intel Voices RSS desk is retired. Historical `intel` rows remain. Notion Telescreen creators are a separate system and stay active. |
 
-The curated **Telescreen** lives at **`/telescreen`** (`/voices` redirects); it is not replaced by `/intel/voices`.
+The curated **Telescreen** lives at **`/telescreen`** (`/voices` and `/intel/voices` redirect there).
 
 ## Source families (`source_family`)
 
@@ -120,14 +120,16 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 | `courier-the-cover-up` | RSS | yes | `preview_and_link` — working Substack feed for the COURIER Cover-Up / Epstein accountability project. |
 | `uncovering-epstein-network` | RSS (`/feed/`) | **no** (disabled) | `preview_and_link` — registry only; site feed parses to 0 items here; do not run parallel to Substack without dedupe. |
 
-### Creator / commentary (Voices)
+### Creator / commentary (Intel Voices) — retired
+
+These Substack feeds stay in the manifest with `is_enabled: false`. The next ingest sync marks them disabled and does not fetch them. Specialist Substack sources on other desks, including `courier-the-cover-up`, are unchanged.
 
 | Slug | Feed-native? | Default on | Content posture |
 |------|----------------|------------|-----------------|
-| `robert-reich` | Substack RSS | yes | `preview_and_link` |
-| `g-elliott-morris` | Substack RSS | yes | `preview_and_link` — data-driven political/elections analysis and interpretation; not primary records or official confirmation. |
-| `on-offense-kris-goldsmith` | Substack RSS | yes | `preview_and_link` |
-| `total-hypocrisy` | Substack RSS | **no** | Enable after verifying `/feed`; Patreon audio without public RSS is not ingested. |
+| `robert-reich` | Substack RSS | **no** | Retired. Historical rows kept. |
+| `g-elliott-morris` | Substack RSS | **no** | Retired. Historical rows kept. |
+| `on-offense-kris-goldsmith` | Substack RSS | **no** | Retired. Historical rows kept. |
+| `total-hypocrisy` | Substack RSS | **no** | Retired. Historical rows kept. |
 
 ### Defense (`defense_ops`)
 

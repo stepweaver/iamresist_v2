@@ -33,4 +33,11 @@ describe('Intel landing routes', () => {
 
     expect(permanentRedirect).toHaveBeenCalledWith('/telescreen');
   });
+
+  it('sends retired /intel/voices to Telescreen and keeps filter query params', async () => {
+    const { default: IntelVoicesPage } = await import('@/app/intel/voices/page');
+    await IntelVoicesPage({ searchParams: Promise.resolve({ voice: 'creator-one' }) });
+
+    expect(permanentRedirect).toHaveBeenCalledWith('/telescreen?voice=creator-one');
+  });
 });

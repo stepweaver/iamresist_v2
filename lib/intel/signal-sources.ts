@@ -735,7 +735,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'general',
       contentUseMode: 'preview_and_link',
       endpointUrl: ROBERT_REICH,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -745,7 +745,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Interpretation hooks and pointers to the author’s own posts.',
       notTrustedFor: 'Primary government records, wire confirmation, or neutral fact baseline.',
       editorialNotes:
-        'Commentary lane; included in default manifest (voices desk).',
+        'Retired from Intel ingestion. Registry row kept so historical items stay attached; manifest sync sets is_enabled false and ingest skips the feed.',
       editorialControls: {
         defaultPriority: 46,
         preferredStateChangeTypes: ['commentary_item'],
@@ -761,7 +761,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'general',
       contentUseMode: 'preview_and_link',
       endpointUrl: G_ELLIOTT_MORRIS,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -774,7 +774,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       notTrustedFor:
         'Primary records, official confirmation, or real-time breaking claims without corroboration.',
       editorialNotes:
-        'Voices lane: trusted for analytic interpretation, not as a primary reporting surface.',
+        'Retired from Intel ingestion. Registry row kept so historical items stay attached; manifest sync sets is_enabled false and ingest skips the feed.',
       editorialControls: {
         defaultPriority: 52,
         preferredStateChangeTypes: ['commentary_item'],
@@ -792,7 +792,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'general',
       contentUseMode: 'preview_and_link',
       endpointUrl: ON_OFFENSE,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -802,6 +802,8 @@ export function getSignalSources(): SignalSourceConfig[] {
         'Substack publication feed used to discover new On Offense episode posts and link back to canonical pages.',
       trustedFor: 'Episode/post titles, dates, canonical post URLs, and short previews.',
       notTrustedFor: 'Wire news or official documents; audio is consumed on the creator platform.',
+      editorialNotes:
+        'Retired from Intel ingestion. Registry row kept so historical items stay attached; manifest sync sets is_enabled false and ingest skips the feed.',
       editorialControls: {
         defaultPriority: 48,
         preferredStateChangeTypes: ['commentary_item'],
@@ -816,7 +818,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'general',
       contentUseMode: 'preview_and_link',
       endpointUrl: TOTAL_HYPOCRISY,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -826,7 +828,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Syndicated post titles and links to Substack.',
       notTrustedFor: 'Patreon-exclusive audio without a separate public feed.',
       editorialNotes:
-        'Enabled in default manifest; verify feed in production if items look wrong. Patreon-only podcast is not ingested here.',
+        'Retired from Intel ingestion. Registry row kept so historical items stay attached; manifest sync sets is_enabled false and ingest skips the feed.',
       editorialControls: {
         defaultPriority: 45,
         preferredStateChangeTypes: ['commentary_item'],

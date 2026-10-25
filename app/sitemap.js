@@ -18,7 +18,6 @@ const STATIC_PATHS = [
   '/resources',
   '/shop',
   '/intel/newswire',
-  '/intel/voices',
   '/intel/sources',
   '/intel/watchdogs',
   '/intel/osint',

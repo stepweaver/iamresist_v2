@@ -75,5 +75,6 @@ describe('sitemap', () => {
     expect(urls).not.toContain('https://iamresist.test/intel/live');
     expect(urls).not.toContain('https://iamresist.test/intel/indicators');
     expect(urls).not.toContain('https://iamresist.test/intel/statements');
+    expect(urls).not.toContain('https://iamresist.test/intel/voices');
   });
 });

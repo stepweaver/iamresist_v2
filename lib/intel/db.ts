@@ -33,7 +33,14 @@ export function denormalizedDeskLaneColumn(manifestLane: DeskLane): 'osint' | 'v
 
 export async function fetchSourceIdsForDeskLane(deskLane: DeskLane): Promise<string[]> {
   const supabase = client();
-  const { data, error } = await supabase.from('sources').select('id').eq('desk_lane', deskLane);
+  // Disabled registry rows stay in intel.sources for history. Live desk reads only
+  // use enabled source ids, so a retired feed cannot re-enter ranking after sync.
+  // Other desks are unchanged for sources that remain enabled.
+  const { data, error } = await supabase
+    .from('sources')
+    .select('id')
+    .eq('desk_lane', deskLane)
+    .eq('is_enabled', true);
   if (error) throw new Error(`sources ids for desk lane: ${error.message}`);
   const ids: string[] = [];
   for (const row of data ?? []) {

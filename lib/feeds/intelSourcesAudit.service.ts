@@ -478,7 +478,7 @@ async function buildIntelSourcesAudit(): Promise<{
   });
 
   // Public product cleanup: hide internal scaffolds / retired lanes from the public audit surface.
-  const PUBLIC_LANES = new Set(['osint', 'defense_ops', 'watchdogs', 'voices']);
+  const PUBLIC_LANES = new Set(['osint', 'defense_ops', 'watchdogs']);
   const REMOVED_PUBLIC_SOURCES = new Set([
     'indicator-pentagon-pizza',
     'sam-gov-contracting',
@@ -518,7 +518,7 @@ async function buildIntelSourcesAudit(): Promise<{
   };
 }
 
-export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v3'], {
+export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v4'], {
   revalidate: 90,
   tags: ['intel-sources'],
 });

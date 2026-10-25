@@ -44,7 +44,7 @@ export function hoursSincePublished(iso: string | null | undefined): number | nu
  */
 export function intelFreshnessMultiplier(
   bucket: FreshnessBucket,
-  briefLane: BriefingLane,
+  _briefLane: BriefingLane,
   provenanceClass: ProvenanceClass | undefined,
 ): number {
   let m = 1;
@@ -75,10 +75,6 @@ export function intelFreshnessMultiplier(
     m *= 0.72;
   }
 
-  if (briefLane === 'voices' && (bucket === 'old' || bucket === 'stale')) {
-    m *= bucket === 'stale' ? 0.62 : 0.78;
-  }
-
   return m;
 }
 
@@ -101,7 +97,6 @@ export const FALLBACK_MAX_AGE_HOURS: Record<BriefingLane, number> = {
   osint: 96,
   watchdogs: 96,
   defense_ops: 96,
-  voices: 42,
 };
 
 /** Minimum homepage briefing score (after lane weight × freshness) for fallback. */
@@ -110,33 +105,17 @@ export const FALLBACK_MIN_HOMEPAGE_SCORE: Record<BriefingLane, number> = {
   osint: 34,
   watchdogs: 34,
   defense_ops: 34,
-  voices: 50,
 };
 
 /**
  * Extra cap: max additional items per lane that can appear only via fallback (after primary pass).
- * Prevents stale voices from padding the rail.
  */
 export const FALLBACK_MAX_EXTRA_PER_LANE: Record<BriefingLane, number> = {
   newswire: 2,
   osint: 3,
   watchdogs: 3,
   defense_ops: 3,
-  voices: 1,
 };
-
-/** Voices + commentary: stricter fallback unless raw promotion/desk score proves strength. */
-export const VOICES_COMMENTARY_FALLBACK_MAX_AGE_H = 36;
-export const VOICES_COMMENTARY_FALLBACK_MIN_RAW = 72;
-
-/** Hard cap on voices lane in the final stack (primary + fallback). */
-export const BRIEFING_VOICES_MAX_TOTAL = 2;
-
-/**
- * Drop very weak stale/old Voices commentary from both primary and fallback so the live rail
- * does not read like recycled takes. Deterministic; does not apply to non-commentary voices.
- */
-export const VOICES_STALE_COMMENTARY_MIN_HOMEPAGE_SCORE = 26;
 
 /** Primary-pass ordering bonus so promoted clusters beat merely decent filler. */
 export const PROMOTED_PRIMARY_PRIORITY_BOOST = 6;
@@ -153,14 +132,3 @@ export const STORY_COHERENCE_MIN_SHARED_TOKENS = 3;
 /** Strong preference threshold for one non-hero Agenda Pulse item in the homepage briefing. */
 export const AGENDA_PULSE_HOMEPAGE_THRESHOLD = 68;
 
-export function shouldSuppressVoicesStaleCommentary(
-  entry: { kind: string; briefLane: BriefingLane; intelItem?: { publishedAt?: string | null; provenanceClass?: ProvenanceClass } },
-  homepageBriefingScore: number,
-  ageHours: number | null,
-): boolean {
-  if (entry.kind !== 'intel' || entry.briefLane !== 'voices') return false;
-  if (entry.intelItem?.provenanceClass !== 'COMMENTARY') return false;
-  const bucket = freshnessBucketFromAgeHours(ageHours);
-  if (bucket !== 'stale' && bucket !== 'old') return false;
-  return homepageBriefingScore < VOICES_STALE_COMMENTARY_MIN_HOMEPAGE_SCORE;
-}
