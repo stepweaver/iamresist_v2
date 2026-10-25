@@ -4,7 +4,11 @@ import {
   isYoutubeRssUrl,
   YOUTUBE_RSS_RETRY_DELAYS_MS,
 } from '@/lib/feeds/rss.js';
-import { clearLastKnownGoodForTests } from '@/lib/feeds/lastKnownGood.js';
+import {
+  clearLastKnownGoodForTests,
+  clearLastKnownGoodMemoryForTests,
+  configureLastKnownGoodDurableForTests,
+} from '@/lib/feeds/lastKnownGood.js';
 
 const YT_CHANNEL_RSS =
   'https://www.youtube.com/feeds/videos.xml?channel_id=UCvixJtaXuNdMPUGdOPcY8Ag';
@@ -59,6 +63,7 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     clearLastKnownGoodForTests();
+    configureLastKnownGoodDurableForTests(null);
   });
 
   it('retries a YouTube 404 then succeeds', async () => {
@@ -79,8 +84,9 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(sleep).toHaveBeenCalledTimes(1);
     expect(sleep).toHaveBeenCalledWith(YOUTUBE_RSS_RETRY_DELAYS_MS[0]);
-    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ next: { revalidate: 300 } });
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ cache: 'no-store' });
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ cache: 'no-store' });
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty('next');
     expect(warn.mock.calls.some((args) => String(args[0]).includes('retrying'))).toBe(true);
     expect(warn.mock.calls.some((args) => String(args[0]).includes('http_404'))).toBe(false);
   });
@@ -143,11 +149,14 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
     const sleep = mockSleep();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const result = await fetchFeedItemsWithMeta(NON_YT_RSS, { sleep });
+    const result = await fetchFeedItemsWithMeta(NON_YT_RSS, { sleep, tags: ['theme-memory-feed'] });
 
     expect(result).toEqual({ items: [], ok: false, reason: 'http_404' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      next: { revalidate: 300, tags: ['theme-memory-feed'] },
+    });
     expect(warn.mock.calls.some((args) => String(args[0]).includes('YouTube RSS'))).toBe(false);
   });
 
@@ -166,9 +175,8 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
     expect(result.items).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
-    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
-      next: { revalidate: 300, tags: ['theme-memory-feed'] },
-    });
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ cache: 'no-store' });
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty('next');
   });
 
   it('keeps a successful empty feed distinct from a failed request', async () => {
@@ -213,5 +221,50 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
     expect(result.ok).toBe(false);
     expect(result.items).toEqual([]);
     expect(result.reason).toBe('http_404');
+  });
+
+  it('uses a caller-supplied short retry schedule and does not cache the 404', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(statusResponse(404));
+    vi.stubGlobal('fetch', fetchMock);
+    const sleep = mockSleep();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, {
+      sleep,
+      youtubeRetryDelaysMs: [0],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('http_404');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenCalledWith(0);
+    expect(fetchMock.mock.calls.every((call) => call[1]?.cache === 'no-store')).toBe(true);
+  });
+
+  it('reloads a YouTube snapshot from the durable cache after the process copy is dropped', async () => {
+    const durable = new Map();
+    configureLastKnownGoodDurableForTests(durable);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okFeedResponse()));
+    await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, { sleep: mockSleep() });
+    expect(durable.size).toBe(1);
+    clearLastKnownGoodMemoryForTests();
+
+    const fetchMock = vi.fn().mockResolvedValue(statusResponse(404));
+    vi.stubGlobal('fetch', fetchMock);
+    const sleep = mockSleep();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, {
+      sleep,
+      onFailure: 'snapshot',
+      youtubeRetry: 'if-no-snapshot',
+    });
+
+    expect(result.stale).toBe(true);
+    expect(result.reason).toBe('upstream_failed_used_snapshot');
+    expect(result.items.map((item: { title?: string }) => item.title)).toEqual(['Test episode']);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
   });
 });

@@ -75,8 +75,21 @@ export default function VoicesArchiveClient({
     const next = beginCollectionRefresh(refreshRef.current);
     refreshRef.current = next;
     setRefreshing(true);
-    router.refresh();
-  }, [router]);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("refresh", String(Date.now()));
+    const qs = params.toString();
+    router.replace(qs ? `/telescreen?${qs}` : "/telescreen", { scroll: false });
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (!searchParams.get("refresh")) return undefined;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("refresh");
+    const qs = params.toString();
+    const nextUrl = qs ? `/telescreen?${qs}` : "/telescreen";
+    window.history.replaceState(window.history.state, "", nextUrl);
+    return undefined;
+  }, [searchParams]);
 
   useEffect(() => {
     const next = finishCollectionRefresh(refreshRef.current, refreshRef.current.requestId);

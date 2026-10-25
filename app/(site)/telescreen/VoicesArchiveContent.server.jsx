@@ -11,6 +11,7 @@ import VoicesArchiveClient from "./VoicesArchiveClient";
 
 export default async function VoicesArchiveContent({
   filters = {},
+  refresh = false,
   currentVoice = null,
   currentMode = null,
   currentArtist = null,
@@ -19,7 +20,7 @@ export default async function VoicesArchiveContent({
     loadTelescreenArchiveDeps({
       loadVoices: () => getAllVoicesCached(),
       loadArtists: () => getProtestMusicArtistsCached(),
-      loadArchive: () => getUnifiedArchivePage(1, VOICES_ARCHIVE_PAGE_SIZE, filters),
+      loadArchive: () => getUnifiedArchivePage(1, VOICES_ARCHIVE_PAGE_SIZE, filters, { refresh }),
     })
   );
 

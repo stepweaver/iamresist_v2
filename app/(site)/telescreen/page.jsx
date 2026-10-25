@@ -11,6 +11,12 @@ import {
 
 export const revalidate = 120;
 
+function sanitizeRefresh(value) {
+  if (Array.isArray(value)) return sanitizeRefresh(value[0]);
+  if (value == null) return "";
+  return String(value).trim();
+}
+
 export const metadata = buildPageMetadata({
   title: "Telescreen Political Video Archive and Voices of Dissent",
   description:
@@ -68,6 +74,7 @@ export default async function TelescreenPage({ searchParams }) {
               voiceSlug: normalized.voice || undefined,
               artistSlug: normalized.artist || undefined,
             }}
+            refresh={Boolean(sanitizeRefresh(params.refresh))}
             currentVoice={normalized.voice}
             currentMode={normalized.mode || DEFAULT_TELESCREEN_MODE}
             currentArtist={normalized.artist}

@@ -402,3 +402,131 @@ describe('telescreen archive composition', () => {
     expect(curated.items.map((item: { id: string }) => item.id)).toEqual(['curated-clip-1']);
   });
 });
+
+describe('creator feed retrieval and recovery', () => {
+  const DEMOCRACY_FEED = 'https://www.youtube.com/feeds/videos.xml?channel_id=UCWmMgbc1g6g5O8Tn_-k5qgA';
+  const VIDEO_ATOM = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Democracy Docket</title>
+  <entry>
+    <id>yt:video:abcdefghijk</id>
+    <title>Voting rights hearing</title>
+    <link href="https://www.youtube.com/watch?v=abcdefghijk"/>
+    <published>2026-10-20T12:00:00+00:00</published>
+  </entry>
+</feed>`;
+  const EMPTY_ATOM = `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>`;
+
+  function atomResponse(body: string, status = 200) {
+    return new Response(body, {
+      status,
+      headers: { 'content-type': status === 200 ? 'application/atom+xml' : 'text/plain' },
+    });
+  }
+
+  async function loadCreatorPage(queue: Response[]) {
+    vi.resetModules();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        const next = queue.shift();
+        if (!next) throw new Error('unexpected feed fetch');
+        return next;
+      }),
+    );
+    vi.doMock('next/cache', () => ({
+      unstable_cache: (cb: () => Promise<unknown>) => cb,
+      revalidateTag: async () => {},
+    }));
+    vi.doMock('@/lib/notion/voices.repo', () => ({
+      getAllVoicesCached: async () => [],
+      getVoiceBySlug: async (slug: string) => ({
+        id: 'democracy-docket',
+        slug,
+        title: 'Democracy Docket',
+        platform: 'YouTube',
+        feedUrl: DEMOCRACY_FEED,
+      }),
+    }));
+    vi.doMock('@/lib/notion/videos.repo', () => ({ getVideos: async () => [] }));
+    vi.doMock('@/lib/notion/protestMusic.repo', () => ({ getAllProtestSongs: async () => [] }));
+    vi.doMock('@/lib/videoContent', () => ({
+      getCachedDescription: async () => '',
+      EDITORIAL_SIGNATURE: 'sig',
+    }));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const backoff = await import('@/lib/feeds/sharedFailureBackoff');
+    backoff.configureSharedFailureCacheForTests(backoff.createSharedFailureMemory());
+    const { getUnifiedArchivePage } = await import('@/lib/feeds/unifiedArchive.service');
+    const filters = { sourceType: 'voices', voiceSlug: 'democracy-docket' };
+    return {
+      fetchMock: globalThis.fetch as ReturnType<typeof vi.fn>,
+      page: (refresh = false) => getUnifiedArchivePage(1, 20, filters, { refresh }),
+    };
+  }
+
+  it('returns playable Democracy Docket videos from a healthy YouTube feed', async () => {
+    const { page } = await loadCreatorPage([atomResponse(VIDEO_ATOM)]);
+    const result = await page();
+    expect(result.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      title: 'Voting rights hearing',
+      url: 'https://www.youtube.com/watch?v=abcdefghijk',
+    });
+    expect(result.items[0]?.voice?.slug).toBe('democracy-docket');
+  });
+
+  it('keeps the last good videos when YouTube later fails, and lets refresh try once', async () => {
+    const { fetchMock, page } = await loadCreatorPage([
+      atomResponse(VIDEO_ATOM),
+      atomResponse('missing', 404),
+      atomResponse('missing', 503),
+    ]);
+
+    const healthy = await page();
+    expect(healthy.items.map((item: { title: string }) => item.title)).toEqual(['Voting rights hearing']);
+    const afterHealthy = fetchMock.mock.calls.length;
+
+    const duringOutage = await page();
+    expect(duringOutage.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(duringOutage.items[0]?.url).toBe('https://www.youtube.com/watch?v=abcdefghijk');
+    expect(fetchMock.mock.calls.length).toBe(afterHealthy + 1);
+
+    const cooled = await page();
+    expect(cooled.items).toHaveLength(1);
+    expect(fetchMock.mock.calls.length).toBe(afterHealthy + 1);
+
+    const refreshed = await page(true);
+    expect(refreshed.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(refreshed.items[0]?.url).toBe('https://www.youtube.com/watch?v=abcdefghijk');
+    expect(fetchMock.mock.calls.length).toBe(afterHealthy + 2);
+  });
+
+  it('reports a healthy empty feed separately from an unavailable feed', async () => {
+    const empty = await loadCreatorPage([atomResponse(EMPTY_ATOM)]);
+    const emptyPage = await empty.page();
+    expect(emptyPage.feedStatus).toBe(TELESCREEN_FEED_STATUS.empty);
+    expect(emptyPage.items).toEqual([]);
+    expect(empty.fetchMock).toHaveBeenCalledTimes(1);
+
+    const failed = await loadCreatorPage([atomResponse('missing', 404), atomResponse('missing', 500)]);
+    const failedPage = await failed.page();
+    expect(failedPage.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
+    expect(failedPage.items).toEqual([]);
+    expect(failed.fetchMock).toHaveBeenCalledTimes(2);
+
+    const blocked = await failed.page();
+    expect(blocked.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
+    expect(failed.fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not let a healthy empty response resurrect the previous videos', async () => {
+    const { page } = await loadCreatorPage([atomResponse(VIDEO_ATOM), atomResponse(EMPTY_ATOM)]);
+    const first = await page();
+    expect(first.items).toHaveLength(1);
+    const second = await page();
+    expect(second.feedStatus).toBe(TELESCREEN_FEED_STATUS.empty);
+    expect(second.items).toEqual([]);
+  });
+});

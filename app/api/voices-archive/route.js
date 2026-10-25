@@ -23,7 +23,9 @@ export async function GET(request) {
   if (normalized.artist) filters.artistSlug = normalized.artist;
 
   try {
-    const result = await getUnifiedArchivePage(page, limit, filters);
+    const result = await getUnifiedArchivePage(page, limit, filters, {
+      refresh: Boolean(searchParams.get("refresh")),
+    });
     return NextResponse.json(result);
   } catch (error) {
     console.error("Voices archive API error:", error);
