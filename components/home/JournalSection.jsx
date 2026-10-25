@@ -39,11 +39,14 @@ function EssayTags({ tags }) {
   );
 }
 
-function EssayDate({ entry }) {
+function EssayDate({ entry, className = '' }) {
   const dates = journalDates(entry);
   if (!dates.displayLabel) return null;
   return (
-    <time className="font-mono text-[11px] uppercase tracking-[0.14em] text-foreground/60" dateTime={dates.dateTime || undefined}>
+    <time
+      className={`font-mono text-[11px] uppercase tracking-[0.14em] text-foreground/60 ${className}`.trim()}
+      dateTime={dates.dateTime || undefined}
+    >
       {dates.displayLabel}
     </time>
   );
@@ -123,12 +126,12 @@ function RecentEssayLink({ entry }) {
         className="group flex min-h-11 flex-col justify-center gap-1 px-4 py-3 transition-colors hover:bg-foreground/[0.04] sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
       >
         <span
-          className="text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary sm:text-xl"
+          className="min-w-0 text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary sm:flex-1 sm:text-xl"
           style={displayFont}
         >
           {title}
         </span>
-        <EssayDate entry={entry} />
+        <EssayDate entry={entry} className="shrink-0 whitespace-nowrap" />
       </Link>
     </li>
   );

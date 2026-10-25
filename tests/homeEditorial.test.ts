@@ -123,6 +123,7 @@ describe('homepage editorial section', () => {
     expect(classes).toContain('lg:grid-cols-3');
     expect(classes).toContain('lg:col-span-2');
     expect(classes).toContain('max-w-[62ch]');
+    expect(classes).toContain('whitespace-nowrap');
     expect(classes).not.toContain('max-w-5xl');
     expect(testIds.indexOf('home-featured-essay')).toBeGreaterThanOrEqual(0);
     expect(testIds.indexOf('home-featured-essay')).toBeLessThan(testIds.indexOf('home-recent-essays'));
