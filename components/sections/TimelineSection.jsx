@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { formatDate } from '@/lib/utils/date';
-import { getTimelineEvents } from '@/lib/data/timeline';
+import { getTimelineEvents, timelineCategorySlug } from '@/lib/data/timeline';
 
 function formatTimelineCardDate(dateStr) {
   if (!dateStr) return '';
@@ -12,16 +12,24 @@ function formatTimelineCardDate(dateStr) {
 
 export default function TimelineSection() {
   const events = getTimelineEvents();
+  const seenCategories = new Set();
 
   return (
     <div className="relative">
       <div className="absolute left-4 top-0 bottom-0 w-px bg-border"></div>
 
       <div className="space-y-8">
-        {events.map((event, index) => (
+        {events.map((event, index) => {
+          const category = String(event.category || '');
+          const isCategoryStart = category && !seenCategories.has(category);
+          if (isCategoryStart) seenCategories.add(category);
+          const categoryId = isCategoryStart ? `timeline-${timelineCategorySlug(category)}` : undefined;
+
+          return (
           <div
             key={`${event.date}-${event.title}-${index}`}
-            className="relative pl-12"
+            id={categoryId}
+            className="relative scroll-mt-24 pl-12"
           >
             <div className="absolute left-2 top-6 w-4 h-4 bg-primary border-2 border-background rounded-full"></div>
 
@@ -59,7 +67,8 @@ export default function TimelineSection() {
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

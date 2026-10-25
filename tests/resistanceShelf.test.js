@@ -26,28 +26,38 @@ vi.mock('@/lib/bookclub/service', () => ({
   listBooks: books.listBooks,
 }));
 
+function expand(node) {
+  let current = node;
+  while (isValidElement(current) && typeof current.type === 'function') {
+    current = current.type(current.props);
+  }
+  return current;
+}
+
 function textOf(node, acc = []) {
-  if (typeof node === 'string' || typeof node === 'number') {
-    acc.push(String(node));
+  const current = expand(node);
+  if (typeof current === 'string' || typeof current === 'number') {
+    acc.push(String(current));
     return acc;
   }
-  if (Array.isArray(node)) {
-    node.forEach((child) => textOf(child, acc));
+  if (Array.isArray(current)) {
+    current.forEach((child) => textOf(child, acc));
     return acc;
   }
-  if (!isValidElement(node)) return acc;
-  textOf(node.props.children, acc);
+  if (!isValidElement(current)) return acc;
+  textOf(current.props.children, acc);
   return acc;
 }
 
 function hrefsOf(node, acc = []) {
-  if (Array.isArray(node)) {
-    node.forEach((child) => hrefsOf(child, acc));
+  const current = expand(node);
+  if (Array.isArray(current)) {
+    current.forEach((child) => hrefsOf(child, acc));
     return acc;
   }
-  if (!isValidElement(node)) return acc;
-  if (typeof node.props.href === 'string') acc.push(node.props.href);
-  Children.forEach(node.props.children, (child) => hrefsOf(child, acc));
+  if (!isValidElement(current)) return acc;
+  if (typeof current.props.href === 'string') acc.push(current.props.href);
+  Children.forEach(current.props.children, (child) => hrefsOf(child, acc));
   return acc;
 }
 
@@ -88,7 +98,7 @@ describe('The Resistance Shelf', () => {
     const card = await CurrentlyReadingCard();
     const text = textOf(card).join(' ');
 
-    expect(text).toContain('The Resistance Shelf');
+    expect(text).toContain('From the Resistance Shelf');
     expect(text).toContain('Only Shelf');
     expect(text).toContain('View book');
     expect(text).not.toContain('Read notes');

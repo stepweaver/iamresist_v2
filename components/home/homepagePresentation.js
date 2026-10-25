@@ -42,3 +42,12 @@ export function selectFeaturedShelfBook(books) {
   if (!list.length) return null;
   return list.find((book) => book.status === 'Reading') || list[0];
 }
+
+/** One featured book, then the rest of the shelf without repeating it. */
+export function splitShelfBooks(books) {
+  const featured = selectFeaturedShelfBook(books);
+  const rest = (Array.isArray(books) ? books : []).filter(
+    (book) => book && book.slug && book.slug !== featured?.slug,
+  );
+  return { featured, rest };
+}

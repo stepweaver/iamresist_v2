@@ -25,9 +25,7 @@ export default function ResourcesPage() {
               Resistance Resources and Civic Reference Material
             </h1>
             <p className="prose-copy mt-4 max-w-3xl text-base sm:text-lg text-foreground/75 leading-relaxed">
-              A working shelf of organizations, investigations, rights guides,
-              and practical reference links for democratic defense, public
-              accountability, and day-to-day civic use.
+              Three places to start, then the full directory.
             </p>
           </div>
         </section>

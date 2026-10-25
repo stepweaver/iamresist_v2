@@ -1,4 +1,3 @@
-import SectionDivider from '@/components/SectionDivider';
 import Link from 'next/link';
 import { ShoppingCart, Shield, Truck } from 'lucide-react';
 import { SHOP_PRODUCTS } from '@/lib/shopProducts';
@@ -21,27 +20,21 @@ export default function ShopPage() {
       id="main-content"
       className="hero-page-bg min-h-screen overflow-x-hidden"
     >
-      <div className="border-b border-border pt-2 pb-10 sm:pb-14">
+      <div className="border-b border-border pt-2 pb-4 sm:pb-6">
         <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3">
           <span className="kicker text-xs sm:text-sm tracking-[0.4em] block mb-2">
             SUPPLY DROP
           </span>
-          <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold mb-2">
+          <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold mb-3">
             RESISTANCE STICKER SHOP
           </h1>
-          <p className="system-label text-sm text-foreground/50 mb-6">
-            Sticker / Signal Marker / Field Kit
-          </p>
-          <SectionDivider className="mb-6 max-w-2xl" />
-          <p className="prose-copy text-base sm:text-lg lg:text-xl text-foreground/70 max-w-2xl leading-relaxed">
-            Weatherproof resistance stickers and political sticker designs built
-            as durable signal markers. Open any sticker for details, specs,
-            and bundle options.
+          <p className="prose-copy text-base text-foreground/70 max-w-2xl leading-relaxed">
+            Weatherproof vinyl stickers. Open a design for details, specs, and bundles.
           </p>
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-4">
+      <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-3">
         <nav className="nav-label text-xs text-foreground/60">
           <Link href="/" className="hover:text-primary transition-colors">
             Home
@@ -51,7 +44,7 @@ export default function ShopPage() {
         </nav>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-12 sm:py-16 lg:py-20">
+      <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-6 sm:py-8">
         <p className="timestamp text-[10px] text-foreground/50 mb-6">Inventory</p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {SHOP_PRODUCTS.map((product) => (
@@ -97,7 +90,7 @@ export default function ShopPage() {
       <div className="border-t border-border py-12 lg:py-16">
         <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 text-center">
           <p className="prose-copy text-lg lg:text-xl text-foreground/70 mb-4">
-            Every purchase supports independent resistance journalism.
+            Purchases support this independent project.
           </p>
           <p className="font-display text-2xl lg:text-3xl font-bold tracking-wider text-primary">
             I AM [RESIST]

@@ -1,25 +1,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import EmptyState from '@/components/content/EmptyState';
+import { splitShelfBooks } from '@/components/home/homepagePresentation';
 import { listBooks } from '@/lib/bookclub/service';
 
-export default async function BooksSection() {
-  const books = await listBooks();
-
-  if (!books || books.length === 0) {
-    return (
-      <EmptyState
-        title="[ No Books Yet ]"
-        description="Add books to your Notion books database to populate this section."
-      />
-    );
-  }
-
+function BookCard({ book }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
-      {books.map((book) => (
         <Link
-          key={book.id}
           href={`/book-club/${book.slug}`}
           className="machine-panel border border-border relative overflow-hidden group focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-2 focus:ring-offset-background"
         >
@@ -66,7 +53,47 @@ export default async function BooksSection() {
             </div>
           </div>
         </Link>
-      ))}
+  );
+}
+
+export default async function BooksSection() {
+  const books = await listBooks();
+
+  if (!books || books.length === 0) {
+    return (
+      <EmptyState
+        title="[ No Books Yet ]"
+        description="Add books to your Notion books database to populate this section."
+      />
+    );
+  }
+
+  const { featured, rest } = splitShelfBooks(books);
+
+  return (
+    <div className="space-y-8">
+      {featured ? (
+        <section aria-labelledby="shelf-featured-title">
+          <h2 id="shelf-featured-title" className="kicker mb-3 text-xs font-bold tracking-[0.28em] text-primary">
+            Featured
+          </h2>
+          <div className="max-w-xl">
+            <BookCard book={featured} />
+          </div>
+        </section>
+      ) : null}
+      {rest.length > 0 ? (
+        <section aria-labelledby="shelf-collection-title">
+          <h2 id="shelf-collection-title" className="section-title mb-4 text-xl font-bold text-foreground">
+            The collection
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+            {rest.map((book) => (
+              <BookCard key={book.id || book.slug} book={book} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

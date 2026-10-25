@@ -189,7 +189,7 @@ export default async function BookDetailPage({ params }) {
               ) : (
                 <>
                   <p className="prose-copy text-foreground/70 mb-8 max-w-2xl">
-                    Reflections and notes as I read through {book.title}.
+                    Reading notes published for {book.title}.
                   </p>
                   <JournalView notes={notes} book={book} blocksByNoteId={blocksByNoteId} />
                 </>
