@@ -9,10 +9,9 @@ import { ShoppingCart } from 'lucide-react';
 
 export const NAV_LINKS = [
   { href: '/', label: 'HOME' },
-  { href: '/about', label: 'ABOUT' },
-  { href: '/intel/newswire', label: 'INTEL' },
-  { href: '/telescreen', label: 'TELESCREEN' },
   { href: '/journal', label: 'JOURNAL' },
+  { href: '/telescreen', label: 'TELESCREEN' },
+  { href: '/intel/newswire', label: 'INTEL' },
   { href: '/book-club', label: 'SHELF', title: 'The Resistance Shelf' },
   { href: '/shop', label: 'SHOP' },
 ];

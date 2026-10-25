@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import IntelTabs from "@/components/IntelTabs";
 import VoicesArchiveContent from "./VoicesArchiveContent.server";
 import { buildPageMetadata } from "@/lib/metadata";
 import {
@@ -48,7 +47,6 @@ export default async function TelescreenPage({ searchParams }) {
       className="hero-page-bg min-h-screen overflow-x-clip"
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs description="Switch between voices, curated videos, and protest music without leaving the archive." />
         <section className="machine-panel border border-border relative overflow-hidden mb-6 sm:mb-8">
           <div className="absolute inset-0 hud-grid opacity-10" />
           <div className="relative z-10 p-5 sm:p-6 lg:p-8 max-w-4xl">

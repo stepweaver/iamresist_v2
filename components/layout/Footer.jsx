@@ -1,18 +1,18 @@
 import Link from 'next/link';
 
+export const FOOTER_LINKS = [
+  { href: '/about', label: 'About / Manifesto' },
+  { href: '/about/this-journal', label: 'About This Journal' },
+  { href: '/resources', label: 'Resources' },
+  { href: '/timeline', label: 'Timeline' },
+  { href: '/intel/sources', label: 'Source Transparency' },
+  { href: '/legal', label: 'Legal' },
+];
+
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
-  const footerLinks = [
-    { href: '/', label: 'BRIEFING' },
-    { href: '/about', label: 'MISSION' },
-    { href: '/intel/newswire', label: 'INTEL' },
-    { href: '/telescreen', label: 'TELESCREEN' },
-    { href: '/journal', label: 'JOURNAL' },
-    { href: '/timeline', label: 'TIMELINE' },
-    { href: '/shop', label: 'SUPPLY' },
-    { href: '/legal', label: 'LEGAL' },
-  ];
+  const footerLinks = FOOTER_LINKS;
 
   return (
     <footer className="border-t border-chrome-border bg-chrome-footer text-chrome-fg" aria-labelledby="footer-heading">

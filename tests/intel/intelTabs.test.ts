@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INTEL_NAV_TABS } from '@/components/IntelTabs';
+import { INTEL_NAV_TABS, SOURCE_TRANSPARENCY_LINK } from '@/components/IntelTabs';
 
 describe('Intel navigation', () => {
   it('no longer displays the retired Voices desk', () => {
@@ -12,12 +12,12 @@ describe('Intel navigation', () => {
     expect(hrefs).not.toContain('/intel/claims');
     expect(labels).not.toContain('Defense');
     expect(labels).not.toContain('Claims');
-    expect(hrefs).toEqual([
-      '/intel/osint',
-      '/intel/watchdogs',
-      '/telescreen',
-      '/intel/newswire',
-      '/intel/sources',
-    ]);
+    expect(hrefs).toEqual(['/intel/newswire', '/intel/osint', '/intel/watchdogs']);
+    expect(hrefs).not.toContain('/telescreen');
+    expect(hrefs).not.toContain('/intel/sources');
+    expect(SOURCE_TRANSPARENCY_LINK).toEqual({
+      href: '/intel/sources',
+      label: 'Source Transparency',
+    });
   });
 });

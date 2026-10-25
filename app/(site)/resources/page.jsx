@@ -1,4 +1,3 @@
-import IntelTabs from '@/components/IntelTabs';
 import ResourcesSection from '@/app/(site)/telescreen/ResourcesSection';
 import { buildPageMetadata } from '@/lib/metadata';
 
@@ -16,7 +15,6 @@ export default function ResourcesPage() {
       className="hero-page-bg min-h-screen overflow-x-clip"
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs description="Resources sit beside Telescreen as their own shelf for organizations, rights guides, and field material." />
         <section className="machine-panel border border-border relative overflow-hidden mb-6 sm:mb-8">
           <div className="absolute inset-0 hud-grid opacity-10" />
           <div className="relative z-10 p-5 sm:p-6 lg:p-8 max-w-4xl">
