@@ -108,7 +108,7 @@ describe('Notion failures are not cached as empty collections', () => {
         return {
           ok: true,
           reason: null,
-          items: [{ id: 'b-post', title: 'Creator B', url: 'https://creator-b.test/post', publishedAt: '2026-04-18T00:00:00.000Z' }],
+          items: [{ id: 'b-post', title: 'Creator B', url: 'https://www.youtube.com/watch?v=bbcdefghijk', publishedAt: '2026-04-18T00:00:00.000Z' }],
         };
       },
     }));
@@ -279,7 +279,7 @@ describe('Notion failures are not cached as empty collections', () => {
         {
           id: 'voice-1',
           title: 'Voice post',
-          url: 'https://voice.test/post',
+          url: 'https://www.youtube.com/watch?v=abcdefghijk',
           publishedAt: '2026-04-18T00:00:00.000Z',
           sourceType: 'voices',
           voice: { id: 'voice-a', slug: 'voice-a', title: 'Voice A' },
@@ -316,6 +316,6 @@ describe('Notion failures are not cached as empty collections', () => {
     const { getUnifiedArchivePage } = await import('@/lib/feeds/unifiedArchive.service');
     const page = await getUnifiedArchivePage(1, 20, {});
     expect(page.items.map((item: { id: string }) => item.id)).toEqual(['voice-1', 'song-1']);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v6'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v7'))).toBe(false);
   });
 });

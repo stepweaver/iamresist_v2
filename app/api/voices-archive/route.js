@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUnifiedArchivePage } from "@/lib/feeds/unifiedArchive.service";
 import { rateLimitedResponse } from "@/lib/server/rateLimit";
-import { normalizeTelescreenQuery } from "@/lib/telescreen";
+import { normalizeTelescreenQuery, TELESCREEN_FEED_STATUS } from "@/lib/telescreen";
 
 export async function GET(request) {
   const limited = rateLimitedResponse("voices-archive", request);
@@ -27,6 +27,15 @@ export async function GET(request) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Voices archive API error:", error);
-    return NextResponse.json({ items: [], hasMore: false, total: 0 }, { status: 500 });
+    return NextResponse.json(
+      {
+        items: [],
+        hasMore: false,
+        total: 0,
+        feedStatus: TELESCREEN_FEED_STATUS.unavailable,
+        videoVoiceSlugs: [],
+      },
+      { status: 500 },
+    );
   }
 }

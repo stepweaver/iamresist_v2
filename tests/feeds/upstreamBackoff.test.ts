@@ -221,7 +221,7 @@ describe('aggregate failure versus empty content', () => {
     }));
     vi.doMock('@/lib/notion/videos.repo', () => ({
       getVideos: async () => [
-        { id: 'video-1', title: 'Curated clip', url: 'https://youtube.test/clip', createdTime: '2026-04-18T00:00:00.000Z', platform: 'YouTube' },
+        { id: 'video-1', title: 'Curated clip', url: 'https://www.youtube.com/watch?v=abcdefghijk', createdTime: '2026-04-18T00:00:00.000Z', platform: 'YouTube' },
       ],
     }));
     vi.doMock('@/lib/notion/protestMusic.repo', () => ({
@@ -239,7 +239,7 @@ describe('aggregate failure versus empty content', () => {
     const { getUnifiedArchivePage } = await import('@/lib/feeds/unifiedArchive.service');
     const first = await getUnifiedArchivePage(1, 20, {});
     expect(first.items.map((item: { id: string }) => item.id)).toEqual(['curated-video-1']);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v6'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v7'))).toBe(false);
 
     clearProcessFailureMirrorForTests();
     const second = await getUnifiedArchivePage(1, 20, {});
@@ -260,7 +260,7 @@ describe('aggregate failure versus empty content', () => {
           {
             id: 'voice-1',
             title: 'Voice post',
-            url: 'https://voice.test/post',
+            url: 'https://www.youtube.com/watch?v=zyxwvutsrqp',
             publishedAt: '2026-04-18T00:00:00.000Z',
             sourceType: 'voices',
             voice: { id: 'voice-a', slug: 'voice-a', title: 'Voice A' },

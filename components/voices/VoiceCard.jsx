@@ -10,6 +10,7 @@ import {
 import { Play } from 'lucide-react';
 import ShareButton from '@/components/ShareButton';
 import { getCanonicalBaseUrl } from '@/lib/siteConfig';
+import { isVerifiedArchiveVideo } from '@/lib/feeds/archiveMedia';
 import { getVoiceSourceLinkLabel } from '@/lib/sourceLinkLabels';
 
 /** i.ytimg.com often fails or returns empty with strict referrers (e.g. localhost dev). */
@@ -85,9 +86,11 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
 
   const showThumb = Boolean(thumbSrc);
   const canPlayInline = Boolean(isYouTube && typeof onPlay === 'function');
+  const verifiedVideo = isVerifiedArchiveVideo(item);
   const playLabel = item.isProtestMusic ? 'Play song ->' : 'Play video ->';
   const sourceLabel = getVoiceSourceLinkLabel(item, { withTrailingArrow: true });
   const thumbnailActionLabel = item.isProtestMusic ? 'Play song' : 'Play video';
+  const shareHeading = item.isProtestMusic ? 'Share song' : verifiedVideo ? 'Share video' : 'Share article';
 
   const onOpenPlayer = useCallback(() => {
     if (!canPlayInline) return;
@@ -277,7 +280,7 @@ export default function VoiceCard({ item, onPlay, priority = false }) {
               title={title}
               description={voice?.title || description}
               iconOnly={false}
-              heading={item.isProtestMusic ? 'Share song' : 'Share video'}
+              heading={shareHeading}
             />
           </div>
         ) : null}

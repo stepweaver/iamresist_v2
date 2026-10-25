@@ -9,7 +9,14 @@ import VoiceCard from "@/components/voices/VoiceCard";
 import InlinePlayerModal from "@/components/voices/InlinePlayerModalClean";
 import { useMediaKeepAlive } from "@/components/useMediaKeepAlive";
 import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
-import { buildTelescreenHref, TELESCREEN_MODES, TELESCREEN_MODE_OPTIONS } from "@/lib/telescreen";
+import {
+  buildTelescreenHref,
+  TELESCREEN_FEED_STATUS,
+  TELESCREEN_MODES,
+  TELESCREEN_MODE_OPTIONS,
+  telescreenCollectionMessage,
+  telescreenDirectoryMessage,
+} from "@/lib/telescreen";
 import { beginCollectionRefresh, finishCollectionRefresh } from "@/lib/telescreen/refreshLifecycle";
 
 const MODE_COPY = {
@@ -33,6 +40,8 @@ const MODE_COPY = {
 export default function VoicesArchiveClient({
   initialItems,
   initialHasMore,
+  initialFeedStatus = TELESCREEN_FEED_STATUS.ok,
+  voicesDirectoryFailed = false,
   voices,
   artists = [],
   currentVoice,
@@ -43,6 +52,7 @@ export default function VoicesArchiveClient({
   const searchParams = useSearchParams();
   const [items, setItems] = useState(initialItems);
   const [hasMore, setHasMore] = useState(initialHasMore);
+  const [feedStatus, setFeedStatus] = useState(initialFeedStatus);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
@@ -90,9 +100,10 @@ export default function VoicesArchiveClient({
   useEffect(() => {
     setItems(initialItems);
     setHasMore(initialHasMore);
+    setFeedStatus(initialFeedStatus);
     setPage(1);
     setActiveItem(null);
-  }, [modeParam, voiceParam, artistParam, initialItems, initialHasMore]);
+  }, [modeParam, voiceParam, artistParam, initialItems, initialHasMore, initialFeedStatus]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -130,6 +141,14 @@ export default function VoicesArchiveClient({
       const res = await fetch(`/api/voices-archive?${params.toString()}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return;
+      if (
+        data.feedStatus === TELESCREEN_FEED_STATUS.unavailable ||
+        data.feedStatus === TELESCREEN_FEED_STATUS.invalid
+      ) {
+        setFeedStatus((current) => (items.length === 0 ? data.feedStatus : current));
+        setHasMore(false);
+        return;
+      }
       if (data.items?.length) {
         setItems((prev) => [...prev, ...data.items]);
       }
@@ -138,7 +157,7 @@ export default function VoicesArchiveClient({
     } finally {
       setLoading(false);
     }
-  }, [activeMode, artistParam, hasMore, loading, page, voiceParam]);
+  }, [activeMode, artistParam, hasMore, items.length, loading, page, voiceParam]);
 
   useEffect(() => {
     if (!hasMore || !hasUserScrolled) return;
@@ -193,8 +212,9 @@ export default function VoicesArchiveClient({
   const showArtistFilter = activeMode === TELESCREEN_MODES.music && artists.length > 0;
   const selectedModeLabel =
   TELESCREEN_MODE_OPTIONS.find((option) => option.value === activeMode)?.label || "Voices of Dissent";
+  const selectedSlug = currentVoice ?? voiceParam;
   const selectedVoiceLabel =
-    voices.find((voice) => voice.slug === (currentVoice ?? voiceParam))?.title || "All voices";
+    voices.find((voice) => voice.slug === selectedSlug)?.title || selectedSlug || "All voices";
   const selectedArtistLabel =
     artists.find((artist) => artist.slug === (currentArtist ?? artistParam))?.title || "All artists";
 
@@ -208,6 +228,8 @@ export default function VoicesArchiveClient({
   );
 
   const modeCopy = MODE_COPY[activeMode] || MODE_COPY[TELESCREEN_MODES.voices];
+  const collectionMessage = telescreenCollectionMessage(activeMode, feedStatus);
+  const directoryMessage = showVoiceFilter ? telescreenDirectoryMessage(voicesDirectoryFailed) : null;
 
   return (
     <div className="space-y-5">
@@ -308,8 +330,13 @@ export default function VoicesArchiveClient({
       </section>
 
       <div id="telescreen-archive-primary">
+        {directoryMessage ? (
+          <p className="system-label text-foreground/70 text-sm mb-4">{directoryMessage}</p>
+        ) : null}
         {items.length === 0 ? (
-          <p className="system-label text-foreground/70 text-sm">{modeCopy.empty}</p>
+          <p className="system-label text-foreground/70 text-sm" data-feed-status={feedStatus}>
+            {collectionMessage}
+          </p>
         ) : (
           <>
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
