@@ -285,6 +285,7 @@ function computeStatusBucket(input: {
         'eucom-press',
         'forbidden-stories',
         'isw-feeds',
+        'rappler',
         'indicator-pentagon-pizza',
         'uncovering-epstein-network',
       ]);

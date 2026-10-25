@@ -5,6 +5,7 @@ import { dbEnv } from '@/lib/env/db';
 import { computeRelevanceProfile, editorialControlsForDb } from '@/lib/intel/relevance';
 import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
 import { policyForLane } from '@/lib/intel/freshnessPolicy';
+import { getSignalSources } from '@/lib/intel/signal-sources';
 import type {
   DeskLane,
   IngestRunStatus,
@@ -33,18 +34,25 @@ export function denormalizedDeskLaneColumn(manifestLane: DeskLane): 'osint' | 'v
 
 export async function fetchSourceIdsForDeskLane(deskLane: DeskLane): Promise<string[]> {
   const supabase = client();
-  // Disabled registry rows stay in intel.sources for history. Live desk reads only
-  // use enabled source ids, so a retired feed cannot re-enter ranking after sync.
-  // Other desks are unchanged for sources that remain enabled.
+  // Disabled registry rows stay in intel.sources for history. Live desk reads skip
+  // manifest-disabled slugs even when a database row is still marked enabled.
+  // The next ingest upserts is_enabled false; it does not delete historical items.
+  const manifestEnabled = new Set(
+    getSignalSources()
+      .filter((source) => source.isEnabled && source.deskLane === deskLane)
+      .map((source) => source.slug),
+  );
   const { data, error } = await supabase
     .from('sources')
-    .select('id')
+    .select('id, slug')
     .eq('desk_lane', deskLane)
     .eq('is_enabled', true);
   if (error) throw new Error(`sources ids for desk lane: ${error.message}`);
   const ids: string[] = [];
   for (const row of data ?? []) {
     const id = (row as { id?: string }).id;
+    const slug = (row as { slug?: string }).slug;
+    if (typeof slug === 'string' && slug && !manifestEnabled.has(slug)) continue;
     if (typeof id === 'string' && id) ids.push(id);
   }
   return ids;

@@ -358,11 +358,19 @@ describe('Prompt 3 homepage merge behavior', () => {
       rawScore: 55,
       title: 'Federal Register rule',
     });
+    const rappler = mkIntel({
+      id: 'rappler-1',
+      lane: 'watchdogs',
+      rawScore: 92,
+      title: 'Rappler report',
+      sourceSlug: 'rappler',
+    });
 
-    const out = mergeAndRankBriefingCandidates([defense, claims, kept]);
+    const out = mergeAndRankBriefingCandidates([defense, claims, rappler, kept]);
     expect(out.map((item) => item.intelItem.id)).toEqual(['kept-1']);
     expect(passesFallbackGate(defense, 90)).toBe(false);
     expect(passesFallbackGate(claims, 88)).toBe(false);
+    expect(passesFallbackGate(rappler, 92)).toBe(false);
 
     vi.useRealTimers();
   });

@@ -1199,7 +1199,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
       endpointUrl: RAPPLER_RSS,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -1208,6 +1208,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       purpose: 'Philippines and Southeast Asia democracy / civil-society coverage.',
       trustedFor: 'Regional reporting pointers with canonical Rappler links.',
       notTrustedFor: 'Election outcomes or court holdings without primary sources.',
+      editorialNotes:
+        'Retired from automated ingestion and public Intel surfaces. Registry row kept so historical items stay attached; the next ingest sync sets is_enabled false and skips the feed.',
       editorialControls: {
         defaultPriority: 44,
         preferredStateChangeTypes: ['specialist_item'],

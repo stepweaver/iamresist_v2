@@ -67,9 +67,22 @@ describe('fetchSourceIdsForDeskLane', () => {
     const ids = await fetchSourceIdsForDeskLane('osint');
 
     expect(from).toHaveBeenCalledWith('sources');
-    expect(select).toHaveBeenCalledWith('id');
+    expect(select).toHaveBeenCalledWith('id, slug');
     expect(laneEq).toHaveBeenCalledWith('desk_lane', 'osint');
     expect(enabledEq).toHaveBeenCalledWith('is_enabled', true);
     expect(ids).toEqual(['enabled-source']);
+  });
+
+  it('drops a manifest-disabled slug that is still enabled in the database', async () => {
+    enabledEq.mockResolvedValue({
+      data: [
+        { id: 'rappler-id', slug: 'rappler' },
+        { id: 'bellingcat-id', slug: 'bellingcat' },
+      ],
+      error: null,
+    });
+    const { fetchSourceIdsForDeskLane } = await import('@/lib/intel/db');
+    const ids = await fetchSourceIdsForDeskLane('watchdogs');
+    expect(ids).toEqual(['bellingcat-id']);
   });
 });

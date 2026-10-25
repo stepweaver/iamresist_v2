@@ -152,7 +152,7 @@ These rows stay in the manifest with `is_enabled: false`. The next ingest sync m
 | `meduza-english` | RSS | yes | `meduza.io/rss/en/all` (English-only; `/rss/all` is mixed-language) |
 | `mag-972` | RSS | yes | `https://www.972mag.com/feed/` (homepage HTML is HTTP 403). |
 | `birn-balkaninsight` | RSS | yes | BIRN Balkan Insight |
-| `rappler` | RSS | yes | |
+| `rappler` | RSS | **no** | Retired. Historical rows kept. Next ingest sync sets `is_enabled` false. |
 | `bellingcat` | RSS | yes | |
 | `forbidden-stories` | RSS | **no** | Official `/feed/` is HTTP 410. No replacement feed. Historical rows kept. |
 | `isw-feeds` | — | **no** | No stable public feed from the ingest client (Cloudflare 403). Historical rows kept. |

@@ -67,7 +67,13 @@ describe('intel source cleanup', () => {
 
     expect(forbidden?.isEnabled).toBe(false);
     expect(isw?.isEnabled).toBe(false);
+    const rappler = sources.find((entry) => entry.slug === 'rappler');
+    expect(rappler?.isEnabled).toBe(false);
+    expect(rappler?.deskLane).toBe('watchdogs');
+    expect(rappler?.endpointUrl).toBe('https://www.rappler.com/rss/');
     expect(sources.find((entry) => entry.slug === 'bellingcat')?.isEnabled).toBe(true);
+    expect(sources.find((entry) => entry.slug === 'meduza-english')?.isEnabled).toBe(true);
+    expect(sources.find((entry) => entry.slug === 'birn-balkaninsight')?.isEnabled).toBe(true);
     expect(sources.find((entry) => entry.slug === 'occrp')?.isEnabled).toBe(true);
   });
 
@@ -108,6 +114,12 @@ describe('public source audit placement', () => {
     expect(
       publicAuditPlacement({ slug: 'forbidden-stories', deskLane: 'watchdogs', manifestEnabled: false }),
     ).toBe('inactive');
+    expect(
+      publicAuditPlacement({ slug: 'rappler', deskLane: 'watchdogs', manifestEnabled: false }),
+    ).toBe('inactive');
+    expect(
+      publicAuditPlacement({ slug: 'bellingcat', deskLane: 'watchdogs', manifestEnabled: true }),
+    ).toBe('active');
   });
 
   it('classifies unconfigured Congress.gov feeds as inactive, not hidden', () => {
