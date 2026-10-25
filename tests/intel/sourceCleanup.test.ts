@@ -61,9 +61,21 @@ describe('intel source cleanup', () => {
     expect(kyiv?.fetchKind).toBe('rss');
     expect(kyiv?.endpointUrl).toBe('https://kyivindependent.com/news-archive/rss/');
 
-    expect(mag?.isEnabled).toBe(true);
+    expect(mag?.isEnabled).toBe(false);
     expect(mag?.fetchKind).toBe('rss');
     expect(mag?.endpointUrl).toBe('https://www.972mag.com/feed/');
+    expect(publicAuditPlacement({ slug: 'mag-972', deskLane: 'watchdogs', manifestEnabled: false })).toBe(
+      'hidden',
+    );
+
+    const oversight = sources.find((entry) => entry.slug === 'american-oversight');
+    expect(oversight?.isEnabled).toBe(true);
+    expect(oversight?.endpointUrl).toContain('post_type[]=analysis');
+    expect(oversight?.endpointUrl).toContain('post_type[]=press-release');
+    expect(sources.find((entry) => entry.slug === 'lawfare')?.endpointUrl).toBe(
+      'https://www.lawfaremedia.org/feeds/articles',
+    );
+    expect(sources.find((entry) => entry.slug === 'lawfare')?.isEnabled).toBe(true);
 
     expect(forbidden?.isEnabled).toBe(false);
     expect(isw?.isEnabled).toBe(false);
@@ -103,28 +115,31 @@ describe('public source audit placement', () => {
     ).toBe('active');
     expect(
       publicAuditPlacement({ slug: 'centcom-press', deskLane: 'defense_ops', manifestEnabled: false }),
-    ).toBe('inactive');
+    ).toBe('hidden');
     expect(
       publicAuditPlacement({
         slug: 'statements-public-import',
         deskLane: 'statements',
         manifestEnabled: false,
       }),
-    ).toBe('inactive');
+    ).toBe('hidden');
     expect(
       publicAuditPlacement({ slug: 'forbidden-stories', deskLane: 'watchdogs', manifestEnabled: false }),
-    ).toBe('inactive');
+    ).toBe('hidden');
     expect(
       publicAuditPlacement({ slug: 'rappler', deskLane: 'watchdogs', manifestEnabled: false }),
-    ).toBe('inactive');
+    ).toBe('hidden');
+    expect(
+      publicAuditPlacement({ slug: 'robert-reich', deskLane: 'voices', manifestEnabled: false }),
+    ).toBe('hidden');
     expect(
       publicAuditPlacement({ slug: 'bellingcat', deskLane: 'watchdogs', manifestEnabled: true }),
     ).toBe('active');
   });
 
-  it('classifies unconfigured Congress.gov feeds as inactive, not hidden', () => {
+  it('keeps unconfigured Congress.gov feeds out of the public directory', () => {
     for (const slug of CONGRESS_GOV_SOURCE_SLUGS) {
-      expect(publicAuditPlacement({ slug, deskLane: 'osint', manifestEnabled: false })).toBe('inactive');
+      expect(publicAuditPlacement({ slug, deskLane: 'osint', manifestEnabled: false })).toBe('hidden');
     }
     expect(
       publicAuditPlacement({

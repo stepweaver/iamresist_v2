@@ -69,7 +69,21 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 
 | Variable | Used by |
 |----------|---------|
-| `CONGRESS_GOV_API_KEY` | Enables Congress.gov v3 structured ingestion (recent bills, House and Senate committee meetings, bill summaries, House votes, CRS reports). If unset, those manifest rows stay disabled and the Sources page lists them as **Needs configuration**. Set the key, then run ingest once so `syncIntelSourcesFromManifest()` flips `is_enabled`. They are not broken feeds. |
+| `CONGRESS_GOV_API_KEY` | Enables Congress.gov v3 structured ingestion (recent bills, House and Senate committee meetings, bill summaries, House votes, CRS reports). If unset, those manifest rows stay disabled and are **omitted from `/intel/sources`**. They are not broken feeds. |
+
+## Public Sources page
+
+`/intel/sources` lists only sources that are enabled in the manifest and on the OSINT or Watchdogs lanes. Retired Defense, CENTCOM, Rappler, Claims, Intel Voices, disabled placeholders, and unconfigured Congress.gov rows are not shown. Their `intel.sources` rows and historical `intel.source_items` stay in the database. Ingest sync upserts `is_enabled: false` for retired manifest rows and does not delete them.
+
+### Enable Congress.gov internally
+
+The integration code (`lib/intel/congressGov.ts`) and the six source definitions in `lib/intel/signal-sources.ts` stay available while `CONGRESS_GOV_API_KEY` is unset.
+
+1. Set `CONGRESS_GOV_API_KEY` in the deploy environment.
+2. Run ingest once (`GET /api/cron/ingest-signal` with `Authorization: Bearer CRON_SECRET`, or the existing ingest cron).
+3. `syncIntelSourcesFromManifest()` sets `intel.sources.is_enabled` for those slugs. The key is appended only inside the fetch helper and is redacted from ingest metadata.
+
+After that sync, the six Congress.gov sources appear on `/intel/sources` with the other active OSINT sources. Do not add them to the public page while they are disabled.
 
 ## Source list (slug → summary)
 
@@ -79,7 +93,7 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 |------|----------------|------------|-------|
 | `wh-news` | RSS | yes | White House news feed. |
 | `wh-presidential` | RSS | yes | Presidential actions feed. |
-| `fr-public-inspection` | JSON API | yes | FR public inspection. |
+| `fr-public-inspection` | JSON API | yes | FR public inspection. An empty list after midnight Eastern, on weekends, or on federal holidays is a valid empty response (`pil_unavailability_message`), not a parser failure. |
 | `fr-published` | JSON API | yes | Published FR documents. |
 | `govinfo-bills` | RSS | yes | GovInfo bills RSS. |
 | `govinfo-crec` | RSS | yes | Full Congressional Record RSS (high volume). |
@@ -110,9 +124,9 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 |------|----------------|------------|-----------------|
 | `scotusblog` | RSS | yes | `feed_summary` |
 | `democracy-docket` | `html_index` (`/news-alerts/` listing) | yes | `feed_summary` — titles from URL slugs; no RSS |
-| `lawfare` | RSS | yes | `feed_summary` |
+| `lawfare` | RSS | yes | `feed_summary`. `https://www.lawfaremedia.org/feeds/articles` is the working publisher feed (HTTP 200). An empty channel is valid; on 2026-10-25 it also returned a current article. Other paths are Cloudflare 403. |
 | `propublica` | RSS | yes | `feed_summary` |
-| `american-oversight` | RSS | yes | `feed_summary` |
+| `american-oversight` | RSS | yes | `feed_summary`. Default `/feed/` is an empty `post` channel. Ingest uses the custom-post-type publisher RSS (analysis, investigation, litigation, press-release, newsletter, reports-and-features). |
 | `doj-oig` | RSS | yes | `feed_summary` — primary DOJ IG oversight artifacts (audits/reports). |
 | `just-security` | RSS | yes | `feed_summary` — specialist analysis w/ primary-document links. |
 | `campaign-legal-center` | RSS | yes | `feed_summary` — election integrity litigation/analysis; verify via filings + independent reporting. |
@@ -150,7 +164,7 @@ These rows stay in the manifest with `is_enabled: false`. The next ingest sync m
 |------|----------------|------------|-------|
 | `kyiv-independent` | RSS | yes | `https://kyivindependent.com/news-archive/rss/` (`/feed/` is 404). |
 | `meduza-english` | RSS | yes | `meduza.io/rss/en/all` (English-only; `/rss/all` is mixed-language) |
-| `mag-972` | RSS | yes | `https://www.972mag.com/feed/` (homepage HTML is HTTP 403). |
+| `mag-972` | RSS | **no** | Production ingest receives HTTP 403 from `https://www.972mag.com/feed/` (Cloudflare). Historical rows kept. Do not scrape around the block. |
 | `birn-balkaninsight` | RSS | yes | BIRN Balkan Insight |
 | `rappler` | RSS | **no** | Retired. Historical rows kept. Next ingest sync sets `is_enabled` false. |
 | `bellingcat` | RSS | yes | |

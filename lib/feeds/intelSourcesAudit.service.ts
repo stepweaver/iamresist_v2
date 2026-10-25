@@ -11,24 +11,16 @@ import {
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import type { IngestRunStatus } from '@/lib/intel/types';
 import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
-import { isCongressGovSource, publicAuditPlacement } from '@/lib/feeds/intelSourcesAudit.display';
+import { publicAuditPlacement } from '@/lib/feeds/intelSourcesAudit.display';
+import {
+  classifyIntelSourceAudit,
+  isSuccessfulFetchRun,
+  isSuccessfulParseRun,
+  type SourceHealth,
+  type SourceStatusBucket,
+} from '@/lib/feeds/intelSourcesAudit.health';
 
-export type SourceHealth = 'healthy' | 'stale' | 'failing' | 'disabled' | 'unproven';
-
-export type SourceStatusBucket =
-  | 'enabled_healthy'
-  | 'enabled_stale'
-  | 'enabled_unproven'
-  | 'enabled_failing'
-  | 'enabled_blocked'
-  | 'enabled_misconfigured'
-  | 'enabled_quarantined'
-  | 'enabled_parser_mismatch'
-  | 'disabled_policy'
-  | 'disabled_placeholder'
-  | 'disabled_env_gated'
-  | 'disabled_other'
-  | 'needs_configuration';
+export type { SourceHealth, SourceStatusBucket };
 
 export type IntelSourceAuditRow = {
   id: string;
@@ -51,6 +43,12 @@ export type IntelSourceAuditRow = {
   lastRunError: string | null;
   lastRunMeta: Record<string, unknown> | null;
   lastSuccessAt: string | null;
+  /** Latest run that received an HTTP 2xx/3xx body, even if parsing failed. */
+  lastSuccessfulFetchAt: string | null;
+  /** Latest run whose body parsed, including a valid empty feed. */
+  lastSuccessfulParseAt: string | null;
+  /** Newest article publication time seen on a successful parse, when the run recorded one. */
+  newestArticlePublishedAt: string | null;
   lastItemFetchedAt: string | null;
   items24h: number;
   items7d: number;
@@ -121,13 +119,6 @@ function parseStaleMinutes(): number {
   return Number.isFinite(n) && n > 0 ? n : 90;
 }
 
-function isOlderThan(iso: string | null, maxAgeMs: number): boolean {
-  if (!iso) return true;
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return true;
-  return Date.now() - t > maxAgeMs;
-}
-
 function endpointDisplay(slug: string, url: string | null): string {
   if (!url) {
     if (slug === 'reuters-wire') return 'INTEL_REUTERS_RSS_URL (not set)';
@@ -146,172 +137,10 @@ function endpointDisplay(slug: string, url: string | null): string {
   return url;
 }
 
-function computeHealth(input: {
-  isEnabled: boolean;
-  lastRunStatus: IngestRunStatus | null;
-  lastSuccessAt: string | null;
-  lastItemFetchedAt: string | null;
-  itemTotal: number;
-  items7d: number;
-  isCoreSource: boolean;
-  staleMs: number;
-}): SourceHealth {
-  if (!input.isEnabled) return 'disabled';
-  if (input.lastRunStatus === 'failed') return 'failing';
-  if (!input.lastSuccessAt && input.itemTotal === 0) return 'unproven';
-  if (input.isCoreSource && input.itemTotal > 0 && input.items7d === 0) return 'stale';
-  if (isOlderThan(input.lastSuccessAt, input.staleMs)) return 'stale';
-  if (isOlderThan(input.lastItemFetchedAt, input.staleMs)) return 'stale';
-  return 'healthy';
-}
-
-function computeHealthReason(input: {
-  health: SourceHealth;
-  isCoreSource: boolean;
-  staleThresholdMinutes: number;
-  lastRunStatus: IngestRunStatus | null;
-  lastRunFinishedAt: string | null;
-  lastSuccessAt: string | null;
-  lastItemFetchedAt: string | null;
-  itemTotal: number;
-  items7d: number;
-  lastRunError: string | null;
-  manifestEnabled: boolean;
-  registryEnabled: boolean;
-  slug: string;
-  fetchKind: string;
-  endpointUrl: string | null;
-}): string | null {
-  if (input.health === 'disabled') {
-    if (input.manifestEnabled && !input.registryEnabled) {
-      return 'Registry out of date — manifest enables this source; run ingest to sync `sources.is_enabled`.';
-    }
-    if (!input.manifestEnabled) {
-      const fk = String(input.fetchKind || '');
-      if (fk === 'unsupported' || fk === 'manual') {
-        return 'Disabled by policy/quarantine (non-automated source type).';
-      }
-      if (!input.endpointUrl) {
-        if (input.slug === 'reuters-wire') return 'Env-gated: INTEL_REUTERS_RSS_URL not set.';
-        if (input.slug === 'ap-wire') return 'Env-gated: INTEL_AP_RSS_URL not set.';
-        if (isCongressGovSource(input.slug)) {
-          return 'Needs configuration: set CONGRESS_GOV_API_KEY, then run ingest. Not a broken feed.';
-        }
-        return 'Placeholder/not wired (no endpoint URL).';
-      }
-      if (isCongressGovSource(input.slug)) {
-        return 'Needs configuration: set CONGRESS_GOV_API_KEY, then run ingest. Not a broken feed.';
-      }
-      return 'Disabled in manifest (`isEnabled: false`); not ingested.';
-    }
-    return 'Not enabled for ingest (registry).';
-  }
-
-  if (input.health === 'failing') {
-    if (input.lastRunError) return `Latest run failed: ${input.lastRunError}`;
-    return 'Latest run failed';
-  }
-
-  if (input.health === 'unproven') {
-    if (!input.lastRunFinishedAt) return 'No ingest runs recorded yet';
-    if (input.lastRunStatus && input.lastRunStatus !== 'success') return 'No successful ingest runs yet';
-    return 'No successful ingest runs yet';
-  }
-
-  if (input.health === 'stale') {
-    if (input.isCoreSource && input.itemTotal > 0 && input.items7d === 0) {
-      return 'Core source produced 0 items in the last 7d';
-    }
-    if (input.lastSuccessAt && isOlderThan(input.lastSuccessAt, input.staleThresholdMinutes * 60 * 1000)) {
-      return `Latest successful ingest is older than ${input.staleThresholdMinutes}m`;
-    }
-    if (input.lastItemFetchedAt && isOlderThan(input.lastItemFetchedAt, input.staleThresholdMinutes * 60 * 1000)) {
-      return `Latest item fetch is older than ${input.staleThresholdMinutes}m`;
-    }
-    return 'Stale (outside freshness threshold)';
-  }
-
-  return null;
-}
-
-function computeStatusBucket(input: {
-  health: SourceHealth;
-  slug: string;
-  manifestEnabled: boolean;
-  registryEnabled: boolean;
-  fetchKind: string;
-  endpointUrl: string | null;
-  lastRunMeta: Record<string, unknown> | null;
-}): { bucket: SourceStatusBucket; detail: string | null } {
-  if (input.manifestEnabled && input.registryEnabled) {
-    if (input.health === 'healthy') return { bucket: 'enabled_healthy', detail: null };
-    if (input.health === 'stale') return { bucket: 'enabled_stale', detail: null };
-    if (input.health === 'unproven') return { bucket: 'enabled_unproven', detail: null };
-    if (input.health === 'failing') {
-      const meta = input.lastRunMeta && typeof input.lastRunMeta === 'object' && !Array.isArray(input.lastRunMeta)
-        ? input.lastRunMeta
-        : null;
-      const fc = meta && typeof (meta as any).failureCategory === 'string' ? String((meta as any).failureCategory) : '';
-      if (fc === 'http_403') return { bucket: 'enabled_blocked', detail: 'Blocked by source (HTTP 403 / bot protection suspected)' };
-      if (fc === 'http_404') return { bucket: 'enabled_misconfigured', detail: 'Endpoint not found (HTTP 404)' };
-      if (fc === 'redirect_loop' || fc === 'redirect_count_exceeded') {
-        return { bucket: 'enabled_quarantined', detail: 'Redirect instability (loop / excessive redirects)' };
-      }
-      if (fc === 'feed_non_xml_body') return { bucket: 'enabled_parser_mismatch', detail: 'Non-XML body returned for feed (likely HTML error/interstitial)' };
-      if (fc === 'parser_no_entries') return { bucket: 'enabled_parser_mismatch', detail: 'Parser found 0 entries (markup/feed shape changed or empty)' };
-      return { bucket: 'enabled_failing', detail: null };
-    }
-    return { bucket: 'enabled_failing', detail: null };
-  }
-
-  // Disabled cases (manifest is the policy truth; registry may lag).
-    if (!input.manifestEnabled) {
-      if (isCongressGovSource(input.slug)) {
-        return {
-          bucket: 'needs_configuration',
-          detail: 'Needs configuration: set CONGRESS_GOV_API_KEY, then run ingest. These primary records are not broken.',
-        };
-      }
-      const fk = String(input.fetchKind || '');
-      const policySlugs = new Set([
-        'dvids-sandbox',
-        'statements-public-import',
-        'statements-rss-sandbox',
-        'war-gov-releases',
-        'usni-fleet-tracker',
-        'af-mil-news',
-        'army-mil-news',
-        'centcom-press',
-        'eucom-press',
-        'forbidden-stories',
-        'isw-feeds',
-        'rappler',
-        'indicator-pentagon-pizza',
-        'uncovering-epstein-network',
-      ]);
-    if (input.slug === 'reuters-wire') return { bucket: 'disabled_env_gated', detail: 'INTEL_REUTERS_RSS_URL not set' };
-    if (input.slug === 'ap-wire') return { bucket: 'disabled_env_gated', detail: 'INTEL_AP_RSS_URL not set' };
-    if (policySlugs.has(input.slug) || fk === 'manual') {
-      return { bucket: 'disabled_policy', detail: 'Policy/quarantine: not auto-ingested' };
-    }
-    if (!input.endpointUrl || fk === 'unsupported') {
-      return { bucket: 'disabled_placeholder', detail: 'Placeholder/not wired' };
-    }
-    return { bucket: 'disabled_other', detail: 'Disabled in manifest' };
-  }
-
-  if (input.manifestEnabled && !input.registryEnabled) {
-    return { bucket: 'disabled_other', detail: 'Registry not yet synced (run ingest)' };
-  }
-
-  return { bucket: 'disabled_other', detail: 'Disabled' };
-}
-
 async function buildIntelSourcesAudit(): Promise<{
   configured: boolean;
   staleThresholdMinutes: number;
   rows: IntelSourceAuditRow[];
-  inactiveRows: IntelSourceAuditRow[];
   errorMessage: string | null;
   build: IntelSourcesBuildInfo;
 }> {
@@ -320,14 +149,12 @@ async function buildIntelSourcesAudit(): Promise<{
       configured: false,
       staleThresholdMinutes: parseStaleMinutes(),
       rows: [],
-      inactiveRows: [],
       errorMessage: 'Supabase credentials not configured.',
       build: buildInfo(),
     };
   }
 
   const staleThresholdMinutes = parseStaleMinutes();
-  const staleMs = staleThresholdMinutes * 60 * 1000;
 
   const manifestBySlug = new Map(getSignalSources().map((c) => [c.slug, c.isEnabled]));
 
@@ -340,7 +167,6 @@ async function buildIntelSourcesAudit(): Promise<{
       configured: true,
       staleThresholdMinutes,
       rows: [],
-      inactiveRows: [],
       errorMessage: msg,
       build: buildInfo(),
     };
@@ -374,6 +200,8 @@ async function buildIntelSourcesAudit(): Promise<{
     { status: IngestRunStatus; finished_at: string; error_message: string | null; meta: Record<string, unknown> | null }
   >();
   const lastSuccessBySource = new Map<string, string>();
+  const lastFetchBySource = new Map<string, string>();
+  const newestPublishedBySource = new Map<string, string>();
   const seenSuccess = new Set<string>();
 
   for (const r of runs) {
@@ -386,8 +214,13 @@ async function buildIntelSourcesAudit(): Promise<{
         meta: r.meta ?? null,
       });
     }
-    if (r.status === 'success' && !seenSuccess.has(r.source_id)) {
+    if (!lastFetchBySource.has(r.source_id) && isSuccessfulFetchRun(r.status, r.meta)) {
+      lastFetchBySource.set(r.source_id, r.finished_at);
+    }
+    if (!seenSuccess.has(r.source_id) && isSuccessfulParseRun(r.status, r.meta, r.error_message)) {
       lastSuccessBySource.set(r.source_id, r.finished_at);
+      const newest = r.meta && typeof r.meta.newestPublishedAt === 'string' ? r.meta.newestPublishedAt : null;
+      if (newest) newestPublishedBySource.set(r.source_id, newest);
       seenSuccess.add(r.source_id);
     }
   }
@@ -421,46 +254,27 @@ async function buildIntelSourcesAudit(): Promise<{
     const lastRunError = lr?.error_message ?? null;
     const lastRunMeta = lr?.meta ?? null;
     const lastSuccessAt = lastSuccessBySource.get(src.id) ?? null;
-
-    const health = computeHealth({
-      isEnabled: src.is_enabled,
-      lastRunStatus,
-      lastSuccessAt,
-      lastItemFetchedAt,
-      itemTotal,
-      items7d,
-      isCoreSource: src.is_core_source,
-      staleMs,
-    });
-
+    const lastSuccessfulFetchAt = lastFetchBySource.get(src.id) ?? null;
+    const newestArticlePublishedAt = newestPublishedBySource.get(src.id) ?? null;
     const manifestEnabled = manifestBySlug.get(src.slug) ?? false;
 
-    const statusBucket = computeStatusBucket({
-      health,
+    const classified = classifyIntelSourceAudit({
       slug: src.slug,
       manifestEnabled,
       registryEnabled: src.is_enabled,
       fetchKind: src.fetch_kind,
       endpointUrl: src.endpoint_url,
-      lastRunMeta,
-    });
-
-    const healthReason = computeHealthReason({
-      health,
       isCoreSource: src.is_core_source,
       staleThresholdMinutes,
       lastRunStatus,
       lastRunFinishedAt,
+      lastRunError,
+      lastRunMeta,
       lastSuccessAt,
-      lastItemFetchedAt,
+      lastFetchAt: lastSuccessfulFetchAt,
+      newestPublishedAt: newestArticlePublishedAt,
       itemTotal,
       items7d,
-      lastRunError,
-      manifestEnabled,
-      registryEnabled: src.is_enabled,
-      slug: src.slug,
-      fetchKind: src.fetch_kind,
-      endpointUrl: src.endpoint_url,
     });
 
     return {
@@ -472,8 +286,8 @@ async function buildIntelSourcesAudit(): Promise<{
       deskLane: src.desk_lane,
       endpointDisplay: endpointDisplay(src.slug, src.endpoint_url),
       isEnabled: src.is_enabled,
-      statusBucket: statusBucket.bucket,
-      statusDetail: statusBucket.detail,
+      statusBucket: classified.statusBucket,
+      statusDetail: classified.statusDetail,
       manifestEnabled,
       purpose: src.purpose,
       trustedFor: src.trusted_for,
@@ -485,6 +299,9 @@ async function buildIntelSourcesAudit(): Promise<{
       lastRunError,
       lastRunMeta,
       lastSuccessAt,
+      lastSuccessfulFetchAt,
+      lastSuccessfulParseAt: lastSuccessAt,
+      newestArticlePublishedAt,
       lastItemFetchedAt,
       items24h,
       items7d,
@@ -495,8 +312,8 @@ async function buildIntelSourcesAudit(): Promise<{
       surfaced7d,
       downranked7d,
       suppressed7d,
-      health,
-      healthReason,
+      health: classified.health,
+      healthReason: classified.healthReason,
       noiseHint: null,
       noiseNotes,
       relevanceNotes,
@@ -504,9 +321,9 @@ async function buildIntelSourcesAudit(): Promise<{
   });
 
   const activeRows: IntelSourceAuditRow[] = [];
-  const inactiveRows: IntelSourceAuditRow[] = [];
   for (const row of rows) {
-    // Upserts do not delete old slugs. Hide registry rows that are no longer in the manifest.
+    // Upserts do not delete old slugs. Hide registry rows that are no longer in the manifest,
+    // plus retired desks and sources that are not enabled.
     if (!manifestBySlug.has(row.slug)) continue;
     const placement = publicAuditPlacement({
       slug: row.slug,
@@ -514,7 +331,6 @@ async function buildIntelSourcesAudit(): Promise<{
       manifestEnabled: row.manifestEnabled,
     });
     if (placement === 'active') activeRows.push(row);
-    else if (placement === 'inactive') inactiveRows.push(row);
   }
 
   const primary24h = rows
@@ -544,13 +360,12 @@ async function buildIntelSourcesAudit(): Promise<{
     configured: true,
     staleThresholdMinutes,
     rows: activeRows,
-    inactiveRows,
     errorMessage: null,
     build: buildInfo(),
   };
 }
 
-export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v5'], {
+export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v6'], {
   revalidate: 90,
   tags: ['intel-sources'],
 });

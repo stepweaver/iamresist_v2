@@ -15,12 +15,16 @@ function formatRunMeta(meta) {
   const httpStatus = typeof meta.httpStatus === 'number' ? meta.httpStatus : null;
   const finalUrl = typeof meta.finalUrl === 'string' ? meta.finalUrl : null;
   const itemsParsed = typeof meta.itemsParsed === 'number' ? meta.itemsParsed : null;
+  const rawEntryCount = typeof meta.rawEntryCount === 'number' ? meta.rawEntryCount : null;
   const failureCategory = typeof meta.failureCategory === 'string' ? meta.failureCategory : null;
+  const outcome = typeof meta.outcome === 'string' ? meta.outcome : null;
   const redirects = Array.isArray(meta.redirects) ? meta.redirects : null;
 
   const parts = [];
+  if (outcome) parts.push(outcome);
   if (failureCategory) parts.push(failureCategory);
   if (httpStatus != null) parts.push(`HTTP ${httpStatus}`);
+  if (rawEntryCount != null) parts.push(`raw ${rawEntryCount}`);
   if (itemsParsed != null) parts.push(`parsed ${itemsParsed}`);
   if (redirects && redirects.length) parts.push(`redirects ${redirects.length}`);
   if (finalUrl) parts.push(finalUrl);
@@ -41,6 +45,24 @@ function HealthBadge({ health }) {
   return <span className={`${base} ${map[health] || map.unproven}`}>{health}</span>;
 }
 
+const STATUS_LABELS = {
+  enabled_healthy: 'Healthy',
+  enabled_stale: 'Ingest stale',
+  enabled_unproven: 'Unproven',
+  enabled_failing: 'Upstream failure',
+  enabled_blocked: 'Access restricted',
+  enabled_misconfigured: 'Misconfigured',
+  enabled_quarantined: 'Redirect failure',
+  enabled_parser_mismatch: 'Parser failure',
+  enabled_valid_empty: 'Valid empty',
+  enabled_not_publishing: 'Not publishing',
+  disabled_policy: 'Disabled',
+  disabled_placeholder: 'Placeholder',
+  disabled_env_gated: 'Needs env',
+  disabled_other: 'Disabled',
+  needs_configuration: 'Needs configuration',
+};
+
 function StatusBadge({ bucket }) {
   const base =
     'font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border rounded whitespace-nowrap';
@@ -53,6 +75,8 @@ function StatusBadge({ bucket }) {
     enabled_misconfigured: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
     enabled_quarantined: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
     enabled_parser_mismatch: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
+    enabled_valid_empty: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400/90 bg-emerald-500/10',
+    enabled_not_publishing: 'border-primary/50 text-primary bg-primary/5',
     disabled_policy: 'border-border text-foreground/55 bg-foreground/5',
     disabled_placeholder: 'border-border text-foreground/55 bg-foreground/5',
     disabled_env_gated: 'border-border text-foreground/55 bg-foreground/5',
@@ -60,12 +84,12 @@ function StatusBadge({ bucket }) {
     needs_configuration: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
   };
   if (!bucket) return null;
-  const label = bucket === 'needs_configuration' ? 'Needs configuration' : bucket;
+  const label = STATUS_LABELS[bucket] || bucket;
   return <span className={`${base} ${map[bucket] || map.disabled_other}`}>{label}</span>;
 }
 
 export default function SourcesAuditSection({ audit }) {
-  const { configured, staleThresholdMinutes, rows, inactiveRows = [], errorMessage, build } = audit;
+  const { configured, staleThresholdMinutes, rows, errorMessage, build } = audit;
 
   if (!configured) {
     return (
@@ -287,6 +311,27 @@ export default function SourcesAuditSection({ audit }) {
               </div>
 
               <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Last successful fetch</dt>
+                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
+                  {formatIso(r.lastSuccessfulFetchAt)}
+                </dd>
+              </div>
+
+              <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Last successful parse</dt>
+                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
+                  {formatIso(r.lastSuccessfulParseAt)}
+                </dd>
+              </div>
+
+              <div>
+                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Newest article</dt>
+                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
+                  {formatIso(r.newestArticlePublishedAt)}
+                </dd>
+              </div>
+
+              <div>
                 <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Latest item fetch</dt>
                 <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
                   {formatIso(r.lastItemFetchedAt)}
@@ -307,43 +352,6 @@ export default function SourcesAuditSection({ audit }) {
         ))}
       </div>
 
-      {inactiveRows.length > 0 ? (
-        <details className="border border-border machine-panel">
-          <summary className="cursor-pointer p-4 font-mono text-xs uppercase tracking-wider text-foreground/80">
-            Inactive / Archived ({inactiveRows.length})
-          </summary>
-          <div className="space-y-4 border-t border-border p-4 sm:p-5">
-            <p className="font-mono text-[10px] uppercase tracking-wider text-hud-dim leading-relaxed">
-              Retired desks and sources that are not ingested. Congress.gov primary records stay here until
-              CONGRESS_GOV_API_KEY is set, then the next ingest sync enables them. Historical items are kept.
-            </p>
-            <ul className="space-y-4">
-              {inactiveRows.map((r) => (
-                <li key={`inactive-${r.id}`} className="border border-border/80 p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-foreground">{r.name}</span>
-                    <HealthBadge health={r.health} />
-                    <StatusBadge bucket={r.statusBucket} />
-                  </div>
-                  <p className="mt-1 font-mono text-[10px] text-hud-dim">{r.slug}</p>
-                  {r.statusDetail ? (
-                    <p className="mt-2 text-xs text-foreground/75 leading-relaxed">{r.statusDetail}</p>
-                  ) : null}
-                  {r.healthReason ? (
-                    <p className="mt-1 font-mono text-[10px] text-foreground/55 leading-relaxed">{r.healthReason}</p>
-                  ) : null}
-                  {r.editorialNotes ? (
-                    <p className="mt-2 font-mono text-[10px] text-foreground/60 leading-relaxed">{r.editorialNotes}</p>
-                  ) : null}
-                  <p className="mt-2 font-mono text-[10px] text-foreground/45 break-all">
-                    {r.fetchKind} · {r.endpointDisplay}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </details>
-      ) : null}
     </div>
   );
 }

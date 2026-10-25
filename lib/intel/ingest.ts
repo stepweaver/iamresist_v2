@@ -4,14 +4,11 @@ import { createHash } from 'node:crypto';
 import pLimit from 'p-limit';
 
 import { fetchTextNoStore } from '@/lib/intel/fetchText';
-import {
-  parseFederalRegisterPiJson,
-  parseFederalRegisterPublishedJson,
-} from '@/lib/intel/frApi';
+import { inspectFederalRegisterJson } from '@/lib/intel/frApi';
 import {
   buildCongressGovApiUrl,
   congressGovApiConfigured,
-  parseCongressGovJson,
+  inspectCongressGovJson,
 } from '@/lib/intel/congressGov';
 import {
   parseDemocracyDocketNewsAlertsHtml,
@@ -21,7 +18,7 @@ import {
   parseUsniNewsListingHtml,
 } from '@/lib/intel/parseHtmlIndex';
 import { enrichNormalizedItemsWithImages } from '@/lib/intel/enrichImages';
-import { parseRssXmlToItems } from '@/lib/intel/parseRss';
+import { parseRssXmlDetailed } from '@/lib/intel/parseRss';
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import { applyContentUseModeToSummary, decodeIntelPlainText, stripHtmlToText } from '@/lib/intel/contentUse';
 import {
@@ -47,6 +44,19 @@ function maxItemsForSourceSlug(slug: string): number {
 }
 
 const INGEST_FETCH_TIMEOUT_MS = 25000;
+
+function newestIso(items: NormalizedItem[]): string | null {
+  let best: string | null = null;
+  let bestMs = Number.NEGATIVE_INFINITY;
+  for (const item of items) {
+    if (!item.publishedAt) continue;
+    const ms = new Date(item.publishedAt).getTime();
+    if (Number.isNaN(ms) || ms <= bestMs) continue;
+    bestMs = ms;
+    best = item.publishedAt;
+  }
+  return best;
+}
 
 function capItems(items: NormalizedItem[], max: number): { items: NormalizedItem[]; capped: boolean } {
   if (max <= 0) return { items: [], capped: items.length > 0 };
@@ -301,62 +311,40 @@ export async function ingestOneSource(
     const maxItems = maxItemsForSourceSlug(cfg.slug);
 
     if (cfg.fetchKind === 'json_api') {
-      const parsedItems =
-        cfg.slug === 'fr-public-inspection'
-          ? parseFederalRegisterPiJson(res.text)
-          : parseFederalRegisterPublishedJson(res.text);
-
-      const { items: cappedRaw, capped } = capItems(parsedItems, maxItems);
+      const inspected = inspectFederalRegisterJson(
+        res.text,
+        cfg.slug === 'fr-public-inspection' ? 'pre_publication' : 'published_document',
+      );
+      const { items: cappedRaw, capped } = capItems(inspected.items, maxItems);
       const items = applyContentUseModeToItems(cappedRaw, contentUseMode);
+      const shared = {
+        httpStatus: res.status,
+        finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
+        contentType: res.contentType ?? null,
+        rawEntryCount: inspected.rawEntryCount,
+        itemsNormalized: inspected.normalizedCount,
+        itemsParsed: items.length,
+        ...(inspected.unavailabilityMessage
+          ? { piUnavailabilityMessage: inspected.unavailabilityMessage }
+          : {}),
+      };
 
-      if (items.length === 0) {
+      if (inspected.outcome === 'valid_empty') {
         return {
           items: [],
-          status: 'partial',
-          error: 'JSON API parse returned 0 items',
-          meta: {
-            httpStatus: res.status,
-            finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
-            contentType: res.contentType ?? null,
-            itemsParsed: 0,
-          },
+          status: 'success',
+          meta: { ...shared, outcome: 'valid_empty' },
         };
       }
-
-      return {
-        items,
-        status: 'success',
-        meta: {
-          httpStatus: res.status,
-          finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
-          contentType: res.contentType ?? null,
-          itemsParsed: items.length,
-          ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
-        },
-      };
-    }
-
-    if (cfg.fetchKind === 'congress_api') {
-      const parsedItems = parseCongressGovJson(res.text, {
-        sourceSlug: cfg.slug,
-        provenanceClass: cfg.provenanceClass,
-        contentUseMode,
-        fetchKind: cfg.fetchKind,
-      });
-      const { items: cappedRaw, capped } = capItems(parsedItems, maxItems);
-      const items = applyContentUseModeToItems(cappedRaw, contentUseMode);
-
-      if (items.length === 0) {
+      if (inspected.outcome === 'normalization_failure') {
         return {
           items: [],
           status: 'partial',
-          error: 'Congress.gov API parse returned 0 items',
+          error: inspected.detail || 'Federal Register documents could not be normalized',
           meta: {
-            httpStatus: res.status,
-            finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
-            contentType: res.contentType ?? null,
-            itemsParsed: 0,
-            failureCategory: 'parser_no_entries',
+            ...shared,
+            outcome: 'normalization_failure',
+            failureCategory: 'parser_normalization_failure',
             bodySample: res.text.slice(0, 180),
           },
         };
@@ -366,10 +354,60 @@ export async function ingestOneSource(
         items,
         status: 'success',
         meta: {
-          httpStatus: res.status,
-          finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
-          contentType: res.contentType ?? null,
-          itemsParsed: items.length,
+          ...shared,
+          outcome: 'items',
+          newestPublishedAt: newestIso(items),
+          ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
+        },
+      };
+    }
+
+    if (cfg.fetchKind === 'congress_api') {
+      const inspected = inspectCongressGovJson(res.text, {
+        sourceSlug: cfg.slug,
+        provenanceClass: cfg.provenanceClass,
+        contentUseMode,
+        fetchKind: cfg.fetchKind,
+      });
+      const { items: cappedRaw, capped } = capItems(inspected.items, maxItems);
+      const items = applyContentUseModeToItems(cappedRaw, contentUseMode);
+      const shared = {
+        httpStatus: res.status,
+        finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
+        contentType: res.contentType ?? null,
+        rawEntryCount: inspected.rawEntryCount,
+        itemsNormalized: inspected.items.length,
+        itemsParsed: items.length,
+      };
+
+      if (inspected.rawEntryCount === 0) {
+        return {
+          items: [],
+          status: 'success',
+          meta: { ...shared, outcome: 'valid_empty' },
+        };
+      }
+      if (items.length === 0) {
+        return {
+          items: [],
+          status: 'partial',
+          error: 'Congress.gov records were present but none could be normalized',
+          meta: {
+            ...shared,
+            outcome: 'normalization_failure',
+            failureCategory: 'parser_normalization_failure',
+            bodySample: res.text.slice(0, 180),
+          },
+        };
+      }
+
+      return {
+        items,
+        status: 'success',
+        meta: {
+          ...shared,
+          outcome: 'items',
+          newestPublishedAt: newestIso(items),
           ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
         },
       };
@@ -552,7 +590,7 @@ export async function ingestOneSource(
     }
 
     const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
-    const parsedItems = await parseRssXmlToItems(res.text, {
+    const inspected = await parseRssXmlDetailed(res.text, {
       sourceSlug: cfg.slug,
       provenanceClass: cfg.provenanceClass,
       contentUseMode,
@@ -561,7 +599,61 @@ export async function ingestOneSource(
       sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
     });
 
-    const { items: cappedParsed, capped } = capItems(parsedItems, maxItems);
+    const shared = {
+      httpStatus: res.status,
+      finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
+      contentType: res.contentType ?? null,
+      rawEntryCount: inspected.rawEntryCount,
+      itemsNormalized: inspected.items.length,
+      ...(res.redirects?.length ? { redirects: res.redirects } : {}),
+    };
+
+    if (inspected.bodyKind !== 'xml') {
+      return {
+        items: [],
+        status: 'partial',
+        error: 'Feed response was not XML (HTML error page or other non-feed body)',
+        meta: {
+          ...shared,
+          itemsParsed: 0,
+          outcome: 'non_xml',
+          failureCategory: 'feed_non_xml_body',
+          bodySample: res.text.slice(0, 180),
+        },
+      };
+    }
+
+    if (inspected.rawEntryCount === 0) {
+      return {
+        items: [],
+        status: 'success',
+        meta: {
+          ...shared,
+          itemsParsed: 0,
+          outcome: 'valid_empty',
+        },
+      };
+    }
+
+    if (inspected.items.length === 0) {
+      const parserSawNone = inspected.parserEntryCount === 0;
+      return {
+        items: [],
+        status: 'partial',
+        error: parserSawNone
+          ? 'Feed XML contained entries the parser could not read'
+          : 'Feed entries were present but none had a usable link',
+        meta: {
+          ...shared,
+          itemsParsed: 0,
+          outcome: 'normalization_failure',
+          failureCategory: parserSawNone ? 'parser_no_entries' : 'parser_normalization_failure',
+          bodySample: res.text.slice(0, 180),
+        },
+      };
+    }
+
+    const { items: cappedParsed, capped } = capItems(inspected.items, maxItems);
 
     // RSS already extracts feed-native images; this only fills gaps.
     const items = await enrichNormalizedItemsWithImages(cappedParsed, {
@@ -569,42 +661,15 @@ export async function ingestOneSource(
       concurrency: 4,
     });
 
-    if (items.length === 0) {
-      const ct = (res.contentType || '').toLowerCase();
-      const text = (res.text || '').trim().toLowerCase();
-      const looksHtml = text.startsWith('<!doctype') || text.startsWith('<html');
-      const looksXml = res.text.includes('<rss') || res.text.includes('<feed');
-      return {
-        items: [],
-        status: 'partial',
-        error:
-          'RSS parse returned 0 items (empty feed, non-feed body, HTML error page, or no valid entries)',
-        meta: {
-          httpStatus: res.status,
-          finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
-          contentType: res.contentType ?? null,
-          itemsParsed: 0,
-          failureCategory: looksHtml || ct.includes('text/html')
-            ? 'feed_non_xml_body'
-            : looksXml
-              ? 'parser_no_entries'
-              : 'feed_non_xml_body',
-          ...(res.redirects?.length ? { redirects: res.redirects } : {}),
-          bodySample: res.text.slice(0, 180),
-        },
-      };
-    }
-
     return {
       items,
       status: 'success',
       meta: {
-        httpStatus: res.status,
-        finalUrl: safeFinalUrlForMeta(cfg.fetchKind, res.finalUrl),
-        contentType: res.contentType ?? null,
+        ...shared,
         itemsParsed: items.length,
+        outcome: 'items',
+        newestPublishedAt: newestIso(items),
         imagesResolved: items.filter((it) => Boolean(it.imageUrl)).length,
-        ...(res.redirects?.length ? { redirects: res.redirects } : {}),
         ...(capped ? { itemsCapped: true, itemsCap: maxItems } : {}),
       },
     };

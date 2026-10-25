@@ -206,8 +206,10 @@ export type FederalRegisterDoc = {
   title?: string;
   type?: string;
   abstract?: string | null;
-  document_number?: string;
-  html_url?: string;
+  document_number?: string | null;
+  html_url?: string | null;
+  pdf_url?: string | null;
+  public_inspection_pdf_url?: string | null;
   publication_date?: string;
   /** Public inspection filing time (ISO). */
   filed_at?: string;

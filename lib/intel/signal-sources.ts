@@ -15,9 +15,22 @@ const GOVINFO_CREC = 'https://www.govinfo.gov/rss/crec.xml';
 const SCOTUSBLOG = 'https://www.scotusblog.com/feed/';
 /** Listing page; articles are CPT `alerts` under /news-alerts/{slug}/ (RSS unreliable in some fetch runtimes). */
 const DEMOCRACY_DOCKET = 'https://www.democracydocket.com/news-alerts/';
+/**
+ * Official Lawfare article RSS. Checked 2026-10-25 with the ingest user-agent:
+ * HTTP 200 `application/rss+xml`. The channel is empty when Lawfare has nothing
+ * new in the feed, and later the same day it returned an article with a title,
+ * date, and canonical link. An empty channel is a valid empty response. Other
+ * site paths return Cloudflare HTTP 403. Do not scrape around that block.
+ */
 const LAWFARE = 'https://www.lawfaremedia.org/feeds/articles';
 const PROPUBLICA = 'https://feeds.propublica.org/propublica/main';
-const AMERICAN_OVERSIGHT = 'https://americanoversight.org/feed';
+/**
+ * The default `/feed/` is a valid WordPress channel with zero items: American Oversight
+ * publishes on custom post types, not `post`. This publisher RSS returns those types.
+ * Verified 2026-10-25: HTTP 200 `application/rss+xml` with article links and dates.
+ */
+const AMERICAN_OVERSIGHT =
+  'https://americanoversight.org/feed/?post_type[]=analysis&post_type[]=investigation&post_type[]=litigation&post_type[]=press-release&post_type[]=newsletter&post_type[]=reports-and-features';
 const DOJ_OIG = 'https://oig.justice.gov/rss.xml';
 const JUST_SECURITY = 'https://www.justsecurity.org/feed/';
 const CAMPAIGN_LEGAL_CENTER = 'https://campaignlegal.org/rss.xml';
@@ -36,7 +49,11 @@ const MEDUZA_EN_RSS = 'https://meduza.io/rss/en/all';
 const AF_MIL_NEWS_RSS = 'https://www.af.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=1';
 /** Army CORE static RSS; organization id 1 is the Army homepage. */
 const ARMY_MIL_NEWS_RSS = 'https://www.army.mil/rss/static/1.xml';
-/** Verified 200 `application/rss+xml` from the ingest user-agent. Homepage HTML is blocked (HTTP 403). */
+/**
+ * Production ingest on 2026-10-25 received HTTP 403 Cloudflare ("Just a moment...")
+ * from https://www.972mag.com/feed/. A residential check can still receive the RSS.
+ * Disabled. Do not scrape or rotate user-agents to get around the block.
+ */
 const MAG_972_RSS = 'https://www.972mag.com/feed/';
 const BIRN_RSS = 'https://balkaninsight.com/feed/';
 const RAPPLER_RSS = 'https://www.rappler.com/rss/';
@@ -185,6 +202,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       purpose: 'Federal Register Public Inspection filings before official publication.',
       trustedFor: 'Pre-publication regulatory and notice filings with FR metadata.',
       notTrustedFor: 'Final authoritative text; use the published Federal Register feed.',
+      editorialNotes:
+        'The public-inspection list is posted on federal business mornings (about 8:45 a.m. Eastern) and returns count 0 with pil_unavailability_message after midnight, on weekends, and on federal holidays. That empty payload is a valid empty response. Document numbers may be recovered from html_url or pdf_url when the explicit field is absent. The published Federal Register feed is separate.',
       editorialControls: {
         defaultPriority: 36,
         preferredStateChangeTypes: ['pre_publication'],
@@ -283,6 +302,11 @@ export function getSignalSources(): SignalSourceConfig[] {
         noiseNotes: 'Full CREC RSS is extremely high volume; light block list for obvious procedural chaff.',
       },
     },
+    // Congress.gov stays in this manifest so CONGRESS_GOV_API_KEY can enable it later.
+    // Hidden from /intel/sources until congressGovApiConfigured() is true.
+    // Enable internally: set CONGRESS_GOV_API_KEY, then run ingest once so
+    // syncIntelSourcesFromManifest() sets intel.sources.is_enabled. The key is
+    // appended only at request time. See docs/intel/public-sources.md.
     {
       slug: 'congress-bills-recent',
       name: 'Congress.gov — Recent bills',
@@ -560,6 +584,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       purpose: 'National security, courts, and executive-power legal analysis from Lawfare (public site RSS).',
       trustedFor: 'Timely specialist framing and links to primary documents cited in their coverage.',
       notTrustedFor: 'Substitute for court orders, statutes, or agency final rules.',
+      editorialNotes:
+        'Checked 2026-10-25 with the ingest user-agent. https://www.lawfaremedia.org/feeds/articles is HTTP 200 application/rss+xml. It was an empty channel earlier that day and later returned “Chemical Security Is National Security” with a canonical article link. An empty channel is a valid empty response, not a parser failure. Other Lawfare paths return Cloudflare HTTP 403; do not scrape around that.',
       editorialControls: {
         defaultPriority: 54,
         preferredStateChangeTypes: ['specialist_item'],
@@ -611,7 +637,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Records-request narratives, lawsuit filings, and transparency campaign pointers.',
       notTrustedFor: 'Verified contents of unreleased records; read linked filings and releases.',
       editorialNotes:
-        'Included in the default manifest; specialist FOIA and accountability feed.',
+        'Default /feed/ is an empty WordPress channel because items are custom post types. Endpoint is the publisher RSS for analysis, investigation, litigation, press-release, newsletter, and reports-and-features. Verified 2026-10-25 with article links and dates.',
       editorialControls: {
         defaultPriority: 55,
         preferredStateChangeTypes: ['specialist_item'],
@@ -831,6 +857,11 @@ export function getSignalSources(): SignalSourceConfig[] {
       },
     },
 
+    // Permanently retired desks stay in this manifest with isEnabled: false.
+    // syncIntelSourcesFromManifest upserts is_enabled false and does not delete
+    // intel.sources or intel.source_items. Rescore still needs these editorial
+    // controls. They are omitted from /intel/sources. Do not drop the definitions
+    // or the next ingest will stop reaffirming the disabled flag.
     // --- Statements lane (direct claims / public-import scaffold; not OSINT evidence) ---
     {
       slug: 'statements-public-import',
@@ -1151,7 +1182,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
       endpointUrl: MAG_972_RSS,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -1161,7 +1192,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'On-the-ground context and independent analysis with outbound links.',
       notTrustedFor: 'Legal status of territories or military claims without independent verification.',
       editorialNotes:
-        'Homepage HTML returns HTTP 403 (Cloudflare challenge). Switched to https://www.972mag.com/feed/, verified 200 application/rss+xml with article entries, dates, and canonical links. Do not scrape the homepage.',
+        'Disabled 2026-10-25. Production ingest receives HTTP 403 (Cloudflare challenge) from https://www.972mag.com/feed/. Historical items stay attached. Do not scrape the site or bypass the block.',
       editorialControls: {
         defaultPriority: 45,
         preferredStateChangeTypes: ['specialist_item'],

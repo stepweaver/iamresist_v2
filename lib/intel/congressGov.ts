@@ -378,7 +378,10 @@ function normalizeCrsReport(row: Record<string, unknown>, ctx: ParseCtx): Normal
   });
 }
 
-export function parseCongressGovJson(jsonText: string, ctx: ParseCtx): NormalizedItem[] {
+export function inspectCongressGovJson(
+  jsonText: string,
+  ctx: ParseCtx,
+): { rawEntryCount: number; items: NormalizedItem[] } {
   const data = JSON.parse(jsonText) as Record<string, unknown>;
   let rows: Record<string, unknown>[] = [];
   let normalizer: (row: Record<string, unknown>, ctx: ParseCtx) => NormalizedItem | null = normalizeBill;
@@ -400,7 +403,12 @@ export function parseCongressGovJson(jsonText: string, ctx: ParseCtx): Normalize
     normalizer = normalizeBill;
   }
 
-  return rows.map((row) => normalizer(row, ctx)).filter((item): item is NormalizedItem => Boolean(item));
+  const items = rows.map((row) => normalizer(row, ctx)).filter((item): item is NormalizedItem => Boolean(item));
+  return { rawEntryCount: rows.length, items };
+}
+
+export function parseCongressGovJson(jsonText: string, ctx: ParseCtx): NormalizedItem[] {
+  return inspectCongressGovJson(jsonText, ctx).items;
 }
 
 export function currentCongressNumber(now = new Date()): number {

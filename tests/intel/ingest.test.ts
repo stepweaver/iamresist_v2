@@ -74,7 +74,7 @@ describe('ingestOneSource', () => {
     expect(out.error).toMatch(/network down/);
   });
 
-  it('marks RSS with 0 items as partial on HTTP 200', async () => {
+  it('treats a well-formed empty RSS channel as a valid empty success', async () => {
     vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
       ok: true,
       status: 200,
@@ -84,9 +84,98 @@ describe('ingestOneSource', () => {
       redirects: [],
     });
     const out = await ingestOneSource(rssCfg());
+    expect(out.status).toBe('success');
+    expect(out.items).toHaveLength(0);
+    expect(out.error).toBeUndefined();
+    expect(out.meta?.outcome).toBe('valid_empty');
+    expect(out.meta?.rawEntryCount).toBe(0);
+    expect(out.meta?.itemsParsed).toBe(0);
+  });
+
+  it('marks feed entries without links as a normalization failure', async () => {
+    vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: `<?xml version="1.0"?><rss version="2.0"><channel><title>T</title>
+        <item><title>No link</title><description>Body</description></item>
+      </channel></rss>`,
+      finalUrl: 'https://example.com/feed',
+      contentType: 'application/rss+xml',
+      redirects: [],
+    });
+    const out = await ingestOneSource(rssCfg());
     expect(out.status).toBe('partial');
     expect(out.items).toHaveLength(0);
-    expect(out.error).toMatch(/0 items/i);
+    expect(out.meta?.failureCategory).toBe('parser_normalization_failure');
+    expect(out.meta?.rawEntryCount).toBe(1);
+    expect(out.meta?.itemsParsed).toBe(0);
+  });
+
+  it('treats a closed Public Inspection list as a valid empty success', async () => {
+    vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: JSON.stringify({
+        description: 'All Public Inspection Documents',
+        count: 0,
+        meta: {
+          pil_unavailability_message:
+            'The Public Inspection list is unavailable after 12AM Eastern time and will return on Monday, October 26 at 8:45AM Eastern time.',
+        },
+      }),
+      finalUrl: 'https://www.federalregister.gov/api/v1/public-inspection-documents.json',
+      contentType: 'application/json; charset=utf-8',
+      redirects: [],
+    });
+    const out = await ingestOneSource(
+      rssCfg({
+        slug: 'fr-public-inspection',
+        fetchKind: 'json_api',
+        provenanceClass: 'PRIMARY',
+      }),
+    );
+    expect(out.status).toBe('success');
+    expect(out.items).toHaveLength(0);
+    expect(out.meta?.outcome).toBe('valid_empty');
+    expect(out.meta?.rawEntryCount).toBe(0);
+    expect(out.meta?.itemsParsed).toBe(0);
+    expect(String(out.meta?.piUnavailabilityMessage)).toMatch(/8:45AM/);
+  });
+
+  it('normalizes a Public Inspection document that only has a PDF url', async () => {
+    vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: JSON.stringify({
+        count: 1,
+        results: [
+          {
+            title: 'Notice of proposed rule',
+            type: 'Proposed Rule',
+            pdf_url: 'https://public-inspection.federalregister.gov/2026-21749.pdf',
+            publication_date: '2026-10-26',
+            filed_at: '2026-10-22T11:15:00.000-04:00',
+          },
+        ],
+      }),
+      finalUrl: 'https://www.federalregister.gov/api/v1/public-inspection-documents.json',
+      contentType: 'application/json',
+      redirects: [],
+    });
+    const out = await ingestOneSource(
+      rssCfg({
+        slug: 'fr-public-inspection',
+        fetchKind: 'json_api',
+        provenanceClass: 'PRIMARY',
+      }),
+    );
+    expect(out.status).toBe('success');
+    expect(out.meta?.rawEntryCount).toBe(1);
+    expect(out.meta?.itemsNormalized).toBe(1);
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]?.externalId).toBe('2026-21749');
+    expect(out.items[0]?.canonicalUrl).toContain('2026-21749.pdf');
+    expect(out.items[0]?.stateChangeType).toBe('pre_publication');
   });
 
   it('short non-feed body is partial, not success', async () => {
@@ -101,6 +190,7 @@ describe('ingestOneSource', () => {
     const out = await ingestOneSource(rssCfg({ endpointUrl: 'https://example.com/x' }));
     expect(out.status).toBe('partial');
     expect(out.items).toHaveLength(0);
+    expect(out.meta?.failureCategory).toBe('feed_non_xml_body');
   });
 
   it('metadata_only yields null summary even when description exists', async () => {

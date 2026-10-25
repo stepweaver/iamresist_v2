@@ -112,7 +112,22 @@ function pickRawSummary(
   return null;
 }
 
-export async function parseRssXmlToItems(
+export type RssParseInspection = {
+  items: NormalizedItem[];
+  /** `<item>` or `<entry>` tags in the body, or parser rows when the tag count is lower. */
+  rawEntryCount: number;
+  /** Rows `rss-parser` returned before link normalization. */
+  parserEntryCount: number;
+  bodyKind: 'html' | 'xml' | 'other';
+};
+
+function countRawFeedEntries(xml: string): number {
+  const items = xml.match(/<item[\s>]/gi)?.length ?? 0;
+  const entries = xml.match(/<entry[\s>]/gi)?.length ?? 0;
+  return Math.max(items, entries);
+}
+
+export async function parseRssXmlDetailed(
   xml: string,
   ctx: {
     sourceSlug: string;
@@ -122,16 +137,41 @@ export async function parseRssXmlToItems(
     deskLane?: string | null;
     sourceFamily?: string | null;
   },
-): Promise<NormalizedItem[]> {
-  if (!xml || looksLikeHtml(xml)) return [];
-  if (!xml.includes('<rss') && !xml.includes('<feed')) return [];
+): Promise<RssParseInspection> {
+  if (!xml || looksLikeHtml(xml)) {
+    return { items: [], rawEntryCount: 0, parserEntryCount: 0, bodyKind: 'html' };
+  }
+  if (!xml.includes('<rss') && !xml.includes('<feed')) {
+    return { items: [], rawEntryCount: 0, parserEntryCount: 0, bodyKind: 'other' };
+  }
 
   const feed = await parser.parseString(xml);
-  const items = feed.items ?? [];
+  const parsed = feed.items ?? [];
+  const parserEntryCount = parsed.length;
+  const rawEntryCount = Math.max(countRawFeedEntries(xml), parserEntryCount);
+  const items = normalizeParsedFeedItems(
+    feed.title ?? null,
+    parsed as unknown as Array<Record<string, unknown>>,
+    ctx,
+  );
+  return { items, rawEntryCount, parserEntryCount, bodyKind: 'xml' };
+}
 
+function normalizeParsedFeedItems(
+  feedTitle: string | null,
+  parsed: Array<Record<string, unknown>>,
+  ctx: {
+    sourceSlug: string;
+    provenanceClass: string;
+    contentUseMode: ContentUseMode;
+    fetchKind: FetchKind;
+    deskLane?: string | null;
+    sourceFamily?: string | null;
+  },
+): NormalizedItem[] {
   const out: NormalizedItem[] = [];
-  for (let idx = 0; idx < items.length; idx++) {
-    const it = items[idx]!;
+  for (let idx = 0; idx < parsed.length; idx++) {
+    const it = parsed[idx]!;
     const row = it as unknown as Record<string, unknown> & {
       link?: string;
       links?: { href?: string }[];
@@ -170,7 +210,7 @@ export async function parseRssXmlToItems(
       publishedAt,
       imageUrl,
       structured: {
-        feedTitle: feed.title ?? null,
+        feedTitle,
         itemCategories: row.categories ?? null,
         fetchKind: ctx.fetchKind,
         sourcePosition: idx + 1,
@@ -184,4 +224,19 @@ export async function parseRssXmlToItems(
     });
   }
   return out;
+}
+
+export async function parseRssXmlToItems(
+  xml: string,
+  ctx: {
+    sourceSlug: string;
+    provenanceClass: string;
+    contentUseMode: ContentUseMode;
+    fetchKind: FetchKind;
+    deskLane?: string | null;
+    sourceFamily?: string | null;
+  },
+): Promise<NormalizedItem[]> {
+  const inspected = await parseRssXmlDetailed(xml, ctx);
+  return inspected.items;
 }
