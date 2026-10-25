@@ -7,6 +7,7 @@ import { buildIntelBriefingLinks } from '@/lib/intel/briefingLinks';
 import { formatDate } from '@/lib/utils/date';
 import { briefingLaneLabel } from '@/lib/feeds/homepageBriefing.weights';
 import { getIntelSourceLinkLabel } from '@/lib/sourceLinkLabels';
+import { takeLeadingBriefingStories } from '@/components/home/homepagePresentation';
 
 function BriefingLaneBadge({ lane }) {
   const label = briefingLaneLabel(lane);
@@ -184,13 +185,13 @@ function IntelBriefingCard({ row, hero = false, compact = false, loading = 'lazy
  * @param {Awaited<ReturnType<typeof import('@/lib/feeds/homepageBriefing.service').getHomeLiveBriefing>>} props.briefing
  */
 export default function HomeLiveBriefingSection({ briefing }) {
-  const items = briefing?.items ?? [];
+  const items = takeLeadingBriefingStories(briefing?.items);
   if (items.length === 0) return null;
 
   const [lead, ...rest] = items;
 
   return (
-    <section className="mb-8 sm:mb-12">
+    <section data-testid="home-live-briefing" className="mb-6 sm:mb-8">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
         <div>
           <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block">Live briefing</span>
@@ -233,6 +234,7 @@ export default function HomeLiveBriefingSection({ briefing }) {
           )}
         </div>
 
+        {rest.length > 0 ? (
         <ul className="grid grid-cols-1 gap-3 sm:gap-4 min-w-0 list-none p-0 m-0">
           {rest.map((entry) => (
             <li key={entry.kind === 'newswire' ? entry.story.id : entry.intelItem.id}>
@@ -254,6 +256,7 @@ export default function HomeLiveBriefingSection({ briefing }) {
             </li>
           ))}
         </ul>
+        ) : null}
       </div>
     </section>
   );

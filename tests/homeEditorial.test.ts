@@ -130,9 +130,10 @@ describe('homepage editorial section', () => {
     expect(text.indexOf('Latest Essay Title')).toBeLessThan(text.indexOf('Middle Essay'));
     expect(text.indexOf('Middle Essay')).toBeLessThan(text.indexOf('Older Essay'));
     expect(text).toContain('The central argument in two sentences.');
-    expect(text).toContain('An earlier argument.');
+    expect(text).not.toContain('An earlier argument.');
     expect(text).not.toContain('Latest Copy');
     expect(text).toContain('Read Essay');
+    expect(text.match(/Read Essay/g)).toHaveLength(1);
     expect(hrefs).toContain('/journal/latest-essay');
     expect(hrefs).toContain('/journal/middle-essay');
     expect(hrefs).toContain('/journal/older-essay');

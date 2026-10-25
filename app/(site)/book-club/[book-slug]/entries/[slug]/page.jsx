@@ -49,7 +49,7 @@ export async function generateMetadata({ params }) {
   const description = buildReadingNoteDescription(book, note, blocks);
 
   return buildPageMetadata({
-    title: `${title} | ${book.title} | Book Club | I AM [RESIST]`,
+    title: `${title} | ${book.title} | The Resistance Shelf | I AM [RESIST]`,
     description,
     urlPath: `/book-club/${book.slug}/entries/${note.slug}`,
     images: book.coverImage
@@ -79,7 +79,7 @@ export default async function BookJournalEntryPage({ params }) {
   const schema = [
     buildBreadcrumbListSchema([
       { name: 'Home', url: '/' },
-      { name: 'Book Club', url: '/book-club' },
+      { name: 'The Resistance Shelf', url: '/book-club' },
       { name: book.title || 'Book', url: `/book-club/${book.slug}` },
       { name: note.title || 'Reading Journal Entry', url: canonicalPath },
     ]),

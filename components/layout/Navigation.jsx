@@ -7,13 +7,13 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useCart } from '@/context/CartContext';
 import { ShoppingCart } from 'lucide-react';
 
-const NAV_LINKS = [
+export const NAV_LINKS = [
   { href: '/', label: 'HOME' },
   { href: '/about', label: 'ABOUT' },
-  { href: '/intel', label: 'INTEL' },
+  { href: '/intel/newswire', label: 'INTEL' },
   { href: '/telescreen', label: 'TELESCREEN' },
   { href: '/journal', label: 'JOURNAL' },
-  { href: '/book-club', label: 'BOOK CLUB' },
+  { href: '/book-club', label: 'SHELF', title: 'The Resistance Shelf' },
   { href: '/shop', label: 'SHOP' },
 ];
 
@@ -36,9 +36,9 @@ function CartNavLink({ totalQuantity, cartBounce }) {
   );
 }
 
-function isNavLinkActive(link, pathname) {
+export function isNavLinkActive(link, pathname) {
   const intelHub =
-    link.href === '/intel' &&
+    link.href === '/intel/newswire' &&
     (pathname === '/intel' || pathname?.startsWith('/intel/'));
 
   const telescreenHub =
@@ -124,6 +124,7 @@ export default function Navigation() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  title={link.title}
                   className={`nav-label relative px-5 py-2 text-sm font-bold tracking-[0.15em] transition-all duration-200 border-b-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chrome-accent ${
                     isActive
                       ? 'text-chrome-accent border-chrome-accent'
@@ -180,6 +181,7 @@ export default function Navigation() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  title={link.title}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`nav-label block px-4 py-3 text-sm font-bold tracking-[0.15em] transition-all duration-200 border-l-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chrome-accent ${
                     isActive

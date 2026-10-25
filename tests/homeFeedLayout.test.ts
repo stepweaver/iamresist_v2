@@ -24,6 +24,10 @@ vi.mock('@/lib/feeds/protestMusicFeed.service', () => ({
   getRecentProtestMusicItemsWithFallback: fetchers.getRecentProtestMusicItemsWithFallback,
 }));
 
+vi.mock('@/lib/bookclub/service', () => ({
+  listBooks: vi.fn(async () => []),
+}));
+
 vi.mock('@/components/home/ShopPromoSection', () => ({
   default: () => React.createElement('section', { 'data-testid': 'shop-promo' }, 'Shop promo'),
 }));
@@ -80,32 +84,37 @@ function walk(node: React.ReactNode, found: React.ReactElement[] = []) {
 }
 
 describe('HomeFeed layout ordering', () => {
-  it('puts Telescreen ahead of Live Briefing below desktop while preserving desktop order classes', async () => {
-    const { default: HomeFeed, HomeTelescreenSlot, TELESCREEN_SECTION_CLASS } = await import(
+  it('keeps briefing, Telescreen, culture, and the shop in one order on every width', async () => {
+    const { default: HomeFeed, HomeTelescreenSlot, HomeCultureSlot, TELESCREEN_SECTION_CLASS } = await import(
       '@/components/home/HomeFeed.server'
     );
 
     const element = asElement(HomeFeed());
-    const topLevelChildren = Children.toArray(element.props.children);
-    const orderedSections = asElement(topLevelChildren[2]);
-    const musicBoundary = asElement(topLevelChildren[3]);
+    const topLevelChildren = Children.toArray(element.props.children).map((child) => asElement(child));
 
-    expect(orderedSections.props.className).toBe('flex flex-col');
-    expect(musicBoundary.type).toBe(Suspense);
+    expect(topLevelChildren).toHaveLength(4);
+    expect(topLevelChildren[0].type).toBe(Suspense);
+    expect(topLevelChildren[1].type).toBe(Suspense);
+    expect(topLevelChildren[2].type).toBe(Suspense);
+    const shop = asElement(await invoke(topLevelChildren[3]));
+    expect(shop.props['data-testid']).toBe('shop-promo');
 
-    const orderedChildren = Children.toArray(orderedSections.props.children);
-    const liveWrapper = asElement(orderedChildren[0]);
-    const telescreenBoundary = asElement(orderedChildren[1]);
+    const classNames = topLevelChildren.map((child) => child.props.className || '').join(' ');
+    expect(classNames).not.toContain('order-1');
+    expect(classNames).not.toContain('lg:order-');
 
-    expect(liveWrapper.props.className).toBe('order-2 lg:order-1');
-    expect(telescreenBoundary.type).toBe(Suspense);
-    const fallback = asElement(telescreenBoundary.props.fallback);
-    expect(fallback.props.className).toBe(TELESCREEN_SECTION_CLASS);
+    const telescreenFallback = asElement(topLevelChildren[1].props.fallback);
+    expect(telescreenFallback.props.className).toBe(TELESCREEN_SECTION_CLASS);
+    expect(telescreenFallback.props.className).not.toContain('order-');
 
     const telescreen = asElement(await HomeTelescreenSlot());
-    expect(telescreen.props.className).toBe('order-1 mb-6 sm:mb-8 lg:order-2');
+    expect(telescreen.props.className).toBe('mb-6 sm:mb-8');
+    expect(telescreen.props.className).not.toContain('order-');
     const renderedSection = asElement(await invoke(asElement(telescreen.props.children)));
     expect(renderedSection.props['data-testid']).toBe('telescreen');
+
+    expect(topLevelChildren[2].props.fallback).toBeTruthy();
+    expect(HomeCultureSlot).toEqual(expect.any(Function));
   });
 });
 
@@ -178,11 +187,11 @@ describe('HomeFeed independent sections', () => {
     fetchers.getHomeLiveBriefing.mockResolvedValue({ items: [] });
     fetchers.getRecentProtestMusicItemsWithFallback.mockResolvedValue([]);
 
-    const { HomeLiveBriefingSlot, HomeTelescreenSlot, HomeProtestMusicSlot } = await import(
+    const { HomeLiveBriefingSlot, HomeTelescreenSlot, HomeCultureSlot } = await import(
       '@/components/home/HomeFeed.server'
     );
 
-    await Promise.all([HomeLiveBriefingSlot(), HomeTelescreenSlot(), HomeProtestMusicSlot()]);
+    await Promise.all([HomeLiveBriefingSlot(), HomeTelescreenSlot(), HomeCultureSlot()]);
 
     expect(fetchers.getHomepageIntelFeed).toHaveBeenCalledTimes(1);
     expect(fetchers.getHomeLiveBriefing).toHaveBeenCalledTimes(1);

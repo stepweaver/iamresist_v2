@@ -2,7 +2,7 @@ import Card from '@/components/Card';
 
 export function HomeLiveBriefingSkeleton() {
   return (
-    <div className="mb-8 sm:mb-12" role="status" aria-label="Loading live briefing">
+    <div className="mb-6 sm:mb-8" role="status" aria-label="Loading live briefing">
       <div className="h-3 w-28 bg-foreground/10 rounded animate-pulse mb-2" />
       <div className="h-3 w-full max-w-xl bg-foreground/10 rounded animate-pulse mb-4" />
       <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_0.9fr] gap-4 sm:gap-5">
@@ -31,7 +31,7 @@ export function HomeLiveBriefingSkeleton() {
   );
 }
 
-export function HomeTelescreenSkeleton({ className = 'order-1 mb-6 sm:mb-8 lg:order-2' }) {
+export function HomeTelescreenSkeleton({ className = 'mb-6 sm:mb-8' }) {
   return (
     <div className={className} role="status" aria-label="Loading Telescreen">
       <div className="mb-6 sm:mb-8 border-t border-border/60 pt-6 sm:pt-8">
@@ -42,8 +42,8 @@ export function HomeTelescreenSkeleton({ className = 'order-1 mb-6 sm:mb-8 lg:or
           </div>
           <div className="h-3 w-14 bg-foreground/10 rounded animate-pulse" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+          {[1, 2].map((i) => (
             <Card key={i} className="p-4 border-border overflow-hidden">
               <div className="aspect-video bg-foreground/10 rounded animate-pulse mb-3" />
               <div className="h-4 w-3/4 bg-foreground/10 rounded animate-pulse mb-2" />
@@ -56,15 +56,20 @@ export function HomeTelescreenSkeleton({ className = 'order-1 mb-6 sm:mb-8 lg:or
   );
 }
 
-export function HomeProtestMusicSkeleton() {
+export function HomeProtestMusicSkeleton({ count = 1 } = {}) {
+  const visible = Math.max(1, count);
+  const columns =
+    visible > 1
+      ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4'
+      : 'grid grid-cols-1 gap-3';
   return (
     <div className="mb-6 sm:mb-8" role="status" aria-label="Loading protest music">
       <div className="flex items-center justify-between mb-4">
         <div className="h-3 w-28 bg-foreground/10 rounded animate-pulse" />
         <div className="h-3 w-24 bg-foreground/10 rounded animate-pulse" />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {[1, 2, 3].map((i) => (
+      <div className={columns}>
+        {Array.from({ length: visible }, (_, i) => (
           <Card key={i} className="p-4 border-border overflow-hidden">
             <div className="aspect-video bg-foreground/10 rounded animate-pulse mb-3" />
             <div className="h-4 w-3/4 bg-foreground/10 rounded animate-pulse mb-2" />
@@ -76,28 +81,39 @@ export function HomeProtestMusicSkeleton() {
   );
 }
 
+export function HomeCultureSkeleton() {
+  return (
+    <div className="mb-6 sm:mb-8" role="status" aria-label="Loading culture">
+      <div className="mb-4 h-3 w-24 animate-pulse rounded bg-foreground/10" />
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-6">
+        <HomeProtestMusicSkeleton />
+        <div role="status" aria-label="Loading shelf book">
+          <Card className="border-border p-4 sm:p-6">
+            <div className="flex items-stretch gap-3 sm:gap-4">
+              <div className="min-h-20 w-16 flex-shrink-0 animate-pulse rounded-sm bg-foreground/10 sm:min-h-28 sm:w-20" />
+              <div className="min-w-0 flex-1 space-y-3">
+                <div className="h-3 w-28 animate-pulse rounded bg-foreground/10" />
+                <div className="h-5 w-3/4 max-w-48 animate-pulse rounded bg-foreground/10" />
+                <div className="h-3 w-1/2 max-w-32 animate-pulse rounded bg-foreground/10" />
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomeFeedSkeleton() {
   return (
-    <div className="w-full max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-4 sm:py-6">
-      <div className="mb-6 sm:mb-8">
-        <Card className="p-4 sm:p-6 border-border">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex-1 space-y-2">
-              <div className="h-3 w-24 bg-foreground/10 rounded animate-pulse" />
-              <div className="h-5 w-16 bg-foreground/10 rounded animate-pulse" />
-              <div className="h-3 w-48 bg-foreground/10 rounded animate-pulse" />
-            </div>
-            <div className="h-10 w-28 bg-foreground/10 rounded animate-pulse" />
-          </div>
-        </Card>
-      </div>
-      <div className="flex flex-col">
-        <div className="order-2 lg:order-1">
-          <HomeLiveBriefingSkeleton />
-        </div>
-        <HomeTelescreenSkeleton />
-      </div>
-      <HomeProtestMusicSkeleton />
+    <div className="mx-auto w-full max-w-[1600px] px-1 py-2 sm:px-2 sm:py-3 lg:px-3">
+      <HomeLiveBriefingSkeleton />
+      <HomeTelescreenSkeleton />
+      <HomeCultureSkeleton />
+      <Card className="border-border p-3 sm:p-4">
+        <div className="h-3 w-36 animate-pulse rounded bg-foreground/10" />
+        <div className="mt-2 h-4 w-48 animate-pulse rounded bg-foreground/10" />
+      </Card>
     </div>
   );
 }

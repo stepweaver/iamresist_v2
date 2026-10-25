@@ -37,7 +37,7 @@ export default function Home() {
       className="min-h-screen overflow-x-hidden hero-page-bg"
     >
       <StructuredData data={homeSchema} />
-      <header data-testid="home-masthead" className="border-b border-border pt-0 pb-3">
+      <header data-testid="home-masthead" className="border-b border-border pt-0 pb-1">
         <div className="machine-panel scanline hud-stage relative isolate overflow-hidden">
           <HudOverlay title="RESISTANCE SIGNAL" code="IAMR-BRIEF-01" />
           {/*
@@ -45,7 +45,7 @@ export default function Home() {
             reticle. `contents` lets the shared heading and links reorder below lg
             without a second accessible copy.
           */}
-          <div className="relative z-10 grid grid-cols-1 items-center gap-2 px-4 pt-9 pb-4 sm:gap-3 sm:px-6 sm:pt-10 sm:pb-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-x-12 lg:gap-y-3 lg:px-8 lg:py-10 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:gap-x-16 xl:px-10">
+          <div className="relative z-10 grid grid-cols-1 items-center gap-1 px-4 pt-7 pb-2 sm:gap-2 sm:px-6 sm:pt-8 sm:pb-3 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-x-10 lg:gap-y-2 lg:px-8 lg:py-6 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:gap-x-12 xl:px-10">
             <div className="order-1 min-w-0 lg:hidden">
               <span className="doc-id block max-w-full border-l-4 border-primary pl-3 text-[10px] leading-snug text-primary sm:pl-4 sm:text-xs">
                 RESISTANCE SIGNAL // PUBLIC RELEASE
@@ -54,7 +54,7 @@ export default function Home() {
 
             <div className="order-2 flex w-full min-w-0 justify-center lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-center lg:justify-start lg:pl-2">
               <div className="relative w-full md:max-w-[42rem] lg:max-w-[22rem] xl:max-w-[24rem]">
-                <div className="mb-2 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-hud-dim sm:text-[10px] lg:hidden" aria-hidden="true">
+                <div className="mb-1 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-hud-dim sm:text-[10px] lg:hidden" aria-hidden="true">
                   <span className="h-px min-w-3 flex-1 bg-hud-red/50" />
                   <span className="shrink-0">IAMR-FLAG-01</span>
                   <span className="h-px min-w-3 flex-1 bg-hud-red/50" />
@@ -83,7 +83,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="mt-2 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-hud-dim sm:text-[10px] lg:hidden" aria-hidden="true">
+                <div className="mt-1 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-hud-dim sm:text-[10px] lg:hidden" aria-hidden="true">
                   <span className="h-px min-w-3 flex-1 bg-hud-red/50" />
                   <span className="shrink-0">PUBLIC MARK</span>
                   <span className="h-px min-w-3 flex-1 bg-hud-red/50" />
@@ -102,7 +102,7 @@ export default function Home() {
                   </h1>
                 </div>
               </div>
-              <p className="mission-copy order-4 max-w-[40rem] text-sm leading-relaxed text-foreground/70 sm:text-base lg:mt-4 lg:text-lg xl:text-xl">
+              <p className="mission-copy order-4 max-w-[40rem] text-sm leading-relaxed text-foreground/70 sm:text-base lg:mt-2 lg:text-lg xl:text-xl">
                 A call to awareness. A chronicle of resistance.
               </p>
             </div>
@@ -111,7 +111,7 @@ export default function Home() {
               <p className="mission-copy order-5 max-w-[36rem] text-base leading-snug font-bold text-primary sm:text-lg lg:text-xl xl:text-2xl">
                 Silence in the face of fascism is surrender.
               </p>
-              <div className="order-6 mt-1 flex flex-col items-start gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2 lg:mt-4">
+              <div className="order-6 mt-1 flex flex-col items-start gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2 lg:mt-2">
                 <Link
                   href="/about"
                   className="nav-label inline-flex min-h-11 items-center text-xs text-foreground/60 transition-colors hover:text-primary sm:text-sm"
@@ -131,11 +131,8 @@ export default function Home() {
         <JournalSection />
       </Suspense>
 
-      <div data-testid="home-channels" className="px-1 py-8 sm:px-2 lg:px-3">
+      <div data-testid="home-channels" className="px-1 py-3 sm:px-2 sm:py-4 lg:px-3">
         <div className="mx-auto max-w-[1600px]">
-          <div className="mb-6 pl-1 font-mono text-xs text-hud-dim">
-            // FIELD CHANNELS // UPDATES BY SECTION
-          </div>
           <HomeFeed />
         </div>
       </div>

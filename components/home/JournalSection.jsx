@@ -49,7 +49,7 @@ function EssayDate({ entry }) {
   );
 }
 
-const sectionShell = 'px-1 pt-6 sm:px-2 sm:pt-8 lg:px-3';
+const sectionShell = 'px-1 pt-4 sm:px-2 sm:pt-5 lg:px-3';
 
 export function JournalSectionSkeleton() {
   return (
@@ -62,9 +62,9 @@ export function JournalSectionSkeleton() {
             <div className="mt-4 h-16 max-w-xl animate-pulse bg-foreground/10 sm:h-24" />
             <div className="mt-4 h-16 max-w-lg animate-pulse bg-foreground/5" />
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-1">
-            <div className="h-36 animate-pulse border border-border bg-foreground/5" />
-            <div className="h-36 animate-pulse border border-border bg-foreground/5" />
+          <div className="border border-border">
+            <div className="h-14 animate-pulse border-b border-border bg-foreground/5" />
+            <div className="h-14 animate-pulse bg-foreground/5" />
           </div>
         </div>
       </div>
@@ -112,35 +112,25 @@ function LatestEssay({ entry }) {
   );
 }
 
-function RecentEssay({ entry }) {
+function RecentEssayLink({ entry }) {
   const href = journalEntryPath(entry);
   const title = entry.title || 'Untitled Essay';
-  const excerpt = journalDisplayExcerpt(entry);
-  const tags = essayTags(entry);
 
   return (
-    <article className="flex h-full flex-col border border-border bg-foreground/[0.03] px-4 py-4 sm:px-5 sm:py-5">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <EssayDate entry={entry} />
-        <EssayTags tags={tags} />
-      </div>
-      <h3 className="mt-2 text-xl font-semibold leading-[1.05] text-foreground sm:text-2xl" style={displayFont}>
-        <Link href={href} className="transition-colors hover:text-primary">
-          {title}
-        </Link>
-      </h3>
-      {excerpt ? (
-        <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-foreground/75 sm:text-base" style={bodyFont}>
-          {excerpt}
-        </p>
-      ) : null}
+    <li>
       <Link
         href={href}
-        className="mt-auto inline-flex min-h-11 items-center self-start pt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-primary"
+        className="group flex min-h-11 flex-col justify-center gap-1 px-4 py-3 transition-colors hover:bg-foreground/[0.04] sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
       >
-        Read Essay
+        <span
+          className="text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary sm:text-xl"
+          style={displayFont}
+        >
+          {title}
+        </span>
+        <EssayDate entry={entry} />
       </Link>
-    </article>
+    </li>
   );
 }
 
@@ -186,15 +176,16 @@ export default async function JournalSection() {
             <LatestEssay entry={feature} />
           </div>
           {recent.length > 0 ? (
-            <div
-              data-testid="home-recent-essays"
-              className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:flex lg:h-full lg:flex-col"
-            >
-              {recent.map((entry) => (
-                <div key={entry.id || entry.slug} className="min-w-0 lg:flex-1">
-                  <RecentEssay entry={entry} />
-                </div>
-              ))}
+            <div className="min-w-0">
+              <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.22em] text-foreground/50">Recent</p>
+              <ul
+                data-testid="home-recent-essays"
+                className="m-0 list-none divide-y divide-border border border-border bg-foreground/[0.03] p-0"
+              >
+                {recent.map((entry) => (
+                  <RecentEssayLink key={entry.id || entry.slug} entry={entry} />
+                ))}
+              </ul>
             </div>
           ) : null}
         </div>

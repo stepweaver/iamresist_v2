@@ -20,9 +20,14 @@ export default function VoicesGridWithPlayerClient({ items = [] }) {
     setActiveItem(null);
   }
 
+  const columns =
+    items.length > 2
+      ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
+      : "grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5";
+
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+      <div className={columns}>
         {items.map((item, index) => (
           <VoiceCard key={item.id ?? item.url ?? index} item={item} onPlay={handlePlay} priority={index < 6} />
         ))}

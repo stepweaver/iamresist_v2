@@ -1,6 +1,6 @@
 import { permanentRedirect } from 'next/navigation';
 
-/** Intel hub: default surface is Telescreen. */
+/** Intel hub opens the reporting desk. Telescreen stays the video archive. */
 export default function IntelRedirectPage() {
-  permanentRedirect('/telescreen');
+  permanentRedirect('/intel/newswire');
 }

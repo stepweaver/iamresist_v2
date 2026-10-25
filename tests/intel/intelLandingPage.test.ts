@@ -13,11 +13,11 @@ describe('Intel landing routes', () => {
     vi.clearAllMocks();
   });
 
-  it('sends /intel to Telescreen by default', async () => {
+  it('sends /intel to the newswire instead of Telescreen', async () => {
     const { default: IntelPage } = await import('@/app/intel/page');
     IntelPage();
 
-    expect(permanentRedirect).toHaveBeenCalledWith('/telescreen');
+    expect(permanentRedirect).toHaveBeenCalledWith('/intel/newswire');
   });
 
   it('sends legacy /intel/live to Telescreen by default', async () => {

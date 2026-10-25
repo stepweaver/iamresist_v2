@@ -53,7 +53,7 @@ export async function generateMetadata({ params }) {
     : [BOOK_CLUB_FALLBACK_OG];
 
   return buildPageMetadata({
-    title: `${book.title} | Book Club | I AM [RESIST]`,
+    title: `${book.title} | The Resistance Shelf | I AM [RESIST]`,
     description,
     urlPath: `/book-club/${book.slug}`,
     images: ogImages,
@@ -87,7 +87,7 @@ export default async function BookDetailPage({ params }) {
   const schema = [
     buildBreadcrumbListSchema([
       { name: 'Home', url: '/' },
-      { name: 'Book Club', url: '/book-club' },
+      { name: 'The Resistance Shelf', url: '/book-club' },
       { name: book.title || 'Book', url: canonicalPath },
     ]),
     buildBookSchema({
@@ -111,7 +111,7 @@ export default async function BookDetailPage({ params }) {
             href="/book-club"
             className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold"
           >
-            ← Back to Book Club
+            ← The Resistance Shelf
           </Link>
         </nav>
 
