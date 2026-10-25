@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import NewswireHeadlineCard from "./NewswireHeadlineCard";
+import {
+  NEWSWIRE_HEADLINE_BATCH,
+  filterNewswireStories,
+  visibleNewswireStories,
+} from "./newswirePresentation";
 
 function buildSourceOptions(stories) {
   const seen = new Map();
-  for (const s of stories) {
-    if (s.sourceSlug && !seen.has(s.sourceSlug)) {
-      seen.set(s.sourceSlug, s.source);
+  for (const story of stories) {
+    if (story.sourceSlug && !seen.has(story.sourceSlug)) {
+      seen.set(story.sourceSlug, story.source);
     }
   }
   const options = [{ value: "", label: "All sources" }];
@@ -17,31 +22,47 @@ function buildSourceOptions(stories) {
   return options;
 }
 
-export default function NewswireHeadlinesSection({ stories = [], sources = [] }) {
+export default function NewswireHeadlinesSection({ stories = [] }) {
   const [sourceFilter, setSourceFilter] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(NEWSWIRE_HEADLINE_BATCH);
 
   const sourceOptions = useMemo(() => buildSourceOptions(stories), [stories]);
-  const filteredStories = useMemo(() => {
-    if (!sourceFilter) return stories;
-    return stories.filter((s) => s.sourceSlug === sourceFilter);
-  }, [stories, sourceFilter]);
+  const filteredStories = useMemo(
+    () => filterNewswireStories(stories, sourceFilter),
+    [stories, sourceFilter],
+  );
+  const windowed = visibleNewswireStories(filteredStories, visibleCount);
+
+  useEffect(() => {
+    setVisibleCount(NEWSWIRE_HEADLINE_BATCH);
+  }, [sourceFilter]);
 
   const selectedLabel =
-    sourceOptions.find((o) => o.value === sourceFilter)?.label ?? "All sources";
+    sourceOptions.find((option) => option.value === sourceFilter)?.label ?? "All sources";
 
   return (
     <section className="mb-8 sm:mb-12">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
-        <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
-          Latest Headlines
-        </h2>
+        <div>
+          <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
+            Latest Headlines
+          </h2>
+          <a
+            href="#source-directory"
+            className="nav-label mt-2 inline-flex min-h-11 items-center text-xs font-bold text-foreground/60 hover:text-primary"
+          >
+            Source directory
+          </a>
+        </div>
         {sourceOptions.length > 1 && (
           <div className="relative">
             <button
               type="button"
-              onClick={() => setDropdownOpen((o) => !o)}
-              className="nav-label text-xs px-3 py-1.5 border border-border rounded bg-background hover:border-primary transition-colors"
+              onClick={() => setDropdownOpen((open) => !open)}
+              className="nav-label min-h-11 text-xs px-3 py-1.5 border border-border rounded bg-background hover:border-primary transition-colors"
+              aria-expanded={dropdownOpen}
+              aria-label="Filter headlines by source"
             >
               {selectedLabel} ▼
             </button>
@@ -54,7 +75,7 @@ export default function NewswireHeadlinesSection({ stories = [], sources = [] })
                 <div className="absolute z-20 mt-1 w-full min-w-[180px] bg-background border border-border shadow-lg max-h-60 overflow-y-auto">
                   {sourceOptions.map((opt) => (
                     <button
-                      key={opt.value}
+                      key={opt.value || "all"}
                       type="button"
                       onClick={() => {
                         setSourceFilter(opt.value);
@@ -79,13 +100,26 @@ export default function NewswireHeadlinesSection({ stories = [], sources = [] })
           {sourceFilter ? "No headlines from this source." : "No headlines yet. Feed ingestion in progress."}
         </p>
       ) : (
-        <ul className="space-y-4">
-          {filteredStories.map((story) => (
-            <li key={story.id}>
-              <NewswireHeadlineCard story={story} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-4">
+            {windowed.visible.map((story) => (
+              <li key={story.id}>
+                <NewswireHeadlineCard story={story} />
+              </li>
+            ))}
+          </ul>
+          {windowed.hasMore ? (
+            <div className="pt-6">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((count) => count + NEWSWIRE_HEADLINE_BATCH)}
+                className="button-label min-h-11 border border-primary px-5 text-xs font-bold tracking-wider text-primary transition-colors hover:bg-primary hover:text-white"
+              >
+                Show More
+              </button>
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   );

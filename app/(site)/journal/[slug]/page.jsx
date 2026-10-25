@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import NotionBlocksBody from '@/components/content/NotionBlocksBody';
 import JournalArticle from '@/components/journal/JournalArticle';
-import { journalDates, journalEntryPath } from '@/components/journal/journalFormat';
+import { journalDates, journalEntryPath, selectRelatedJournalEssays, toJournalRecord } from '@/components/journal/journalFormat';
+import { journalSubscriptionUrl } from '@/lib/journalSubscribe';
 import StructuredData from '@/components/seo/StructuredData';
 import {
   getJournalEntryBySlug,
@@ -79,6 +80,13 @@ export default async function JournalEntryPage({ params }) {
   const description = buildJournalDescription(entry, blocks);
   const bodyEditedTime = await journalEntryBodyEditedTime(entry, blocks);
   const dates = journalDates({ ...entry, bodyEditedTime });
+  let related = [];
+  try {
+    const published = await getAllJournalEntries();
+    related = selectRelatedJournalEssays(published, entry).map((item) => toJournalRecord(item));
+  } catch {
+    related = [];
+  }
   const schema = [
     buildBreadcrumbListSchema([
       { name: 'Home', url: '/' },
@@ -105,6 +113,8 @@ export default async function JournalEntryPage({ params }) {
         dates={dates}
         tags={entry.tags}
         author={entry.author || ''}
+        related={related}
+        subscriptionUrl={journalSubscriptionUrl()}
       >
         {blocks.length > 0 ? (
           <NotionBlocksBody blocks={blocks} variant="journal" />

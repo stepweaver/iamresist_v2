@@ -2,33 +2,36 @@
 
 import { useId, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { filterJournalRecords, filterJournalRecordsByTag } from '@/components/journal/journalFormat';
+import { listJournalArchive } from '@/components/journal/journalFormat';
 
 export default function JournalIndex({
   records,
   searchCoversArchive,
   activeTag = '',
   onClearTag,
+  pinnedIds = [],
 }) {
   const inputId = useId();
   const noteId = useId();
   const [query, setQuery] = useState('');
-  const scoped = useMemo(
-    () => filterJournalRecordsByTag(records, activeTag),
-    [records, activeTag],
-  );
-  const filtered = useMemo(
-    () => filterJournalRecords(scoped, query),
-    [scoped, query],
-  );
   const archiveTotal = records.length;
-  const total = scoped.length;
-  const shown = filtered.length;
   const filtering = query.trim().length > 0;
   const subject = activeTag.trim();
+  const archive = useMemo(
+    () => listJournalArchive(records, { query, tag: activeTag, pinnedIds }),
+    [records, query, activeTag, pinnedIds],
+  );
+  const { listed, browsingDefault, scoped } = archive;
+  const total = scoped.length;
+  const shown = listed.length;
 
   let countLabel = `${archiveTotal} published ${archiveTotal === 1 ? 'essay' : 'essays'}`;
-  if (subject && filtering) {
+  if (browsingDefault && pinnedIds.length > 0) {
+    countLabel =
+      shown === 0
+        ? `${archiveTotal} published ${archiveTotal === 1 ? 'essay' : 'essays'}`
+        : `${shown} more in the archive`;
+  } else if (subject && filtering) {
     countLabel = `${shown} of ${total} ${total === 1 ? 'essay' : 'essays'}`;
   } else if (subject) {
     countLabel = `${total} ${total === 1 ? 'essay' : 'essays'} tagged ${subject}`;
@@ -67,9 +70,11 @@ export default function JournalIndex({
       <p id={noteId} className="journal-search__note">
         {subject
           ? `Showing essays tagged ${subject}. Search still matches title, date, and tag.`
-          : searchCoversArchive
-            ? 'Search published journal entries by title, date, or tag.'
-            : 'Search covers the records loaded on this page.'}
+          : browsingDefault && pinnedIds.length > 0
+            ? 'Featured and recent essays stay out of this list. Search still finds them.'
+            : searchCoversArchive
+              ? 'Search published journal entries by title, date, or tag.'
+              : 'Search covers the records loaded on this page.'}
         {subject && onClearTag ? (
           <>
             {' '}
@@ -82,11 +87,13 @@ export default function JournalIndex({
 
       {shown === 0 ? (
         <p className="journal-index__empty" role="status">
-          No essays match this search.
+          {browsingDefault
+            ? 'The published essays are already shown above. Search still finds them.'
+            : 'No essays match this search.'}
         </p>
       ) : (
         <ol className="journal-index__list">
-          {filtered.map((record) => (
+          {listed.map((record) => (
             <li key={record.id}>
               <Link className="journal-record" href={record.href}>
                 <span className="journal-record__date">

@@ -2,7 +2,7 @@ import { getAllVoicesCached } from "@/lib/notion/voices.repo";
 import { getProtestMusicArtistsCached } from "@/lib/notion/protestMusic.repo";
 import { getUnifiedArchivePage } from "@/lib/feeds/unifiedArchive.service";
 import { selectTelescreenVoices } from "@/lib/feeds/archiveMedia";
-import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
+import { TELESCREEN_ARCHIVE_BATCH } from "@/lib/telescreen";
 import { loadTelescreenArchiveDeps } from "@/lib/telescreen/loadArchiveDeps";
 import { TELESCREEN_FEED_STATUS } from "@/lib/telescreen";
 import { timeAsync } from "@/lib/ops/perfTiming";
@@ -20,7 +20,7 @@ export default async function VoicesArchiveContent({
     loadTelescreenArchiveDeps({
       loadVoices: () => getAllVoicesCached(),
       loadArtists: () => getProtestMusicArtistsCached(),
-      loadArchive: () => getUnifiedArchivePage(1, VOICES_ARCHIVE_PAGE_SIZE, filters, { refresh }),
+      loadArchive: () => getUnifiedArchivePage(1, TELESCREEN_ARCHIVE_BATCH, filters, { refresh }),
     })
   );
 

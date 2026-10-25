@@ -196,8 +196,7 @@ export default function HomeLiveBriefingSection({ briefing }) {
         <div>
           <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block">Live briefing</span>
           <p className="text-[11px] sm:text-xs text-foreground/60 font-mono mt-1 max-w-2xl leading-relaxed">
-            What changed, what matters now, and what is verified enough to trust — ranked across newswire and intel
-            desks.
+            One leading story and two supporting stories, with the source and date kept on each item.
           </p>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] sm:text-xs font-mono uppercase tracking-wider">
             <Link href="/intel/osint" className="text-foreground/50 hover:text-primary transition-colors">

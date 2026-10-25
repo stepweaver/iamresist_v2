@@ -76,6 +76,7 @@ export default async function JournalPage() {
             subjects={landing.subjects}
             records={records}
             searchCoversArchive={searchCoversArchive}
+            pinnedIds={[featured, ...recent].map((record) => record?.id).filter(Boolean)}
           />
         </>
       )}

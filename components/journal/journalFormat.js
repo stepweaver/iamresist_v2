@@ -184,7 +184,7 @@ export function journalSubjectTags(entries, { limit = 12 } = {}) {
   return names.slice(0, cap);
 }
 
-export function composeJournalLanding(entries, { recentLimit = 4 } = {}) {
+export function composeJournalLanding(entries, { recentLimit = 2 } = {}) {
   const ordered = [...(entries || [])].filter(Boolean).sort(compareJournalEntries);
   const featured = selectFeaturedJournalEntry(ordered);
   const recent = selectRecentJournalEntries(ordered, {
@@ -235,6 +235,70 @@ export function filterJournalRecords(records, query) {
       .toLowerCase();
     return haystack.includes(needle);
   });
+}
+
+export function journalRecordKey(record) {
+  return String(record?.id || record?.slug || record?.href || '');
+}
+
+/** Default archive listing omits essays already shown as featured or recent. */
+export function omitPinnedJournalRecords(records, pinnedIds = []) {
+  const pinned = new Set((pinnedIds || []).map((id) => String(id || '')).filter(Boolean));
+  if (!pinned.size) return records || [];
+  return (records || []).filter((record) => !pinned.has(journalRecordKey(record)));
+}
+
+/**
+ * Up to `limit` other published essays that share a subject tag.
+ * The current essay is excluded. Ties follow publication order.
+ */
+export function selectRelatedJournalEssays(entries, current, { limit = 2 } = {}) {
+  const currentId = current?.id ? String(current.id) : '';
+  const currentSlug = current?.slug ? String(current.slug) : '';
+  const tags = new Set(
+    (Array.isArray(current?.tags) ? current.tags : [])
+      .map((tag) => String(tag || '').trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (!tags.size) return [];
+
+  const cap = Number.isFinite(limit) && limit > 0 ? limit : 2;
+  const seen = new Set();
+  const ranked = [];
+
+  for (const entry of [...(entries || [])].filter(Boolean)) {
+    const id = entry?.id ? String(entry.id) : '';
+    const slug = entry?.slug ? String(entry.slug) : '';
+    if ((currentId && id === currentId) || (currentSlug && slug === currentSlug)) continue;
+    const key = id || slug;
+    if (key && seen.has(key)) continue;
+    const overlap = (Array.isArray(entry.tags) ? entry.tags : []).reduce((count, tag) => {
+      const name = String(tag || '').trim().toLowerCase();
+      return name && tags.has(name) ? count + 1 : count;
+    }, 0);
+    if (!overlap) continue;
+    if (key) seen.add(key);
+    ranked.push({ entry, overlap });
+  }
+
+  ranked.sort((a, b) => {
+    if (b.overlap !== a.overlap) return b.overlap - a.overlap;
+    return compareJournalEntries(a.entry, b.entry);
+  });
+
+  return ranked.slice(0, cap).map((item) => item.entry);
+}
+
+export function listJournalArchive(records, { query = '', tag = '', pinnedIds = [] } = {}) {
+  const scoped = filterJournalRecordsByTag(records, tag);
+  const filtered = filterJournalRecords(scoped, query);
+  const browsingDefault = !String(query || '').trim() && !String(tag || '').trim();
+  return {
+    listed: browsingDefault ? omitPinnedJournalRecords(filtered, pinnedIds) : filtered,
+    browsingDefault,
+    scoped,
+    filtered,
+  };
 }
 
 export function filterJournalRecordsByTag(records, tag) {

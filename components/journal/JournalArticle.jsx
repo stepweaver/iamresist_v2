@@ -1,6 +1,14 @@
 import Link from 'next/link';
 
-export default function JournalArticle({ title, dates, tags = [], author = '', children }) {
+export default function JournalArticle({
+  title,
+  dates,
+  tags = [],
+  author = '',
+  related = [],
+  subscriptionUrl = '',
+  children,
+}) {
   const tagList = Array.isArray(tags) ? tags.filter(Boolean) : [];
 
   return (
@@ -51,6 +59,32 @@ export default function JournalArticle({ title, dates, tags = [], author = '', c
             <h1 className="journal-article__title">{title}</h1>
           </header>
           {children}
+          {related.length > 0 ? (
+            <section className="journal-continue" aria-labelledby="journal-continue-title">
+              <h2 id="journal-continue-title" className="journal-continue__title">
+                Continue Exploring
+              </h2>
+              <ul className="journal-continue__list">
+                {related.map((record) => (
+                  <li key={record.id || record.href}>
+                    <Link href={record.href}>
+                      <span>{record.title}</span>
+                      {record.dateLabel ? (
+                        <time dateTime={record.dateTime || undefined}>{record.dateLabel}</time>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {subscriptionUrl ? (
+            <p className="journal-subscribe">
+              <a href={subscriptionUrl} rel="noopener noreferrer">
+                Subscribe to the journal
+              </a>
+            </p>
+          ) : null}
           <p className="journal-return journal-return--end">
             <Link href="/journal">Essays & Analysis</Link>
           </p>

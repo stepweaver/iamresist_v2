@@ -8,12 +8,13 @@ import FilterDropdown from "@/components/FilterDropdown";
 import VoiceCard from "@/components/voices/VoiceCard";
 import InlinePlayerModal from "@/components/voices/InlinePlayerModalClean";
 import { useMediaKeepAlive } from "@/components/useMediaKeepAlive";
-import { VOICES_ARCHIVE_PAGE_SIZE } from "@/lib/constants";
 import {
+  appendArchiveItems,
   buildTelescreenHref,
+  TELESCREEN_ARCHIVE_BATCH,
   TELESCREEN_FEED_STATUS,
   TELESCREEN_MODES,
-  TELESCREEN_MODE_OPTIONS,
+  TELESCREEN_MODE_CHOICES,
   telescreenCollectionMessage,
   telescreenDirectoryMessage,
 } from "@/lib/telescreen";
@@ -57,13 +58,10 @@ export default function VoicesArchiveClient({
   const [loading, setLoading] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const { startKeepAlive, stopKeepAlive } = useMediaKeepAlive();
-  const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
-  const [hasUserScrolled, setHasUserScrolled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const refreshRef = useRef({ requestId: 0, refreshing: false });
-  const sentinelRef = useRef(null);
   const shouldScrollResultsRef = useRef(false);
 
   const modeParam = searchParams.get("mode") || TELESCREEN_MODES.voices;
@@ -119,14 +117,6 @@ export default function VoicesArchiveClient({
   }, [modeParam, voiceParam, artistParam, initialItems, initialHasMore, initialFeedStatus]);
 
   useEffect(() => {
-    const onScroll = () => {
-      if (window.scrollY > 0) setHasUserScrolled(true);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
     if (!shouldScrollResultsRef.current) {
       return;
     }
@@ -145,7 +135,7 @@ export default function VoicesArchiveClient({
     const nextPage = page + 1;
     const params = new URLSearchParams();
     params.set("page", String(nextPage));
-    params.set("limit", String(VOICES_ARCHIVE_PAGE_SIZE));
+    params.set("limit", String(TELESCREEN_ARCHIVE_BATCH));
     if (activeMode !== TELESCREEN_MODES.voices) params.set("mode", activeMode);
     if (voiceParam) params.set("voice", voiceParam);
     if (artistParam) params.set("artist", artistParam);
@@ -163,7 +153,7 @@ export default function VoicesArchiveClient({
         return;
       }
       if (data.items?.length) {
-        setItems((prev) => [...prev, ...data.items]);
+        setItems((prev) => appendArchiveItems(prev, data.items));
       }
       setHasMore(Boolean(data.hasMore));
       setPage(nextPage);
@@ -171,19 +161,6 @@ export default function VoicesArchiveClient({
       setLoading(false);
     }
   }, [activeMode, artistParam, hasMore, items.length, loading, page, voiceParam]);
-
-  useEffect(() => {
-    if (!hasMore || !hasUserScrolled) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(() => loadMore(), {
-      root: null,
-      rootMargin: "200px",
-      threshold: 0,
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore, hasUserScrolled, loadMore]);
 
   const navigateTo = useCallback(
     ({ mode, voice, artist }) => {
@@ -195,7 +172,6 @@ export default function VoicesArchiveClient({
 
   const handleModeSelect = useCallback(
     (mode) => {
-      setModeDropdownOpen(false);
       navigateTo({
         mode,
         voice: mode === TELESCREEN_MODES.voices ? voiceParam || null : null,
@@ -223,8 +199,6 @@ export default function VoicesArchiveClient({
 
   const showVoiceFilter = activeMode === TELESCREEN_MODES.voices;
   const showArtistFilter = activeMode === TELESCREEN_MODES.music && artists.length > 0;
-  const selectedModeLabel =
-  TELESCREEN_MODE_OPTIONS.find((option) => option.value === activeMode)?.label || "Voices of Dissent";
   const selectedSlug = currentVoice ?? voiceParam;
   const selectedVoiceLabel =
     voices.find((voice) => voice.slug === selectedSlug)?.title || selectedSlug || "All voices";
@@ -296,18 +270,31 @@ export default function VoicesArchiveClient({
           className="flex flex-col gap-4 sm:gap-3 border-t border-border/60 pt-4 scroll-mt-20"
         >
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-            <FilterDropdown
-              label="Mode"
-              selectedLabel={selectedModeLabel}
-              options={TELESCREEN_MODE_OPTIONS}
-              value={activeMode}
-              onChange={handleModeSelect}
-              isOpen={modeDropdownOpen}
-              onToggle={() => setModeDropdownOpen((open) => !open)}
-              onClose={() => setModeDropdownOpen(false)}
-              ariaLabel="Choose telescreen mode"
-              className="relative min-w-0 lg:w-[20rem]"
-            />
+            <div className="min-w-0">
+              <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase block mb-2">
+                Mode
+              </span>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Choose telescreen mode">
+                {TELESCREEN_MODE_CHOICES.map((choice) => {
+                  const selected = choice.value === activeMode;
+                  return (
+                    <button
+                      key={choice.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => handleModeSelect(choice.value)}
+                      className={`nav-label min-h-11 px-4 text-xs font-bold tracking-wider border transition-colors ${
+                        selected
+                          ? "border-primary bg-primary text-white"
+                          : "border-border text-foreground/70 hover:border-primary hover:text-primary"
+                      }`}
+                    >
+                      {choice.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {showVoiceFilter ? (
               <FilterDropdown
@@ -375,14 +362,15 @@ export default function VoicesArchiveClient({
             ) : null}
 
             {hasMore ? (
-              <div ref={sentinelRef} className="py-6" aria-hidden>
-                {loading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                    {Array.from({ length: 3 }).map((_, index) => (
-                      <div key={index} className="machine-panel border border-border animate-pulse h-64" />
-                    ))}
-                  </div>
-                ) : null}
+              <div className="pt-6">
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={loading}
+                  className="button-label min-h-11 border border-primary px-5 text-xs font-bold tracking-wider text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-wait disabled:opacity-60"
+                >
+                  {loading ? "Loading…" : "Show More"}
+                </button>
               </div>
             ) : null}
           </>

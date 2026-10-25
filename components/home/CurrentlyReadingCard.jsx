@@ -31,7 +31,7 @@ export default async function CurrentlyReadingCard({ book, embedded = false } = 
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div className="min-w-0">
                 <span className="kicker text-primary text-xs sm:text-sm font-bold block mb-1">
-                  The Resistance Shelf
+                  From the Resistance Shelf
                 </span>
                 {featured.status ? (
                   <span className="mb-2 inline-block font-mono text-[10px] uppercase tracking-[0.14em] text-foreground/55">

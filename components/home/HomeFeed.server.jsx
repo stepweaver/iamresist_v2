@@ -57,9 +57,9 @@ export async function HomeTelescreenSlot() {
       <div className={TELESCREEN_SECTION_CLASS}>
         <VoicesFeedSection
           items={videos}
-          title="Telescreen"
+          title="Voices worth hearing"
           showViewAll={true}
-          description="Commentary and media — how people are framing events, not the same pool as the live briefing desk."
+          description="Independent creator video, with the creator named on each item."
         />
       </div>
     );
@@ -103,9 +103,11 @@ export async function HomeCultureSlot() {
   if (!music && !book) return null;
 
   return (
-    <section data-testid="home-culture" aria-label="Culture" className="mb-6 sm:mb-8">
+    <section data-testid="home-culture" aria-label="Culture of resistance" className="mb-6 sm:mb-8">
       <div className="mb-4 border-b border-primary/70 pb-3">
-        <span className="kicker text-xs font-bold tracking-[0.4em] text-primary sm:text-sm">Culture</span>
+        <span className="kicker text-xs font-bold tracking-[0.4em] text-primary sm:text-sm">
+          Culture of resistance
+        </span>
       </div>
       <div
         className={

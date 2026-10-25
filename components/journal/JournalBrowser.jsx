@@ -19,7 +19,12 @@ function writeTagUrl(tag) {
   window.history.replaceState(null, '', `${path}#records`);
 }
 
-export default function JournalBrowser({ subjects = [], records, searchCoversArchive }) {
+export default function JournalBrowser({
+  subjects = [],
+  records,
+  searchCoversArchive,
+  pinnedIds = [],
+}) {
   const [activeTag, setActiveTag] = useState('');
 
   useEffect(() => {
@@ -64,6 +69,7 @@ export default function JournalBrowser({ subjects = [], records, searchCoversArc
         records={records}
         searchCoversArchive={searchCoversArchive}
         activeTag={activeTag}
+        pinnedIds={pinnedIds}
         onClearTag={() => selectTag(activeTag)}
       />
     </>

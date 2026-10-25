@@ -6,6 +6,7 @@ import { shouldShowInlineTrustExplain } from '@/lib/intel/trustWarnings';
 import { preferredIntelShareUrl } from '@/lib/intel/permalinks';
 import { getIntelSourceLinkLabel } from '@/lib/sourceLinkLabels';
 import { formatDate } from '@/lib/utils/date';
+import { splitVisibleDeskStack } from '@/components/intel/deskPresentation';
 
 export function deskLabelForLane(deskLane) {
   if (deskLane === 'voices') return 'Voices';
@@ -214,14 +215,16 @@ function StorySection({ title, items }) {
   if (!Array.isArray(items) || items.length === 0) return null;
 
   return (
-    <section className="mt-4">
-      <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-foreground/60">{title}</p>
-      <ul className="space-y-2">
+    <details className="mt-3 border border-border/70 bg-foreground/[0.02] px-3 py-2">
+      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-foreground/75">
+        {title} ({items.length})
+      </summary>
+      <ul className="mt-2 space-y-2">
         {items.map((item) => (
           <StoryRelatedRow key={item.id} row={item} />
         ))}
       </ul>
-    </section>
+    </details>
   );
 }
 
@@ -486,6 +489,7 @@ export default function LiveDeskView({
   const leadEntries = storyPresentation.leadItems;
   const secondaryEntries = storyPresentation.secondaryLeadItems;
   const stackEntries = storyPresentation.items;
+  const stackSplit = splitVisibleDeskStack(stackEntries);
   const listForEmptyCheck = [...leadEntries, ...secondaryEntries, ...stackEntries];
   const hasMainStack = listForEmptyCheck.length > 0;
   const hasAnyDeskContent =
@@ -713,7 +717,7 @@ export default function LiveDeskView({
             ) : null}
 
             <ul className="space-y-4">
-              {stackEntries.map((entry) => {
+              {stackSplit.visible.map((entry) => {
                 const { row } = entry;
                 const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
                 return (
@@ -804,6 +808,106 @@ export default function LiveDeskView({
                 );
               })}
             </ul>
+            {stackSplit.more.length > 0 ? (
+              <details className="border border-border machine-panel p-4 sm:p-5 group">
+                <summary className="cursor-pointer font-mono text-xs uppercase tracking-wider text-foreground/85 list-none flex items-center gap-2">
+                  <span className="text-primary group-open:rotate-90 transition-transform inline-block">▸</span>
+                  Additional signals ({stackSplit.more.length})
+                </summary>
+                <ul className="mt-4 space-y-4">
+                  {stackSplit.more.map((entry) => {
+                    const { row } = entry;
+                    const when = row.publishedAt ? formatDate(row.publishedAt) : '—';
+                    return (
+                      <li
+                        key={row.id}
+                        className={`machine-panel border border-border p-5 sm:p-6 ${
+                          row.imageUrl ? 'flex flex-col gap-4 sm:flex-row sm:gap-5' : ''
+                        }`}
+                      >
+                        {row.imageUrl ? (
+                          <RemoteCoverImage
+                            src={row.imageUrl}
+                            className="relative min-h-0 w-full shrink-0 overflow-hidden border border-border/60 bg-muted aspect-[4/3] sm:aspect-square sm:h-36 sm:w-36 sm:max-w-none"
+                          />
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2 gap-y-2 mb-3">
+                            <ProvenanceChip provenanceClass={row.provenanceClass} />
+                            {showInternalDiagnostics ? (
+                              <SurfaceChip surfaceState={row.surfaceState ?? 'surfaced'} isDuplicateLoser={false} />
+                            ) : null}
+                            {Array.isArray(row.trustBadges)
+                              ? row.trustBadges.slice(0, 2).map((b) => (
+                                  <TrustChip key={`${b.label}-${b.tone}`} badge={b} />
+                                ))
+                              : null}
+                            <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
+                              {row.sourceName}
+                            </span>
+                            <span className="text-hud-dim">|</span>
+                            <time
+                              className="font-mono text-[10px] text-hud-dim tracking-wider"
+                              dateTime={row.publishedAt || undefined}
+                            >
+                              {when}
+                            </time>
+                          </div>
+                          <h2 className="section-title text-lg sm:text-xl font-bold text-foreground mb-2">
+                            <Link
+                              href={row.canonicalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-primary hover:underline"
+                            >
+                              {row.title}
+                            </Link>
+                          </h2>
+                          <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-primary">
+                            Why it matters
+                          </p>
+                          <p className="text-xs sm:text-sm text-foreground/75 leading-relaxed border-l-2 border-primary/40 pl-3">
+                            {row.whyItMatters}
+                          </p>
+                          <InlineTrustExplain
+                            row={row}
+                            laneHasBaselineDisclosure={laneHasBaselineDisclosure}
+                            className="mt-2 font-mono text-[10px] text-foreground/65 leading-relaxed max-w-3xl"
+                          />
+                          {row.summary && row.contentUseMode !== 'metadata_only' ? (
+                            <div className="mt-2 max-w-3xl">
+                              <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
+                                {previewLabel(row)}
+                              </p>
+                              <p className="text-xs text-foreground/65 leading-relaxed">
+                                {truncatePreview(row.summary)}
+                              </p>
+                            </div>
+                          ) : null}
+                          <StoryContextSections entry={entry} />
+                          <CompactSignalMeta
+                            row={row}
+                            showBucket={row.displayBucket !== 'routine'}
+                            transparencyHint={feedTransparencyHint(row)}
+                          />
+                          <div className="mt-4 pt-3 border-t border-border flex flex-wrap gap-3">
+                            <Link
+                              href={row.canonicalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="nav-label text-xs px-3 py-1 border border-primary text-primary hover:bg-primary hover:text-background transition-colors"
+                            >
+                              {linkCtaLabel(row)}
+                            </Link>
+                            <ShareRowButton row={row} heading="Share Intel item" />
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
+            ) : null}
           </section>
         ) : null}
       </div>
@@ -886,8 +990,8 @@ export default function LiveDeskView({
             Not on the default desk ({suppressed.length})
           </summary>
           <p className="mt-2 text-xs text-foreground/70 leading-relaxed max-w-3xl">
-            These items stay in the full record but are not prioritized for the live surface. Use Sources for the
-            complete picture, including ingest and diagnostics.
+            These items stay in the full record but are not prioritized for the live surface. Source Transparency
+            has the complete picture, including ingest and diagnostics.
           </p>
           <ul className="mt-4 space-y-3 border-t border-border pt-4">
             {suppressed.map((row) => (

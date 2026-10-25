@@ -32,45 +32,19 @@ async function NewswireContent() {
     <>
       <NewswireHeadlinesSection stories={stories} sources={sources} />
 
-      <Divider className="my-8 sm:my-12" />
+      <Divider className="my-8 sm:my-10" />
 
-      <section className="mb-8 sm:mb-12">
+      <section id="source-directory" className="mb-8 scroll-mt-24 sm:mb-10">
         <h2 className="text-sm sm:text-base font-bold uppercase tracking-wider text-foreground mb-4">
           Source Directory
         </h2>
         <SourceDirectoryGrid sources={sources} />
       </section>
 
-      <Divider className="my-8 sm:my-12" />
-
-      <section className="mb-8 sm:mb-12">
-        <h2 className="text-sm sm:text-base font-bold uppercase tracking-wider text-foreground mb-4">
-          Why This Exists
-        </h2>
-        <div className="border-l-2 border-primary pl-4 sm:pl-6 py-2">
-          <p className="text-sm sm:text-base text-foreground/90 leading-relaxed mb-3">
-            Independent journalism is expensive, adversarial, and often underfunded. This page is a curated access point designed to help readers find important reporting quickly and support the original outlets directly.
-          </p>
-          <p className="text-sm sm:text-base text-foreground/90 leading-relaxed">
-            We surface headlines, source names, publication dates, and short excerpts where permitted. Full reporting lives with the original publisher. Every item links back to the source.
-          </p>
-        </div>
-      </section>
-
-      <Divider className="my-8 sm:my-12" />
-
-      <section className="mb-8 sm:mb-12">
-        <div className="border border-primary/50 bg-primary/5 p-6 sm:p-8">
-          <h2 className="text-sm sm:text-base font-bold uppercase tracking-wider text-primary mb-3">
-            Support Independent Media
-          </h2>
-          <p className="text-sm sm:text-base text-foreground/90 leading-relaxed">
-            If this reporting matters, support the people doing it. Subscribe, donate, and share directly.
-          </p>
-          <p className="text-xs sm:text-sm text-foreground/70 uppercase tracking-wider mt-4">
-            If a publication does critical work, support it directly through a subscription, donation, or membership.
-          </p>
-        </div>
+      <section className="mb-8 sm:mb-10">
+        <p className="max-w-3xl text-sm sm:text-base text-foreground/80 leading-relaxed">
+          Headlines here link to the original publisher. If a publication&apos;s reporting matters to you, support that publication directly.
+        </p>
       </section>
     </>
   );
@@ -83,9 +57,7 @@ export default async function NewswirePage() {
       className="hero-page-bg min-h-screen overflow-x-clip"
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs
-          description="Independent headlines. Direct links. Minimal algorithmic interference. A curated feed of reader-supported and independent journalism. Read here. Click through. Support the source."
-        />
+        <IntelTabs description="Independent headlines with the publisher, date, and a link back to the original story." />
 
         <Suspense
           fallback={

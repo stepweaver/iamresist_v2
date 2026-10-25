@@ -21,7 +21,7 @@ export default async function IntelSourcesPage() {
       className="hero-page-bg min-h-screen overflow-x-clip"
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs description="Ingest health for active, configured sources. Counts come from source_items. The database mirrors the manifest when ingest runs." />
+        <IntelTabs description="Source Transparency. Ingest health for active, configured sources. Counts come from source_items. The database mirrors the manifest when ingest runs." />
         <SourcesAuditSection audit={audit} />
       </div>
     </main>
