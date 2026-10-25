@@ -16,8 +16,6 @@ import {
 import {
   parseDemocracyDocketNewsAlertsHtml,
   parseCentcomPressReleasesHtml,
-  parseKyivIndependentNewsArchiveHtml,
-  parse972MagazineHomepageHtml,
   parseOfacRecentActionsHtml,
   parseSameHostArticleLinksHtml,
   parseUsniNewsListingHtml,
@@ -43,19 +41,12 @@ const DEFAULT_INGEST_INTERVAL_MINUTES = 30;
 const DEFAULT_MAX_ITEMS_PER_SOURCE = 60;
 
 function maxItemsForSourceSlug(slug: string): number {
-  if (slug === 'mag-972') return 30;
-  if (slug === 'usni-fleet-tracker') return 25;
   if (slug === 'democracy-docket') return 40;
-  if (slug === 'centcom-press') return 40;
   if (slug === 'ofac-recent-actions') return 50;
   return DEFAULT_MAX_ITEMS_PER_SOURCE;
 }
 
-function fetchTimeoutMsForSourceSlug(slug: string): number {
-  if (slug === 'mag-972') return 18000;
-  if (slug === 'usni-fleet-tracker') return 18000;
-  return 25000;
-}
+const INGEST_FETCH_TIMEOUT_MS = 25000;
 
 function capItems(items: NormalizedItem[], max: number): { items: NormalizedItem[]; capped: boolean } {
   if (max <= 0) return { items: [], capped: items.length > 0 };
@@ -219,12 +210,18 @@ function applyContentUseModeToItems(items: NormalizedItem[], mode: ContentUseMod
   });
 }
 
-/** Exported for tests: derive overallStatus from per-source rows (non-skipped only). */
+/**
+ * Exported for tests: derive overallStatus from per-source rows (non-skipped only).
+ * One unavailable publisher must not fail a run that still ingested other sources.
+ */
 export function computeOverallIngestStatus(results: IngestSummary[]): IngestOverallStatus {
   const attempted = results.filter((r) => r.status !== 'skipped');
   if (attempted.length === 0) return 'partial';
-  if (attempted.some((r) => r.status === 'failed')) return 'failed';
-  if (attempted.some((r) => r.status === 'partial')) return 'partial';
+  const anySuccess = attempted.some((r) => r.status === 'success');
+  const anyFailed = attempted.some((r) => r.status === 'failed');
+  const anyPartial = attempted.some((r) => r.status === 'partial');
+  if (anyFailed && !anySuccess) return 'failed';
+  if (anyFailed || anyPartial) return 'partial';
   return 'success';
 }
 
@@ -247,10 +244,10 @@ export async function ingestOneSource(
         };
       }
       res = await fetchTextNoStore(buildCongressGovApiUrl(cfg.endpointUrl), {
-        timeoutMs: fetchTimeoutMsForSourceSlug(cfg.slug),
+        timeoutMs: INGEST_FETCH_TIMEOUT_MS,
       });
     } else {
-      res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: fetchTimeoutMsForSourceSlug(cfg.slug) });
+      res = await fetchTextNoStore(cfg.endpointUrl, { timeoutMs: INGEST_FETCH_TIMEOUT_MS });
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -444,30 +441,6 @@ export async function ingestOneSource(
           fetchKind: cfg.fetchKind,
           baseUrl,
         });
-      } else if (cfg.slug === 'kyiv-independent') {
-        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
-        const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
-        parsedItems = parseKyivIndependentNewsArchiveHtml(res.text, {
-          sourceSlug: cfg.slug,
-          provenanceClass: cfg.provenanceClass,
-          deskLane: (manifest?.deskLane as string | undefined) ?? null,
-          sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
-          contentUseMode,
-          fetchKind: cfg.fetchKind,
-          baseUrl,
-        });
-      } else if (cfg.slug === 'mag-972') {
-        const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
-        const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
-        parsedItems = parse972MagazineHomepageHtml(res.text, {
-          sourceSlug: cfg.slug,
-          provenanceClass: cfg.provenanceClass,
-          deskLane: (manifest?.deskLane as string | undefined) ?? null,
-          sourceFamily: (manifest?.sourceFamily as string | undefined) ?? null,
-          contentUseMode,
-          fetchKind: cfg.fetchKind,
-          baseUrl,
-        });
       } else if (cfg.slug === 'ofac-recent-actions') {
         const baseUrl = res.finalUrl?.trim() || cfg.endpointUrl?.trim() || null;
         const manifest = getSignalSources().find((s) => s.slug === cfg.slug) ?? null;
@@ -542,8 +515,7 @@ export async function ingestOneSource(
         };
       }
 
-      const ogMax =
-        cfg.slug === 'democracy-docket' ? 18 : cfg.slug === 'usni-fleet-tracker' ? 12 : 8;
+      const ogMax = cfg.slug === 'democracy-docket' ? 18 : 8;
       const itemsWithImages = await enrichNormalizedItemsWithImages(items, {
         max: ogMax,
         concurrency: 4,
@@ -817,7 +789,27 @@ export async function runIntelIngest(): Promise<IngestOutcome> {
     };
   }
 
-  const perCfg = await Promise.all(configs.map((cfg) => limit(() => ingestOneCfg(cfg))));
+  const perCfg = await Promise.all(
+    configs.map((cfg) =>
+      limit(async () => {
+        try {
+          return await ingestOneCfg(cfg);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[ingest] ${cfg.slug} failed without stopping the run:`, e);
+          return {
+            summary: {
+              sourceSlug: cfg.slug,
+              status: 'failed' as const,
+              itemsUpserted: 0,
+              error: msg,
+            },
+            contentChanged: false,
+          };
+        }
+      }),
+    ),
+  );
   for (const r of perCfg) {
     results.push(r.summary);
     if (r.contentChanged) revalidateIntelCaches = true;

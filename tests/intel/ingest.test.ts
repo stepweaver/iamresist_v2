@@ -66,6 +66,14 @@ describe('ingestOneSource', () => {
     expect(out.meta?.itemsCap).toBe(60);
   });
 
+  it('records an unavailable feed as a source failure without throwing', async () => {
+    vi.mocked(fetchText.fetchTextNoStore).mockRejectedValue(new Error('network down'));
+    const out = await ingestOneSource(rssCfg({ slug: 'bellingcat' }));
+    expect(out.status).toBe('failed');
+    expect(out.items).toEqual([]);
+    expect(out.error).toMatch(/network down/);
+  });
+
   it('marks RSS with 0 items as partial on HTTP 200', async () => {
     vi.mocked(fetchText.fetchTextNoStore).mockResolvedValue({
       ok: true,
@@ -230,10 +238,18 @@ describe('computeOverallIngestStatus', () => {
     expect(computeOverallIngestStatus(rows)).toBe('partial');
   });
 
-  it('returns failed when any attempted source failed', () => {
+  it('stays partial when one source fails and another succeeds', () => {
     const rows: IngestSummary[] = [
       { sourceSlug: 'a', status: 'success', itemsUpserted: 5 },
       { sourceSlug: 'b', status: 'failed', itemsUpserted: 0, error: 'x' },
+    ];
+    expect(computeOverallIngestStatus(rows)).toBe('partial');
+  });
+
+  it('returns failed only when every attempted source failed', () => {
+    const rows: IngestSummary[] = [
+      { sourceSlug: 'a', status: 'failed', itemsUpserted: 0, error: 'x' },
+      { sourceSlug: 'b', status: 'skipped', itemsUpserted: 0 },
     ];
     expect(computeOverallIngestStatus(rows)).toBe('failed');
   });

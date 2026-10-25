@@ -11,6 +11,7 @@ import {
 import { getSignalSources } from '@/lib/intel/signal-sources';
 import type { IngestRunStatus } from '@/lib/intel/types';
 import { INTEL_RELEVANCE_RULE_VERSION } from '@/lib/intel/relevanceVersion';
+import { isCongressGovSource, publicAuditPlacement } from '@/lib/feeds/intelSourcesAudit.display';
 
 export type SourceHealth = 'healthy' | 'stale' | 'failing' | 'disabled' | 'unproven';
 
@@ -26,7 +27,8 @@ export type SourceStatusBucket =
   | 'disabled_policy'
   | 'disabled_placeholder'
   | 'disabled_env_gated'
-  | 'disabled_other';
+  | 'disabled_other'
+  | 'needs_configuration';
 
 export type IntelSourceAuditRow = {
   id: string;
@@ -192,7 +194,13 @@ function computeHealthReason(input: {
       if (!input.endpointUrl) {
         if (input.slug === 'reuters-wire') return 'Env-gated: INTEL_REUTERS_RSS_URL not set.';
         if (input.slug === 'ap-wire') return 'Env-gated: INTEL_AP_RSS_URL not set.';
+        if (isCongressGovSource(input.slug)) {
+          return 'Needs configuration: set CONGRESS_GOV_API_KEY, then run ingest. Not a broken feed.';
+        }
         return 'Placeholder/not wired (no endpoint URL).';
+      }
+      if (isCongressGovSource(input.slug)) {
+        return 'Needs configuration: set CONGRESS_GOV_API_KEY, then run ingest. Not a broken feed.';
       }
       return 'Disabled in manifest (`isEnabled: false`); not ingested.';
     }
@@ -257,15 +265,29 @@ function computeStatusBucket(input: {
   }
 
   // Disabled cases (manifest is the policy truth; registry may lag).
-  if (!input.manifestEnabled) {
-    const fk = String(input.fetchKind || '');
-    const policySlugs = new Set([
-      'dvids-sandbox',
-      'statements-public-import',
-      'statements-rss-sandbox',
-      'indicator-pentagon-pizza',
-      'uncovering-epstein-network',
-    ]);
+    if (!input.manifestEnabled) {
+      if (isCongressGovSource(input.slug)) {
+        return {
+          bucket: 'needs_configuration',
+          detail: 'Needs configuration: set CONGRESS_GOV_API_KEY, then run ingest. These primary records are not broken.',
+        };
+      }
+      const fk = String(input.fetchKind || '');
+      const policySlugs = new Set([
+        'dvids-sandbox',
+        'statements-public-import',
+        'statements-rss-sandbox',
+        'war-gov-releases',
+        'usni-fleet-tracker',
+        'af-mil-news',
+        'army-mil-news',
+        'centcom-press',
+        'eucom-press',
+        'forbidden-stories',
+        'isw-feeds',
+        'indicator-pentagon-pizza',
+        'uncovering-epstein-network',
+      ]);
     if (input.slug === 'reuters-wire') return { bucket: 'disabled_env_gated', detail: 'INTEL_REUTERS_RSS_URL not set' };
     if (input.slug === 'ap-wire') return { bucket: 'disabled_env_gated', detail: 'INTEL_AP_RSS_URL not set' };
     if (policySlugs.has(input.slug) || fk === 'manual') {
@@ -288,6 +310,7 @@ async function buildIntelSourcesAudit(): Promise<{
   configured: boolean;
   staleThresholdMinutes: number;
   rows: IntelSourceAuditRow[];
+  inactiveRows: IntelSourceAuditRow[];
   errorMessage: string | null;
   build: IntelSourcesBuildInfo;
 }> {
@@ -296,6 +319,7 @@ async function buildIntelSourcesAudit(): Promise<{
       configured: false,
       staleThresholdMinutes: parseStaleMinutes(),
       rows: [],
+      inactiveRows: [],
       errorMessage: 'Supabase credentials not configured.',
       build: buildInfo(),
     };
@@ -315,6 +339,7 @@ async function buildIntelSourcesAudit(): Promise<{
       configured: true,
       staleThresholdMinutes,
       rows: [],
+      inactiveRows: [],
       errorMessage: msg,
       build: buildInfo(),
     };
@@ -477,14 +502,19 @@ async function buildIntelSourcesAudit(): Promise<{
     };
   });
 
-  // Public product cleanup: hide internal scaffolds / retired lanes from the public audit surface.
-  const PUBLIC_LANES = new Set(['osint', 'defense_ops', 'watchdogs']);
-  const REMOVED_PUBLIC_SOURCES = new Set([
-    'indicator-pentagon-pizza',
-    'sam-gov-contracting',
-    'uncovering-epstein-network',
-  ]);
-  const publicRows = rows.filter((r) => PUBLIC_LANES.has(String(r.deskLane)) && !REMOVED_PUBLIC_SOURCES.has(r.slug));
+  const activeRows: IntelSourceAuditRow[] = [];
+  const inactiveRows: IntelSourceAuditRow[] = [];
+  for (const row of rows) {
+    // Upserts do not delete old slugs. Hide registry rows that are no longer in the manifest.
+    if (!manifestBySlug.has(row.slug)) continue;
+    const placement = publicAuditPlacement({
+      slug: row.slug,
+      deskLane: row.deskLane,
+      manifestEnabled: row.manifestEnabled,
+    });
+    if (placement === 'active') activeRows.push(row);
+    else if (placement === 'inactive') inactiveRows.push(row);
+  }
 
   const primary24h = rows
     .filter((r) => r.provenanceClass === 'PRIMARY' && r.isEnabled)
@@ -498,7 +528,7 @@ async function buildIntelSourcesAudit(): Promise<{
         ? primary24h[mid]!
         : (primary24h[mid - 1]! + primary24h[mid]!) / 2;
 
-  for (const r of publicRows) {
+  for (const r of activeRows) {
     const hi = Math.max(80, medianPrimary24h * 3);
     if (r.isEnabled && r.items24h > hi && medianPrimary24h > 0) {
       r.noiseHint = `High volume (${r.items24h} in 24h vs ~${Math.round(medianPrimary24h)} median for PRIMARY)`;
@@ -512,13 +542,14 @@ async function buildIntelSourcesAudit(): Promise<{
   return {
     configured: true,
     staleThresholdMinutes,
-    rows: publicRows,
+    rows: activeRows,
+    inactiveRows,
     errorMessage: null,
     build: buildInfo(),
   };
 }
 
-export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v4'], {
+export const getIntelSourcesAudit = unstable_cache(buildIntelSourcesAudit, ['intel-sources-audit-v5'], {
   revalidate: 90,
   tags: ['intel-sources'],
 });

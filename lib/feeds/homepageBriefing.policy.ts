@@ -91,6 +91,11 @@ export function newswireFreshnessMultiplier(ageHours: number | null): number {
   return 0.58;
 }
 
+/** Lanes removed from public homepage selection. Weights for remaining lanes are unchanged. */
+export function isRetiredHomepageLane(lane: string | null | undefined): boolean {
+  return lane === 'voices' || lane === 'defense_ops' || lane === 'statements';
+}
+
 /** Max age (hours) for an item to be eligible for lane-cap overflow / fallback fill. */
 export const FALLBACK_MAX_AGE_HOURS: Record<BriefingLane, number> = {
   newswire: 84,

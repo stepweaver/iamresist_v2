@@ -27,6 +27,20 @@ describe('Intel landing routes', () => {
     expect(permanentRedirect).toHaveBeenCalledWith('/telescreen');
   });
 
+  it('sends retired /intel/defense to Watchdogs', async () => {
+    const { default: IntelDefensePage } = await import('@/app/intel/defense/page');
+    IntelDefensePage();
+
+    expect(permanentRedirect).toHaveBeenCalledWith('/intel/watchdogs');
+  });
+
+  it('sends retired /intel/claims to OSINT', async () => {
+    const { default: IntelClaimsPage } = await import('@/app/intel/claims/page');
+    IntelClaimsPage();
+
+    expect(permanentRedirect).toHaveBeenCalledWith('/intel/osint');
+  });
+
   it('sends legacy /intel/statements directly to Telescreen', async () => {
     const { default: IntelStatementsPage } = await import('@/app/intel/statements/page');
     IntelStatementsPage();

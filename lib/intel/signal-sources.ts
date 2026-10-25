@@ -36,22 +36,18 @@ const MEDUZA_EN_RSS = 'https://meduza.io/rss/en/all';
 const AF_MIL_NEWS_RSS = 'https://www.af.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=1';
 /** Army CORE static RSS; organization id 1 is the Army homepage. */
 const ARMY_MIL_NEWS_RSS = 'https://www.army.mil/rss/static/1.xml';
-const MAG_972_HOME = 'https://www.972mag.com/';
+/** Verified 200 `application/rss+xml` from the ingest user-agent. Homepage HTML is blocked (HTTP 403). */
+const MAG_972_RSS = 'https://www.972mag.com/feed/';
 const BIRN_RSS = 'https://balkaninsight.com/feed/';
 const RAPPLER_RSS = 'https://www.rappler.com/rss/';
 const BELLINGCAT_RSS = 'https://www.bellingcat.com/feed/';
+/** Official WordPress feed. Verified HTTP 410 (“Aucun flux disponible”); no replacement feed is published. */
 const FORBIDDEN_STORIES_RSS = 'https://forbiddenstories.org/feed/';
-const KYIV_INDEPENDENT_NEWS_ARCHIVE_DEFAULT = 'https://www.kyivindependent.com/news-archive/';
 /**
- * Optional override: set INTEL_KYIV_INDEPENDENT_LISTING_URL to a vetted alternate public listing URL
- * (html_index). This replaces the prior RSS default, because `/feed/` now returns 404 in the ingest runtime.
+ * News-archive RSS. `/feed/` is 404. Verified 200 `text/xml` with article items, dates, and canonical links.
+ * `www` redirects once to this host; ingest uses the canonical URL directly.
  */
-const KYIV_INDEPENDENT_LISTING_URL = (() => {
-  if (typeof process === 'undefined') return KYIV_INDEPENDENT_NEWS_ARCHIVE_DEFAULT;
-  const raw = process.env.INTEL_KYIV_INDEPENDENT_LISTING_URL;
-  const trimmed = typeof raw === 'string' ? raw.trim() : '';
-  return trimmed || KYIV_INDEPENDENT_NEWS_ARCHIVE_DEFAULT;
-})();
+const KYIV_INDEPENDENT_RSS = 'https://kyivindependent.com/news-archive/rss/';
 const USNI_FLEET_TAG_PAGE = 'https://news.usni.org/tag/fleet-tracker/';
 const EUCOM_ARTICLES_RSS = 'https://www.eucom.mil/syndication-feed/rss/articles';
 const CENTCOM_PRESS_RELEASES_LISTING = 'https://www.centcom.mil/MEDIA/PRESS-RELEASES/';
@@ -856,7 +852,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Nothing by itself — claims require corroboration from primary records or reporting.',
       notTrustedFor: 'Treating reposted claims as evidence; substituting for court orders or official releases.',
       editorialNotes:
-        'Lane is isolated from OSINT ranking; keep disabled until a concrete public-ingest path is approved.',
+        'Retired from public Intel. The Claims desk never became a useful lane. Registry row kept so historical items stay attached; manifest sync sets is_enabled false and ingest skips the source.',
       trustWarningText:
         'Direct claims and political statements can spread misinformation. This lane is claims-only, not evidence.',
     },
@@ -879,7 +875,8 @@ export function getSignalSources(): SignalSourceConfig[] {
         'Optional future hook for a vetted, public, high-signal RSS of political claims (disabled until editorial sign-off).',
       trustedFor: 'Canonical links to public posts when explicitly enabled.',
       notTrustedFor: 'Firehose partisan feeds or unvetted aggregators.',
-      editorialNotes: 'Disabled by default to avoid turning the lane into undifferentiated social noise.',
+      editorialNotes:
+        'Retired placeholder. Registry row kept so any historical items stay attached; manifest sync sets is_enabled false and ingest skips the source.',
       trustWarningText: 'Claims-only lane: not evidence; verify against primary sources.',
     },
 
@@ -893,8 +890,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'defense_primary',
       contentUseMode: 'feed_summary',
       endpointUrl: WAR_GOV_NEWS_RSS,
-      isEnabled: true,
-      isCoreSource: true,
+      isEnabled: false,
+      isCoreSource: false,
       trustWarningMode: 'source_controlled_official_claims',
       trustWarningLevel: 'caution',
       requiresIndependentVerification: true,
@@ -904,6 +901,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       purpose: 'Department of War public news RSS (successor branding to defense.gov syndication).',
       trustedFor: 'Official U.S. military press releases, statements, and links to published materials.',
       notTrustedFor: 'Independent verification of combat outcomes or adversary intent.',
+      editorialNotes:
+        'Retired with the Defense desk. Registry row kept so historical releases stay attached; manifest sync sets is_enabled false and ingest skips the feed.',
       editorialControls: {
         defaultPriority: 50,
         preferredStateChangeTypes: ['press_statement'],
@@ -919,8 +918,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'defense_specialist',
       contentUseMode: 'metadata_only',
       endpointUrl: USNI_FLEET_TAG_PAGE,
-      // Keep enabled for visibility; ingest will mark this source failing if bot-blocked.
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -931,7 +929,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Public maritime posture context and specialist summaries with canonical USNI links.',
       notTrustedFor: 'Real-time operational tasking or classified position data.',
       editorialNotes:
-        'Known issue: endpoint may return 403 to the ingest runtime (bot-blocked). Ingest uses the public tag listing HTML; titles may be slug-derived where the index omits text.',
+        'Retired with the Defense desk. Historical USNI rows stay in the database; automated listing ingest is off.',
       editorialControls: {
         defaultPriority: 44,
         preferredStateChangeTypes: ['specialist_item'],
@@ -947,7 +945,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'defense_primary',
       contentUseMode: 'feed_summary',
       endpointUrl: AF_MIL_NEWS_RSS,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'source_controlled_official_claims',
       trustWarningLevel: 'caution',
@@ -958,7 +956,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       purpose: 'Department of the Air Force public news RSS (installations, exercises, releases).',
       trustedFor: 'Official USAF press releases and announcements with canonical links.',
       notTrustedFor: 'Independent verification of contested operational claims.',
-      editorialNotes: 'RSS URL verified 200 with application/rss+xml; monitor for .mil rate limits in cron.',
+      editorialNotes:
+        'Retired with the Defense desk. Registry row kept so historical releases stay attached; ingest skips this feed.',
       editorialControls: {
         defaultPriority: 48,
         preferredStateChangeTypes: ['press_statement'],
@@ -974,7 +973,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'defense_primary',
       contentUseMode: 'feed_summary',
       endpointUrl: ARMY_MIL_NEWS_RSS,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'source_controlled_official_claims',
       trustWarningLevel: 'caution',
@@ -985,7 +984,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Official Army public releases and announcements with canonical Army.mil links.',
       notTrustedFor: 'Independent verification of contested operational claims.',
       editorialNotes:
-        'Uses Army CORE static RSS (`/rss/static/1.xml`). If .mil blocks the ingest runtime, treat failures as source-scoped (do not poison the run).',
+        'Retired with the Defense desk. Registry row kept so historical releases stay attached; ingest skips this feed.',
     },
     {
       slug: 'centcom-press',
@@ -996,7 +995,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'combatant_command',
       contentUseMode: 'metadata_only',
       endpointUrl: CENTCOM_PRESS_RELEASES_LISTING,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'source_controlled_official_claims',
       trustWarningLevel: 'caution',
@@ -1007,7 +1006,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Official CENTCOM press-release links and timestamps (as available).',
       notTrustedFor: 'Independent verification of operational claims; treat as source-controlled statements.',
       editorialNotes:
-        'Uses html_index on the stable press releases listing (no pagination traversal in ingest). If blocked (403), it should fail source-scoped.',
+        'Retired with the Defense desk. CENTCOM is no longer ingested or displayed. Historical press-release rows stay in the database.',
     },
     {
       slug: 'eucom-press',
@@ -1018,7 +1017,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'combatant_command',
       contentUseMode: 'feed_summary',
       endpointUrl: EUCOM_ARTICLES_RSS,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'source_controlled_official_claims',
       trustWarningLevel: 'caution',
@@ -1029,7 +1028,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Official EUCOM article links and press-style releases with canonical eucom.mil URLs.',
       notTrustedFor: 'Independent verification of operational claims; source-controlled framing.',
       editorialNotes:
-        'Uses eucom.mil syndication feed (`/syndication-feed/rss/articles`). If blocked in runtime, treat failures as source-scoped.',
+        'Retired with the Defense desk. Registry row kept so historical articles stay attached; ingest skips this feed.',
     },
     {
       slug: 'dvids-sandbox',
@@ -1051,7 +1050,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'Curated unit output when a narrow, stable RSS URL is configured.',
       notTrustedFor: 'General DVIDS “all news” ingestion without a narrow tag.',
       editorialNotes:
-        'Disabled: DVIDS global feeds are a firehose; enable only with a vetted tag/organization URL and editorial notes.',
+        'Retired with the Defense desk. Placeholder was already disabled; registry row kept and ingest skips it.',
     },
 
     // --- Watchdogs / global independent desk ---
@@ -1059,23 +1058,22 @@ export function getSignalSources(): SignalSourceConfig[] {
       slug: 'kyiv-independent',
       name: 'The Kyiv Independent',
       provenanceClass: 'SPECIALIST',
-      fetchKind: 'html_index',
+      fetchKind: 'rss',
       deskLane: 'watchdogs',
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
-      endpointUrl: KYIV_INDEPENDENT_LISTING_URL,
+      endpointUrl: KYIV_INDEPENDENT_RSS,
       isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
       requiresIndependentVerification: true,
       heroEligibilityMode: 'never_hero_without_corroboration',
-      purpose:
-        'English-language Ukraine reporting via public site listing (html_index; override with INTEL_KYIV_INDEPENDENT_LISTING_URL if needed).',
+      purpose: 'English-language Ukraine reporting via the public news-archive RSS.',
       trustedFor: 'Regional on-the-ground reporting pointers with outbound canonical links.',
       notTrustedFor: 'Single-source confirmation of front-line claims without corroboration.',
       editorialNotes:
-        'RSS `/feed/` currently returns 404 in the ingest runtime; adapter uses `/news-archive/` HTML listing and extracts canonical article URLs (titles slug-derived). Keep env override for emergency swaps if the site changes.',
+        'Switched from the HTML news archive (redirect loop) to https://kyivindependent.com/news-archive/rss/. `/feed/` remains 404. Verified 200 text/xml with article entries, publication dates, and canonical links.',
       editorialControls: {
         defaultPriority: 46,
         preferredStateChangeTypes: ['specialist_item'],
@@ -1091,7 +1089,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
       endpointUrl: ISW_FEEDS_PAGE,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -1104,7 +1102,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       notTrustedFor:
         'Single-source confirmation of battlefield or state claims without corroboration.',
       editorialNotes:
-        'Uses the public feeds page as html_index to capture recurring “Russian Offensive Campaign Assessment” and “Iran Update” posts.',
+        'Retired from automated ingestion. feeds2, /feed, /rss.xml, and the homepage were blocked or redirected to a Cloudflare challenge from the ingest user-agent (HTTP 403). No stable first-party feed was available. Historical rows stay in the database.',
       editorialControls: {
         defaultPriority: 47,
         preferredStateChangeTypes: ['specialist_item'],
@@ -1148,12 +1146,11 @@ export function getSignalSources(): SignalSourceConfig[] {
       slug: 'mag-972',
       name: '+972 Magazine',
       provenanceClass: 'SPECIALIST',
-      fetchKind: 'html_index',
+      fetchKind: 'rss',
       deskLane: 'watchdogs',
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
-      endpointUrl: MAG_972_HOME,
-      // Keep enabled for visibility; ingest will mark this source failing if redirect loops/bot blocks recur.
+      endpointUrl: MAG_972_RSS,
       isEnabled: true,
       isCoreSource: false,
       trustWarningMode: 'none',
@@ -1164,7 +1161,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       trustedFor: 'On-the-ground context and independent analysis with outbound links.',
       notTrustedFor: 'Legal status of territories or military claims without independent verification.',
       editorialNotes:
-        'RSS feed currently self-redirects (loop) in the ingest runtime; adapter uses homepage HTML listing and extracts recent /YYYY/MM/ permalinks. Guard with redirect-loop protections; treat failures as source-scoped.',
+        'Homepage HTML returns HTTP 403 (Cloudflare challenge). Switched to https://www.972mag.com/feed/, verified 200 application/rss+xml with article entries, dates, and canonical links. Do not scrape the homepage.',
       editorialControls: {
         defaultPriority: 45,
         preferredStateChangeTypes: ['specialist_item'],
@@ -1248,7 +1245,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       sourceFamily: 'watchdog_global',
       contentUseMode: 'feed_summary',
       endpointUrl: FORBIDDEN_STORIES_RSS,
-      isEnabled: true,
+      isEnabled: false,
       isCoreSource: false,
       trustWarningMode: 'none',
       trustWarningLevel: 'info',
@@ -1257,6 +1254,8 @@ export function getSignalSources(): SignalSourceConfig[] {
       purpose: 'Cross-border collaborative investigations when local journalists are silenced.',
       trustedFor: 'Investigation launches and consortium reporting pointers.',
       notTrustedFor: 'Treating consortium summaries as complete evidence packages.',
+      editorialNotes:
+        'Retired from automated ingestion. The official /feed/ returns HTTP 410 (WordPress: no feed available). Homepage alternate links are language variants, not a replacement syndication feed. Historical rows stay in the database.',
       editorialControls: {
         defaultPriority: 44,
         preferredStateChangeTypes: ['specialist_item'],

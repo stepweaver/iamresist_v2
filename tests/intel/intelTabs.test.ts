@@ -8,11 +8,13 @@ describe('Intel navigation', () => {
 
     expect(hrefs).not.toContain('/intel/voices');
     expect(labels).not.toContain('Voices');
+    expect(hrefs).not.toContain('/intel/defense');
+    expect(hrefs).not.toContain('/intel/claims');
+    expect(labels).not.toContain('Defense');
+    expect(labels).not.toContain('Claims');
     expect(hrefs).toEqual([
       '/intel/osint',
-      '/intel/defense',
       '/intel/watchdogs',
-      '/intel/claims',
       '/telescreen',
       '/intel/newswire',
       '/intel/sources',

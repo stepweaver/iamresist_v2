@@ -66,7 +66,8 @@ describe('sitemap', () => {
     expect(urls).toContain('https://iamresist.test/telescreen');
     expect(urls).toContain('https://iamresist.test/resources');
     expect(urls).toContain('https://iamresist.test/shop/signal-pack');
-    expect(urls).toContain('https://iamresist.test/intel/claims');
+    expect(urls).toContain('https://iamresist.test/intel/osint');
+    expect(urls).toContain('https://iamresist.test/intel/watchdogs');
 
     expect(urls).not.toContain('https://iamresist.test/posts');
     expect(urls).not.toContain('https://iamresist.test/posts/journal-entry');
@@ -75,6 +76,8 @@ describe('sitemap', () => {
     expect(urls).not.toContain('https://iamresist.test/intel/live');
     expect(urls).not.toContain('https://iamresist.test/intel/indicators');
     expect(urls).not.toContain('https://iamresist.test/intel/statements');
+    expect(urls).not.toContain('https://iamresist.test/intel/defense');
+    expect(urls).not.toContain('https://iamresist.test/intel/claims');
     expect(urls).not.toContain('https://iamresist.test/intel/voices');
   });
 });

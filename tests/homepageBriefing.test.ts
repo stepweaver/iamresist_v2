@@ -187,7 +187,7 @@ describe('Prompt 3 homepage merge behavior', () => {
     promotionEventType,
   }: {
     id: string;
-    lane: 'osint' | 'watchdogs' | 'defense_ops' | 'voices';
+    lane: 'osint' | 'watchdogs' | 'defense_ops' | 'voices' | 'statements';
     origin?: 'promoted' | 'lane_backstop';
     rawScore: number;
     publishedAt?: string;
@@ -290,7 +290,7 @@ describe('Prompt 3 homepage merge behavior', () => {
     });
     const fillerB = mkIntel({
       id: 'fill-b',
-      lane: 'defense_ops',
+      lane: 'watchdogs',
       rawScore: 63,
       title: 'Routine theater update',
       summary: 'Another decent but isolated item',
@@ -329,6 +329,40 @@ describe('Prompt 3 homepage merge behavior', () => {
 
     const out = mergeAndRankBriefingCandidates([backstop, voicesPromoted]);
     expect(out.map((item) => item.intelItem.id)).toEqual(['backstop']);
+
+    vi.useRealTimers();
+  });
+
+  it('drops retired defense and claims items instead of ranking them', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
+
+    const defense = mkIntel({
+      id: 'def-1',
+      lane: 'defense_ops',
+      rawScore: 90,
+      title: 'CENTCOM press release',
+      sourceSlug: 'centcom-press',
+      sourceFamily: 'combatant_command',
+    });
+    const claims = mkIntel({
+      id: 'claim-1',
+      lane: 'statements',
+      rawScore: 88,
+      title: 'Uncorroborated statement',
+      sourceSlug: 'statements-rss-sandbox',
+    });
+    const kept = mkIntel({
+      id: 'kept-1',
+      lane: 'osint',
+      rawScore: 55,
+      title: 'Federal Register rule',
+    });
+
+    const out = mergeAndRankBriefingCandidates([defense, claims, kept]);
+    expect(out.map((item) => item.intelItem.id)).toEqual(['kept-1']);
+    expect(passesFallbackGate(defense, 90)).toBe(false);
+    expect(passesFallbackGate(claims, 88)).toBe(false);
 
     vi.useRealTimers();
   });
@@ -421,7 +455,7 @@ describe('Prompt 3 homepage merge behavior', () => {
     });
     const familyB = mkIntel({
       id: 'family-b',
-      lane: 'defense_ops',
+      lane: 'watchdogs',
       rawScore: 70,
       title: 'Top legal filing two',
       sourceFamily: 'general',
@@ -775,9 +809,10 @@ describe('homepage briefing payload shape', () => {
     vi.doMock('@/lib/feeds/liveIntel.service', () => {
       return {
         getLiveIntelDeskForHomepageBriefing: vi.fn(async (lane: string) => {
-          if (lane === 'voices') throw new Error('retired voices desk must not be loaded');
+          if (lane === 'voices' || lane === 'defense_ops' || lane === 'statements') {
+            throw new Error(`retired desk must not be loaded: ${lane}`);
+          }
           if (lane === 'watchdogs') return { configured: true, liveReadOk: true, items: [{ id: 'w1' }] };
-          if (lane === 'defense_ops') return { configured: true, liveReadOk: true, items: [{ id: 'd1' }, { id: 'd2' }] };
           return { configured: true, liveReadOk: true, items: [{ id: 'o1' }] };
         }),
       };
@@ -795,10 +830,12 @@ describe('homepage briefing payload shape', () => {
     expect(payload).toHaveProperty('explain.pool.briefingDesk.limits');
     expect(payload.explain.pool.briefingDesk.desks.osint).toBe(1);
     expect(payload.explain.pool.briefingDesk.desks.watchdogs).toBe(1);
-    expect(payload.explain.pool.briefingDesk.desks.defense_ops).toBe(2);
+    expect(payload.explain.pool.briefingDesk.desks).not.toHaveProperty('defense_ops');
     expect(payload.explain.pool.briefingDesk.desks).not.toHaveProperty('voices');
     const { getLiveIntelDeskForHomepageBriefing } = await import('@/lib/feeds/liveIntel.service');
     expect(getLiveIntelDeskForHomepageBriefing).not.toHaveBeenCalledWith('voices');
+    expect(getLiveIntelDeskForHomepageBriefing).not.toHaveBeenCalledWith('defense_ops');
+    expect(getLiveIntelDeskForHomepageBriefing).not.toHaveBeenCalledWith('statements');
   });
 
   it('does not load the intel voices desk or let a voices representative into the rail', async () => {
@@ -932,11 +969,11 @@ describe('final homepage briefing display dedupe', () => {
       {
         kind: 'intel' as const,
         briefLane: 'defense_ops' as const,
-        intelItem: { id: 'i3', canonicalUrl: 'https://example.com/3' },
+        intelItem: { id: 'i3', canonicalUrl: 'https://example.com/3', sourceSlug: 'centcom-press' },
       },
     ];
 
     const out = dedupeHomepageBriefingItemsForDisplay(items);
-    expect(out.map((it) => it.intelItem.id)).toEqual(['i1', 'i2', 'i3']);
+    expect(out.map((it) => it.intelItem.id)).toEqual(['i1', 'i2']);
   });
 });

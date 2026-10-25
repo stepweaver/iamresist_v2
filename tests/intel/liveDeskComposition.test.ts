@@ -243,15 +243,14 @@ describe('live desk lane routing', () => {
     });
   });
 
-  it('preserves defense_ops lane', async () => {
+  it('does not read retired defense_ops rows or snapshots', async () => {
     const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
-    await getLiveIntelDesk('defense_ops');
-    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'defense_ops', {
-      laneSourceIds: ['defense_ops-source-id'],
-    });
-    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('defense_ops', {
-      laneSourceIds: ['defense_ops-source-id'],
-    });
+    const desk = await getLiveIntelDesk('defense_ops');
+    expect(fetchSurfacedSourceItemsForLive).not.toHaveBeenCalled();
+    expect(fetchIntelFreshnessForDeskLane).not.toHaveBeenCalled();
+    expect(desk.items).toEqual([]);
+    expect(desk.snapshotFallback).toBe(false);
+    expect(desk.deskLane).toBe('defense_ops');
   });
 
   it('preserves indicators lane', async () => {
@@ -265,15 +264,14 @@ describe('live desk lane routing', () => {
     });
   });
 
-  it('preserves statements lane', async () => {
+  it('does not read retired statements rows or snapshots', async () => {
     const { getLiveIntelDesk } = await import('@/lib/feeds/liveIntel.service');
-    await getLiveIntelDesk('statements');
-    expect(fetchSurfacedSourceItemsForLive).toHaveBeenCalledWith(expect.any(Number), 'statements', {
-      laneSourceIds: ['statements-source-id'],
-    });
-    expect(fetchIntelFreshnessForDeskLane).toHaveBeenCalledWith('statements', {
-      laneSourceIds: ['statements-source-id'],
-    });
+    const desk = await getLiveIntelDesk('statements');
+    expect(fetchSurfacedSourceItemsForLive).not.toHaveBeenCalled();
+    expect(fetchIntelFreshnessForDeskLane).not.toHaveBeenCalled();
+    expect(desk.items).toEqual([]);
+    expect(desk.snapshotFallback).toBe(false);
+    expect(desk.deskLane).toBe('statements');
   });
 });
 

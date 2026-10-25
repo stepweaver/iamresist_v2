@@ -208,9 +208,6 @@ export default function HomeLiveBriefingSection({ briefing }) {
             <Link href="/intel/watchdogs" className="text-foreground/50 hover:text-primary transition-colors">
               Watchdogs →
             </Link>
-            <Link href="/intel/defense" className="text-foreground/50 hover:text-primary transition-colors">
-              Defense →
-            </Link>
           </div>
         </div>
       </div>

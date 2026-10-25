@@ -28,10 +28,10 @@ This document mirrors the **version-controlled manifest** in [`lib/intel/signal-
 | Lane | Route | Role |
 |------|--------|------|
 | `osint` | `/intel/osint` | Core U.S. institutional stack: WH, FR, GovInfo, courts/specialist legal accountability. |
-| `defense_ops` | `/intel/defense` | Pentagon / operations-adjacent official releases and specialist posture context (e.g. USNI). |
+| `defense_ops` | retired (`/intel/defense` → `/intel/watchdogs`) | Defense desk retired. Source rows stay disabled so historical items remain attached. Ingest does not fetch them. |
 | `watchdogs` | `/intel/watchdogs` | Foreign independent and investigative outlets; lead slots require corroboration rules. |
 | `indicators` | `/intel/indicators` | Scheduled macro/statistical releases (BLS/BEA HTML index), placeholders (SAM/OFAC), anecdotal registry rows. |
-| `statements` | `/intel/statements` | Direct political claims / public-import scaffold; isolated ranking; not evidence by itself. |
+| `statements` | retired (`/intel/claims` → `/intel/osint`, `/intel/statements` → `/telescreen`) | Claims desk retired. Placeholder rows stay disabled. |
 | `voices` | retired (`/intel/voices` → `/telescreen`) | Intel Voices RSS desk is retired. Historical `intel` rows remain. Notion Telescreen creators are a separate system and stay active. |
 
 The curated **Telescreen** lives at **`/telescreen`** (`/voices` and `/intel/voices` redirect there).
@@ -69,8 +69,7 @@ Mirrored from the manifest for ops and promotion logic (Postgres `intel.sources.
 
 | Variable | Used by |
 |----------|---------|
-| `CONGRESS_GOV_API_KEY` | Enables Congress.gov v3 structured ingestion. If unset, Congress.gov manifest rows remain present but disabled/skipped fail-closed. |
-| `INTEL_KYIV_INDEPENDENT_RSS_URL` | `kyiv-independent` — fail-closed when unset (no default RSS on the public site in all environments). |
+| `CONGRESS_GOV_API_KEY` | Enables Congress.gov v3 structured ingestion (recent bills, House and Senate committee meetings, bill summaries, House votes, CRS reports). If unset, those manifest rows stay disabled and the Sources page lists them as **Needs configuration**. Set the key, then run ingest once so `syncIntelSourcesFromManifest()` flips `is_enabled`. They are not broken feeds. |
 
 ## Source list (slug → summary)
 
@@ -131,25 +130,33 @@ These Substack feeds stay in the manifest with `is_enabled: false`. The next ing
 | `on-offense-kris-goldsmith` | Substack RSS | **no** | Retired. Historical rows kept. |
 | `total-hypocrisy` | Substack RSS | **no** | Retired. Historical rows kept. |
 
-### Defense (`defense_ops`)
+### Defense (`defense_ops`) — retired
+
+These rows stay in the manifest with `is_enabled: false`. The next ingest sync marks them disabled and does not fetch them. Historical `source_items` are not deleted. `/intel/defense` redirects to Watchdogs.
 
 | Slug | Feed-native? | Default on | Notes |
 |------|----------------|------------|-------|
-| `war-gov-releases` | RSS (`war.gov`) | yes | PRIMARY; trust warning: source-controlled official claims. |
-| `usni-fleet-tracker` | `html_index` (USNI tag listing) | yes | SPECIALIST; metadata-only; not operational orders. |
+| `war-gov-releases` | RSS (`war.gov`) | **no** | Retired. Historical releases kept. |
+| `usni-fleet-tracker` | `html_index` | **no** | Retired. |
+| `af-mil-news` | RSS | **no** | Retired. |
+| `army-mil-news` | RSS | **no** | Retired. |
+| `centcom-press` | `html_index` | **no** | Retired. Not ingested or displayed. |
+| `eucom-press` | RSS | **no** | Retired. |
+| `dvids-sandbox` | — | **no** | Retired placeholder. |
 
 ### Watchdogs (`watchdogs`)
 
 | Slug | Feed-native? | Default on | Notes |
 |------|----------------|------------|-------|
-| `kyiv-independent` | RSS via env | **no** until `INTEL_KYIV_INDEPENDENT_RSS_URL` set | SPECIALIST. |
+| `kyiv-independent` | RSS | yes | `https://kyivindependent.com/news-archive/rss/` (`/feed/` is 404). |
 | `meduza-english` | RSS | yes | `meduza.io/rss/en/all` (English-only; `/rss/all` is mixed-language) |
-| `mag-972` | RSS | yes | +972 Magazine |
+| `mag-972` | RSS | yes | `https://www.972mag.com/feed/` (homepage HTML is HTTP 403). |
 | `birn-balkaninsight` | RSS | yes | BIRN Balkan Insight |
 | `rappler` | RSS | yes | |
 | `bellingcat` | RSS | yes | |
-| `forbidden-stories` | RSS | yes | |
-| `occrp` | — | **no** | Registry placeholder; public RSS often bot-blocked. |
+| `forbidden-stories` | RSS | **no** | Official `/feed/` is HTTP 410. No replacement feed. Historical rows kept. |
+| `isw-feeds` | — | **no** | No stable public feed from the ingest client (Cloudflare 403). Historical rows kept. |
+| `occrp` | RSS | yes | `https://www.occrp.org/en/feed` |
 
 ### Indicators (`indicators`)
 

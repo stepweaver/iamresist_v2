@@ -195,7 +195,7 @@ async function buildIntelSection(liveDeskPerLane: number) {
     };
   }
 
-  const lanes = ['osint', 'watchdogs', 'defense_ops'];
+  const lanes = ['osint', 'watchdogs'];
   const desks = await Promise.all(lanes.map((lane) => getLiveIntelDesk(lane)));
   const registry = await fetchIntelSourcesRegistry();
   const sourceBySlug = new Map(registry.map((row) => [row.slug, row]));

@@ -57,13 +57,15 @@ function StatusBadge({ bucket }) {
     disabled_placeholder: 'border-border text-foreground/55 bg-foreground/5',
     disabled_env_gated: 'border-border text-foreground/55 bg-foreground/5',
     disabled_other: 'border-border text-foreground/55 bg-foreground/5',
+    needs_configuration: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
   };
   if (!bucket) return null;
-  return <span className={`${base} ${map[bucket] || map.disabled_other}`}>{bucket}</span>;
+  const label = bucket === 'needs_configuration' ? 'Needs configuration' : bucket;
+  return <span className={`${base} ${map[bucket] || map.disabled_other}`}>{label}</span>;
 }
 
 export default function SourcesAuditSection({ audit }) {
-  const { configured, staleThresholdMinutes, rows, errorMessage, build } = audit;
+  const { configured, staleThresholdMinutes, rows, inactiveRows = [], errorMessage, build } = audit;
 
   if (!configured) {
     return (
@@ -304,6 +306,44 @@ export default function SourcesAuditSection({ audit }) {
           </section>
         ))}
       </div>
+
+      {inactiveRows.length > 0 ? (
+        <details className="border border-border machine-panel">
+          <summary className="cursor-pointer p-4 font-mono text-xs uppercase tracking-wider text-foreground/80">
+            Inactive / Archived ({inactiveRows.length})
+          </summary>
+          <div className="space-y-4 border-t border-border p-4 sm:p-5">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-hud-dim leading-relaxed">
+              Retired desks and sources that are not ingested. Congress.gov primary records stay here until
+              CONGRESS_GOV_API_KEY is set, then the next ingest sync enables them. Historical items are kept.
+            </p>
+            <ul className="space-y-4">
+              {inactiveRows.map((r) => (
+                <li key={`inactive-${r.id}`} className="border border-border/80 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-foreground">{r.name}</span>
+                    <HealthBadge health={r.health} />
+                    <StatusBadge bucket={r.statusBucket} />
+                  </div>
+                  <p className="mt-1 font-mono text-[10px] text-hud-dim">{r.slug}</p>
+                  {r.statusDetail ? (
+                    <p className="mt-2 text-xs text-foreground/75 leading-relaxed">{r.statusDetail}</p>
+                  ) : null}
+                  {r.healthReason ? (
+                    <p className="mt-1 font-mono text-[10px] text-foreground/55 leading-relaxed">{r.healthReason}</p>
+                  ) : null}
+                  {r.editorialNotes ? (
+                    <p className="mt-2 font-mono text-[10px] text-foreground/60 leading-relaxed">{r.editorialNotes}</p>
+                  ) : null}
+                  <p className="mt-2 font-mono text-[10px] text-foreground/45 break-all">
+                    {r.fetchKind} · {r.endpointDisplay}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
