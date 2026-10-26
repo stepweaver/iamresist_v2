@@ -19,7 +19,7 @@ function sanitizeRefresh(value) {
 export const metadata = buildPageMetadata({
   title: "Telescreen Political Video Archive and Voices of Dissent",
   description:
-    "Curated political video archive with voices of dissent, editorial video picks, and protest music collected on one surface.",
+    "Political video, voices of dissent, and protest music.",
   urlPath: "/telescreen",
 });
 
@@ -56,12 +56,6 @@ export default async function TelescreenPage({ searchParams }) {
             <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
               Political Video Archive and Voices of Dissent
             </h1>
-            <p className="prose-copy mt-4 max-w-3xl text-base sm:text-lg text-foreground/75 leading-relaxed">
-              Telescreen is the site&apos;s video surface: creator feeds,
-              curated political videos, and protest music collected in one
-              archive. Use the mode switch to move between direct voices,
-              editorial picks, and songs tied to the broader resistance record.
-            </p>
           </div>
         </section>
 

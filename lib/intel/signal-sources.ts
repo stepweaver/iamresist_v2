@@ -739,10 +739,10 @@ export function getSignalSources(): SignalSourceConfig[] {
       requiresIndependentVerification: false,
       heroEligibilityMode: 'normal',
       purpose:
-        'Optional specialist newsletter on Epstein accountability (public Substack RSS). Enabled in manifest; preview-and-link only.',
+        'Specialist newsletter on Epstein accountability.',
       trustedFor: 'Syndicated headlines and links to COURIER’s own publication.',
       notTrustedFor: 'Law enforcement evidence or complete document sets; not a substitute for court records.',
-      editorialNotes: 'Preview-and-link only; enabled in default manifest.',
+      editorialNotes: '',
       editorialControls: {
         defaultPriority: 50,
         preferredStateChangeTypes: ['specialist_item'],
@@ -1334,7 +1334,7 @@ export function getSignalSources(): SignalSourceConfig[] {
       requiresIndependentVerification: true,
       heroEligibilityMode: 'normal',
       purpose:
-        'OFAC recent actions listing (legacy RSS retired; ingest extracts recent-action detail URLs).',
+        'Recent sanctions actions published by OFAC.',
       trustedFor: 'Sanctions and designation updates when ingested via a supported path.',
       notTrustedFor: 'Legal compliance determinations without counsel.',
       editorialNotes:

@@ -24,9 +24,6 @@ export default function ResourcesPage() {
             <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
               Resistance Resources and Civic Reference Material
             </h1>
-            <p className="prose-copy mt-4 max-w-3xl text-base sm:text-lg text-foreground/75 leading-relaxed">
-              Three places to start, then the full directory.
-            </p>
           </div>
         </section>
         <ResourcesSection />

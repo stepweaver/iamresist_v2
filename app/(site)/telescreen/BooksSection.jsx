@@ -60,10 +60,11 @@ export default async function BooksSection() {
   const books = await listBooks();
 
   if (!books || books.length === 0) {
+    console.warn('[shelf] No books returned. Add books to the Notion books database.');
     return (
       <EmptyState
         title="[ No Books Yet ]"
-        description="Add books to your Notion books database to populate this section."
+        description="No books are listed yet."
       />
     );
   }

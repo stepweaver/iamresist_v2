@@ -162,8 +162,7 @@ export default function HeadlineTimeline({ timeline, debug = false, loadError = 
   return (
     <div className="min-w-0">
       <p className="mb-8 font-mono text-[11px] tracking-wide text-foreground/50">
-        Rolling {timeline.windowHours} hours · {timeline.creatorCandidateCount} creator titles · {timeline.newsCandidateCount} news titles · {shown} stories shown
-        {timeline.clusterCount > shown ? ` · ${timeline.clusterCount} clusters ranked` : ''}
+        Rolling {timeline.windowHours} hours · {shown} {shown === 1 ? 'story' : 'stories'}
       </p>
 
       {timeline.warnings.length > 0 && (
@@ -177,8 +176,8 @@ export default function HeadlineTimeline({ timeline, debug = false, loadError = 
       {!shown && (
         <p className="text-sm text-foreground/70 leading-relaxed max-w-2xl">
           {timeline.creatorCandidateCount + timeline.newsCandidateCount > 0
-            ? 'No converged stories in this window yet. A story appears when at least two creators, two news sources, or a creator and a news source cover the same headline.'
-            : 'No recent titles in this window. Source ingest and the Newswire feeds are what fill the brief.'}
+            ? 'No stories in this window yet.'
+            : 'No recent coverage in this window.'}
         </p>
       )}
 

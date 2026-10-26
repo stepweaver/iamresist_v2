@@ -43,8 +43,10 @@ describe('supporting pages', () => {
     expect(summary.startLabel).not.toBe(summary.endLabel);
 
     const page = read('app/(site)/timeline/page.jsx');
-    expect(page).toContain('manually maintained adaptation');
-    expect(page).toContain('not a live record');
+    expect(page).toContain('Adapted from the');
+    expect(page).toContain('covering');
+    expect(page).not.toContain('manually maintained');
+    expect(page).not.toContain('not a live record');
     expect(page).toContain('brennancenter.org');
   });
 

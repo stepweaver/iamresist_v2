@@ -7,7 +7,7 @@ import { buildPageMetadata } from '@/lib/metadata';
 export const metadata = buildPageMetadata({
   title: 'Trump Election Undermining Timeline',
   description:
-    "A documentary timeline of the Trump administration's efforts to undermine elections, adapted from the Brennan Center for Justice and organized for quick review.",
+    "A documentary timeline of the Trump administration's efforts to undermine elections, adapted from the Brennan Center for Justice.",
   urlPath: '/timeline',
 });
 
@@ -35,7 +35,7 @@ export default function TimelinePage() {
       <PageContainer>
         <div className="mb-8 max-w-3xl space-y-4">
           <p className="mission-copy text-lg text-foreground/80">
-            A manually maintained adaptation of the{' '}
+            Adapted from the{' '}
             <Link
               href="https://www.brennancenter.org/our-work/research-reports/timeline-trump-administrations-efforts-undermine-elections"
               target="_blank"
@@ -44,11 +44,9 @@ export default function TimelinePage() {
             >
               Brennan Center election timeline
             </Link>
-            , not a live record. The events below are the documented coverage
             {coverage.startLabel && coverage.endLabel
-              ? ` from ${coverage.startLabel} through ${coverage.endLabel}`
-              : ''}
-            {coverage.count ? ` (${coverage.count} events)` : ''}.
+              ? `, covering ${coverage.startLabel} through ${coverage.endLabel}.`
+              : '.'}
           </p>
           {coverage.categories.length > 0 ? (
             <nav aria-label="Timeline categories" className="flex flex-wrap gap-2">

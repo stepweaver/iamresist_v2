@@ -24,6 +24,13 @@ export default function JournalIndex({
   const { listed, browsingDefault, scoped } = archive;
   const total = scoped.length;
   const shown = listed.length;
+  const searchNote = subject
+    ? `Showing essays tagged ${subject}. Search still matches title, date, and tag.`
+    : browsingDefault && pinnedIds.length > 0
+      ? 'Featured and recent essays stay out of this list. Search still finds them.'
+      : searchCoversArchive
+        ? null
+        : 'Search covers the records loaded on this page.';
 
   let countLabel = `${archiveTotal} published ${archiveTotal === 1 ? 'essay' : 'essays'}`;
   if (browsingDefault && pinnedIds.length > 0) {
@@ -59,7 +66,7 @@ export default function JournalIndex({
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Title, date, or tag"
           autoComplete="off"
-          aria-describedby={noteId}
+          aria-describedby={searchNote ? noteId : undefined}
         />
         {filtering ? (
           <button type="button" onClick={() => setQuery('')}>
@@ -67,23 +74,19 @@ export default function JournalIndex({
           </button>
         ) : null}
       </form>
-      <p id={noteId} className="journal-search__note">
-        {subject
-          ? `Showing essays tagged ${subject}. Search still matches title, date, and tag.`
-          : browsingDefault && pinnedIds.length > 0
-            ? 'Featured and recent essays stay out of this list. Search still finds them.'
-            : searchCoversArchive
-              ? 'Search published journal entries by title, date, or tag.'
-              : 'Search covers the records loaded on this page.'}
-        {subject && onClearTag ? (
-          <>
-            {' '}
-            <button type="button" className="journal-inline-clear" onClick={onClearTag}>
-              Show all essays
-            </button>
-          </>
-        ) : null}
-      </p>
+      {searchNote || (subject && onClearTag) ? (
+        <p id={noteId} className="journal-search__note">
+          {searchNote}
+          {subject && onClearTag ? (
+            <>
+              {' '}
+              <button type="button" className="journal-inline-clear" onClick={onClearTag}>
+                Show all essays
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : null}
 
       {shown === 0 ? (
         <p className="journal-index__empty" role="status">

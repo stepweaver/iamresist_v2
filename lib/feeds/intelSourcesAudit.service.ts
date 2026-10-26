@@ -348,10 +348,10 @@ async function buildIntelSourcesAudit(): Promise<{
   for (const r of activeRows) {
     const hi = Math.max(80, medianPrimary24h * 3);
     if (r.isEnabled && r.items24h > hi && medianPrimary24h > 0) {
-      r.noiseHint = `High volume (${r.items24h} in 24h vs ~${Math.round(medianPrimary24h)} median for PRIMARY)`;
+      r.noiseHint = `High volume: ${r.items24h} items in 24 hours, against a typical ${Math.round(medianPrimary24h)}.`;
     }
     if (r.isEnabled && r.itemTotal > 0 && r.suppressedTotal > r.surfacedTotal) {
-      const hint = `More suppressed than surfaced in DB (${r.suppressedTotal} vs ${r.surfacedTotal}); check block rules.`;
+      const hint = `More items were held back than shown (${r.suppressedTotal} held, ${r.surfacedTotal} shown).`;
       r.noiseHint = r.noiseHint ? `${r.noiseHint} · ${hint}` : hint;
     }
   }

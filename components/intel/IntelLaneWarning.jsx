@@ -2,22 +2,22 @@ const LANE_WARNING_COPY = {
   osint: {
     title: 'Primary-source disclosure',
     body:
-      'This lane includes authentic public primary and official channels. Provenance is real, but framing can be source-controlled or politically interested. Verify key assertions independently.',
+      'Public and official records are included. The source can be real while the framing is politically interested. Verify key assertions independently.',
   },
   defense_ops: {
     title: 'Operational-source disclosure',
     body:
-      'This lane includes authentic public military and official channels. Provenance is real, but framing can be operationally interested or source-controlled. Verify key assertions independently.',
+      'Public military and official records are included. The source can be real while the framing serves an operational interest. Verify key assertions independently.',
   },
   statements: {
-    title: 'Claims & statements disclosure',
+    title: 'Claims and statements',
     body:
-      'This lane captures public political claims, statements, and circulating assertions. These items are not confirmed evidence by themselves. Verify against primary records (filings, transcripts, official documents) and independent reporting before treating anything here as true.',
+      'Public political claims and statements are included. They are not confirmed evidence by themselves. Verify them against primary records — filings, transcripts, and official documents — and independent reporting.',
   },
   voices: {
-    title: 'Voices lane disclosure',
+    title: 'Creator commentary',
     body:
-      'This lane includes creator commentary and public-feed previews. Items may be insightful or timely but are not neutral reporting or primary records. Verify factual claims independently at the source.',
+      'Creator commentary is included. It is not neutral reporting or a primary record. Verify factual claims at the source.',
   },
 };
 

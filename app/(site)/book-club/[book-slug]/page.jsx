@@ -187,12 +187,7 @@ export default async function BookDetailPage({ params }) {
                   No journal entries are published for this book yet.
                 </p>
               ) : (
-                <>
-                  <p className="prose-copy text-foreground/70 mb-8 max-w-2xl">
-                    Reading notes published for {book.title}.
-                  </p>
-                  <JournalView notes={notes} book={book} blocksByNoteId={blocksByNoteId} />
-                </>
+                <JournalView notes={notes} book={book} blocksByNoteId={blocksByNoteId} />
               )}
             </div>
           </div>

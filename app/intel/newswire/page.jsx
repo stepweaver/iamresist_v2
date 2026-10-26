@@ -11,7 +11,7 @@ export const revalidate = 300;
 export const metadata = buildPageMetadata({
   title: "Intel // Newswire | I AM [RESIST]",
   description:
-    "A curated feed of independent, reader-supported journalism. Headlines, direct links, minimal algorithmic interference. Read here. Click through. Support the source.",
+    "Independent, reader-supported journalism. Headlines link back to the original publisher.",
   urlPath: "/intel/newswire",
 });
 
@@ -57,7 +57,7 @@ export default async function NewswirePage() {
       className="hero-page-bg min-h-screen overflow-x-clip"
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs description="Independent headlines with the publisher, date, and a link back to the original story." />
+        <IntelTabs />
 
         <Suspense
           fallback={

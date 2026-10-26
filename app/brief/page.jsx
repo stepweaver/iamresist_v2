@@ -7,7 +7,7 @@ export const metadata = {
   ...buildPageMetadata({
     title: 'Brief',
     description:
-      'A scannable timeline of stories drawing attention across creators and news sources. Ranking follows source convergence, not an AI importance score.',
+      'Stories drawing attention across creators and news sources. Creator discussion is attention, not verification.',
     urlPath: '/brief',
   }),
   robots: { index: false, follow: false },
@@ -41,10 +41,7 @@ export default async function BriefPage({ searchParams }) {
                 BRIEF
               </h1>
               <p className="mt-3 max-w-3xl text-sm sm:text-base text-foreground/70 leading-relaxed">
-                Stories drawing attention across the sources already coming in. Headlines group when recent titles
-                overlap. A story appears here when at least two creators, two news sources, or a creator and a news
-                source are covering it. More distinct creators and more distinct news sources raise a story. Creator
-                discussion is attention, not verification.
+                Stories several sources are covering at once. Creator discussion is attention, not verification.
               </p>
             </div>
           </div>

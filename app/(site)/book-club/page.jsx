@@ -3,8 +3,7 @@ import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
   title: 'The Resistance Shelf',
-  description:
-    'The Resistance Shelf: political books with context, and reading notes when they have been published.',
+  description: 'Political books and published reading notes.',
   urlPath: '/book-club',
 });
 
@@ -24,10 +23,6 @@ export default function BookClubPage() {
             <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
               The Resistance Shelf
             </h1>
-            <p className="prose-copy mt-4 max-w-3xl text-base sm:text-lg text-foreground/75 leading-relaxed">
-              A shelf of political books. Open a title for its context. Reading
-              notes appear on a book when they have been published.
-            </p>
           </div>
         </section>
         <BooksSection />

@@ -97,7 +97,7 @@ export default function NewswireHeadlinesSection({ stories = [] }) {
 
       {!filteredStories.length ? (
         <p className="text-foreground/70 uppercase tracking-wider text-sm py-8">
-          {sourceFilter ? "No headlines from this source." : "No headlines yet. Feed ingestion in progress."}
+          {sourceFilter ? "No headlines from this source." : "No headlines yet."}
         </p>
       ) : (
         <>

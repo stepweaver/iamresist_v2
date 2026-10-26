@@ -8,7 +8,6 @@ import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
  *   title?: string,
  *   showViewAll?: boolean,
  *   items?: Array<{ id?: string, title?: string }>,
- *   description?: string | null,
  * }} [props]
  */
 export default async function VoicesFeedSection({
@@ -16,8 +15,6 @@ export default async function VoicesFeedSection({
   title = 'Latest Voices',
   showViewAll = true,
   items: itemsProp,
-  /** Secondary rail copy (e.g. Telescreen on home — interpretation-grade, not the live briefing). */
-  description = null,
 } = {}) {
   const feed = itemsProp ?? (await getHomepageIntelFeed());
   const items = itemsProp !== undefined ? feed : feed.slice(0, limit);
@@ -33,11 +30,6 @@ export default async function VoicesFeedSection({
           <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block">
             {title}
           </span>
-          {description ? (
-            <p className="text-[11px] sm:text-xs text-foreground/60 font-mono mt-1 max-w-2xl leading-relaxed">
-              {description}
-            </p>
-          ) : null}
         </div>
         {showViewAll && (
           <Link

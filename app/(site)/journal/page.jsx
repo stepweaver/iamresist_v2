@@ -85,37 +85,25 @@ export default async function JournalPage() {
 }
 
 function JournalEmpty({ listKind, apiError }) {
+  if (listKind === 'unconfigured') {
+    console.warn('[journal] Set NOTION_API_KEY and NOTION_JOURNAL_DB_ID, then restart.');
+  } else if (listKind === 'api_error') {
+    console.error('[journal] Notion read failed.', apiError || '');
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[journal] Check the token, database id, and that the integration can access the database.');
+    }
+  } else if (listKind === 'empty') {
+    console.warn('[journal] Notion is configured, but no rows match Status = Published.');
+  }
+
   return (
     <div className="journal-status">
       <p className="journal-status__label">No essays</p>
-      {listKind === 'unconfigured' && (
-        <p>
-          Set <code>NOTION_API_KEY</code> and <code>NOTION_JOURNAL_DB_ID</code> in
-          the environment, redeploy or restart the dev server, then reload.
-        </p>
-      )}
-      {listKind === 'api_error' && (
-        <>
-          <p>
-            The journal database could not be read from Notion. Confirm the
-            integration is connected to the journal database and has access.
-          </p>
-          {apiError && <p className="journal-status__detail">{apiError}</p>}
-          {process.env.NODE_ENV === 'development' && (
-            <p>
-              Dev hint: token typo, wrong DB id, or integration not invited to
-              the database often show up as Notion API errors above.
-            </p>
-          )}
-        </>
-      )}
-      {listKind === 'empty' && (
-        <p>
-          Notion is configured, but no rows match <code>Status = Published</code>.
-          Publish a row or adjust the Status option name to match what the site
-          filters on.
-        </p>
-      )}
+      <p>
+        {listKind === 'empty'
+          ? 'No essays are published yet.'
+          : 'The journal is unavailable right now.'}
+      </p>
     </div>
   );
 }

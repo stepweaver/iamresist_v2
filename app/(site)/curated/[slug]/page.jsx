@@ -20,7 +20,7 @@ function buildCuratedDescription(video) {
     [video?.description],
     joinSeoDescriptionParts([
       video?.title ? `${video.title}.` : null,
-      'Curated video with editorial context from I AM [RESIST].',
+      'Curated political video from I AM [RESIST].',
     ]),
     180,
   );

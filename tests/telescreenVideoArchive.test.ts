@@ -167,10 +167,10 @@ describe('telescreen collection status', () => {
       'No video items available.',
     );
     expect(telescreenCollectionMessage(TELESCREEN_MODES.voices, TELESCREEN_FEED_STATUS.unavailable)).toBe(
-      'This feed is temporarily unavailable.',
+      'Videos are temporarily unavailable.',
     );
     expect(telescreenCollectionMessage(TELESCREEN_MODES.voices, TELESCREEN_FEED_STATUS.invalid)).toBe(
-      'This feed configuration is invalid.',
+      'This collection is unavailable.',
     );
     expect(telescreenCollectionMessage(TELESCREEN_MODES.music, TELESCREEN_FEED_STATUS.empty)).toBe(
       'No protest music matches the current filters.',

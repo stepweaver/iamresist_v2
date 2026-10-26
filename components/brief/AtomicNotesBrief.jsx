@@ -120,7 +120,7 @@ function NoteCard({ note }) {
             {note.sourceExcerpt ? (
               <p className="whitespace-pre-wrap break-words leading-relaxed">{note.sourceExcerpt}</p>
             ) : (
-              <p className="text-foreground/45">Evidence text not stored.</p>
+              <p className="text-foreground/45">Excerpt unavailable.</p>
             )}
             <p className="font-mono text-[11px] text-foreground/50 break-words">
               Source segments{' '}
@@ -278,10 +278,8 @@ export default function AtomicNotesBrief({ episodes, corpus, configured, loadErr
           dayKey: event.date || 'undated',
           label:
             !event.date || event.date === 'undated'
-              ? 'DATE NOT STORED'
-              : event.chronology === 'published'
-                ? event.date
-                : `${event.date} · extraction day`,
+              ? 'Undated'
+              : event.date,
           chronology: event.chronology,
           events: [],
         };
@@ -296,6 +294,9 @@ export default function AtomicNotesBrief({ episodes, corpus, configured, loadErr
       noteCount: events.reduce((sum, event) => sum + event.noteCount, 0),
     };
   }, [corpus, creator]);
+  if (!configured && !loadError) {
+    console.warn('[brief] Supabase is not configured, so creator notes cannot be read.');
+  }
   return (
     <div className="min-w-0 w-full overflow-x-hidden break-words">
       <section className="mb-8" aria-label="Brief status">
@@ -305,15 +306,15 @@ export default function AtomicNotesBrief({ episodes, corpus, configured, loadErr
         ) : (
           <dl className="grid grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-[11px] sm:text-xs">
             <div>
-              <dt className="text-foreground/45">Event candidates</dt>
+              <dt className="text-foreground/45">Stories</dt>
               <dd data-testid="brief-event-count">{timeline.eventCount}</dd>
             </div>
             <div>
-              <dt className="text-foreground/45">Atomic notes</dt>
+              <dt className="text-foreground/45">Notes</dt>
               <dd>{timeline.noteCount}</dd>
             </div>
             <div className="col-span-2 lg:col-span-1">
-              <dt className="text-foreground/45">Newest extraction</dt>
+              <dt className="text-foreground/45">Latest</dt>
               <dd className="break-words">{formatWhen(diagnostics.newestExtractionAt) || '—'}</dd>
             </div>
             <div className="min-w-0">
@@ -349,16 +350,16 @@ export default function AtomicNotesBrief({ episodes, corpus, configured, loadErr
         <div className="border-l-2 border-primary/60 pl-4 py-2">
           <p className="nav-label text-primary mb-2">[ NOT CONFIGURED ]</p>
           <p className="text-sm sm:text-base text-foreground/70">
-            Supabase is not configured, so persisted Atomic Creator Notes cannot be read.
+            Creator notes are unavailable right now.
           </p>
         </div>
       )}
 
       {configured && !loadError && timeline.days.length === 0 && (
         <div className="border-l-2 border-primary/60 pl-4 py-2" data-testid="brief-empty">
-          <p className="nav-label text-primary mb-2">[ NO EVENT CANDIDATES ]</p>
+          <p className="nav-label text-primary mb-2">No notes</p>
           <p className="text-sm sm:text-base text-foreground/70">
-            No editorial Atomic Creator Notes matched the current extraction runs.
+            No creator notes in this window.
           </p>
         </div>
       )}
@@ -381,14 +382,13 @@ export default function AtomicNotesBrief({ episodes, corpus, configured, loadErr
       {configured && !loadError && (corpus?.eventCount > 0 || diagnostics.noteCount > 0) && (
         <details className="mt-12 border-t border-border/60 pt-4" data-raw-brief-debug>
           <summary className="cursor-pointer font-mono text-[11px] tracking-wider text-foreground/45 hover:text-primary">
-            Raw Atomic Notes debug · {diagnostics.noteCount} stored editorial notes
+            Source notes · {diagnostics.noteCount} stored
           </summary>
           <p className="mt-2 mb-4 text-xs text-foreground/50 max-w-2xl leading-relaxed">
-            Provenance audit layer. Event Candidates above are a read-only grouping of these notes.
-            Non-editorial material (sponsor, housekeeping, intro/outro, uncertain) is excluded from
-            the timeline.
+            Notes behind the stories above. Sponsor reads, housekeeping, introductions, and uncertain
+            notes stay out of the timeline.
             {corpus?.excludedNoteCount > 0
-              ? ` ${corpus.excludedNoteCount} note(s) excluded from Event Candidates by content role.`
+              ? ` ${corpus.excludedNoteCount} note${corpus.excludedNoteCount === 1 ? '' : 's'} left out.`
               : ''}
           </p>
           <div className="space-y-6">

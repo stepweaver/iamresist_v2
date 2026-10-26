@@ -134,15 +134,13 @@ function duplicateGroupingUserNote(row) {
     ? row.relevanceExplanations.find((e) => e.ruleId === 'desk:duplicate_cluster')
     : null;
   const raw = entry?.message?.trim();
-  if (!raw) {
-    return 'Similar report consolidated under a stronger line above';
-  }
+  if (!raw) return 'Related report';
   const m = raw.match(/stronger line is [“"]([^”"]+)[”"]/i);
   if (m?.[1]) {
     const title = m[1].trim();
-    return `Related coverage is grouped with a stronger report above: “${title}”`;
+    return `Related to “${title}”`;
   }
-  return 'Similar report consolidated under a stronger line above';
+  return 'Related report';
 }
 
 export function buildCompactSignalMetaBits(row, { showBucket = false, transparencyHint = null } = {}) {
@@ -249,14 +247,12 @@ function StoryContextSections({ entry }) {
       <StorySection title="Creator signal" items={entry.relatedSections.creatorSignal} />
       {hasCreatorSignalNote ? (
         <p className="mt-3 text-xs text-foreground/65 leading-relaxed">
-          Trusted creator corroboration exists around this story as support metadata, not as the primary reporting
-          basis.
+          Creator commentary around this story is context, not the reporting.
         </p>
       ) : null}
       {hasGroupedDuplicates ? (
         <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-foreground/60">
-          {entry.groupedDuplicateCount} similar report{entry.groupedDuplicateCount === 1 ? '' : 's'} grouped under
-          this story
+          {entry.groupedDuplicateCount} related report{entry.groupedDuplicateCount === 1 ? '' : 's'}
         </p>
       ) : null}
     </div>
@@ -272,7 +268,7 @@ function CompactFreshnessLine({
   if (snapshotFallback) {
     return (
       <p className="text-xs text-foreground/75 font-mono tracking-wide">
-        Saved snapshot · live read failed
+        Saved copy · live update failed
       </p>
     );
   }
@@ -305,7 +301,7 @@ function CompactFreshnessLine({
   if (state === 'stale') {
     return (
       <p className="text-xs text-foreground/75 font-mono tracking-wide">
-        {fetchRel ? `Updated ${fetchRel} · display stale` : 'Display stale'}
+        {fetchRel ? `Updated ${fetchRel} · older than usual` : 'Older than usual'}
       </p>
     );
   }
@@ -313,7 +309,7 @@ function CompactFreshnessLine({
   if (state === 'aging') {
     return (
       <p className="text-xs text-foreground/75 font-mono tracking-wide">
-        {fetchRel ? `Updated ${fetchRel} · display aging` : 'Display aging'}
+        {fetchRel ? `Updated ${fetchRel} · aging` : 'Aging'}
       </p>
     );
   }
@@ -343,9 +339,6 @@ function AccountabilityHighlights({ highlights }) {
         <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
           Accountability highlights
         </h2>
-        <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-          Deterministic overlay — provenance-first, no AI
-        </p>
       </div>
       <ul className="mt-4 space-y-3">
         {rows.map((h) => {
@@ -437,7 +430,6 @@ export default function LiveDeskView({
     dataStale,
     snapshotFallback,
     liveReadOk,
-    intelSchemaMisconfigured,
     items,
     leadItems = [],
     secondaryLeadItems = [],
@@ -461,11 +453,11 @@ export default function LiveDeskView({
   const showFreshnessStrip = liveReadOk || snapshotFallback || hasFreshnessData;
 
   if (!configured) {
+    console.warn('[intel-desk] storage is not configured.', message || '');
     return (
       <section className="border border-border p-6 machine-panel">
         <p className="text-foreground/80 text-sm uppercase tracking-wider">
-          Intel desk storage is not configured (set Supabase env vars and apply the{' '}
-          <code className="font-mono text-xs">intel</code> schema migrations).
+          This section is unavailable right now.
         </p>
       </section>
     );
@@ -495,6 +487,12 @@ export default function LiveDeskView({
   const hasAnyDeskContent =
     hasMainStack || duplicates.length > 0 || suppressed.length > 0 || metaOnly.length > 0;
 
+  if (!emptyAfterSourceFilter && liveReadOk && !hasAnyDeskContent) {
+    console.warn(
+      '[intel-desk] No items yet. Run GET /api/cron/ingest-signal with Authorization: Bearer CRON_SECRET. Expose the intel schema in Supabase API settings.',
+    );
+  }
+
   return (
     <div className="space-y-6">
       {laneWarningSlot}
@@ -517,11 +515,7 @@ export default function LiveDeskView({
           }`}
         >
           <span className="font-bold uppercase tracking-wider text-primary">
-            {snapshotFallback
-              ? `Stale — saved ${deskLabel} snapshot`
-              : intelSchemaMisconfigured
-                ? 'Supabase configuration'
-                : 'Freshness warning'}
+            {snapshotFallback ? `Saved ${deskLabel} copy` : 'Update problem'}
           </span>
           <p className="mt-1 font-mono text-xs text-foreground/80">{message}</p>
         </div>
@@ -544,15 +538,8 @@ export default function LiveDeskView({
 
       {!emptyAfterSourceFilter && liveReadOk && !hasAnyDeskContent ? (
         <section className="border border-border p-6 machine-panel">
-          <p className="text-foreground/80 text-sm mb-2 uppercase tracking-wider">
-            No ingested items yet.
-          </p>
-          <p className="text-foreground/60 text-xs font-mono leading-relaxed">
-            Run a secured ingest:{' '}
-            <code className="text-primary">GET /api/cron/ingest-signal</code> with{' '}
-            <code className="text-primary">Authorization: Bearer CRON_SECRET</code>
-            . Ensure the <code className="text-primary">intel</code> schema is exposed in Supabase API
-            settings.
+          <p className="text-foreground/80 text-sm uppercase tracking-wider">
+            Nothing new is available yet.
           </p>
         </section>
       ) : null}
@@ -560,7 +547,7 @@ export default function LiveDeskView({
       {!emptyAfterSourceFilter && !liveReadOk && !snapshotFallback && !hasAnyDeskContent ? (
         <section className="border border-border p-6 machine-panel">
           <p className="text-foreground/80 text-sm uppercase tracking-wider">
-            Nothing to show yet — {deskLabel} read failed and no saved desk snapshot exists.
+            The latest update failed, and there is no saved copy.
           </p>
         </section>
       ) : null}
@@ -575,9 +562,6 @@ export default function LiveDeskView({
             <h2 className="section-title text-base sm:text-lg font-bold text-foreground">
               Lead developments
             </h2>
-            <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-              Selected for importance, not just recency
-            </p>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -658,9 +642,6 @@ export default function LiveDeskView({
 
             {secondaryEntries.length > 0 ? (
               <div className="space-y-3">
-                <p className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-                  Secondary
-                </p>
                   <ul className="space-y-3">
                     {secondaryEntries.map((entry) => {
                       const { row } = entry;
@@ -923,8 +904,7 @@ export default function LiveDeskView({
             Index / schedule pointers ({metaOnly.length})
           </summary>
           <p className="mt-2 text-xs text-foreground/70 leading-relaxed max-w-3xl">
-            Metadata-only items are hidden from the main stack by default. Open a link for the canonical record at the
-            source.
+            The full record is at the source.
           </p>
           <ul className="mt-4 space-y-2 border-t border-border pt-4">
             {metaOnly.map((row) => (
@@ -951,13 +931,8 @@ export default function LiveDeskView({
         <details className="border border-border machine-panel p-4 sm:p-5 group">
           <summary className="cursor-pointer font-mono text-xs uppercase tracking-wider text-foreground/85 list-none flex items-center gap-2">
             <span className="text-primary group-open:rotate-90 transition-transform inline-block">▸</span>
-            Why some items are grouped ({duplicates.length})
+            Related coverage ({duplicates.length})
           </summary>
-          <p className="mt-2 text-xs text-foreground/70 leading-relaxed max-w-3xl">
-            Related coverage is grouped under the strongest version of a story so the desk stays readable. Similar
-            reports are consolidated to reduce repetition; this list points to items linked to a broader developing
-            story already shown above.
-          </p>
           <ul className="mt-4 space-y-3 border-t border-border pt-4">
             {duplicates.map((row) => {
               return (
@@ -987,12 +962,8 @@ export default function LiveDeskView({
         <details className="border border-border machine-panel p-4 sm:p-5 group">
           <summary className="cursor-pointer font-mono text-xs uppercase tracking-wider text-foreground/85 list-none flex items-center gap-2">
             <span className="text-primary group-open:rotate-90 transition-transform inline-block">▸</span>
-            Not on the default desk ({suppressed.length})
+            Not shown in the main list ({suppressed.length})
           </summary>
-          <p className="mt-2 text-xs text-foreground/70 leading-relaxed max-w-3xl">
-            These items stay in the full record but are not prioritized for the live surface. Source Transparency
-            has the complete picture, including ingest and diagnostics.
-          </p>
           <ul className="mt-4 space-y-3 border-t border-border pt-4">
             {suppressed.map((row) => (
               <li key={row.id} className="text-sm">
@@ -1006,8 +977,7 @@ export default function LiveDeskView({
                 </Link>
                 <p className="font-mono text-[10px] text-hud-dim mt-1">
                   {row.sourceName} ·{' '}
-                  {row.suppressionReason?.trim() ||
-                    'Available in the full record, but not elevated on the main desk'}
+                  {row.suppressionReason?.trim() || 'Not shown in the main list'}
                 </p>
                 <div className="mt-2">
                   <ShareRowButton row={row} heading="Share Intel item" />

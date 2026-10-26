@@ -8,7 +8,7 @@ export const revalidate = 60;
 export const metadata = buildPageMetadata({
   title: 'Intel // Sources | I AM [RESIST]',
   description:
-    'Source governance and ingest health for the I AM [RESIST] OSINT desk. See what is enabled, stale, failing, disabled, or unproven — and why.',
+    'Which sources are active, stale, or failing.',
   urlPath: '/intel/sources',
 });
 
@@ -21,7 +21,7 @@ export default async function IntelSourcesPage() {
       className="hero-page-bg min-h-screen overflow-x-clip"
     >
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 pt-2 pb-8 sm:pb-12">
-        <IntelTabs description="Source Transparency. Ingest health for active, configured sources. Counts come from source_items. The database mirrors the manifest when ingest runs." />
+        <IntelTabs description="Which sources are active, stale, or failing." />
         <SourcesAuditSection audit={audit} />
       </div>
     </main>

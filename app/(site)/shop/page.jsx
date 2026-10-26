@@ -29,7 +29,7 @@ export default function ShopPage() {
             RESISTANCE STICKER SHOP
           </h1>
           <p className="prose-copy text-base text-foreground/70 max-w-2xl leading-relaxed">
-            Weatherproof vinyl stickers. Open a design for details, specs, and bundles.
+            Weatherproof vinyl stickers.
           </p>
         </div>
       </div>

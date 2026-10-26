@@ -42,7 +42,7 @@ export type TrustWarningsResult = {
 };
 
 export const BASELINE_INLINE_TRUST_EXPLAIN =
-  'Primary source channel is real, but the claims or framing may be strategic or self-protective. Preserve provenance; verify key assertions independently.';
+  'The source is real, but the claims or framing may be strategic or self-protective. Verify key assertions independently.';
 
 const BASELINE_LANE_TRUST_DISCLOSURE_LANES = new Set(['osint', 'defense_ops']);
 const BASELINE_INLINE_TRUST_BADGE_LABELS = new Set([

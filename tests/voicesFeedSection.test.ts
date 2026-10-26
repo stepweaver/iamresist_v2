@@ -26,7 +26,6 @@ describe('VoicesFeedSection header sizing', () => {
     const element = await VoicesFeedSection({
       items: [{ id: 'voice-1', title: 'Voice item' }],
       title: 'Telescreen',
-      description: 'Commentary and media.',
     });
 
     const section = asElement(element, 'Expected VoicesFeedSection to return a valid React element');
@@ -35,12 +34,10 @@ describe('VoicesFeedSection header sizing', () => {
     const headerChildren = Children.toArray(headerRow.props.children);
     const copyBlock = asElement(headerChildren[0], 'Expected section copy block to be a valid React element');
     const copyChildren = Children.toArray(copyBlock.props.children);
-    const title = asElement(copyChildren[0], 'Expected section title and description to be valid React elements');
-    const description = asElement(copyChildren[1], 'Expected section title and description to be valid React elements');
+    const title = asElement(copyChildren[0], 'Expected the section title to be a valid React element');
 
+    expect(copyChildren).toHaveLength(1);
     expect(title.props.className).toBe('kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block');
-    expect(description.props.className).toBe(
-      'text-[11px] sm:text-xs text-foreground/60 font-mono mt-1 max-w-2xl leading-relaxed',
-    );
+    expect(title.props.children).toBe('Telescreen');
   });
 });

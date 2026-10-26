@@ -23,29 +23,6 @@ function IntelBriefingCard({ row, hero = false, compact = false, loading = 'lazy
   const when = row.publishedAt ? formatDate(row.publishedAt) : null;
   const linkLabel = getIntelSourceLinkLabel(row);
 
-  const reasonLabels = Array.isArray(row.promotionReasons) ? row.promotionReasons : [];
-  const why =
-    reasonLabels.length > 0
-      ? reasonLabels
-          .slice(0, 3)
-          .map((c) => {
-            if (c === 'fresh_high_priority_event') return 'fresh · high priority';
-            if (c === 'primary_source') return 'primary source';
-            if (c === 'court_or_legal_action') return 'court/legal';
-            if (c === 'accountability_signal') return 'accountability';
-            if (c === 'corroborated_multi_source') return 'corroborated';
-            if (c === 'corroborated_multi_lane') return 'cross-lane';
-            if (c === 'new_phase_in_active_story') return 'new phase';
-            if (c === 'contradiction_or_evasion') return 'contradiction/evasion';
-            if (c === 'resignation_or_ethics_signal') return 'ethics/resignation';
-            if (c === 'major_government_action') return 'major action';
-            if (c === 'claims_lane_penalty') return 'claims surface';
-            if (c === 'repeat_coverage_penalty') return 'repeat coverage';
-            return String(c).replace(/_/g, ' ');
-          })
-          .join(' · ')
-      : null;
-
   const panelClass = compact
     ? 'border border-border machine-panel p-3 sm:p-4 hover:border-primary/35 transition-colors'
     : 'border border-border machine-panel p-3 sm:p-5 hover:border-primary/35 transition-colors';
@@ -69,11 +46,6 @@ function IntelBriefingCard({ row, hero = false, compact = false, loading = 'lazy
               <span className="timestamp text-[10px] sm:text-xs text-foreground/50 tabular-nums">{when}</span>
             ) : null}
           </div>
-          {why ? (
-            <p className="font-mono text-[10px] sm:text-xs text-foreground/60 leading-relaxed">
-              Why: {why}
-            </p>
-          ) : null}
           <h2 className="font-ui text-base sm:text-xl lg:text-2xl font-bold leading-snug text-foreground">
             {internalUrl ? (
               <Link href={internalUrl} className="hover:text-primary hover:underline">
@@ -131,11 +103,6 @@ function IntelBriefingCard({ row, hero = false, compact = false, loading = 'lazy
             <BriefingLaneBadge lane={row.briefLane} />
           </div>
           <span className="hud-label text-[10px] sm:text-xs truncate">{row.sourceName}</span>
-          {why ? (
-            <p className="font-mono text-[10px] text-foreground/60 leading-relaxed mt-1">
-              Why: {why}
-            </p>
-          ) : null}
           <h3 className="font-ui text-sm sm:text-base font-bold leading-snug text-foreground mt-1 line-clamp-3">
             {internalUrl ? (
               <Link href={internalUrl} className="hover:text-primary hover:underline">
@@ -195,12 +162,9 @@ export default function HomeLiveBriefingSection({ briefing }) {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
         <div>
           <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block">Live briefing</span>
-          <p className="text-[11px] sm:text-xs text-foreground/60 font-mono mt-1 max-w-2xl leading-relaxed">
-            One leading story and two supporting stories, with the source and date kept on each item.
-          </p>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] sm:text-xs font-mono uppercase tracking-wider">
             <Link href="/intel/osint" className="text-foreground/50 hover:text-primary transition-colors">
-              OSINT desk →
+              OSINT →
             </Link>
             <Link href="/intel/newswire" className="text-foreground/50 hover:text-primary transition-colors">
               Newswire →

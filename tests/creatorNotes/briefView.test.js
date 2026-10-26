@@ -197,8 +197,8 @@ describe('brief presentation helpers', () => {
 describe('Atomic Creator Notes brief view', () => {
   it('renders the empty state', async () => {
     const html = await renderBrief({ episodes: [], configured: true, loadError: null });
-    expect(html).toContain('NO EVENT CANDIDATES');
-    expect(html).toContain('Event candidates');
+    expect(html).toContain('No creator notes in this window.');
+    expect(html).toContain('Stories');
     expect(html).not.toContain('data-event-candidate');
   });
 
@@ -241,7 +241,7 @@ describe('Atomic Creator Notes brief view', () => {
     const episodes = episodeFromNotes([note()]);
     const html = await renderBrief({ episodes, configured: true, loadError: null });
     expect(html).toContain('data-raw-brief-debug');
-    expect(html).toContain('Raw Atomic Notes debug');
+    expect(html).toContain('Source notes');
     expect(html).toContain('Evidence window text for the stay analysis.');
     expect(html).toContain('Source segments');
   });

@@ -23,18 +23,12 @@ import { beginCollectionRefresh, finishCollectionRefresh } from "@/lib/telescree
 const MODE_COPY = {
   [TELESCREEN_MODES.curated]: {
     title: "Curated Videos",
-    detail: "Editorially selected political videos collected in the archive.",
-    empty: "No curated videos are available right now.",
   },
   [TELESCREEN_MODES.voices]: {
     title: "Voices of Dissent",
-    detail: "Video feeds from dissenting creators and commentators, filterable by voice.",
-    empty: "No voice videos match the current filters.",
   },
   [TELESCREEN_MODES.music]: {
     title: "Protest Music",
-    detail: "Protest songs, performances, and resistance music collected by artist.",
-    empty: "No protest music matches the current filters.",
   },
 };
 
@@ -245,12 +239,8 @@ export default function VoicesArchiveClient({
 
       <section className="machine-panel border border-border p-4 sm:p-5 space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-1">
-            <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase block">
-              Telescreen mode
-            </span>
+          <div>
             <h2 className="section-title text-xl sm:text-2xl font-bold text-foreground">{modeCopy.title}</h2>
-            <p className="text-xs sm:text-sm text-foreground/70 uppercase tracking-wider">{modeCopy.detail}</p>
           </div>
           <button
             type="button"

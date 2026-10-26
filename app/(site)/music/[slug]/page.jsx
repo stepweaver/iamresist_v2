@@ -21,7 +21,7 @@ function buildMusicDescription(song) {
     joinSeoDescriptionParts([
       song?.title ? `${song.title}.` : null,
       song?.artist ? `Artist: ${song.artist}.` : null,
-      'Protest music with editorial context from I AM [RESIST].',
+      'Protest music from I AM [RESIST].',
     ]),
     180,
   );

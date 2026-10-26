@@ -59,7 +59,6 @@ export async function HomeTelescreenSlot() {
           items={videos}
           title="Voices worth hearing"
           showViewAll={true}
-          description="Independent creator video, with the creator named on each item."
         />
       </div>
     );

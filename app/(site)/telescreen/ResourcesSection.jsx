@@ -91,7 +91,7 @@ export default function ResourcesSection() {
       {items.length === 0 ? (
         <EmptyState
           title="[ No Resources ]"
-          description="No curated resources are configured yet."
+          description="No resources are listed yet."
         />
       ) : (
         <div className="space-y-6">

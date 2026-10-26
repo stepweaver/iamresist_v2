@@ -175,15 +175,15 @@ describe('shouldShowInlineTrustExplain', () => {
 });
 
 describe('IntelLaneWarning copy', () => {
-  it('defines a Voices lane disclaimer for creator commentary + feed previews', () => {
+  it('keeps creator commentary distinct from verified reporting', () => {
     const copy = getLaneWarningCopy('voices');
     expect(copy).toBeTruthy();
-    expect(copy?.title).toMatch(/voices/i);
+    expect(copy?.title).toBe('Creator commentary');
     expect(copy?.body).toMatch(/creator commentary/i);
-    expect(copy?.body).toMatch(/public-feed previews/i);
     expect(copy?.body).toMatch(/not neutral reporting/i);
-    expect(copy?.body).toMatch(/not.*primary records/i);
+    expect(copy?.body).toMatch(/primary record/i);
     expect(copy?.body).toMatch(/verify factual claims/i);
+    expect(copy?.body).not.toMatch(/\/intel\/voices|voices desk/i);
   });
 
   it('defines a statements/claims lane disclaimer that stresses verification', () => {

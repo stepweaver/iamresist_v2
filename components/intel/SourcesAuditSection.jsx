@@ -58,7 +58,7 @@ const STATUS_LABELS = {
   enabled_not_publishing: 'Not publishing',
   disabled_policy: 'Disabled',
   disabled_placeholder: 'Placeholder',
-  disabled_env_gated: 'Needs env',
+  disabled_env_gated: 'Not configured',
   disabled_other: 'Disabled',
   needs_configuration: 'Needs configuration',
 };
@@ -92,37 +92,47 @@ export default function SourcesAuditSection({ audit }) {
   const { configured, staleThresholdMinutes, rows, errorMessage, build } = audit;
 
   if (!configured) {
+    console.warn('[intel-sources]', errorMessage || 'Source storage is not configured.');
     return (
       <section className="border border-border p-6 machine-panel">
-        <p className="text-foreground/80 text-sm uppercase tracking-wider">{errorMessage}</p>
-      </section>
-    );
-  }
-
-  if (errorMessage) {
-    return (
-      <section className="border border-red-500/40 p-6 machine-panel">
-        <p className="text-red-700 dark:text-red-400 text-sm font-mono">{errorMessage}</p>
-        <p className="text-foreground/60 text-xs mt-2 font-mono">
-          Apply intel migrations in order through at least{' '}
-          <code className="text-primary">20260418201000_intel_source_items_desk_lane_extend.sql</code> (fixes{' '}
-          <code className="text-primary">source_items_desk_lane_check</code> for new lanes). Also run{' '}
-          <code className="text-primary">20260418120000_intel_source_family_desk_lanes.sql</code> for{' '}
-          <code className="text-primary">source_family</code> and snapshots. Then run ingest once.
+        <p className="text-foreground/80 text-sm uppercase tracking-wider">
+          Source records are unavailable right now.
         </p>
       </section>
     );
   }
 
+  if (errorMessage) {
+    console.error('[intel-sources]', errorMessage);
+    if (/schema|constraint|migration|column|relation/i.test(errorMessage)) {
+      console.error(
+        '[intel-sources] Apply intel migrations in order through at least 20260418201000_intel_source_items_desk_lane_extend.sql and 20260418120000_intel_source_family_desk_lanes.sql, then run ingest once.',
+      );
+    }
+    return (
+      <section className="border border-red-500/40 p-6 machine-panel">
+        <p className="text-red-700 dark:text-red-400 text-sm">Source records could not be read.</p>
+      </section>
+    );
+  }
+
+  console.info('[intel-sources] build', {
+    manifestFingerprint: build?.manifestFingerprint ?? null,
+    relevanceRuleVersion: build?.relevanceRuleVersion ?? null,
+    gitCommitSha: build?.gitCommitSha ?? null,
+  });
+  for (const row of rows) {
+    if (row.manifestEnabled && !row.isEnabled) {
+      console.info(
+        `[intel-sources] ${row.slug} is listed in the manifest but not active. Run ingest once to sync sources.is_enabled.`,
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
-        Stale / health threshold: {staleThresholdMinutes}m (INTEL_DESK_STALE_AFTER_MINUTES) · counts from
-        source_items · last run from ingest_runs
-      </p>
-      <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
-        Build: manifest {build?.manifestFingerprint ?? '—'} · rules {build?.relevanceRuleVersion ?? '—'}
-        {build?.gitCommitSha ? ` · sha ${String(build.gitCommitSha).slice(0, 7)}` : ''}
+        A source is marked stale after {staleThresholdMinutes} minutes without a successful update.
       </p>
 
       <div className="overflow-x-auto border border-border machine-panel">
@@ -204,7 +214,7 @@ export default function SourcesAuditSection({ audit }) {
                   </div>
                   {r.manifestEnabled && !r.isEnabled ? (
                     <p className="text-amber-700 dark:text-amber-400/90 mt-1.5 max-w-[200px] leading-snug">
-                      Run ingest once to sync registry (sources.is_enabled).
+                      Listed, not yet active.
                     </p>
                   ) : null}
                 </td>
@@ -340,7 +350,7 @@ export default function SourcesAuditSection({ audit }) {
 
               <div>
                 <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
-                  Ingest-time surfacing (DB)
+                  How items were treated
                 </dt>
                 <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
                   Last 7d: {r.surfaced7d} surfaced · {r.downranked7d} downranked · {r.suppressed7d} suppressed — All
