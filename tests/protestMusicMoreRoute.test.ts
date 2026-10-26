@@ -23,6 +23,7 @@ describe('GET /api/voices-more protest music', () => {
       featured: [{ id: 'song-2', title: 'Grandpa Ice', voice: { slug: 'billy-simons-jr' } }],
       feedFailed: false,
       channelId: BILLY,
+      uploads: { status: 'ok', reason: null, source: 'rss', rssReason: null },
     });
     const response = await GET(
       new Request(
@@ -38,6 +39,7 @@ describe('GET /api/voices-more protest music', () => {
     expect(body.recent).toHaveLength(1);
     expect(body.featured.map((item: { title: string }) => item.title)).toEqual(['Grandpa Ice']);
     expect(body.items).toEqual(body.featured);
+    expect(body.uploads).toEqual({ status: 'ok', reason: null, source: 'rss', rssReason: null });
   });
 
   it('does not cache a failed feed and still returns curated tracks', async () => {
@@ -46,6 +48,7 @@ describe('GET /api/voices-more protest music', () => {
       featured: [{ id: 'song-2', title: 'Grandpa Ice' }],
       feedFailed: true,
       channelId: BILLY,
+      uploads: { status: 'upstream_failed', reason: 'http_404', source: null, rssReason: 'http_404' },
     });
     const response = await GET(
       new Request('https://example.test/api/voices-more?bucket=protest-music&artist=billy-simons-jr'),
@@ -55,6 +58,12 @@ describe('GET /api/voices-more protest music', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store');
     expect(body.recent).toEqual([]);
     expect(body.featured).toHaveLength(1);
+    expect(body.uploads).toEqual({
+      status: 'upstream_failed',
+      reason: 'http_404',
+      source: null,
+      rssReason: 'http_404',
+    });
   });
 
   it('rejects an invalid artist slug before any lookup', async () => {
@@ -68,7 +77,12 @@ describe('GET /api/voices-more protest music', () => {
       new Request('https://example.test/api/voices-more?bucket=protest-music&artist=../billy&channel_id=UCNOTOURS'),
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ recent: [], featured: [], items: [] });
+    expect(await response.json()).toEqual({
+      recent: [],
+      featured: [],
+      items: [],
+      uploads: { status: 'unverified_channel', reason: 'invalid_channel', source: null, rssReason: null },
+    });
     expect(loadProtestArtistMore).not.toHaveBeenCalled();
   });
 });

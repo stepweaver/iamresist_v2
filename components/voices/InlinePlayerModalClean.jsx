@@ -16,6 +16,7 @@ import {
   creatorMoreRequest,
   finalizeProtestRelated,
   limitRelatedSections,
+  uploadsDisplayStatus,
 } from "@/lib/protestMusic/moreFromArtist";
 const MOBILE_RELATED_CAP = 4;
 const DESKTOP_RELATED_CAP = 6;
@@ -165,7 +166,19 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
           signal: ac.signal,
         });
         if (cancelled) return;
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (protest) {
+            let uploads = { status: "upstream_failed", reason: "request_failed", source: null, rssReason: null };
+            try {
+              const data = await res.json();
+              if (data?.uploads?.status) uploads = data.uploads;
+            } catch {
+              /* The curated tracks already on the page stay in place. */
+            }
+            if (!cancelled) setProtestMore({ recent: [], featured: [], uploads });
+          }
+          return;
+        }
         const data = await res.json();
         if (cancelled) return;
         if (protest) {
@@ -176,6 +189,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
               : Array.isArray(data.items)
                 ? data.items
                 : [],
+            uploads: data.uploads || null,
           });
         } else {
           setLazyExtraItems(Array.isArray(data.items) ? data.items : []);
@@ -199,9 +213,8 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     const pageFeatured = Array.isArray(allItems)
       ? allItems.filter((it) => belongsToArtist(it, artistSlug) && !it.isDiscoveredUpload)
       : [];
-    const curated = protestMore
-      ? (protestMore.featured || []).filter((it) => belongsToArtist(it, artistSlug))
-      : pageFeatured;
+    const apiFeatured = (protestMore?.featured || []).filter((it) => belongsToArtist(it, artistSlug));
+    const curated = apiFeatured.length > 0 ? apiFeatured : pageFeatured;
     const uploads = (protestMore?.recent || []).filter((it) => belongsToArtist(it, artistSlug));
     return finalizeProtestRelated({ current: item, uploads, curated });
   }, [item, allItems, protestMore, artistSlug]);
@@ -581,12 +594,41 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       ? protestRelated.recent.length + protestRelated.featured.length
       : moreFromCreator.length;
     const label = count > 0 ? `More from ${creatorName} (${count})` : `More from ${creatorName}`;
+    const receivedRecentCount = Array.isArray(protestMore?.recent) ? protestMore.recent.length : 0;
+    const matchedRecentCount = (protestMore?.recent || []).filter((it) => belongsToArtist(it, artistSlug)).length;
+    const uploadsStatus = protestRelated
+      ? uploadsDisplayStatus({
+          uploads: protestMore?.uploads,
+          receivedRecentCount,
+          matchedRecentCount,
+          settledRecentCount: protestRelated.recent.length,
+          renderedRecentCount: protestShown?.recent.length || 0,
+        })
+      : null;
+    const uploadsNote =
+      uploadsStatus === "upstream_failed"
+        ? "Recent uploads are temporarily unavailable."
+        : uploadsStatus === "rejected"
+          ? "Recent uploads could not be verified for this channel."
+          : uploadsStatus === "not_rendered"
+            ? "Recent uploads could not be shown."
+            : null;
 
     return (
-      <div className="border-border/50 mt-2 border-t pt-4 md:mt-0 md:border-t-0 md:pt-0">
+      <div
+        className="border-border/50 mt-2 border-t pt-4 md:mt-0 md:border-t-0 md:pt-0"
+        data-uploads-status={uploadsStatus || undefined}
+        data-uploads-reason={protestMore?.uploads?.reason || undefined}
+        data-uploads-source={protestMore?.uploads?.source || undefined}
+      >
         <span className="hud-label mb-3 block text-[10px] sm:text-xs">{label}</span>
         {lazyExtraLoading ? (
           <p className="mb-2 font-mono text-[10px] text-foreground/50">Loading more…</p>
+        ) : null}
+        {uploadsNote ? (
+          <p className="mb-2 font-mono text-[10px] text-foreground/50" data-testid="protest-uploads-note">
+            {uploadsNote}
+          </p>
         ) : null}
         {protestShown ? (
           <>

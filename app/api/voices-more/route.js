@@ -61,7 +61,15 @@ export async function GET(request) {
   if (bucket === 'protest-music') {
     const artist = normalizeArtistSlug(searchParams.get('artist'));
     if (!artist) {
-      return NextResponse.json({ recent: [], featured: [], items: [] }, { status: 200 });
+      return NextResponse.json(
+        {
+          recent: [],
+          featured: [],
+          items: [],
+          uploads: { status: 'unverified_channel', reason: 'invalid_channel', source: null, rssReason: null },
+        },
+        { status: 200 },
+      );
     }
     try {
       const payload = await loadProtestArtistMore(artist);
@@ -76,13 +84,19 @@ export async function GET(request) {
           featured: payload.featured,
           // Curated tracks only, so a caller that reads `items` does not mix in discovered uploads.
           items: payload.featured,
+          uploads: payload.uploads ?? null,
         },
         { status: 200, headers: { 'Cache-Control': cacheControl } },
       );
     } catch (err) {
       if (process.env.NODE_ENV === 'development') console.error('[api/voices-more protest]', err);
       return NextResponse.json(
-        { recent: [], featured: [], items: [] },
+        {
+          recent: [],
+          featured: [],
+          items: [],
+          uploads: { status: 'upstream_failed', reason: 'request_failed', source: null, rssReason: null },
+        },
         { status: 503, headers: { 'Cache-Control': 'private, no-store' } },
       );
     }

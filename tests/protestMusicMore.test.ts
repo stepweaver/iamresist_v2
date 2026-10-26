@@ -6,8 +6,10 @@ import {
   finalizeProtestRelated,
   limitRelatedSections,
   RECENT_UPLOAD_LIMIT,
+  uploadsDisplayStatus,
 } from '@/lib/protestMusic/moreFromArtist';
-import { loadProtestArtistMore } from '@/lib/protestMusic/loadArtistMore';
+import { parseChannelListing } from '@/lib/protestMusic/channelListing';
+import { loadProtestArtistMore, resolveVerifiedUploads } from '@/lib/protestMusic/loadArtistMore';
 import {
   channelIdFromProfileUrl,
   isYoutubeHandleUrl,
@@ -240,6 +242,7 @@ describe('protest artist uploads', () => {
       getUploads,
     });
     expect(failed.feedFailed).toBe(true);
+    expect(failed.uploads).toMatchObject({ status: 'upstream_failed', reason: 'http_404', source: null });
     expect(failed.recent).toEqual([]);
     expect(failed.featured.map((item) => item.title)).toEqual(['The Sheep Song', 'Grandpa Ice']);
     expect(failed.featured.every((item) => item.voice.homeUrl === BILLY_PROFILE)).toBe(true);
@@ -250,6 +253,7 @@ describe('protest artist uploads', () => {
       getUploads,
     });
     expect(swoozy.channelId).toBeNull();
+    expect(swoozy.uploads).toMatchObject({ status: 'unverified_channel', source: null });
     expect(swoozy.recent).toEqual([]);
     expect(swoozy.featured[0]?.voice.homeUrl).toBe(SWOOZY_PROFILE);
     expect(swoozy.featured[0]?.voice.homeUrl).not.toContain('youtube.com');
@@ -271,7 +275,17 @@ describe('protest artist uploads', () => {
     expect(loaded.recent[0]?.voice.slug).toBe('billy-simons-jr');
     expect(loaded.recent[0]?.voice.homeUrl).toBe(BILLY_PROFILE);
     expect(loaded.recent[0]?.url).toBe('https://www.youtube.com/watch?v=ddddddddddd');
+    expect(loaded.uploads).toMatchObject({ status: 'ok', source: 'rss', rssReason: null });
     expect(loaded.recent[0]?.isDiscoveredUpload).toBe(true);
+    expect(
+      uploadsDisplayStatus({
+        uploads: loaded.uploads,
+        receivedRecentCount: loaded.recent.length,
+        matchedRecentCount: loaded.recent.length,
+        settledRecentCount: loaded.recent.length,
+        renderedRecentCount: loaded.recent.length,
+      }),
+    ).toBe('ok');
     expect(belongsToArtist(loaded.recent[0], 'swoozy')).toBe(false);
     expect(belongsToArtist(loaded.recent[0], 'billy-simons-jr')).toBe(true);
   });
@@ -324,5 +338,188 @@ describe('player more-from request', () => {
         voice: { slug: 'curated-videos', title: 'Curated Videos' },
       })?.url,
     ).toBe('/api/voices-more?bucket=curated');
+  });
+});
+
+function listingDocument(channelId: string, videoId: string, title: string, when = '2 weeks ago') {
+  return {
+    metadata: { channelMetadataRenderer: { title: 'Billy Simons Jr.', externalId: channelId } },
+    contents: {
+      twoColumnBrowseResultsRenderer: {
+        tabs: [
+          { tabRenderer: { title: 'Home', content: { richGridRenderer: { contents: [] } } } },
+          {
+            tabRenderer: {
+              selected: true,
+              content: {
+                richGridRenderer: {
+                  contents: [
+                    {
+                      richItemRenderer: {
+                        content: {
+                          lockupViewModel: {
+                            contentId: videoId,
+                            contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+                            metadata: {
+                              lockupMetadataViewModel: {
+                                title: { content: title },
+                                metadata: {
+                                  contentMetadataViewModel: {
+                                    metadataRows: [{ metadataParts: [{ text: { content: when } }] }],
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+  };
+}
+
+describe('channel listing fallback', () => {
+  const now = Date.parse('2026-10-26T00:00:00.000Z');
+
+  it('reads videos from the verified channel and ignores a different channel', () => {
+    const parsed = parseChannelListing(listingDocument(BILLY, 'Vt4mnFn6Mxx', 'The Sheep Song (Now Streaming)'), {
+      expectedChannelId: BILLY,
+      now,
+    });
+    expect(parsed.ok).toBe(true);
+    expect(parsed.items[0]).toMatchObject({
+      title: 'The Sheep Song (Now Streaming)',
+      url: 'https://www.youtube.com/watch?v=Vt4mnFn6Mxx',
+      channelId: BILLY,
+      publishedAt: '2026-10-12T00:00:00.000Z',
+    });
+
+    const other = parseChannelListing(listingDocument(TOPIC, 'Vt4mnFn6Mxx', 'Not Billy'), {
+      expectedChannelId: BILLY,
+      now,
+    });
+    expect(other.ok).toBe(false);
+    expect(other.reason).toBe('channel_mismatch');
+    expect(other.items).toEqual([]);
+
+    const unavailable = parseChannelListing(
+      { alerts: [{ alertRenderer: { text: { simpleText: 'This channel is not available.' } } }] },
+      { expectedChannelId: DAWN, now },
+    );
+    expect(unavailable.ok).toBe(false);
+    expect(unavailable.reason).toBe('channel_unavailable');
+
+    const titled = parseChannelListing(listingDocument(BILLY, 'abcdefghijk', 'If a tree fell \uFFFC'), {
+      expectedChannelId: BILLY,
+      now,
+    });
+    expect(titled.items[0]?.title).toBe('If a tree fell');
+  });
+
+  it('uses the channel listing when the uploads RSS fails, and keeps a valid RSS result', async () => {
+    const fetchListing = vi.fn(async () => {
+      const parsed = parseChannelListing(listingDocument(BILLY, 'Vt4mnFn6Mxx', 'The Sheep Song (Now Streaming)'), {
+        expectedChannelId: BILLY,
+        now,
+      });
+      return parsed;
+    });
+    const failedRss = await resolveVerifiedUploads(BILLY, {
+      fetchFeed: async () => ({ items: [], ok: false, reason: 'http_404' }),
+      fetchListing,
+    });
+    expect(fetchListing).toHaveBeenCalledWith(BILLY);
+    expect(failedRss.source).toBe('channel_listing');
+    expect(failedRss.rssReason).toBe('http_404');
+    expect(failedRss.items[0]?.title).toBe('The Sheep Song (Now Streaming)');
+
+    const fetchListingUnused = vi.fn();
+    const liveRss = await resolveVerifiedUploads(BILLY, {
+      fetchFeed: async () => ({
+        ok: true,
+        items: [upload('ddddddddddd', '2026-10-01T00:00:00.000Z')],
+        feed: billyFeed,
+      }),
+      fetchListing: fetchListingUnused,
+    });
+    expect(fetchListingUnused).not.toHaveBeenCalled();
+    expect(liveRss.source).toBe('rss');
+    expect(liveRss.items).toHaveLength(1);
+  });
+
+  it('reports an empty verified feed, a rejected feed, and a player that dropped accepted uploads', async () => {
+    const empty = await loadProtestArtistMore('billy-simons-jr', {
+      getSongs: async () => [song()],
+      getUploads: async () => ({ feed: billyFeed, items: [], source: 'rss' }),
+    });
+    expect(empty.uploads).toMatchObject({ status: 'empty', source: 'rss' });
+    expect(empty.feedFailed).toBe(false);
+    expect(empty.featured).toHaveLength(1);
+
+    const rejected = await loadProtestArtistMore('billy-simons-jr', {
+      getSongs: async () => [song()],
+      getUploads: async () => ({
+        feed: { ...billyFeed, channelId: TOPIC },
+        items: [upload('ddddddddddd', '2026-10-01T00:00:00.000Z', TOPIC)],
+        source: 'rss',
+      }),
+    });
+    expect(rejected.uploads).toMatchObject({ status: 'rejected', reason: 'channel_mismatch' });
+    expect(rejected.recent).toEqual([]);
+    expect(rejected.featured).toHaveLength(1);
+
+    expect(
+      uploadsDisplayStatus({
+        uploads: { status: 'ok', reason: null, source: 'rss', rssReason: null },
+        receivedRecentCount: 2,
+        matchedRecentCount: 0,
+        settledRecentCount: 0,
+        renderedRecentCount: 0,
+      }),
+    ).toBe('not_rendered');
+    expect(
+      uploadsDisplayStatus({
+        uploads: { status: 'upstream_failed', reason: 'http_404', source: null, rssReason: 'http_404' },
+        receivedRecentCount: 0,
+        matchedRecentCount: 0,
+        settledRecentCount: 0,
+        renderedRecentCount: 0,
+      }),
+    ).toBe('upstream_failed');
+  });
+
+  it('shows a listing upload that is not one of the curated songs', async () => {
+    const loaded = await loadProtestArtistMore('billy-simons-jr', {
+      getSongs: async () => [song()],
+      getUploads: async () => ({
+        source: 'channel_listing',
+        rssReason: 'http_404',
+        feed: billyFeed,
+        items: [
+          upload('Vt4mnFn6Mxx', '2026-10-12T00:00:00.000Z'),
+          upload('8nxiE-k8SkU', '2026-09-01T00:00:00.000Z'),
+        ],
+      }),
+    });
+    expect(loaded.feedFailed).toBe(false);
+    expect(loaded.uploads).toMatchObject({ status: 'ok', source: 'channel_listing', rssReason: 'http_404' });
+    expect(loaded.recent.map((item) => item.title)).toEqual(['Upload Vt4mnFn6Mxx']);
+    expect(loaded.featured.map((item) => item.title)).toEqual(['The Sheep Song']);
+    expect(
+      uploadsDisplayStatus({
+        uploads: loaded.uploads,
+        receivedRecentCount: loaded.recent.length,
+        matchedRecentCount: 1,
+        settledRecentCount: 1,
+        renderedRecentCount: 1,
+      }),
+    ).toBe('ok');
   });
 });
