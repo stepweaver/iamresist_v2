@@ -223,6 +223,36 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
     expect(result.reason).toBe('http_404');
   });
 
+  it('reads YouTube channel ids when feed metadata is requested', async () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns="http://www.w3.org/2005/Atom">
+  <title>Billy Simons Jr.</title>
+  <yt:channelId>UCQX_TeJhu67KX8LTLS6hztg</yt:channelId>
+  <author><name>Billy Simons Jr.</name></author>
+  <entry>
+    <id>yt:video:abcdefghijk</id>
+    <yt:videoId>abcdefghijk</yt:videoId>
+    <yt:channelId>UCQX_TeJhu67KX8LTLS6hztg</yt:channelId>
+    <title>Newer upload</title>
+    <link href="https://www.youtube.com/watch?v=abcdefghijk"/>
+    <published>2026-10-02T00:00:00+00:00</published>
+  </entry>
+</feed>`;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(xml, { status: 200 })));
+    const result = await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, {
+      sleep: mockSleep(),
+      includeFeedMeta: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.feed).toEqual({
+      title: 'Billy Simons Jr.',
+      author: 'Billy Simons Jr.',
+      channelId: 'UCQX_TeJhu67KX8LTLS6hztg',
+    });
+    expect(result.items[0]?.channelId).toBe('UCQX_TeJhu67KX8LTLS6hztg');
+    expect(result.items[0]?.title).toBe('Newer upload');
+  });
+
   it('uses a caller-supplied short retry schedule and does not cache the 404', async () => {
     const fetchMock = vi.fn().mockResolvedValue(statusResponse(404));
     vi.stubGlobal('fetch', fetchMock);

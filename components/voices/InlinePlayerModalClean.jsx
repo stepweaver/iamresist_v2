@@ -11,6 +11,12 @@ import useModalFocusTrap from "@/components/useModalFocusTrap";
 import { getYoutubeVideoId, youtubeThumbnailCandidates } from "@/lib/utils/youtube";
 import { formatDate } from "@/lib/utils/date";
 import { buildTelescreenHref, TELESCREEN_MODES } from "@/lib/telescreen";
+import {
+  belongsToArtist,
+  creatorMoreRequest,
+  finalizeProtestRelated,
+  limitRelatedSections,
+} from "@/lib/protestMusic/moreFromArtist";
 const MOBILE_RELATED_CAP = 4;
 const DESKTOP_RELATED_CAP = 6;
 const YOUTUBE_ORIGINS = ["https://www.youtube.com", "https://www.youtube-nocookie.com"];
@@ -96,6 +102,7 @@ function descriptionLabel(item) {
 
 export default function InlinePlayerModalClean({ item, allItems = [], onClose, onSelectItem, onPlayStart }) {
   const [lazyExtraItems, setLazyExtraItems] = useState([]);
+  const [protestMore, setProtestMore] = useState(null);
   const [lazyExtraLoading, setLazyExtraLoading] = useState(false);
   const [ytPlayerState, setYtPlayerState] = useState(-1);
 
@@ -134,48 +141,45 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
   }, [videoId]);
 
-  /** Match production: no "more from" RSS fetch for protest-music (sidebar uses page list only). */
-  const creatorBucketKey = useMemo(() => {
-    if (!item?.voice) return null;
-    if (item.sourceType === "protest-music") return null;
-    const isCuratedBucket =
-      item.sourceType === "curated-videos" ||
-      item.voice?.slug === "curated-videos" ||
-      item.isCurated === true;
-    if (isCuratedBucket) return "curated";
-    const slug = item.voice?.slug;
-    if (!slug || slug === "curated-videos") return null;
-    return String(slug).trim();
-  }, [item?.voice, item?.sourceType, item?.isCurated]);
+  const creatorMore = useMemo(() => creatorMoreRequest(item), [item]);
 
   useEffect(() => {
-    if (!creatorBucketKey) {
+    if (!creatorMore?.url) {
       setLazyExtraItems([]);
+      setProtestMore(null);
       setLazyExtraLoading(false);
       return;
     }
 
     const ac = new AbortController();
     let cancelled = false;
+    const protest = creatorMore.kind === "protest-music";
 
     setLazyExtraLoading(true);
     setLazyExtraItems([]);
-
-    const url =
-      creatorBucketKey === "curated"
-        ? "/api/voices-more?bucket=curated"
-        : `/api/voices-more?slug=${encodeURIComponent(creatorBucketKey)}`;
+    setProtestMore(null);
 
     (async () => {
       try {
-        const res = await fetch(url, {
+        const res = await fetch(creatorMore.url, {
           signal: ac.signal,
         });
         if (cancelled) return;
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
-        setLazyExtraItems(Array.isArray(data.items) ? data.items : []);
+        if (protest) {
+          setProtestMore({
+            recent: Array.isArray(data.recent) ? data.recent : [],
+            featured: Array.isArray(data.featured)
+              ? data.featured
+              : Array.isArray(data.items)
+                ? data.items
+                : [],
+          });
+        } else {
+          setLazyExtraItems(Array.isArray(data.items) ? data.items : []);
+        }
       } catch (e) {
         if (e?.name === "AbortError") return;
       } finally {
@@ -187,10 +191,23 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
       cancelled = true;
       ac.abort();
     };
-  }, [creatorBucketKey]);
+  }, [creatorMore?.url, creatorMore?.kind]);
+
+  const artistSlug = item?.voice?.slug;
+  const protestRelated = useMemo(() => {
+    if (item?.sourceType !== "protest-music" && item?.isProtestMusic !== true) return null;
+    const pageFeatured = Array.isArray(allItems)
+      ? allItems.filter((it) => belongsToArtist(it, artistSlug) && !it.isDiscoveredUpload)
+      : [];
+    const curated = protestMore
+      ? (protestMore.featured || []).filter((it) => belongsToArtist(it, artistSlug))
+      : pageFeatured;
+    const uploads = (protestMore?.recent || []).filter((it) => belongsToArtist(it, artistSlug));
+    return finalizeProtestRelated({ current: item, uploads, curated });
+  }, [item, allItems, protestMore, artistSlug]);
 
   const moreFromCreator = useMemo(() => {
-    if (!item) return [];
+    if (!item || protestRelated) return [];
     const fromPage = Array.isArray(allItems)
       ? allItems.filter((it) => sameCreator(it, item) && !isSameItem(it, item))
       : [];
@@ -200,7 +217,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
     const merged = dedupeByVideoKey([...fromPage, ...fromLazy]);
     merged.sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0));
     return merged;
-  }, [item, allItems, lazyExtraItems]);
+  }, [item, allItems, lazyExtraItems, protestRelated]);
 
   useEffect(() => {
     mainScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -511,13 +528,59 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
         : item.url || "";
   const descriptionMeta = descriptionLabel(item);
 
+  const renderSiblingButton = (sibling, idx) => {
+    const thumbUrl = youtubeThumbnailCandidates(sibling.url, sibling.sourceId)[0] || null;
+    const playing = isSameItem(sibling, item);
+    return (
+      <li key={sibling.id ?? sibling.url ?? idx}>
+        <button
+          type="button"
+          onClick={() => onSelectItem?.(sibling)}
+          aria-current={playing ? "true" : undefined}
+          className={`flex w-full items-center gap-3 border p-2 text-left transition-colors ${playing
+              ? "border-primary/60 bg-primary/10"
+              : "border-border/30 hover:border-border/60 hover:bg-military-grey/15"
+            }`}
+        >
+          <div className="relative h-11 w-20 shrink-0 overflow-hidden bg-military-grey">
+            {thumbUrl ? (
+              <Image
+                src={thumbUrl}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="80px"
+                unoptimized
+                referrerPolicy="no-referrer"
+              />
+            ) : null}
+            <span className="absolute inset-0 flex items-center justify-center">
+              <Play className="h-4 w-4 text-white/90" aria-hidden />
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-xs font-semibold text-foreground">
+              {sibling.title || "Untitled"}
+            </p>
+            {sibling.publishedAt ? (
+              <span className="font-mono text-[10px] text-foreground/50">
+                {formatDate(sibling.publishedAt)}
+              </span>
+            ) : null}
+          </div>
+        </button>
+      </li>
+    );
+  };
+
   const renderRelatedList = (cap) => {
-    const shown = moreFromCreator.slice(0, cap);
-    const count = moreFromCreator.length;
-    const label =
-      count > 0
-        ? `More from ${item.voice?.title || "this creator"} (${count})`
-        : `More from ${item.voice?.title || "this creator"}`;
+    const creatorName = item.voice?.title || "this creator";
+    const protestShown = protestRelated ? limitRelatedSections(protestRelated.recent, protestRelated.featured, cap) : null;
+    const shown = protestShown ? [] : moreFromCreator.slice(0, cap);
+    const count = protestRelated
+      ? protestRelated.recent.length + protestRelated.featured.length
+      : moreFromCreator.length;
+    const label = count > 0 ? `More from ${creatorName} (${count})` : `More from ${creatorName}`;
 
     return (
       <div className="border-border/50 mt-2 border-t pt-4 md:mt-0 md:border-t-0 md:pt-0">
@@ -525,52 +588,32 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
         {lazyExtraLoading ? (
           <p className="mb-2 font-mono text-[10px] text-foreground/50">Loading more…</p>
         ) : null}
-        {shown.length > 0 ? (
+        {protestShown ? (
+          <>
+            {protestShown.recent.length > 0 ? (
+              <div>
+                <span className="mb-2 block font-mono text-[10px] uppercase tracking-wider text-foreground/60">
+                  Recent from {creatorName}
+                </span>
+                <ul className="space-y-2" data-testid="protest-recent">
+                  {protestShown.recent.map(renderSiblingButton)}
+                </ul>
+              </div>
+            ) : null}
+            {protestShown.featured.length > 0 ? (
+              <div className={protestShown.recent.length > 0 ? "mt-4" : undefined}>
+                <span className="mb-2 block font-mono text-[10px] uppercase tracking-wider text-foreground/60">
+                  Featured on I AM [RESIST]
+                </span>
+                <ul className="space-y-2" data-testid="protest-featured">
+                  {protestShown.featured.map(renderSiblingButton)}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        ) : shown.length > 0 ? (
           <ul className="space-y-2">
-            {shown.map((sibling, idx) => {
-              const thumbUrl = youtubeThumbnailCandidates(sibling.url, sibling.sourceId)[0] || null;
-              const playing = isSameItem(sibling, item);
-              return (
-                <li key={sibling.id ?? sibling.url ?? idx}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectItem?.(sibling)}
-                    aria-current={playing ? "true" : undefined}
-                    className={`flex w-full items-center gap-3 border p-2 text-left transition-colors ${playing
-                        ? "border-primary/60 bg-primary/10"
-                        : "border-border/30 hover:border-border/60 hover:bg-military-grey/15"
-                      }`}
-                  >
-                    <div className="relative h-11 w-20 shrink-0 overflow-hidden bg-military-grey">
-                      {thumbUrl ? (
-                        <Image
-                          src={thumbUrl}
-                          alt=""
-                          fill
-                          className="object-cover"
-                          sizes="80px"
-                          unoptimized
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : null}
-                      <span className="absolute inset-0 flex items-center justify-center">
-                        <Play className="h-4 w-4 text-white/90" aria-hidden />
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-xs font-semibold text-foreground">
-                        {sibling.title || "Untitled"}
-                      </p>
-                      {sibling.publishedAt ? (
-                        <span className="font-mono text-[10px] text-foreground/50">
-                          {formatDate(sibling.publishedAt)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
+            {shown.map(renderSiblingButton)}
           </ul>
         ) : null}
         <Link
@@ -578,7 +621,7 @@ export default function InlinePlayerModalClean({ item, allItems = [], onClose, o
           onClick={onClose}
           className="button-label mt-3 inline-flex w-full items-center justify-center border border-primary/50 py-2.5 text-xs font-bold text-primary transition-colors hover:bg-primary/10"
         >
-          View more from {item.voice?.title || "this creator"} →
+          View more from {creatorName} →
         </Link>
       </div>
     );

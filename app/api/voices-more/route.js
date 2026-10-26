@@ -6,6 +6,8 @@ import { fetchFeedItemsWithMeta } from '@/lib/feeds/rss';
 import { TELESCREEN_FEED_STATUS } from '@/lib/telescreen';
 import { getVideos } from '@/lib/notion/videos.repo';
 import { slugify } from '@/lib/utils/slugify';
+import { loadProtestArtistMore } from '@/lib/protestMusic/loadArtistMore';
+import { normalizeArtistSlug } from '@/lib/protestMusic/youtubeChannel';
 
 export const revalidate = 300;
 
@@ -55,6 +57,36 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const slug = (searchParams.get('slug') || '').trim().toLowerCase();
   const bucket = (searchParams.get('bucket') || '').trim().toLowerCase();
+
+  if (bucket === 'protest-music') {
+    const artist = normalizeArtistSlug(searchParams.get('artist'));
+    if (!artist) {
+      return NextResponse.json({ recent: [], featured: [], items: [] }, { status: 200 });
+    }
+    try {
+      const payload = await loadProtestArtistMore(artist);
+      const cacheControl = payload.feedFailed
+        ? 'private, no-store'
+        : payload.recent?.length
+          ? 'public, s-maxage=1800, stale-while-revalidate=1800'
+          : 'public, s-maxage=300, stale-while-revalidate=300';
+      return NextResponse.json(
+        {
+          recent: payload.recent,
+          featured: payload.featured,
+          // Curated tracks only, so a caller that reads `items` does not mix in discovered uploads.
+          items: payload.featured,
+        },
+        { status: 200, headers: { 'Cache-Control': cacheControl } },
+      );
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') console.error('[api/voices-more protest]', err);
+      return NextResponse.json(
+        { recent: [], featured: [], items: [] },
+        { status: 503, headers: { 'Cache-Control': 'private, no-store' } },
+      );
+    }
+  }
 
   if (bucket === 'curated') {
     try {
