@@ -1,60 +1,86 @@
-import {
-  Orbitron,
-  Rajdhani,
-  IBM_Plex_Sans,
-  Share_Tech_Mono,
-  Barlow_Condensed,
-  Source_Sans_3,
-} from "next/font/google";
+import localFont from "next/font/local";
 
-// next/font/google downloads font files at build time (needs HTTPS egress to Google Fonts).
-// Runtime fallback stacks keep layout readable if a font file ever fails to load.
-export const orbitron = Orbitron({
-  subsets: ["latin"],
+// Latin subsets of the same families previously loaded through next/font/google.
+// Local files avoid a Turbopack failure when Google returns an extensionless font URL.
+// Variable families keep the weight range in one file. Static families stay one file per weight.
+
+export const orbitron = localFont({
+  src: [
+    {
+      path: "./font-files/orbitron-latin.woff2",
+      weight: "700 900",
+      style: "normal",
+    },
+  ],
   variable: "--font-orbitron",
-  weight: ["700", "800", "900"],
   display: "swap",
   fallback: ["system-ui", "Segoe UI", "sans-serif"],
 });
 
-export const rajdhani = Rajdhani({
-  subsets: ["latin"],
+export const rajdhani = localFont({
+  src: [
+    { path: "./font-files/rajdhani-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./font-files/rajdhani-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./font-files/rajdhani-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./font-files/rajdhani-700-normal.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-rajdhani",
-  weight: ["400", "500", "600", "700"],
   display: "swap",
   fallback: ["system-ui", "Segoe UI", "sans-serif"],
 });
 
-export const ibmPlexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
+export const ibmPlexSans = localFont({
+  src: [
+    {
+      path: "./font-files/ibm-plex-sans-latin.woff2",
+      weight: "400 700",
+      style: "normal",
+    },
+  ],
   variable: "--font-ibm-plex-sans",
-  weight: ["400", "500", "600", "700"],
   display: "swap",
   fallback: ["system-ui", "Segoe UI", "sans-serif"],
 });
 
-export const shareTechMono = Share_Tech_Mono({
-  subsets: ["latin"],
+export const shareTechMono = localFont({
+  src: [
+    {
+      path: "./font-files/share-tech-mono-400-normal.woff2",
+      weight: "400",
+      style: "normal",
+    },
+  ],
   variable: "--font-share-tech-mono",
-  weight: "400",
   display: "swap",
   fallback: ["ui-monospace", "Cascadia Code", "Consolas", "monospace"],
 });
 
 // Journal archive only. Applied on the journal layout, not the site root.
-export const barlowCondensed = Barlow_Condensed({
-  subsets: ["latin"],
+export const barlowCondensed = localFont({
+  src: [
+    { path: "./font-files/barlow-condensed-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./font-files/barlow-condensed-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./font-files/barlow-condensed-700-normal.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-journal-display",
-  weight: ["500", "600", "700"],
   display: "swap",
   fallback: ["Arial Narrow", "Segoe UI", "sans-serif"],
 });
 
-export const sourceSans3 = Source_Sans_3({
-  subsets: ["latin"],
+export const sourceSans3 = localFont({
+  src: [
+    {
+      path: "./font-files/source-sans-3-latin.woff2",
+      weight: "400 700",
+      style: "normal",
+    },
+    {
+      path: "./font-files/source-sans-3-latin-italic.woff2",
+      weight: "400 700",
+      style: "italic",
+    },
+  ],
   variable: "--font-journal-body",
-  weight: ["400", "600", "700"],
-  style: ["normal", "italic"],
   display: "swap",
   fallback: ["Segoe UI", "Helvetica Neue", "sans-serif"],
 });
