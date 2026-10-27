@@ -48,6 +48,12 @@ const PARAGRAPHS = [
     text: "Authorship isn't adequately measured by counting who generated the final words. The intellectual contribution and the prose composition are different kinds of work. I may not have personally composed every sentence in its final form, and sometimes the conversation itself leads to an idea or an argument I hadn't considered when I started. I don't need to deny that. I've read what appears here, considered it, and decided that it represents what I actually think. I author these essays, and I accept responsibility for their content, including correcting errors when they're brought to my attention.",
   },
   {
+    text: "Jaron Lanier has argued that what we call artificial intelligence might be better understood as a new form of human collaboration rather than an independent intelligence. I find that distinction compelling. These systems are built upon an extraordinary body of human knowledge, expression, and creativity. When I use one, I'm not consulting some independent mind that creates ideas out of nothing. I'm engaging with technology shaped by the contributions of countless people, bringing my own experiences, questions, imagination, and judgment into the process.",
+  },
+  {
+    text: "And that process can be creative in ways I hadn't anticipated. Sometimes I begin with an argument I've already developed and simply need help expressing it. Other times, the conversation leads me to connections I hadn't recognized, questions I hadn't considered, or entirely new ways of approaching an idea. I can challenge those suggestions, reject them, build upon them, or follow them somewhere unexpected. Creativity doesn't disappear because the process involves collaboration. If anything, the possibilities for exploration have expanded. The ideas I ultimately choose to express, the conclusions I reach, and the responsibility for what I publish remain mine.",
+  },
+  {
     text: "I'm also a software developer. My relationship with artificial intelligence extends well beyond asking a chatbot to write something for me. These technologies are directly changing my profession, the tools I build, and the skills that influence my ability to find employment. Understanding how to work effectively with AI is increasingly a professional necessity, and I intend to embrace that reality rather than pretend it isn't happening.",
   },
   {
@@ -66,7 +72,7 @@ const PARAGRAPHS = [
     text: "Without AI, there's a good chance I never would have written or shared much of anything. I have a family, a job, responsibilities, and a limited amount of time. I've had thoughts worth exploring for years, but turning those thoughts into something coherent enough to publish hasn't always been practical.",
   },
   {
-    text: 'Now I have a tool that makes it possible.',
+    text: 'Now I have a way to explore those thoughts, challenge them, develop them, and share them with the world.',
   },
   {
     text: 'Some people may wish I\'d continued keeping my opinions to myself. My grandpa used to say, "You can wish in one hand and shit in the other; see which one fills up first."',
