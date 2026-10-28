@@ -274,8 +274,8 @@ describe('Notion failures are not cached as empty collections', () => {
     vi.resetModules();
     const store = new Map<string, unknown>();
     vi.doMock('next/cache', () => cachingUnstableCache(store));
-    vi.doMock('@/lib/voices', () => ({
-      getVoicesFeed: async () => [
+    vi.doMock('@/lib/voices', () => {
+      const items = [
         {
           id: 'voice-1',
           title: 'Voice post',
@@ -284,9 +284,13 @@ describe('Notion failures are not cached as empty collections', () => {
           sourceType: 'voices',
           voice: { id: 'voice-a', slug: 'voice-a', title: 'Voice A' },
         },
-      ],
-      getVoicesFeedBySlug: async () => [],
-    }));
+      ];
+      return {
+        getVoicesFeed: async () => items,
+        getVoicesFeedBySlug: async () => [],
+        getVoicesArchive: async () => ({ items, report: null }),
+      };
+    });
     vi.doMock('@/lib/notion/videos.repo', () => ({
       getVideos: async () => {
         throw new Error('notion 503');
@@ -316,6 +320,6 @@ describe('Notion failures are not cached as empty collections', () => {
     const { getUnifiedArchivePage } = await import('@/lib/feeds/unifiedArchive.service');
     const page = await getUnifiedArchivePage(1, 20, {});
     expect(page.items.map((item: { id: string }) => item.id)).toEqual(['voice-1', 'song-1']);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v8'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v9'))).toBe(false);
   });
 });

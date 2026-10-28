@@ -99,7 +99,7 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
 
     const result = await fetchFeedItemsWithMeta(YT_CHANNEL_RSS, { sleep });
 
-    expect(result).toEqual({ items: [], ok: false, reason: 'http_404' });
+    expect(result).toMatchObject({ items: [], ok: false, reason: 'http_404', httpStatus: 404 });
     expect(fetchMock).toHaveBeenCalledTimes(1 + YOUTUBE_RSS_RETRY_DELAYS_MS.length);
     expect(sleep.mock.calls.map((args) => args[0])).toEqual([...YOUTUBE_RSS_RETRY_DELAYS_MS]);
     const retryLogs = warn.mock.calls.filter((args) => String(args[0]).includes('retrying'));
@@ -151,7 +151,7 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
 
     const result = await fetchFeedItemsWithMeta(NON_YT_RSS, { sleep, tags: ['theme-memory-feed'] });
 
-    expect(result).toEqual({ items: [], ok: false, reason: 'http_404' });
+    expect(result).toMatchObject({ items: [], ok: false, reason: 'http_404', httpStatus: 404 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
@@ -183,7 +183,7 @@ describe('fetchFeedItemsWithMeta YouTube RSS retries', () => {
     const emptyFeed = `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>`;
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(emptyFeed, { status: 200 })));
     const result = await fetchFeedItemsWithMeta(NON_YT_RSS, { sleep: mockSleep() });
-    expect(result).toEqual({ items: [], ok: true, reason: null });
+    expect(result).toMatchObject({ items: [], ok: true, reason: null, httpStatus: 200 });
   });
 
   it('serves the last good YouTube items without the retry delay when a snapshot exists', async () => {

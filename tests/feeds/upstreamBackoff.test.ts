@@ -173,7 +173,7 @@ describe('aggregate failure versus empty content', () => {
     const { configureSharedFailureCacheForTests: configure } = await import('@/lib/feeds/sharedFailureBackoff');
     configure(shared);
 
-    const { getHomepageVoicesPool, getVoicesFeed } = await import('@/lib/voices');
+    const { getHomepageVoicesPool } = await import('@/lib/voices');
     const first = await getHomepageVoicesPool();
     expect(first.map((item: { id: string }) => item.id)).toEqual(['post-1']);
     expect(calls.rss).toBe(1);
@@ -193,8 +193,17 @@ describe('aggregate failure versus empty content', () => {
     expect(calls.rss).toBe(2);
 
     clearLastKnownGoodForTests();
-    await expect(getVoicesFeed()).rejects.toMatchObject({ code: 'UPSTREAM_FAILED' });
-    expect([...store.keys()].some((key) => key.includes('archive-interleave'))).toBe(false);
+    const { getVoicesArchive } = await import('@/lib/voices');
+    const failedArchive = await getVoicesArchive();
+    expect(failedArchive.items).toEqual([]);
+    expect(failedArchive.report?.degraded).toBe(true);
+    expect(failedArchive.report?.empty).toEqual([]);
+    expect(failedArchive.report?.failed).toEqual(['voice-a']);
+    const fetchesAfterFailure = calls.rss;
+    const failedAgain = await getVoicesArchive();
+    expect(failedAgain.items).toEqual([]);
+    expect(calls.rss).toBe(fetchesAfterFailure);
+    expect([...store.keys()].some((key) => key.includes('archive-interleave'))).toBe(true);
   });
 
   it('preserves curated archive items when voices fail and does not cache the partial as complete', async () => {
@@ -218,6 +227,7 @@ describe('aggregate failure versus empty content', () => {
     vi.doMock('@/lib/voices', () => ({
       getVoicesFeed: voices,
       getVoicesFeedBySlug: voices,
+      getVoicesArchive: voices,
     }));
     vi.doMock('@/lib/notion/videos.repo', () => ({
       getVideos: async () => [
@@ -239,7 +249,7 @@ describe('aggregate failure versus empty content', () => {
     const { getUnifiedArchivePage } = await import('@/lib/feeds/unifiedArchive.service');
     const first = await getUnifiedArchivePage(1, 20, {});
     expect(first.items.map((item: { id: string }) => item.id)).toEqual(['curated-video-1']);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v8'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v9'))).toBe(false);
 
     clearProcessFailureMirrorForTests();
     const second = await getUnifiedArchivePage(1, 20, {});
@@ -253,8 +263,8 @@ describe('aggregate failure versus empty content', () => {
     vi.doMock('next/cache', () => ({
       unstable_cache: (cb: () => Promise<unknown>) => cb,
     }));
-    vi.doMock('@/lib/voices', () => ({
-      getVoicesFeed: async () => {
+    vi.doMock('@/lib/voices', () => {
+      const getVoicesFeed = async () => {
         if (fail) throw upstreamFailure('voices-archive');
         return [
           {
@@ -266,9 +276,13 @@ describe('aggregate failure versus empty content', () => {
             voice: { id: 'voice-a', slug: 'voice-a', title: 'Voice A' },
           },
         ];
-      },
-      getVoicesFeedBySlug: async () => [],
-    }));
+      };
+      return {
+        getVoicesFeed,
+        getVoicesFeedBySlug: async () => [],
+        getVoicesArchive: async () => ({ items: await getVoicesFeed(), report: null }),
+      };
+    });
     vi.doMock('@/lib/notion/videos.repo', () => ({ getVideos: async () => [] }));
     vi.doMock('@/lib/notion/protestMusic.repo', () => ({ getAllProtestSongs: async () => [] }));
     vi.doMock('@/lib/videoContent', () => ({

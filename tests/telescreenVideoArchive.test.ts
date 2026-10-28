@@ -209,9 +209,11 @@ describe('telescreen archive composition', () => {
       },
     }));
     if (overrides.getVoicesFeed || overrides.getVoicesFeedBySlug) {
+      const loadItems = overrides.getVoicesFeed || overrides.getVoicesFeedBySlug || (async () => []);
       vi.doMock('@/lib/voices', () => ({
         getVoicesFeed: overrides.getVoicesFeed || (async () => []),
         getVoicesFeedBySlug: overrides.getVoicesFeedBySlug || (async () => []),
+        getVoicesArchive: async () => ({ items: await loadItems(), report: null }),
       }));
     }
     vi.doMock('@/lib/notion/videos.repo', () => ({
@@ -298,7 +300,15 @@ describe('telescreen archive composition', () => {
       },
     }));
     vi.doMock('@/lib/notion/voices.repo', () => ({
-      getAllVoicesCached: async () => [],
+      getAllVoicesCached: async () => [
+        {
+          id: 'pakman',
+          slug: 'pakman',
+          title: 'Pakman',
+          platform: 'YouTube',
+          feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC123',
+        },
+      ],
       getVoiceBySlug: async () => ({
         id: 'pakman',
         slug: 'pakman',
@@ -307,8 +317,12 @@ describe('telescreen archive composition', () => {
         feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC123',
       }),
     }));
+    let fetchCalls = 0;
     vi.doMock('@/lib/feeds/rss', () => ({
-      fetchFeedItemsWithMeta: async () => ({ ok: false, reason: 'http_503', items: [] }),
+      fetchFeedItemsWithMeta: async () => {
+        fetchCalls += 1;
+        return { ok: false, reason: 'http_503', items: [], httpStatus: 503, durationMs: 40, feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC123' };
+      },
     }));
     vi.doMock('@/lib/notion/videos.repo', () => ({ getVideos: async () => [] }));
     vi.doMock('@/lib/notion/protestMusic.repo', () => ({ getAllProtestSongs: async () => [] }));
@@ -323,7 +337,10 @@ describe('telescreen archive composition', () => {
     expect(page.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
     expect(page.items).toEqual([]);
     expect(page.feedStatus).not.toBe(TELESCREEN_FEED_STATUS.empty);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v8'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v9'))).toBe(true);
+    const again = await getUnifiedArchivePage(1, 20, { sourceType: 'voices', voiceSlug: 'pakman' });
+    expect(again.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
+    expect(fetchCalls).toBe(1);
   });
 
   it('reports an invalid feed configuration without requesting the feed', async () => {
@@ -333,7 +350,15 @@ describe('telescreen archive composition', () => {
       unstable_cache: (cb: () => Promise<unknown>) => cb,
     }));
     vi.doMock('@/lib/notion/voices.repo', () => ({
-      getAllVoicesCached: async () => [],
+      getAllVoicesCached: async () => [
+        {
+          id: 'brennan',
+          slug: 'brennan-center',
+          title: 'Brennan Center',
+          platform: 'YouTube',
+          feedUrl: 'not a url',
+        },
+      ],
       getVoiceBySlug: async () => ({
         id: 'brennan',
         slug: 'brennan-center',
@@ -442,6 +467,7 @@ describe('creator feed retrieval and recovery', () => {
 
   async function loadCreatorPage(queue: Response[]) {
     vi.resetModules();
+    const store = new Map<string, unknown>();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -451,11 +477,29 @@ describe('creator feed retrieval and recovery', () => {
       }),
     );
     vi.doMock('next/cache', () => ({
-      unstable_cache: (cb: () => Promise<unknown>) => cb,
-      revalidateTag: async () => {},
+      unstable_cache: (cb: () => Promise<unknown>, keyParts: string[] = []) => {
+        const key = keyParts.join('|');
+        return async () => {
+          if (store.has(key)) return store.get(key);
+          const value = await cb();
+          store.set(key, value);
+          return value;
+        };
+      },
+      revalidateTag: async () => {
+        store.clear();
+      },
     }));
     vi.doMock('@/lib/notion/voices.repo', () => ({
-      getAllVoicesCached: async () => [],
+      getAllVoicesCached: async () => [
+        {
+          id: 'democracy-docket',
+          slug: 'democracy-docket',
+          title: 'Democracy Docket',
+          platform: 'YouTube',
+          feedUrl: DEMOCRACY_FEED,
+        },
+      ],
       getVoiceBySlug: async (slug: string) => ({
         id: 'democracy-docket',
         slug,
@@ -477,6 +521,7 @@ describe('creator feed retrieval and recovery', () => {
     const filters = { sourceType: 'voices', voiceSlug: 'democracy-docket' };
     return {
       fetchMock: globalThis.fetch as ReturnType<typeof vi.fn>,
+      store,
       page: (refresh = false) => getUnifiedArchivePage(1, 20, filters, { refresh }),
     };
   }
@@ -494,7 +539,7 @@ describe('creator feed retrieval and recovery', () => {
   });
 
   it('keeps the last good videos when YouTube later fails, and lets refresh try once', async () => {
-    const { fetchMock, page } = await loadCreatorPage([
+    const { fetchMock, page, store } = await loadCreatorPage([
       atomResponse(VIDEO_ATOM),
       atomResponse('missing', 404),
       atomResponse('missing', 503),
@@ -502,21 +547,26 @@ describe('creator feed retrieval and recovery', () => {
 
     const healthy = await page();
     expect(healthy.items.map((item: { title: string }) => item.title)).toEqual(['Voting rights hearing']);
-    const afterHealthy = fetchMock.mock.calls.length;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
+    const warm = await page();
+    expect(warm.items[0]?.url).toBe('https://www.youtube.com/watch?v=abcdefghijk');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    store.clear();
     const duringOutage = await page();
     expect(duringOutage.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
     expect(duringOutage.items[0]?.url).toBe('https://www.youtube.com/watch?v=abcdefghijk');
-    expect(fetchMock.mock.calls.length).toBe(afterHealthy + 1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const cooled = await page();
     expect(cooled.items).toHaveLength(1);
-    expect(fetchMock.mock.calls.length).toBe(afterHealthy + 1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const refreshed = await page(true);
     expect(refreshed.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
     expect(refreshed.items[0]?.url).toBe('https://www.youtube.com/watch?v=abcdefghijk');
-    expect(fetchMock.mock.calls.length).toBe(afterHealthy + 2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('reports a healthy empty feed separately from an unavailable feed', async () => {
@@ -525,26 +575,26 @@ describe('creator feed retrieval and recovery', () => {
     expect(emptyPage.feedStatus).toBe(TELESCREEN_FEED_STATUS.empty);
     expect(emptyPage.items).toEqual([]);
     expect(empty.fetchMock).toHaveBeenCalledTimes(1);
+    const emptyAgain = await empty.page();
+    expect(emptyAgain.feedStatus).toBe(TELESCREEN_FEED_STATUS.empty);
+    expect(empty.fetchMock).toHaveBeenCalledTimes(1);
 
-    const failed = await loadCreatorPage([
-      atomResponse('missing', 404),
-      atomResponse('missing', 500),
-      atomResponse('missing', 503),
-    ]);
+    const failed = await loadCreatorPage([atomResponse('missing', 404)]);
     const failedPage = await failed.page();
     expect(failedPage.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
     expect(failedPage.items).toEqual([]);
-    expect(failed.fetchMock).toHaveBeenCalledTimes(3);
+    expect(failed.fetchMock).toHaveBeenCalledTimes(1);
 
     const blocked = await failed.page();
     expect(blocked.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
-    expect(failed.fetchMock).toHaveBeenCalledTimes(3);
-  }, 20000);
+    expect(failed.fetchMock).toHaveBeenCalledTimes(1);
+  });
 
   it('does not let a healthy empty response resurrect the previous videos', async () => {
-    const { page } = await loadCreatorPage([atomResponse(VIDEO_ATOM), atomResponse(EMPTY_ATOM)]);
+    const { page, store } = await loadCreatorPage([atomResponse(VIDEO_ATOM), atomResponse(EMPTY_ATOM)]);
     const first = await page();
     expect(first.items).toHaveLength(1);
+    store.clear();
     const second = await page();
     expect(second.feedStatus).toBe(TELESCREEN_FEED_STATUS.empty);
     expect(second.items).toEqual([]);
@@ -555,7 +605,7 @@ describe('creator feed retrieval and recovery', () => {
       'Voting rights hearing',
       'Newer hearing',
     );
-    const { page } = await loadCreatorPage([
+    const { page, store } = await loadCreatorPage([
       atomResponse(VIDEO_ATOM),
       atomResponse('missing', 404),
       atomResponse(newer),
@@ -563,6 +613,7 @@ describe('creator feed retrieval and recovery', () => {
 
     const healthy = await page();
     expect(healthy.items[0]?.title).toBe('Voting rights hearing');
+    store.clear();
     const duringOutage = await page();
     expect(duringOutage.items[0]?.title).toBe('Voting rights hearing');
 
@@ -588,7 +639,10 @@ describe('creator rotation and partial feed recovery', () => {
     store,
   }: {
     voices: Array<{ id: string; slug: string; title: string; feedUrl: string }>;
-    fetchFeed: (url: string) => Promise<{ ok: boolean; reason: string | null; items: unknown[]; stale?: boolean }>;
+    fetchFeed: (
+      url: string,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{ ok: boolean; reason: string | null; items: unknown[]; stale?: boolean }>;
     store: Map<string, unknown>;
   }) {
     vi.resetModules();
@@ -602,14 +656,16 @@ describe('creator rotation and partial feed recovery', () => {
           return value;
         };
       },
-      revalidateTag: async () => {},
+      revalidateTag: async () => {
+        store.clear();
+      },
     }));
     vi.doMock('@/lib/notion/voices.repo', () => ({
       getAllVoicesCached: async () => voices,
       getVoiceBySlug: async (slug: string) => voices.find((voice) => voice.slug === String(slug).toLowerCase()) ?? null,
     }));
     vi.doMock('@/lib/feeds/rss', () => ({
-      fetchFeedItemsWithMeta: async (url: string) => fetchFeed(url),
+      fetchFeedItemsWithMeta: async (url: string, options?: { signal?: AbortSignal }) => fetchFeed(url, options),
     }));
     vi.doMock('@/lib/notion/videos.repo', () => ({
       getVideos: async () => {
@@ -730,7 +786,13 @@ describe('creator rotation and partial feed recovery', () => {
     expect(duringIds.get('democracy-docket')).toBe('n0000000000');
     expect(duringIds.get('creator-15')).toBe('v0000000015');
     expect(duringIds.size).toBe(16);
-    expect([...store.keys()].some((key) => key.includes('archive-interleave') || key.startsWith('unified-archive-v8'))).toBe(false);
+    const archived = [...store.entries()].find(([key]) => key.includes('archive-interleave'))?.[1] as {
+      report?: { degraded?: boolean; fresh?: string[]; retained?: string[] };
+    };
+    expect(archived?.report?.degraded).toBe(true);
+    expect(archived?.report?.fresh).toEqual(['democracy-docket']);
+    expect(archived?.report?.retained).toHaveLength(15);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v9'))).toBe(true);
     const health = warn.mock.calls.map((args) => args[1]).find((entry) => entry && Array.isArray(entry.retained));
     expect(health.fresh).toEqual(['democracy-docket']);
     expect(health.retained).toHaveLength(15);
@@ -745,6 +807,7 @@ describe('creator rotation and partial feed recovery', () => {
     expect(filtered.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
     expect(filtered.items.map((item: { id: string; voice: { slug: string } }) => item.voice.slug)).toEqual(['creator-4']);
     expect(filtered.items[0]?.id).toBe('v0000000004');
+    expect(calls).toHaveLength(callsAfterPartial);
 
     phase = 'recovered';
     const refreshed = await page(1, 20, { sourceType: 'voices' }, true);
@@ -790,7 +853,7 @@ describe('creator rotation and partial feed recovery', () => {
     expect(mixed.feedStatus).not.toBe(TELESCREEN_FEED_STATUS.invalid);
     expect(mixed.items.map((item: { id: string }) => item.id)).toEqual(['d0000000001']);
     expect(mixed.unavailableVoiceSlugs).toEqual(['essay-desk']);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v8'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v9'))).toBe(true);
 
     const failedCreator = await page(1, 9, { sourceType: 'voices', voiceSlug: 'essay-desk' });
     expect(failedCreator.feedStatus).toBe(TELESCREEN_FEED_STATUS.invalid);
@@ -815,4 +878,61 @@ describe('creator rotation and partial feed recovery', () => {
     expect(emptyPage.items).toEqual([]);
     expect(emptyPage.feedStatus).not.toBe(TELESCREEN_FEED_STATUS.unavailable);
   });
+
+  it('stops a cold archive at the request budget and does not repeat that wait', async () => {
+    const store = new Map<string, unknown>();
+    let calls = 0;
+    const { page } = await loadVoicesArchive({
+      store,
+      voices: [
+        {
+          id: 'david-pakman',
+          slug: 'david-pakman',
+          title: 'David Pakman',
+          feedUrl: 'https://feeds.test/david-pakman',
+        },
+        {
+          id: 'democracy-docket',
+          slug: 'democracy-docket',
+          title: 'Democracy Docket',
+          feedUrl: 'https://feeds.test/democracy-docket',
+        },
+      ],
+      fetchFeed: async (url: string, options?: { signal?: AbortSignal }) => {
+        calls += 1;
+        if (url.endsWith('/david-pakman')) {
+          return {
+            ok: true,
+            reason: null,
+            httpStatus: 200,
+            durationMs: 30,
+            items: [video('p0000000001', '2026-10-20T00:00:00.000Z')],
+          };
+        }
+        await new Promise<void>((resolve) => {
+          const signal = options?.signal;
+          if (signal?.aborted) {
+            resolve();
+            return;
+          }
+          signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return { ok: false, reason: 'request_budget', httpStatus: null, durationMs: 2500, items: [] };
+      },
+    });
+
+    const started = Date.now();
+    const cold = await page(1, 9);
+    const elapsed = Date.now() - started;
+    expect(elapsed).toBeLessThan(4000);
+    expect(cold.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(cold.items.map((item: { id: string }) => item.id)).toEqual(['p0000000001']);
+    expect(cold.unavailableVoiceSlugs).toEqual(['democracy-docket']);
+    expect(calls).toBe(2);
+
+    const warm = await page(1, 9);
+    expect(warm.items.map((item: { id: string }) => item.id)).toEqual(['p0000000001']);
+    expect(calls).toBe(2);
+    expect([...store.keys()].some((key) => key.includes('archive-interleave'))).toBe(true);
+  }, 10000);
 });

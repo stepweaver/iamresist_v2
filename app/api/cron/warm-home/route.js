@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 import { getHomeLiveBriefing } from '@/lib/feeds/homepageBriefing.service';
 import { getRecentProtestMusicItems } from '@/lib/feeds/protestMusicFeed.service';
+import { refreshVoicesArchiveCache } from '@/lib/voices';
 import { assertCronAuthorized } from '@/lib/ops/cronAuth';
 import { timeAsync } from '@/lib/ops/perfTiming';
 
@@ -23,6 +24,8 @@ const WARM_TARGETS = [
   { id: 'homepage-intel', run: () => getHomepageIntelFeed() },
   { id: 'live-briefing', run: () => getHomeLiveBriefing() },
   { id: 'protest-music', run: () => getRecentProtestMusicItems() },
+  // Awaited on purpose. A page request must not start this refresh in the background.
+  { id: 'voices-archive', run: () => refreshVoicesArchiveCache() },
 ];
 
 function safeErrorMessage(err) {
