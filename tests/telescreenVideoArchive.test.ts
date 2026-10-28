@@ -159,6 +159,11 @@ describe('telescreen voice dropdown', () => {
     expect(listed.map((voice) => voice.slug)).toContain('brennan-center');
     expect(listed.map((voice) => voice.slug)).toContain('pakman');
   });
+
+  it('keeps a creator whose feed failed even when the source URL is not a video host', () => {
+    const listed = selectTelescreenVoices(voices, { unavailableSlugs: ['brennan-center'] });
+    expect(listed.map((voice) => voice.slug)).toEqual(['pakman', 'brennan-center']);
+  });
 });
 
 describe('telescreen collection status', () => {
@@ -225,56 +230,46 @@ describe('telescreen archive composition', () => {
     return getUnifiedArchivePage(overrides.page || 1, overrides.limit || 20, overrides.filters || { sourceType: 'voices' });
   }
 
-  it('paginates a mixed feed from verified videos only', async () => {
-    const articles = [1, 2, 3].map((day) => ({
-      id: `article-${day}`,
+  it('paginates verified videos in the creator feed order', async () => {
+    const article = {
+      id: 'article-new',
       title: 'Watch this live video',
-      url: `https://brennancenter.substack.com/p/briefing-${day}`,
-      publishedAt: `2026-10-2${day}T00:00:00.000Z`,
+      url: 'https://brennancenter.substack.com/p/briefing-new',
+      publishedAt: '2026-10-21T00:00:00.000Z',
       image: 'https://cdn.example.com/hero.jpg',
       description: '<iframe src="https://www.youtube.com/embed/abcdefghijk"></iframe>',
       voice: { platform: 'YouTube', slug: 'brennan-center', title: 'Brennan Center' },
       media: [{ url: 'https://cdn.example.com/hero.jpg', type: 'image/jpeg', medium: 'image' }],
+    };
+    const balanced = [
+      { id: 'd1', slug: 'democracy-docket', day: '20' },
+      { id: 'p1', slug: 'pakman', day: '10' },
+      { id: 'm1', slug: 'meidas', day: '08' },
+      { id: 'd2', slug: 'democracy-docket', day: '19' },
+      { id: 'p2', slug: 'pakman', day: '09' },
+      { id: 'm2', slug: 'meidas', day: '07' },
+    ].map((video) => ({
+      id: video.id,
+      title: video.id,
+      url: `https://www.youtube.com/watch?v=${video.id.padEnd(11, 'x')}`,
+      publishedAt: `2026-10-${video.day}T00:00:00.000Z`,
+      voice: { id: video.slug, slug: video.slug, title: video.slug },
     }));
-    const videos = Array.from({ length: 12 }, (_, index) => {
-      const number = index + 1;
-      return {
-        id: `video-${number}`,
-        title: `Clip ${number}`,
-        url: `https://www.youtube.com/watch?v=${String(number).padStart(11, 'a')}`,
-        publishedAt: `2026-09-${String(number).padStart(2, '0')}T00:00:00.000Z`,
-        voice: { slug: number % 2 === 0 ? 'pakman' : 'embedded', title: 'Creator', platform: 'Feed' },
-      };
-    });
 
-    const feed = async () => [...articles, ...videos];
-    const first = await pageWith({ page: 1, limit: 5, getVoicesFeed: feed });
-    expect(first.total).toBe(12);
+    const feed = async () => [article, ...balanced];
+    const first = await pageWith({ page: 1, limit: 3, getVoicesFeed: feed });
+    expect(first.total).toBe(6);
     expect(first.hasMore).toBe(true);
     expect(first.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
-    expect(first.items.map((item: { id: string }) => item.id)).toEqual([
-      'video-12',
-      'video-11',
-      'video-10',
-      'video-9',
-      'video-8',
-    ]);
+    // Date order would put d1, d2 first. The feed's round-robin order stays intact.
+    expect(first.items.map((item: { id: string }) => item.id)).toEqual(['d1', 'p1', 'm1']);
+    expect(new Set(first.videoVoiceSlugs)).toEqual(new Set(['democracy-docket', 'pakman', 'meidas']));
 
-    const second = await pageWith({ page: 2, limit: 5, getVoicesFeed: feed });
-    expect(second.hasMore).toBe(true);
-    expect(second.items.map((item: { id: string }) => item.id)).toEqual([
-      'video-7',
-      'video-6',
-      'video-5',
-      'video-4',
-      'video-3',
-    ]);
-
-    const third = await pageWith({ page: 3, limit: 5, getVoicesFeed: feed });
-    expect(third.hasMore).toBe(false);
-    expect(third.total).toBe(12);
-    expect(third.items.map((item: { id: string }) => item.id)).toEqual(['video-2', 'video-1']);
-    expect(new Set(first.videoVoiceSlugs)).toEqual(new Set(['pakman', 'embedded']));
+    const second = await pageWith({ page: 2, limit: 3, getVoicesFeed: feed });
+    expect(second.hasMore).toBe(false);
+    expect(second.items.map((item: { id: string }) => item.id)).toEqual(['d2', 'p2', 'm2']);
+    const seen = new Set(first.items.map((item: { id: string }) => item.id));
+    expect(second.items.some((item: { id: string }) => seen.has(item.id))).toBe(false);
   });
 
   it('reports a creator feed of only articles as no videos', async () => {
@@ -328,7 +323,7 @@ describe('telescreen archive composition', () => {
     expect(page.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
     expect(page.items).toEqual([]);
     expect(page.feedStatus).not.toBe(TELESCREEN_FEED_STATUS.empty);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v7'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v8'))).toBe(false);
   });
 
   it('reports an invalid feed configuration without requesting the feed', async () => {
@@ -400,6 +395,27 @@ describe('telescreen archive composition', () => {
       ],
     });
     expect(curated.items.map((item: { id: string }) => item.id)).toEqual(['curated-clip-1']);
+
+    const promoted = await pageWith({
+      filters: { sourceType: 'curated-videos' },
+      getVideos: async () => [
+        {
+          id: 'old-clip',
+          title: 'Older curated clip',
+          url: 'https://www.youtube.com/watch?v=oldcurated1',
+          platform: 'YouTube',
+          createdTime: '2024-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'new-clip',
+          title: 'Fresh curated clip',
+          url: 'https://www.youtube.com/watch?v=newcurated1',
+          platform: 'YouTube',
+          createdTime: new Date().toISOString(),
+        },
+      ],
+    });
+    expect(promoted.items.map((item: { id: string }) => item.id)).toEqual(['curated-new-clip', 'curated-old-clip']);
   });
 });
 
@@ -510,16 +526,20 @@ describe('creator feed retrieval and recovery', () => {
     expect(emptyPage.items).toEqual([]);
     expect(empty.fetchMock).toHaveBeenCalledTimes(1);
 
-    const failed = await loadCreatorPage([atomResponse('missing', 404), atomResponse('missing', 500)]);
+    const failed = await loadCreatorPage([
+      atomResponse('missing', 404),
+      atomResponse('missing', 500),
+      atomResponse('missing', 503),
+    ]);
     const failedPage = await failed.page();
     expect(failedPage.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
     expect(failedPage.items).toEqual([]);
-    expect(failed.fetchMock).toHaveBeenCalledTimes(2);
+    expect(failed.fetchMock).toHaveBeenCalledTimes(3);
 
     const blocked = await failed.page();
     expect(blocked.feedStatus).toBe(TELESCREEN_FEED_STATUS.unavailable);
-    expect(failed.fetchMock).toHaveBeenCalledTimes(2);
-  });
+    expect(failed.fetchMock).toHaveBeenCalledTimes(3);
+  }, 20000);
 
   it('does not let a healthy empty response resurrect the previous videos', async () => {
     const { page } = await loadCreatorPage([atomResponse(VIDEO_ATOM), atomResponse(EMPTY_ATOM)]);
@@ -528,5 +548,271 @@ describe('creator feed retrieval and recovery', () => {
     const second = await page();
     expect(second.feedStatus).toBe(TELESCREEN_FEED_STATUS.empty);
     expect(second.items).toEqual([]);
+  });
+
+  it('replaces a stale snapshot when refresh reaches a newer video', async () => {
+    const newer = VIDEO_ATOM.replaceAll('abcdefghijk', 'bbbdefghijk').replaceAll(
+      'Voting rights hearing',
+      'Newer hearing',
+    );
+    const { page } = await loadCreatorPage([
+      atomResponse(VIDEO_ATOM),
+      atomResponse('missing', 404),
+      atomResponse(newer),
+    ]);
+
+    const healthy = await page();
+    expect(healthy.items[0]?.title).toBe('Voting rights hearing');
+    const duringOutage = await page();
+    expect(duringOutage.items[0]?.title).toBe('Voting rights hearing');
+
+    const recovered = await page(true);
+    expect(recovered.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(recovered.items.map((item: { title: string }) => item.title)).toEqual(['Newer hearing']);
+    expect(recovered.items[0]?.url).toBe('https://www.youtube.com/watch?v=bbbdefghijk');
+  });
+});
+
+describe('creator rotation and partial feed recovery', () => {
+  function watchUrl(id: string) {
+    return `https://www.youtube.com/watch?v=${id}`;
+  }
+
+  function video(id: string, publishedAt: string) {
+    return { id, title: id, url: watchUrl(id), publishedAt };
+  }
+
+  async function loadVoicesArchive({
+    voices,
+    fetchFeed,
+    store,
+  }: {
+    voices: Array<{ id: string; slug: string; title: string; feedUrl: string }>;
+    fetchFeed: (url: string) => Promise<{ ok: boolean; reason: string | null; items: unknown[]; stale?: boolean }>;
+    store: Map<string, unknown>;
+  }) {
+    vi.resetModules();
+    vi.doMock('next/cache', () => ({
+      unstable_cache: (cb: () => Promise<unknown>, keyParts: string[] = []) => {
+        const key = keyParts.join('|');
+        return async () => {
+          if (store.has(key)) return store.get(key);
+          const value = await cb();
+          store.set(key, value);
+          return value;
+        };
+      },
+      revalidateTag: async () => {},
+    }));
+    vi.doMock('@/lib/notion/voices.repo', () => ({
+      getAllVoicesCached: async () => voices,
+      getVoiceBySlug: async (slug: string) => voices.find((voice) => voice.slug === String(slug).toLowerCase()) ?? null,
+    }));
+    vi.doMock('@/lib/feeds/rss', () => ({
+      fetchFeedItemsWithMeta: async (url: string) => fetchFeed(url),
+    }));
+    vi.doMock('@/lib/notion/videos.repo', () => ({
+      getVideos: async () => {
+        throw new Error('curated videos should stay out of the voices archive');
+      },
+    }));
+    vi.doMock('@/lib/notion/protestMusic.repo', () => ({
+      getAllProtestSongs: async () => {
+        throw new Error('protest music should stay out of the voices archive');
+      },
+    }));
+    vi.doMock('@/lib/videoContent', () => ({
+      getCachedDescription: async () => '',
+      EDITORIAL_SIGNATURE: 'sig',
+    }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const backoff = await import('@/lib/feeds/sharedFailureBackoff');
+    backoff.configureSharedFailureCacheForTests(backoff.createSharedFailureMemory());
+    const { getUnifiedArchivePage } = await import('@/lib/feeds/unifiedArchive.service');
+    return {
+      warn,
+      page: (page = 1, limit = 9, filters: Record<string, string> = { sourceType: 'voices' }, refresh = false) =>
+        getUnifiedArchivePage(page, limit, filters, { refresh }),
+    };
+  }
+
+  it('rotates the first page across creators before anyone second video', async () => {
+    const creators = [
+      {
+        slug: 'democracy-docket',
+        videos: [
+          video('d0000000001', '2026-10-20T00:00:00.000Z'),
+          video('d0000000002', '2026-10-19T00:00:00.000Z'),
+          video('d0000000003', '2026-10-18T00:00:00.000Z'),
+          video('d0000000004', '2026-10-17T00:00:00.000Z'),
+        ],
+      },
+      {
+        slug: 'david-pakman',
+        videos: [video('p0000000001', '2026-10-10T00:00:00.000Z'), video('p0000000002', '2026-10-09T00:00:00.000Z')],
+      },
+      {
+        slug: 'meidastouch',
+        videos: [video('m0000000001', '2026-10-08T00:00:00.000Z'), video('m0000000002', '2026-10-07T00:00:00.000Z')],
+      },
+    ];
+    const calls: string[] = [];
+    const { page } = await loadVoicesArchive({
+      store: new Map(),
+      voices: creators.map((creator) => ({
+        id: creator.slug,
+        slug: creator.slug,
+        title: creator.slug,
+        feedUrl: `https://feeds.test/${creator.slug}`,
+      })),
+      fetchFeed: async (url: string) => {
+        calls.push(url);
+        const creator = creators.find((entry) => url.includes(entry.slug));
+        return { ok: true, reason: null, items: [...(creator?.videos || [])].reverse() };
+      },
+    });
+
+    const first = await page(1, 3);
+    expect(first.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(first.items.map((item: { id: string }) => item.id)).toEqual(['d0000000001', 'p0000000001', 'm0000000001']);
+    expect(new Set(first.items.map((item: { voice: { slug: string } }) => item.voice.slug)).size).toBe(3);
+
+    const second = await page(2, 3);
+    expect(second.items.map((item: { id: string }) => item.id)).toEqual(['d0000000002', 'p0000000002', 'm0000000002']);
+    const seen = new Set(first.items.map((item: { id: string }) => item.id));
+    expect(second.items.some((item: { id: string }) => seen.has(item.id))).toBe(false);
+    expect(calls).toHaveLength(3);
+
+    const pakman = await page(1, 9, { sourceType: 'voices', voiceSlug: 'david-pakman' });
+    expect(pakman.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(pakman.items.map((item: { id: string; voice: { slug: string } }) => [item.voice.slug, item.id])).toEqual([
+      ['david-pakman', 'p0000000001'],
+      ['david-pakman', 'p0000000002'],
+    ]);
+  });
+
+  it('keeps cached videos from failed creators and does not cache that mix as healthy', async () => {
+    const slugs = ['democracy-docket', ...Array.from({ length: 15 }, (_, index) => `creator-${index + 1}`)];
+    const calls: string[] = [];
+    let phase: 'healthy' | 'partial' | 'recovered' = 'healthy';
+    const store = new Map<string, unknown>();
+    const { page, warn } = await loadVoicesArchive({
+      store,
+      voices: slugs.map((slug) => ({
+        id: slug,
+        slug,
+        title: slug,
+        feedUrl: `https://feeds.test/${slug}`,
+      })),
+      fetchFeed: async (url: string) => {
+        const slug = slugs.find((entry) => url.endsWith(`/${entry}`));
+        calls.push(`${phase}:${slug}`);
+        const oldId = `v${String(slugs.indexOf(slug || '')).padStart(10, '0')}`;
+        const newId = `n${String(slugs.indexOf(slug || '')).padStart(10, '0')}`;
+        if (phase === 'partial' && slug !== 'democracy-docket') {
+          return { ok: false, reason: 'http_503', items: [] };
+        }
+        const id = phase === 'healthy' ? oldId : newId;
+        const publishedAt = phase === 'healthy' ? '2026-10-01T00:00:00.000Z' : '2026-10-25T00:00:00.000Z';
+        return { ok: true, reason: null, items: [video(id, publishedAt)] };
+      },
+    });
+
+    const healthy = await page(1, 20);
+    expect(new Set(healthy.items.map((item: { voice: { slug: string } }) => item.voice.slug)).size).toBe(16);
+    store.clear();
+
+    phase = 'partial';
+    const during = await page(1, 20);
+    expect(during.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(during.feedStatus).not.toBe(TELESCREEN_FEED_STATUS.empty);
+    const duringIds = new Map(during.items.map((item: { voice: { slug: string }; id: string }) => [item.voice.slug, item.id]));
+    expect(duringIds.get('democracy-docket')).toBe('n0000000000');
+    expect(duringIds.get('creator-15')).toBe('v0000000015');
+    expect(duringIds.size).toBe(16);
+    expect([...store.keys()].some((key) => key.includes('archive-interleave') || key.startsWith('unified-archive-v8'))).toBe(false);
+    const health = warn.mock.calls.map((args) => args[1]).find((entry) => entry && Array.isArray(entry.retained));
+    expect(health.fresh).toEqual(['democracy-docket']);
+    expect(health.retained).toHaveLength(15);
+    expect(health.failed).toEqual([]);
+
+    const callsAfterPartial = calls.length;
+    const cooled = await page(1, 20);
+    expect(cooled.items).toHaveLength(16);
+    expect(calls).toHaveLength(callsAfterPartial);
+
+    const filtered = await page(1, 9, { sourceType: 'voices', voiceSlug: 'creator-4' });
+    expect(filtered.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(filtered.items.map((item: { id: string; voice: { slug: string } }) => item.voice.slug)).toEqual(['creator-4']);
+    expect(filtered.items[0]?.id).toBe('v0000000004');
+
+    phase = 'recovered';
+    const refreshed = await page(1, 20, { sourceType: 'voices' }, true);
+    expect(refreshed.items.map((item: { id: string }) => item.id).sort()).toEqual(
+      slugs.map((_, index) => `n${String(index).padStart(10, '0')}`).sort(),
+    );
+    const restored = await page(1, 20);
+    expect(restored.items.some((item: { id: string }) => item.id.startsWith('v'))).toBe(false);
+    expect([...store.keys()].some((key) => key.includes('archive-interleave'))).toBe(true);
+  });
+
+  it('distinguishes an empty creator from a failed one and keeps the failure selectable', async () => {
+    const store = new Map<string, unknown>();
+    const { page } = await loadVoicesArchive({
+      store,
+      voices: [
+        {
+          id: 'democracy-docket',
+          slug: 'democracy-docket',
+          title: 'Democracy Docket',
+          feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCdemocracy000000000000',
+        },
+        {
+          id: 'essay-desk',
+          slug: 'essay-desk',
+          title: 'Essay Desk',
+          feedUrl: 'https://essay.example/feed',
+        },
+      ],
+      fetchFeed: async (url: string) => {
+        if (url.includes('essay.example')) return { ok: false, reason: 'html_body', items: [] };
+        if (url.includes('empty-channel')) return { ok: true, reason: null, items: [] };
+        return {
+          ok: true,
+          reason: null,
+          items: [video('d0000000001', '2026-10-20T00:00:00.000Z')],
+        };
+      },
+    });
+
+    const mixed = await page(1, 9);
+    expect(mixed.feedStatus).toBe(TELESCREEN_FEED_STATUS.ok);
+    expect(mixed.feedStatus).not.toBe(TELESCREEN_FEED_STATUS.invalid);
+    expect(mixed.items.map((item: { id: string }) => item.id)).toEqual(['d0000000001']);
+    expect(mixed.unavailableVoiceSlugs).toEqual(['essay-desk']);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v8'))).toBe(false);
+
+    const failedCreator = await page(1, 9, { sourceType: 'voices', voiceSlug: 'essay-desk' });
+    expect(failedCreator.feedStatus).toBe(TELESCREEN_FEED_STATUS.invalid);
+    expect(failedCreator.feedStatus).not.toBe(TELESCREEN_FEED_STATUS.empty);
+    expect(failedCreator.items).toEqual([]);
+
+    const emptyStore = new Map<string, unknown>();
+    const empty = await loadVoicesArchive({
+      store: emptyStore,
+      voices: [
+        {
+          id: 'empty-channel',
+          slug: 'empty-channel',
+          title: 'Empty Channel',
+          feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCempty0000000000000000',
+        },
+      ],
+      fetchFeed: async () => ({ ok: true, reason: null, items: [] }),
+    });
+    const emptyPage = await empty.page(1, 9, { sourceType: 'voices', voiceSlug: 'empty-channel' });
+    expect(emptyPage.feedStatus).toBe(TELESCREEN_FEED_STATUS.empty);
+    expect(emptyPage.items).toEqual([]);
+    expect(emptyPage.feedStatus).not.toBe(TELESCREEN_FEED_STATUS.unavailable);
   });
 });

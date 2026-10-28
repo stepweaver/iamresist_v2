@@ -29,6 +29,7 @@ export default async function VoicesArchiveContent({
 
   const voices = selectTelescreenVoices(deps.voices, {
     videoSlugs: deps.archive.videoVoiceSlugs,
+    unavailableSlugs: deps.archive.unavailableVoiceSlugs,
     selectedSlug: currentVoice,
   }).sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
   const { items, hasMore } = deps.archive;

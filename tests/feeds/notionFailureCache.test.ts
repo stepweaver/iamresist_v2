@@ -316,6 +316,6 @@ describe('Notion failures are not cached as empty collections', () => {
     const { getUnifiedArchivePage } = await import('@/lib/feeds/unifiedArchive.service');
     const page = await getUnifiedArchivePage(1, 20, {});
     expect(page.items.map((item: { id: string }) => item.id)).toEqual(['voice-1', 'song-1']);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v7'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v8'))).toBe(false);
   });
 });

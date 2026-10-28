@@ -36,6 +36,7 @@ export async function GET(request) {
         total: 0,
         feedStatus: TELESCREEN_FEED_STATUS.unavailable,
         videoVoiceSlugs: [],
+        unavailableVoiceSlugs: [],
       },
       { status: 500 },
     );

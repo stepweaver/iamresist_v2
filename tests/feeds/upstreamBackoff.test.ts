@@ -239,7 +239,7 @@ describe('aggregate failure versus empty content', () => {
     const { getUnifiedArchivePage } = await import('@/lib/feeds/unifiedArchive.service');
     const first = await getUnifiedArchivePage(1, 20, {});
     expect(first.items.map((item: { id: string }) => item.id)).toEqual(['curated-video-1']);
-    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v7'))).toBe(false);
+    expect([...store.keys()].some((key) => key.startsWith('unified-archive-v8'))).toBe(false);
 
     clearProcessFailureMirrorForTests();
     const second = await getUnifiedArchivePage(1, 20, {});
