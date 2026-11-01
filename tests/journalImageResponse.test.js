@@ -105,6 +105,26 @@ describe('journal image endpoint', () => {
     );
     expect(svg).toBeNull();
 
+    const scripted = await proxyNotionEditorialFile(
+      NOTION_FILE,
+      async () =>
+        imageResponse(
+          new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+          { type: 'image/svg+xml' },
+        ),
+    );
+    expect(scripted).toBeNull();
+
+    const remote = await proxyNotionEditorialFile(
+      NOTION_FILE,
+      async () =>
+        imageResponse(
+          new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.example/x.png"/></svg>'),
+          { type: 'image/svg+xml' },
+        ),
+    );
+    expect(remote).toBeNull();
+
     const mismatch = await proxyNotionEditorialFile(
       NOTION_FILE,
       async () => imageResponse(new TextEncoder().encode('not-an-image!!'), { type: 'image/png' }),
@@ -116,5 +136,21 @@ describe('journal image endpoint', () => {
       async () => imageResponse(PNG, { contentLength: 9 * 1024 * 1024 }),
     );
     expect(oversized).toBeNull();
+  });
+
+  it('serves a script-free Notion SVG with a locked content policy', async () => {
+    const chart = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1820"><rect width="10" height="10" fill="url(#bg)"/></svg>',
+    );
+    const response = await createJournalImageResponse({
+      editorial: { hosting: 'notion-file', url: NOTION_FILE },
+      requestUrl: 'https://www.iamresist.org/journal/essay/image',
+      fetchImpl: async () => imageResponse(chart, { type: 'image/svg+xml' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/svg+xml');
+    expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
+    expect(await response.text()).toContain('<svg');
   });
 });

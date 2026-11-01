@@ -138,7 +138,7 @@ function RecentEssayLink({ entry }) {
     <li>
       <Link
         href={href}
-        className="group flex min-h-11 items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.04]"
+        className="group flex min-h-11 flex-col gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.04]"
       >
         {entry.image?.src ? (
           <img
@@ -147,7 +147,7 @@ function RecentEssayLink({ entry }) {
             width={entry.image.width || undefined}
             height={entry.image.height || undefined}
             decoding="async"
-            className="h-14 w-14 shrink-0 border border-border object-cover"
+            className="h-auto max-h-[28rem] w-auto max-w-full self-start border border-border bg-foreground/[0.03] object-contain object-left-top"
           />
         ) : null}
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
