@@ -6,6 +6,7 @@ import {
   formatCuratedResourcePage,
   publishedFilterForProperties,
   selectCuratedResources,
+  selectHomepageCuratedArticles,
 } from '@/lib/curated/resources';
 
 const { Children, isValidElement } = React;
@@ -31,6 +32,10 @@ function page(overrides = {}) {
       Status: { type: 'status', status: { name: 'Published' } },
       'Editorial Note': { type: 'rich_text', rich_text: [{ plain_text: 'A voting guide from the creator.' }] },
       'Resource Type': { type: 'select', select: { name: 'Guide' } },
+      Slug: {
+        type: 'rich_text',
+        rich_text: [{ plain_text: 'david-pakman-2026-midterm-election-guide' }],
+      },
       Featured: { type: 'checkbox', checkbox: true },
       'Published At': { type: 'date', date: { start: '2026-10-20' } },
       'Hero Image': {
@@ -81,7 +86,10 @@ describe('curated resource publication', () => {
     expect(resource.featured).toBe(true);
     expect(resource.published).toBe(true);
     expect(resource.publishedAt).toBe('2026-10-20');
-    expect(resource.image?.src).toBe('/resources/image/40abc620-4ba0-81bc-8c15-d2e03b3c9283');
+    expect(resource.path).toBe('/curated/articles/david-pakman-2026-midterm-election-guide');
+    expect(resource.contentType).toBe('curated-article');
+    expect(resource.image?.src).toBe('/curated/articles/david-pakman-2026-midterm-election-guide/image');
+    expect(resource.image?.src).not.toMatch(/X-Amz|prod-files-secure/);
     expect(resource.heroImage).toBeNull();
   });
 
@@ -102,6 +110,57 @@ describe('curated resource publication', () => {
     );
     expect(resource.image).toBeNull();
     expect(resource.url).toBe('https://www.davidpakman.com/signup?ref=iamresist');
+  });
+
+  it('publishes a guide when the hero image and publication date are empty', () => {
+    const resource = formatCuratedResourcePage(
+      page({
+        'Hero Image': { type: 'files', files: [] },
+        'Published At': { type: 'date', date: null },
+      }),
+    );
+    expect(resource.publishedAt).toBeNull();
+    expect(resource.image).toBeNull();
+    expect(selectCuratedResources([resource])).toHaveLength(1);
+    expect(selectHomepageCuratedArticles([resource]).map((item) => item.slug)).toEqual([
+      'david-pakman-2026-midterm-election-guide',
+    ]);
+  });
+
+  it('keeps a featured article ahead of a newer unfeatured article', () => {
+    const featured = formatCuratedResourcePage(
+      page({
+        'Published At': { type: 'date', date: null },
+      }),
+    );
+    const newer = formatCuratedResourcePage({
+      ...page({
+        Featured: { type: 'checkbox', checkbox: false },
+        URL: { type: 'url', url: 'https://example.com/later' },
+        Slug: { type: 'rich_text', rich_text: [{ plain_text: 'later-briefing' }] },
+        'Published At': { type: 'date', date: { start: '2026-11-01' } },
+      }),
+      id: 'later-resource',
+      created_time: '2026-11-01T00:00:00.000Z',
+    });
+    const archived = formatCuratedResourcePage(
+      page({
+        Status: { type: 'status', status: { name: 'Archived' } },
+        URL: { type: 'url', url: 'https://example.com/archived' },
+        Slug: { type: 'rich_text', rich_text: [{ plain_text: 'archived-guide' }] },
+      }),
+    );
+    const draft = formatCuratedResourcePage(
+      page({ Status: { type: 'status', status: { name: 'Draft' } } }),
+    );
+
+    expect(selectHomepageCuratedArticles([newer, archived, draft, featured]).map((item) => item.slug)).toEqual([
+      'david-pakman-2026-midterm-election-guide',
+    ]);
+    expect(selectCuratedResources([newer, archived, draft, featured]).map((item) => item.slug)).toEqual([
+      'david-pakman-2026-midterm-election-guide',
+      'later-briefing',
+    ]);
   });
 
   it('drops unpublished rows and records without an external destination', () => {
@@ -175,12 +234,14 @@ describe('curated resource publication', () => {
     const section = ResourcesSection({ curated: [formatCuratedResourcePage(page())] });
     const text = textOf(section);
     const hrefs = hrefsOf(section);
-    expect(text).toContain('Curated Resources');
+    expect(text).toContain('Curated articles');
     expect(text).toContain("David Pakman's 2026 Midterm Election Guide");
     expect(text).toContain('David Pakman');
     expect(text).toContain('Featured');
     expect(text).toContain('AORTA');
-    expect(hrefs).toContain('https://www.davidpakman.com/signup?ref=iamresist');
+    expect(hrefs).toContain('/curated/articles/david-pakman-2026-midterm-election-guide');
+    expect(hrefs).toContain('/curated/articles');
+    expect(hrefs).not.toContain('https://www.davidpakman.com/signup?ref=iamresist');
     expect(hrefs).toContain('https://www.aorta.co/');
     expect(hrefs.some((href) => href.includes('guide.pdf') || href.startsWith('/journal/'))).toBe(false);
   });

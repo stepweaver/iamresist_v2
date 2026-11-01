@@ -1,5 +1,5 @@
 import ResourcesSection from '@/app/(site)/telescreen/ResourcesSection';
-import { getCuratedResourceDirectory } from '@/lib/curated/loadResources';
+import { loadPublishedCuratedArticles } from '@/lib/curated/articles';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
@@ -12,7 +12,8 @@ export const metadata = buildPageMetadata({
 export const revalidate = 300;
 
 export default async function ResourcesPage() {
-  const curated = await getCuratedResourceDirectory();
+  const curatedResult = await loadPublishedCuratedArticles();
+  const curated = curatedResult.status === 'ok' ? curatedResult.items : [];
   return (
     <main
       id="main-content"

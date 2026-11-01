@@ -92,18 +92,19 @@ describe('HomeFeed layout ordering', () => {
     const element = asElement(HomeFeed());
     const topLevelChildren = Children.toArray(element.props.children).map((child) => asElement(child));
 
-    expect(topLevelChildren).toHaveLength(4);
+    expect(topLevelChildren).toHaveLength(5);
     expect(topLevelChildren[0].type).toBe(Suspense);
     expect(topLevelChildren[1].type).toBe(Suspense);
     expect(topLevelChildren[2].type).toBe(Suspense);
-    const shop = asElement(await invoke(topLevelChildren[3]));
+    expect(topLevelChildren[3].type).toBe(Suspense);
+    const shop = asElement(await invoke(topLevelChildren[4]));
     expect(shop.props['data-testid']).toBe('shop-promo');
 
     const classNames = topLevelChildren.map((child) => child.props.className || '').join(' ');
     expect(classNames).not.toContain('order-1');
     expect(classNames).not.toContain('lg:order-');
 
-    const telescreenFallback = asElement(topLevelChildren[1].props.fallback);
+    const telescreenFallback = asElement(topLevelChildren[2].props.fallback);
     expect(telescreenFallback.props.className).toBe(TELESCREEN_SECTION_CLASS);
     expect(telescreenFallback.props.className).not.toContain('order-');
 
@@ -113,7 +114,7 @@ describe('HomeFeed layout ordering', () => {
     const renderedSection = asElement(await invoke(asElement(telescreen.props.children)));
     expect(renderedSection.props['data-testid']).toBe('telescreen');
 
-    expect(topLevelChildren[2].props.fallback).toBeTruthy();
+    expect(topLevelChildren[3].props.fallback).toBeTruthy();
     expect(HomeCultureSlot).toEqual(expect.any(Function));
   });
 });

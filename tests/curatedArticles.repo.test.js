@@ -97,6 +97,7 @@ describe('curated article queries', () => {
     const { getCuratedArticles } = await import('@/lib/notion/curatedArticles.repo');
     await expect(getCuratedArticles({ throwOnError: true })).rejects.toMatchObject({
       code: 'object_not_found',
+      reason: 'permission_denied',
     });
     expect(query).not.toHaveBeenCalled();
     retrieve.mockRejectedValue({ code: 'object_not_found', message: 'missing' });

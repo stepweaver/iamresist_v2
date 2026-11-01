@@ -4,6 +4,7 @@ import { slugify } from '@/lib/utils/slugify';
 import { getAllBooks } from '@/lib/notion/books.repo';
 import { getJournalEntries } from '@/lib/notion/journal.repo';
 import { getBookEntries } from '@/lib/notion/readingJournal.repo';
+import { getCuratedArticles } from '@/lib/notion/curatedArticles.repo';
 import { getVideos } from '@/lib/notion/videos.repo';
 import { getAllProtestSongs } from '@/lib/notion/protestMusic.repo';
 
@@ -16,6 +17,7 @@ const STATIC_PATHS = [
   '/journal',
   '/book-club',
   '/resources',
+  '/curated/articles',
   '/shop',
   '/intel/newswire',
   '/intel/sources',
@@ -74,11 +76,12 @@ async function getBookEntryRows(books) {
 }
 
 export default async function sitemap() {
-  const [journalEntries, books, videos, songs] = await Promise.all([
+  const [journalEntries, books, videos, songs, articles] = await Promise.all([
     safeList(() => getJournalEntries()),
     safeList(() => getAllBooks({ statuses: BOOK_STATUSES })),
     safeList(() => getVideos()),
     safeList(() => getAllProtestSongs()),
+    safeList(() => getCuratedArticles()),
   ]);
 
   const readingEntries = await getBookEntryRows(books);
@@ -108,6 +111,13 @@ export default async function sitemap() {
           note.lastEditedTime || note.createdTime,
         ),
       ];
+    }),
+    ...articles.flatMap((article) => {
+      const slug = article.slug;
+      if (!slug || article.contentType !== 'curated-article') return [];
+      if (String(article.status || '').toLowerCase() === 'archived') return [];
+      if (article.status && String(article.status).toLowerCase() !== 'published') return [];
+      return [buildEntry(`/curated/articles/${encodeURIComponent(slug)}`, article.lastEditedTime || article.createdTime)];
     }),
     ...videos.flatMap((video) => {
       const slug = slugify(video.title);

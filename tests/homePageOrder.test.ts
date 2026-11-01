@@ -59,12 +59,6 @@ vi.mock('@/components/home/JournalSection', () => ({
   },
 }));
 
-vi.mock('@/components/home/CuratedResourcesSection', () => ({
-  default: function CuratedResourcesSection() {
-    return React.createElement('section', { 'data-testid': 'home-curated-resources' }, 'Curated Resources');
-  },
-}));
-
 function textOf(node: React.ReactNode, acc: string[] = []) {
   if (typeof node === 'string' || typeof node === 'number') {
     acc.push(String(node));
@@ -110,8 +104,7 @@ describe('homepage editorial order', () => {
     expect(ids.indexOf('hero-reticle')).toBeLessThan(ids.indexOf('hero-latest-essay'));
     expect(ids.indexOf('hero-latest-essay')).toBeLessThan(ids.indexOf('home-essays'));
     expect(ids.indexOf('home-essays')).toBeLessThan(ids.indexOf('home-essays-skeleton'));
-    expect(ids.indexOf('home-essays-skeleton')).toBeLessThan(ids.indexOf('home-curated-resources'));
-    expect(ids.indexOf('home-curated-resources')).toBeLessThan(ids.indexOf('home-channels'));
+    expect(ids.indexOf('home-essays-skeleton')).toBeLessThan(ids.indexOf('home-channels'));
     expect(ids.indexOf('home-channels')).toBeLessThan(ids.indexOf('home-feed'));
     expect(elements.some((element) => element.type === Suspense)).toBe(true);
   });

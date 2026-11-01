@@ -131,27 +131,10 @@ describe('Notion failures are not cached as empty collections', () => {
     expect(calls.filter((url) => url.includes('creator-b'))).toHaveLength(1);
   });
 
-  it('does not cache a newswire built while curated articles are failing', async () => {
+  it('caches newswire stories without turning a curated article into a newswire card', async () => {
     vi.resetModules();
     const store = new Map<string, unknown>();
-    let curatedFailed = false;
     vi.doMock('next/cache', () => cachingUnstableCache(store));
-    vi.doMock('@/lib/notion/curatedArticles.repo', () => ({
-      getCuratedArticles: async () => {
-        if (curatedFailed) throw new Error('notion 503');
-        return [
-          {
-            id: 'article-1',
-            title: 'Senate hearing on surveillance authority',
-            url: 'https://curated.test/hearing',
-            source: 'Curated',
-            publishedAt: '2026-04-18T00:00:00.000Z',
-            heroImage: 'https://curated.test/hearing.jpg',
-            description: '',
-          },
-        ];
-      },
-    }));
     vi.doMock('@/lib/feeds/rss', () => ({
       fetchFeedItemsWithMeta: async () => ({
         ok: true,
@@ -178,54 +161,35 @@ describe('Notion failures are not cached as empty collections', () => {
     configure(shared);
     const { getNewswireStories } = await import('@/lib/newswire');
 
-    const first = await getNewswireStories();
-    expect(first.map((story: { id: string }) => story.id)).toContain('curated-article__article-1');
-    store.clear();
-    curatedFailed = true;
-
-    const during = await getNewswireStories();
-    expect(during.map((story: { id: string }) => story.id)).toContain('curated-article__article-1');
-    expect(store.has('newswire-stories-v4')).toBe(false);
+    const stories = await getNewswireStories();
+    const ids = stories.map((story: { id: string }) => story.id);
+    expect(ids.some((id: string) => id.includes('rss-1'))).toBe(true);
+    expect(ids.some((id: string) => id.startsWith('curated-article__'))).toBe(false);
+    expect(store.has('newswire-stories-v4')).toBe(true);
   });
 
-  it('serves RSS stories when curated articles fail and no earlier newswire exists, without caching them as complete', async () => {
+  it('does not cache a failed curated article read as an empty directory', async () => {
     vi.resetModules();
     const store = new Map<string, unknown>();
-    vi.doMock('next/cache', () => cachingUnstableCache(store));
+    vi.doMock('next/cache', () => ({
+      ...cachingUnstableCache(store),
+      unstable_noStore: () => {},
+    }));
     vi.doMock('@/lib/notion/curatedArticles.repo', () => ({
       getCuratedArticles: async () => {
-        throw new Error('notion 503');
+        const err = new Error('missing database') as Error & { code?: string };
+        err.code = 'object_not_found';
+        throw err;
       },
-    }));
-    vi.doMock('@/lib/feeds/rss', () => ({
-      fetchFeedItemsWithMeta: async () => ({
-        ok: true,
-        reason: null,
-        items: [
-          {
-            id: 'rss-1',
-            title: 'Court ruling on voting rights',
-            url: 'https://rss.test/voting',
-            publishedAt: '2026-04-18T01:00:00.000Z',
-            description: 'A federal court ruling.',
-            image: 'https://rss.test/voting.jpg',
-          },
-        ],
-      }),
-    }));
-    vi.doMock('@/lib/feeds/ogImage', () => ({
-      enrichStoriesWithOgImages: async () => {},
-      fetchSourceScopedArticleImageCached: async () => null,
+      classifyCuratedArticlesError: (err: { code?: string }) =>
+        err?.code === 'object_not_found' ? 'permission_denied' : 'query_failed',
     }));
 
-    const shared = createSharedFailureMemory();
-    const { configureSharedFailureCacheForTests: configure } = await import('@/lib/feeds/sharedFailureBackoff');
-    configure(shared);
-    const { getNewswireStories } = await import('@/lib/newswire');
-    const stories = await getNewswireStories();
-    expect(stories.map((story: { id: string }) => story.id).some((id: string) => id.includes('rss-1'))).toBe(true);
-    expect(stories).not.toEqual([]);
-    expect(store.has('newswire-stories-v4')).toBe(false);
+    const { loadPublishedCuratedArticles, CURATED_ARTICLES_CACHE_KEY } = await import('@/lib/curated/articles');
+    const result = await loadPublishedCuratedArticles();
+    expect(result).toEqual({ status: 'permission_denied', items: [] });
+    expect(store.has(CURATED_ARTICLES_CACHE_KEY)).toBe(false);
+    expect([...store.values()].some((value) => Array.isArray(value) && value.length === 0)).toBe(false);
   });
 
   it('does not cache the telescreen feed when curated videos fail', async () => {

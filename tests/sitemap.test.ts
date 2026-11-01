@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getBookEntries: vi.fn(),
   getVideos: vi.fn(),
   getAllProtestSongs: vi.fn(),
+  getCuratedArticles: vi.fn(),
 }));
 
 vi.mock('@/lib/metadata', () => ({
@@ -36,6 +37,10 @@ vi.mock('@/lib/notion/videos.repo', () => ({
   getVideos: mocks.getVideos,
 }));
 
+vi.mock('@/lib/notion/curatedArticles.repo', () => ({
+  getCuratedArticles: mocks.getCuratedArticles,
+}));
+
 vi.mock('@/lib/notion/protestMusic.repo', () => ({
   getAllProtestSongs: mocks.getAllProtestSongs,
 }));
@@ -54,6 +59,14 @@ describe('sitemap', () => {
     mocks.getBookEntries.mockResolvedValue([]);
     mocks.getVideos.mockResolvedValue([]);
     mocks.getAllProtestSongs.mockResolvedValue([]);
+    mocks.getCuratedArticles.mockResolvedValue([
+      {
+        slug: 'david-pakman-2026-midterm-election-guide',
+        contentType: 'curated-article',
+        status: 'Published',
+        lastEditedTime: '2026-10-20T00:00:00.000Z',
+      },
+    ]);
   });
 
   it('emits canonical URLs and omits redirect aliases', async () => {
@@ -65,6 +78,10 @@ describe('sitemap', () => {
     expect(urls).toContain('https://iamresist.test/journal/journal-entry');
     expect(urls).toContain('https://iamresist.test/telescreen');
     expect(urls).toContain('https://iamresist.test/resources');
+    expect(urls).toContain('https://iamresist.test/curated/articles');
+    expect(urls).toContain(
+      'https://iamresist.test/curated/articles/david-pakman-2026-midterm-election-guide',
+    );
     expect(urls).toContain('https://iamresist.test/shop/signal-pack');
     expect(urls).toContain('https://iamresist.test/intel/osint');
     expect(urls).toContain('https://iamresist.test/intel/watchdogs');

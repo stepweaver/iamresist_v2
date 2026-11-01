@@ -138,15 +138,27 @@ function RecentEssayLink({ entry }) {
     <li>
       <Link
         href={href}
-        className="group flex min-h-11 flex-col justify-center gap-1 px-4 py-3 transition-colors hover:bg-foreground/[0.04] sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+        className="group flex min-h-11 items-center gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.04]"
       >
-        <span
-          className="min-w-0 text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary sm:flex-1 sm:text-xl"
-          style={displayFont}
-        >
-          {title}
+        {entry.image?.src ? (
+          <img
+            src={entry.image.src}
+            alt=""
+            width={entry.image.width || undefined}
+            height={entry.image.height || undefined}
+            decoding="async"
+            className="h-14 w-14 shrink-0 border border-border object-cover"
+          />
+        ) : null}
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+          <span
+            className="min-w-0 text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary sm:flex-1 sm:text-xl"
+            style={displayFont}
+          >
+            {title}
+          </span>
+          <EssayDate entry={entry} className="shrink-0 whitespace-nowrap" />
         </span>
-        <EssayDate entry={entry} className="shrink-0 whitespace-nowrap" />
       </Link>
     </li>
   );
@@ -180,6 +192,16 @@ export default async function JournalSection() {
   } catch {
     feature = { ...feature, image: null };
   }
+  const recentWithArt = await Promise.all(
+    recent.map(async (entry) => {
+      try {
+        const image = await resolveJournalListingImage(entry, { allowBody: true });
+        return image ? { ...entry, image } : entry;
+      } catch {
+        return entry;
+      }
+    }),
+  );
 
   return (
     <section
@@ -210,7 +232,7 @@ export default async function JournalSection() {
                 data-testid="home-recent-essays"
                 className="m-0 list-none divide-y divide-border border border-border bg-foreground/[0.03] p-0"
               >
-                {recent.map((entry) => (
+                {recentWithArt.map((entry) => (
                   <RecentEssayLink key={entry.id || entry.slug} entry={entry} />
                 ))}
               </ul>

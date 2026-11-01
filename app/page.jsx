@@ -5,7 +5,6 @@ import RotatingWord from '@/components/home/RotatingWord';
 import HudOverlay, { TargetReticle } from '@/components/home/HudOverlay';
 import HeroEssayLink from '@/components/home/HeroEssayLink';
 import JournalSection, { JournalSectionSkeleton } from '@/components/home/JournalSection';
-import CuratedResourcesSection from '@/components/home/CuratedResourcesSection';
 import HomeFeed from '@/components/home/HomeFeed.server';
 import StructuredData from '@/components/seo/StructuredData';
 import { buildPageMetadata } from '@/lib/metadata';
@@ -130,10 +129,6 @@ export default function Home() {
 
       <Suspense fallback={<JournalSectionSkeleton />}>
         <JournalSection />
-      </Suspense>
-
-      <Suspense fallback={null}>
-        <CuratedResourcesSection />
       </Suspense>
 
       <div data-testid="home-channels" className="px-1 py-3 sm:px-2 sm:py-4 lg:px-3">

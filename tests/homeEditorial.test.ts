@@ -8,7 +8,9 @@ const journal = vi.hoisted(() => ({
   getHomepageJournalEntries: vi.fn(),
   featuredEssayExcerpt: vi.fn(async (entry: { summary?: string }) => String(entry?.summary || '').trim()),
   resolveJournalListingImage: vi.fn(
-    async (): Promise<{ src: string; alt: string; width?: number; height?: number } | null> => null,
+    async (
+      _entry?: { slug?: string },
+    ): Promise<{ src: string; alt: string; width?: number; height?: number } | null> => null,
   ),
 }));
 
@@ -209,9 +211,31 @@ describe('homepage editorial section', () => {
     expect(hrefs).toContain('/journal/newest-essay');
     expect(hrefs.filter((href) => href === '/journal/featured-essay')).toHaveLength(2);
     expect(images).toEqual(['/journal/featured-essay/image']);
-    expect(journal.resolveJournalListingImage).toHaveBeenLastCalledWith(
+    expect(journal.resolveJournalListingImage).toHaveBeenCalledWith(
       expect.objectContaining({ slug: 'featured-essay' }),
       { allowBody: true },
     );
+    expect(journal.resolveJournalListingImage).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'newest-essay' }),
+      { allowBody: true },
+    );
+  });
+
+  it('shows the same artwork on a recent homepage essay', async () => {
+    journal.resolveJournalListingImage.mockImplementation(async (entry?: { slug?: string }) => {
+      if (entry?.slug === 'older-essay') {
+        return { src: '/journal/older-essay/image', alt: 'Editorial image for Older Essay' };
+      }
+      return null;
+    });
+    journal.getHomepageJournalEntries.mockResolvedValue([
+      { id: 'new', slug: 'newest-essay', title: 'Newest Essay', date: '2026-10-01', summary: 'The later piece.' },
+      { id: 'older', slug: 'older-essay', title: 'Older Essay', date: '2026-09-01', summary: 'The earlier piece.' },
+    ]);
+    const { default: JournalSection } = await import('@/components/home/JournalSection');
+    const section = await JournalSection();
+    expect(srcsOf(section)).toContain('/journal/older-essay/image');
+    journal.resolveJournalListingImage.mockReset();
+    journal.resolveJournalListingImage.mockImplementation(async () => null);
   });
 });

@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import ShopPromoSection from '@/components/home/ShopPromoSection';
 import CurrentlyReadingCard from '@/components/home/CurrentlyReadingCard';
+import CuratedArticlesLane from '@/components/home/CuratedArticlesLane';
 import HomeLiveBriefingSection from '@/components/home/HomeLiveBriefingSection';
 import VoicesFeedSection from '@/components/voices/VoicesFeedSection';
 import ProtestMusicSection from '@/components/home/ProtestMusicSection';
@@ -14,6 +15,7 @@ import {
   HomeLiveBriefingSkeleton,
   HomeTelescreenSkeleton,
 } from '@/components/home/HomeFeedSkeleton';
+import { loadPublishedCuratedArticles, selectHomepageCuratedArticles } from '@/lib/curated/articles';
 import { getHomepageIntelFeed } from '@/lib/feeds/homepageIntel.service';
 import { getHomeLiveBriefing } from '@/lib/feeds/homepageBriefing.service';
 import { getRecentProtestMusicItemsWithFallback } from '@/lib/feeds/protestMusicFeed.service';
@@ -33,6 +35,21 @@ export async function HomeLiveBriefingSlot() {
     }
     if (!isUpstreamFailure(err)) {
       console.warn('[homepage-section:live-briefing] failed');
+    }
+    return null;
+  }
+}
+
+export async function HomeCuratedArticlesSlot() {
+  try {
+    const result = await timeAsync('homepage-section:curated-articles', () => loadPublishedCuratedArticles());
+    if (result.status !== 'ok') return null;
+    const articles = selectHomepageCuratedArticles(result.items);
+    if (!articles.length) return null;
+    return <CuratedArticlesLane articles={articles} />;
+  } catch (err) {
+    if (!isUpstreamFailure(err)) {
+      console.warn('[homepage-section:curated-articles] failed');
     }
     return null;
   }
@@ -127,6 +144,9 @@ export default function HomeFeed() {
     <div className="mx-auto w-full max-w-[1600px] px-1 py-2 sm:px-2 sm:py-3 lg:px-3">
       <Suspense fallback={<HomeLiveBriefingSkeleton />}>
         <HomeLiveBriefingSlot />
+      </Suspense>
+      <Suspense fallback={null}>
+        <HomeCuratedArticlesSlot />
       </Suspense>
       <Suspense fallback={<HomeTelescreenSkeleton className={TELESCREEN_SECTION_CLASS} />}>
         <HomeTelescreenSlot />
