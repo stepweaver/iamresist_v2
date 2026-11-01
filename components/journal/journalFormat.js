@@ -1,3 +1,7 @@
+import {
+  journalEditorialDisplaySrc,
+  resolveJournalEditorialImage,
+} from '@/lib/notion/journalImage';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 
 function calendarYmd(value) {
@@ -141,11 +145,65 @@ export function selectRecentJournalEntries(entries, { excludeId, excludeSlug, li
 }
 
 export function selectHomepageEssays(entries, limit = 3) {
-  const unique = selectRecentJournalEntries(entries, { limit });
+  const list = [...(entries || [])].filter(Boolean);
+  const latest = selectFeaturedJournalEntry(list);
+  const recentLimit = Number.isFinite(limit) ? Math.max(0, limit - 1) : 2;
+  const recent = latest
+    ? selectRecentJournalEntries(list, {
+        excludeId: latest.id,
+        excludeSlug: latest.slug,
+        limit: recentLimit,
+      })
+    : [];
   return {
-    latest: unique[0] || null,
-    recent: unique.slice(1),
+    latest,
+    recent,
+    explicitlyFeatured: Boolean(latest) && list.some((entry) => entry.featured === true),
   };
+}
+
+export function homepageEssayLabel(selection) {
+  return selection?.explicitlyFeatured ? 'Featured Essay' : 'Latest Essay';
+}
+
+export function journalListingImage(entry, blocks = []) {
+  if (entry?.image?.src) {
+    return {
+      src: String(entry.image.src),
+      alt: String(entry.image.alt || ''),
+      width: entry.image.width || undefined,
+      height: entry.image.height || undefined,
+    };
+  }
+  const editorial = resolveJournalEditorialImage({
+    propertyImage: entry?.propertyImage,
+    coverImage: entry?.coverImage,
+    blocks,
+    title: entry?.title,
+  });
+  const src = journalEditorialDisplaySrc(editorial, journalEntryPath(entry));
+  if (!src) return null;
+  return {
+    src,
+    alt: editorial.alt || '',
+    width: undefined,
+    height: undefined,
+  };
+}
+
+/**
+ * Uses a property or cover image when one is already on the entry.
+ * Body artwork is read only when allowBody is set and the caller supplies blocks.
+ */
+export async function resolveListingImage(entry, loadBlocks, { allowBody = false } = {}) {
+  const direct = journalListingImage(entry);
+  if (direct || !allowBody || !entry?.id || typeof loadBlocks !== 'function') return direct;
+  try {
+    const blocks = await loadBlocks(entry);
+    return journalListingImage(entry, Array.isArray(blocks) ? blocks : []);
+  } catch {
+    return null;
+  }
 }
 
 export const SUGGESTED_JOURNAL_SUBJECTS = [
@@ -214,6 +272,7 @@ export function toJournalRecord(entry, { excerpt = '' } = {}) {
     author: entry?.author ? String(entry.author) : '',
     excerpt: String(excerpt || '').trim() || journalDisplayExcerpt(entry),
     searchDate: entry?.date ? String(entry.date) : dates.dateTime,
+    image: journalListingImage(entry),
   };
 }
 

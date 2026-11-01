@@ -69,6 +69,18 @@ describe('hero latest essay link', () => {
     expect(link?.props.href).toBe('/journal/latest-essay');
     expect(link?.props['data-testid']).toBe('hero-latest-essay');
     expect(link?.props.className).toContain('min-h-11');
+    expect([].concat(link?.props.children).join('')).toBe('Read Latest Essay');
+  });
+
+  it('points at the same explicitly featured essay as the homepage section', async () => {
+    journal.getHomepageJournalEntries.mockResolvedValue([
+      { id: 'newer', slug: 'newer-essay', title: 'Newer', date: '2026-11-01' },
+      { id: 'featured', slug: 'featured-essay', title: 'Featured', date: '2026-03-01', featured: true },
+    ]);
+    const { default: HeroEssayLink } = await import('@/components/home/HeroEssayLink');
+    const link = await HeroEssayLink();
+    expect(link?.props.href).toBe('/journal/featured-essay');
+    expect([].concat(link?.props.children).join('')).toBe('Read Featured Essay');
   });
 
   it('renders nothing when the journal is empty', async () => {

@@ -219,6 +219,35 @@
   text-decoration: none;
 }
 
+.journal-feature__media,
+.journal-recent__media {
+  max-width: 46rem;
+}
+
+.journal-feature__media img,
+.journal-recent__media img {
+  max-height: 28rem;
+  object-fit: contain;
+  object-position: center top;
+}
+
+.journal-record__title:has(.journal-record__thumb) {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.journal-record__thumb {
+  display: block;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+  object-position: center;
+  border: 1px solid var(--journal-border);
+  background: var(--journal-panel);
+}
+
 .journal-feature__excerpt {
   max-width: 42rem;
   margin: 1.1rem 0 0;

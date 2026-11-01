@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   compareJournalEntries,
   filterJournalRecords,
@@ -7,12 +7,15 @@ import {
   journalDisplayExcerpt,
   journalEntryPath,
   journalLeadExcerpt,
+  journalListingImage,
   journalSubjectTags,
   journalTagsMatch,
   composeJournalLanding,
   readJournalTagParam,
+  resolveListingImage,
   selectFeaturedJournalEntry,
   selectHomepageEssays,
+  homepageEssayLabel,
   toggleJournalTag,
   toJournalRecord,
 } from '@/components/journal/journalFormat';
@@ -195,16 +198,34 @@ describe('journal editorial selection', () => {
     expect(landing.recent.map((entry) => entry.slug)).not.toContain('new-essay');
   });
 
-  it('selects the latest homepage essay and two unique recent essays', () => {
+  it('selects the featured homepage essay and keeps two other essays in publication order', () => {
     const selection = selectHomepageEssays(entries);
-    expect(selection.latest.slug).toBe('new-essay');
-    expect(selection.recent.map((entry) => entry.id)).toEqual(['mid', 'old']);
+    expect(selection.explicitlyFeatured).toBe(true);
+    expect(homepageEssayLabel(selection)).toBe('Featured Essay');
+    expect(selection.latest.slug).toBe('old-essay');
+    expect(selection.recent.map((entry) => entry.slug)).toEqual(['new-essay', 'mid-essay']);
     const hrefs = [selection.latest, ...selection.recent].map((entry) => journalEntryPath(entry));
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
+  it('promotes the newest featured essay and keeps recent essays in publication order', () => {
+    const published = [
+      { id: 'old', slug: 'old-essay', title: 'Old', date: '2026-01-01', featured: true },
+      { id: 'mid', slug: 'mid-essay', title: 'Middle', date: '2026-06-01', featured: true },
+      { id: 'new', slug: 'new-essay', title: 'Newest', date: '2026-10-01' },
+      { id: 'mid', slug: 'mid-copy', title: 'Middle copy', date: '2026-06-02' },
+    ];
+    const selection = selectHomepageEssays(published);
+    expect(selection.explicitlyFeatured).toBe(true);
+    expect(homepageEssayLabel(selection)).toBe('Featured Essay');
+    expect(selection.latest.slug).toBe('mid-essay');
+    expect(selection.recent.map((entry) => entry.slug)).toEqual(['new-essay', 'old-essay']);
+    const shown = [selection.latest, ...selection.recent];
+    expect(new Set(shown.map((entry) => entry.id)).size).toBe(shown.length);
+  });
+
   it('returns an empty homepage selection when there are no essays', () => {
-    expect(selectHomepageEssays([])).toEqual({ latest: null, recent: [] });
+    expect(selectHomepageEssays([])).toEqual({ latest: null, recent: [], explicitlyFeatured: false });
     expect(composeJournalLanding(null)).toEqual({
       ordered: [],
       featured: null,
@@ -245,5 +266,73 @@ describe('journal editorial selection', () => {
     expect(toggleJournalTag('Courts', 'courts')).toBe('');
     expect(toggleJournalTag('Courts', 'Surveillance')).toBe('Surveillance');
     expect(readJournalTagParam([' Propaganda & Truth '])).toBe('Propaganda & Truth');
+  });
+});
+
+describe('journal listing artwork', () => {
+  const signed =
+    'https://prod-files-secure.s3.us-west-2.amazonaws.com/note/hero.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123';
+
+  it('uses a property image and leaves essays without artwork unchanged', () => {
+    const withArt = {
+      id: 'essay-1',
+      slug: 'field-notes',
+      title: 'Field Notes',
+      propertyImage: {
+        source: 'property',
+        url: 'https://cdn.example/hero.jpg',
+        fileName: 'hero.jpg',
+        caption: '',
+      },
+      coverImage: null,
+    };
+    const bare = { id: 'essay-2', slug: 'plain-essay', title: 'Plain Essay' };
+
+    expect(journalListingImage(withArt)).toMatchObject({
+      src: 'https://cdn.example/hero.jpg',
+      alt: 'Editorial image for Field Notes',
+    });
+    expect(journalListingImage(bare)).toBeNull();
+    expect(toJournalRecord(bare).image).toBeNull();
+    expect(toJournalRecord(withArt).image.src).toBe('https://cdn.example/hero.jpg');
+  });
+
+  it('points a Notion file at the essay image route and reads a body image only when blocks are supplied', async () => {
+    const entry = {
+      id: '40abc620-4ba0-81bc-8c15-d2e03b3c9283',
+      slug: 'notion-art',
+      title: 'Notion Art',
+      propertyImage: { source: 'property', url: signed, fileName: 'hero.png', caption: '' },
+    };
+    expect(journalListingImage(entry).src).toBe('/journal/notion-art/image');
+
+    const bodyOnly = {
+      id: 'body-1',
+      slug: 'body-art',
+      title: 'Body Art',
+      propertyImage: null,
+      coverImage: null,
+    };
+    const blocks = [
+      {
+        id: 'block-1',
+        type: 'image',
+        image: { type: 'external', external: { url: 'https://cdn.example/body.jpg' }, caption: [] },
+      },
+    ];
+    expect(journalListingImage(bodyOnly)).toBeNull();
+    expect(journalListingImage(bodyOnly, blocks).src).toBe('https://cdn.example/body.jpg');
+
+    const loader = vi.fn(async () => blocks);
+    expect(await resolveListingImage(entry, loader, { allowBody: true })).toMatchObject({
+      src: '/journal/notion-art/image',
+    });
+    expect(loader).not.toHaveBeenCalled();
+    expect(await resolveListingImage(bodyOnly, loader, { allowBody: false })).toBeNull();
+    expect(loader).not.toHaveBeenCalled();
+    expect((await resolveListingImage(bodyOnly, loader, { allowBody: true })).src).toBe(
+      'https://cdn.example/body.jpg',
+    );
+    expect(loader).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { barlowCondensed, sourceSans3 } from '@/app/fonts';
-import { journalDates, journalDisplayExcerpt, journalEntryPath, selectHomepageEssays } from '@/components/journal/journalFormat';
-import { getHomepageJournalEntries, featuredEssayExcerpt } from '@/lib/journal';
+import { journalDates, journalDisplayExcerpt, journalEntryPath, homepageEssayLabel, selectHomepageEssays } from '@/components/journal/journalFormat';
+import { getHomepageJournalEntries, featuredEssayExcerpt, resolveJournalListingImage } from '@/lib/journal';
 
 const displayFont = {
   fontFamily: 'var(--font-journal-display), "Arial Narrow", "Segoe UI", sans-serif',
@@ -75,6 +75,20 @@ export function JournalSectionSkeleton() {
   );
 }
 
+function EssayArtwork({ image }) {
+  if (!image?.src) return null;
+  return (
+    <img
+      src={image.src}
+      alt={image.alt || ''}
+      width={image.width || undefined}
+      height={image.height || undefined}
+      decoding="async"
+      className="mt-5 block h-auto max-h-[28rem] w-full border border-border object-contain object-top"
+    />
+  );
+}
+
 function LatestEssay({ entry }) {
   const href = journalEntryPath(entry);
   const title = entry.title || 'Untitled Essay';
@@ -100,6 +114,7 @@ function LatestEssay({ entry }) {
           {title}
         </Link>
       </h2>
+      <EssayArtwork image={entry.image} />
       {excerpt ? (
         <p className="mt-4 max-w-[62ch] text-base leading-relaxed text-foreground/80 sm:text-lg" style={bodyFont}>
           {excerpt}
@@ -145,8 +160,10 @@ export default async function JournalSection() {
     return null;
   }
 
-  const { latest, recent } = selectHomepageEssays(entries);
+  const selection = selectHomepageEssays(entries);
+  const { latest, recent } = selection;
   if (!latest) return null;
+  const label = homepageEssayLabel(selection);
 
   let feature = latest;
   if (!String(latest.summary || '').trim()) {
@@ -157,6 +174,12 @@ export default async function JournalSection() {
       feature = latest;
     }
   }
+  try {
+    const image = await resolveJournalListingImage(feature, { allowBody: true });
+    if (image) feature = { ...feature, image };
+  } catch {
+    feature = { ...feature, image: null };
+  }
 
   return (
     <section
@@ -166,7 +189,9 @@ export default async function JournalSection() {
     >
       <div className="mx-auto max-w-[1600px]">
         <div className="mb-5 flex items-end justify-between gap-4 border-b border-primary/70 pb-3">
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">Latest Essay</p>
+          <p data-testid="home-essay-kicker" className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">
+            {label}
+          </p>
           <Link
             href="/journal"
             className="nav-label shrink-0 text-xs text-foreground/60 transition-colors hover:text-primary"

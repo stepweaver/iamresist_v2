@@ -15,6 +15,17 @@ export default function FeaturedRecord({ record }) {
         <h2 id="journal-featured-title" className="journal-feature__title">
           <Link href={record.href}>{record.title}</Link>
         </h2>
+        {record.image?.src ? (
+          <figure className="journal-editorial journal-feature__media">
+            <img
+              src={record.image.src}
+              alt={record.image.alt || ''}
+              width={record.image.width || undefined}
+              height={record.image.height || undefined}
+              decoding="async"
+            />
+          </figure>
+        ) : null}
         {record.tags?.length > 0 && (
           <ul className="journal-tags">
             {record.tags.map((tag) => (

@@ -27,6 +27,14 @@ function hrefsOf(node: React.ReactNode, acc: string[] = []) {
   return acc;
 }
 
+function srcsOf(node: React.ReactNode, acc: string[] = []) {
+  if (!isValidElement(node)) return acc;
+  const src = (node.props as { src?: string }).src;
+  if (node.type === 'img' && typeof src === 'string') acc.push(src);
+  Children.forEach((node.props as { children?: React.ReactNode }).children, (child) => srcsOf(child, acc));
+  return acc;
+}
+
 describe('journal landing presentation', () => {
   it('introduces the publication as Essays & Analysis', async () => {
     const { default: ArchiveHero } = await import('@/components/journal/ArchiveHero');
@@ -56,6 +64,33 @@ describe('journal landing presentation', () => {
     expect(text).toContain('Read essay');
     expect(hrefsOf(featured)).toContain('/journal/show-me-the-proof');
     expect(text).not.toContain('undefined');
+    expect(srcsOf(featured)).toEqual([]);
+  });
+
+  it('shows editorial artwork on the featured essay and recent cards when a listing image exists', async () => {
+    const { default: FeaturedRecord } = await import('@/components/journal/FeaturedRecord');
+    const { default: JournalRecent } = await import('@/components/journal/JournalRecent');
+    const image = { src: '/journal/show-me-the-proof/image', alt: 'Editorial image for Show Me the Proof' };
+    const featured = FeaturedRecord({
+      record: {
+        id: 'essay-1',
+        href: '/journal/show-me-the-proof',
+        title: 'Show Me the Proof',
+        image,
+      },
+    });
+    const recent = JournalRecent({
+      records: [
+        {
+          id: 'mid',
+          href: '/journal/middle-essay',
+          title: 'Middle Essay',
+          image: { src: 'https://cdn.example/middle.jpg', alt: 'Middle' },
+        },
+      ],
+    });
+    expect(srcsOf(featured)).toEqual(['/journal/show-me-the-proof/image']);
+    expect(srcsOf(recent)).toEqual(['https://cdn.example/middle.jpg']);
   });
 
   it('renders recent writing without repeating the featured href', async () => {

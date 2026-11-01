@@ -7,6 +7,9 @@ const { Children, isValidElement } = React;
 const journal = vi.hoisted(() => ({
   getHomepageJournalEntries: vi.fn(),
   featuredEssayExcerpt: vi.fn(async (entry: { summary?: string }) => String(entry?.summary || '').trim()),
+  resolveJournalListingImage: vi.fn(
+    async (): Promise<{ src: string; alt: string; width?: number; height?: number } | null> => null,
+  ),
 }));
 
 vi.mock('next/link', () => ({
@@ -23,6 +26,7 @@ vi.mock('@/app/fonts', () => ({
 vi.mock('@/lib/journal', () => ({
   getHomepageJournalEntries: journal.getHomepageJournalEntries,
   featuredEssayExcerpt: journal.featuredEssayExcerpt,
+  resolveJournalListingImage: journal.resolveJournalListingImage,
 }));
 
 function expand(node: React.ReactNode): React.ReactNode {
@@ -63,6 +67,16 @@ function testIdsOf(node: React.ReactNode, acc: string[] = []) {
   return acc;
 }
 
+function srcsOf(node: React.ReactNode, acc: string[] = []) {
+  const current = expand(node);
+  if (Array.isArray(current)) current.forEach((child) => srcsOf(child, acc));
+  else if (isValidElement(current)) {
+    const src = (current.props as { src?: string }).src;
+    if (typeof src === 'string') acc.push(src);
+    Children.forEach((current.props as { children?: React.ReactNode }).children, (child) => srcsOf(child, acc));
+  }
+  return acc;
+}
 function hrefsOf(node: React.ReactNode, acc: string[] = []) {
   const current = expand(node);
   if (Array.isArray(current)) current.forEach((child) => hrefsOf(child, acc));
@@ -140,6 +154,7 @@ describe('homepage editorial section', () => {
     expect(hrefs).toContain('/journal/older-essay');
     expect(hrefs).not.toContain('/journal/latest-copy');
     expect(hrefs.filter((href) => href === '/journal/latest-essay').length).toBeGreaterThan(0);
+    expect(srcsOf(section)).toEqual([]);
   });
 
   it('omits the section when the journal is empty', async () => {
@@ -163,5 +178,40 @@ describe('homepage editorial section', () => {
     const section = await JournalSection();
     expect(textOf(section).join(' ')).toContain('A cached lead from the essay.');
     expect(journal.featuredEssayExcerpt).toHaveBeenCalledTimes(1);
+  });
+
+  it('features an explicitly checked essay and shows its artwork without duplicating it', async () => {
+    journal.resolveJournalListingImage.mockResolvedValueOnce({
+      src: '/journal/featured-essay/image',
+      alt: 'Editorial image for Featured Accountability',
+    });
+    journal.getHomepageJournalEntries.mockResolvedValue([
+      { id: 'new', slug: 'newest-essay', title: 'Newest Essay', date: '2026-10-01', summary: 'The later piece.' },
+      {
+        id: 'featured',
+        slug: 'featured-essay',
+        title: 'Featured Accountability',
+        date: '2026-02-01',
+        summary: 'The checked piece.',
+        featured: true,
+      },
+    ]);
+    const { default: JournalSection } = await import('@/components/home/JournalSection');
+    const section = await JournalSection();
+    const text = textOf(section).join(' ');
+    const hrefs = hrefsOf(section);
+    const images = srcsOf(section);
+
+    expect(text).toContain('Featured Essay');
+    expect(text).not.toContain('Latest Essay');
+    expect(text.indexOf('Featured Accountability')).toBeLessThan(text.indexOf('Newest Essay'));
+    expect(hrefs.filter((href) => href === '/journal/featured-essay').length).toBeGreaterThan(0);
+    expect(hrefs).toContain('/journal/newest-essay');
+    expect(hrefs.filter((href) => href === '/journal/featured-essay')).toHaveLength(2);
+    expect(images).toEqual(['/journal/featured-essay/image']);
+    expect(journal.resolveJournalListingImage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ slug: 'featured-essay' }),
+      { allowBody: true },
+    );
   });
 });

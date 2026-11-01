@@ -13,6 +13,7 @@ import {
   getAllJournalEntries,
   getJournalIndexPayload,
   presentJournalEntries,
+  resolveJournalListingImage,
 } from '@/lib/journal';
 import { buildPageMetadata } from '@/lib/metadata';
 
@@ -50,6 +51,12 @@ export default async function JournalPage() {
 
   const landing = composeJournalLanding(entries);
   const featuredExcerpt = landing.featured ? await featuredEssayExcerpt(landing.featured) : '';
+  const featuredImage = landing.featured
+    ? await resolveJournalListingImage(landing.featured, { allowBody: true })
+    : null;
+  const recentImages = await Promise.all(
+    landing.recent.map((entry) => resolveJournalListingImage(entry, { allowBody: true })),
+  );
   const records = landing.ordered.map((entry) =>
     toJournalRecord(
       entry,
@@ -57,10 +64,18 @@ export default async function JournalPage() {
     ),
   );
   const featured = landing.featured
-    ? toJournalRecord(landing.featured, { excerpt: featuredExcerpt })
+    ? toJournalRecord({ ...landing.featured, image: featuredImage }, { excerpt: featuredExcerpt })
     : null;
-  const recent = landing.recent.map((entry) =>
-    toJournalRecord(entry, { excerpt: journalDisplayExcerpt(entry) }),
+  const recent = landing.recent.map((entry, index) =>
+    toJournalRecord({ ...entry, image: recentImages[index] }, { excerpt: journalDisplayExcerpt(entry) }),
+  );
+  const resolvedImages = new Map(
+    [featured, ...recent]
+      .filter((record) => record?.id && record.image?.src)
+      .map((record) => [record.id, record.image]),
+  );
+  const archiveRecords = records.map((record) =>
+    resolvedImages.has(record.id) ? { ...record, image: resolvedImages.get(record.id) } : record,
   );
 
   return (
@@ -74,7 +89,7 @@ export default async function JournalPage() {
           <JournalRecent records={recent} />
           <JournalBrowser
             subjects={landing.subjects}
-            records={records}
+            records={archiveRecords}
             searchCoversArchive={searchCoversArchive}
             pinnedIds={[featured, ...recent].map((record) => record?.id).filter(Boolean)}
           />

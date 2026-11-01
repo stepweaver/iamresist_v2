@@ -23,6 +23,18 @@ export default function JournalRecent({ records }) {
             <h3 className="journal-recent__title-link">
               <Link href={record.href}>{record.title}</Link>
             </h3>
+            {record.image?.src ? (
+              <figure className="journal-editorial journal-recent__media">
+                <img
+                  src={record.image.src}
+                  alt={record.image.alt || ''}
+                  width={record.image.width || undefined}
+                  height={record.image.height || undefined}
+                  decoding="async"
+                  loading="lazy"
+                />
+              </figure>
+            ) : null}
             {record.tags?.length > 0 ? (
               <ul className="journal-tags">
                 {record.tags.map((tag) => (

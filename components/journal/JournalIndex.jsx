@@ -111,7 +111,20 @@ export default function JournalIndex({
                     </span>
                   ) : null}
                 </span>
-                <span className="journal-record__title">{record.title}</span>
+                <span className="journal-record__title">
+                  {record.image?.src ? (
+                    <img
+                      className="journal-record__thumb"
+                      src={record.image.src}
+                      alt=""
+                      width={record.image.width || undefined}
+                      height={record.image.height || undefined}
+                      decoding="async"
+                      loading="lazy"
+                    />
+                  ) : null}
+                  <span>{record.title}</span>
+                </span>
                 {record.tags?.length > 0 || record.author ? (
                   <span className="journal-record__meta">
                     {record.tags?.length > 0 ? record.tags.join(' · ') : null}

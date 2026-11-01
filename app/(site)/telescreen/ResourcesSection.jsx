@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import EmptyState from '@/components/content/EmptyState';
+import CuratedResourceGroup from '@/components/resources/CuratedResourceGroup';
 import { curatedResources, selectStartingResources } from '@/lib/data/resources';
 
 function formatCategoryLabel(category) {
@@ -68,13 +69,14 @@ function ResourceCard({ resource }) {
   );
 }
 
-export default function ResourcesSection() {
+export default function ResourcesSection({ curated = [] }) {
   const items = Array.isArray(curatedResources) ? curatedResources : [];
   const grouped = groupByCategory(items);
   const starting = selectStartingResources(items, 3);
 
   return (
     <div className="space-y-8">
+      <CuratedResourceGroup resources={curated} />
       {starting.length > 0 ? (
         <section aria-labelledby="resources-start-title" className="space-y-3">
           <h2 id="resources-start-title" className="section-title text-xl sm:text-2xl font-bold text-foreground">
