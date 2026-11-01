@@ -226,13 +226,15 @@ function renderBlock(block, index, journal) {
   return null;
 }
 
-export default function NotionBlocksBody({ blocks, variant = 'default' }) {
+export default function NotionBlocksBody({ blocks, variant = 'default', omitBlockIds = [] }) {
   if (!blocks?.length) return null;
   const journal = variant === 'journal';
+  const omitted = new Set(Array.isArray(omitBlockIds) ? omitBlockIds.filter(Boolean) : []);
   const content = [];
 
   for (let index = 0; index < blocks.length; index += 1) {
     const block = blocks[index];
+    if (omitted.has(block?.id)) continue;
     if (
       journal &&
       (block?.type === 'bulleted_list_item' || block?.type === 'numbered_list_item')

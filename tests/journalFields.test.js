@@ -30,6 +30,8 @@ describe('formatJournalPage', () => {
       tags: ['Law'],
       summary: '',
       featured: false,
+      propertyImage: null,
+      coverImage: null,
       discordChannelLink: 'https://discord.example/channel',
     });
   });

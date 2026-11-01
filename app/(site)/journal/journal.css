@@ -520,6 +520,27 @@
   text-wrap: balance;
 }
 
+.journal-editorial {
+  margin: 1.15rem 0 0;
+}
+
+.journal-editorial img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--journal-border);
+  background: var(--journal-panel);
+}
+
+.journal-editorial figcaption {
+  margin-top: 0.45rem;
+  color: var(--journal-muted);
+  font-family: var(--journal-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  line-height: 1.45;
+}
+
 .journal-prose {
   max-width: 46rem;
   color: var(--journal-text);

@@ -11,7 +11,8 @@ import {
   journalEntryBodyEditedTime,
 } from '@/lib/journal';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
-import { buildPageMetadata, defaultOgImage } from '@/lib/metadata';
+import { presentJournalEditorial } from '@/lib/journal/presentJournalEditorial';
+import { buildPageMetadata } from '@/lib/metadata';
 import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
 import { buildSeoExcerptFromBlocks, pickSeoDescription } from '@/lib/seo/text';
 
@@ -61,11 +62,13 @@ export async function generateMetadata({ params }) {
   const blocks = await getCachedPageBlocks(entry.id);
   const title = entry.title || 'Journal Entry';
   const description = buildJournalDescription(entry, blocks);
+  const canonicalPath = getJournalCanonicalPath(entry);
+  const presented = presentJournalEditorial(entry, blocks, canonicalPath);
   return buildPageMetadata({
     title: `${title} | Journal`,
     description,
-    urlPath: getJournalCanonicalPath(entry),
-    images: [defaultOgImage],
+    urlPath: canonicalPath,
+    images: [presented.metadataImage],
   });
 }
 
@@ -78,6 +81,7 @@ export default async function JournalEntryPage({ params }) {
   const blocks = await getCachedPageBlocks(entry.id);
   const canonicalPath = getJournalCanonicalPath(entry);
   const description = buildJournalDescription(entry, blocks);
+  const presented = presentJournalEditorial(entry, blocks, canonicalPath);
   const bodyEditedTime = await journalEntryBodyEditedTime(entry, blocks);
   const dates = journalDates({ ...entry, bodyEditedTime });
   let related = [];
@@ -97,7 +101,7 @@ export default async function JournalEntryPage({ params }) {
       headline: entry.title || 'Journal Entry',
       description,
       url: canonicalPath,
-      image: defaultOgImage,
+      image: presented.metadataImage,
       datePublished: entry.date || entry.createdTime || undefined,
       dateModified: dates.showUpdated
         ? bodyEditedTime || undefined
@@ -115,9 +119,14 @@ export default async function JournalEntryPage({ params }) {
         author={entry.author || ''}
         related={related}
         subscriptionUrl={journalSubscriptionUrl()}
+        image={presented.displayImage}
       >
         {blocks.length > 0 ? (
-          <NotionBlocksBody blocks={blocks} variant="journal" />
+          <NotionBlocksBody
+            blocks={blocks}
+            variant="journal"
+            omitBlockIds={presented.omitBlockIds}
+          />
         ) : (
           <p className="journal-empty-copy">
             [ NO BODY BLOCKS ] - The entry is published in Notion but has no

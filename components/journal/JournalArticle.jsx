@@ -7,6 +7,7 @@ export default function JournalArticle({
   author = '',
   related = [],
   subscriptionUrl = '',
+  image = null,
   children,
 }) {
   const tagList = Array.isArray(tags) ? tags.filter(Boolean) : [];
@@ -57,6 +58,19 @@ export default function JournalArticle({
           <header className="journal-reading__header">
             <p className="journal-kicker">Essay</p>
             <h1 className="journal-article__title">{title}</h1>
+            {image?.src ? (
+              <figure className="journal-editorial">
+                <img
+                  src={image.src}
+                  alt={image.alt || ''}
+                  width={image.width || undefined}
+                  height={image.height || undefined}
+                  decoding="async"
+                  fetchPriority="high"
+                />
+                {image.caption ? <figcaption>{image.caption}</figcaption> : null}
+              </figure>
+            ) : null}
           </header>
           {children}
           {related.length > 0 ? (
