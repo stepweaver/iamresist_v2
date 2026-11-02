@@ -101,6 +101,55 @@ export function journalDisplayExcerpt(entry, blockExcerpt = '') {
   return String(blockExcerpt || entry?.excerpt || '').replace(/\s+/g, ' ').trim();
 }
 
+export function journalReadingMinutes(text) {
+  const words = String(text || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  if (words < 80) return 0;
+  return Math.max(1, Math.round(words / 230));
+}
+
+function blockPlainText(block) {
+  const type = block?.type;
+  const rich = type ? block?.[type]?.rich_text : null;
+  if (!Array.isArray(rich)) return '';
+  return rich.map((part) => part?.plain_text || '').join(' ');
+}
+
+export function journalReadingMinutesFromBlocks(blocks) {
+  const text = (Array.isArray(blocks) ? blocks : []).map(blockPlainText).join(' ');
+  return journalReadingMinutes(text);
+}
+
+export function journalReadingLabel(minutes) {
+  const value = Number(minutes);
+  if (!Number.isFinite(value) || value < 1) return '';
+  return `${Math.round(value)} min read`;
+}
+
+/**
+ * Uses the written Summary when one exists. Loads the body once for a missing
+ * deck or a missing reading time. Never invents either.
+ */
+export async function journalLeadPresentation(entry, loadBlocks) {
+  const stored = Number(entry?.readingMinutes) || 0;
+  const summary = journalDisplayExcerpt(entry);
+  if (!entry?.id || typeof loadBlocks !== 'function') {
+    return { excerpt: summary, readingMinutes: stored };
+  }
+  if (summary && stored) return { excerpt: summary, readingMinutes: stored };
+  try {
+    const blocks = await loadBlocks(entry);
+    return {
+      excerpt: summary || journalDisplayExcerpt(entry, journalLeadExcerpt(Array.isArray(blocks) ? blocks : [])),
+      readingMinutes: stored || journalReadingMinutesFromBlocks(blocks),
+    };
+  } catch {
+    return { excerpt: summary, readingMinutes: stored };
+  }
+}
+
 export function journalTagsMatch(a, b) {
   const left = String(a || '').trim().toLowerCase();
   const right = String(b || '').trim().toLowerCase();
@@ -118,23 +167,41 @@ export function toggleJournalTag(current, next) {
   return tag;
 }
 
-export function selectFeaturedJournalEntry(entries) {
-  const list = [...(entries || [])].filter(Boolean);
-  if (!list.length) return null;
-  const flagged = list.filter((entry) => entry.featured === true);
-  const pool = flagged.length ? flagged : list;
-  return [...pool].sort(compareJournalEntries)[0] || null;
+export function sameJournalEntry(a, b) {
+  if (!a || !b) return false;
+  const aId = a.id ? String(a.id) : '';
+  const bId = b.id ? String(b.id) : '';
+  if (aId && bId && aId === bId) return true;
+  const aSlug = a.slug ? String(a.slug) : '';
+  const bSlug = b.slug ? String(b.slug) : '';
+  return Boolean(aSlug) && aSlug === bSlug;
 }
 
-export function selectRecentJournalEntries(entries, { excludeId, excludeSlug, limit = 4 } = {}) {
+/** Newest essay an editor marked Featured. A newer publication does not take this slot. */
+export function selectFeaturedJournalEntry(entries) {
+  const flagged = [...(entries || [])].filter((entry) => entry?.featured === true);
+  if (!flagged.length) return null;
+  return [...flagged].sort(compareJournalEntries)[0] || null;
+}
+
+export function selectRecentJournalEntries(entries, { excludeId, excludeSlug, exclude = [], limit = 4 } = {}) {
+  const excludedIds = new Set();
+  const excludedSlugs = new Set();
+  if (excludeId) excludedIds.add(String(excludeId));
+  if (excludeSlug) excludedSlugs.add(String(excludeSlug));
+  for (const entry of exclude || []) {
+    if (entry?.id) excludedIds.add(String(entry.id));
+    if (entry?.slug) excludedSlugs.add(String(entry.slug));
+  }
+
   const sorted = [...(entries || [])].filter(Boolean).sort(compareJournalEntries);
   const seen = new Set();
   const recent = [];
   for (const entry of sorted) {
     const id = entry?.id ? String(entry.id) : '';
     const slug = entry?.slug ? String(entry.slug) : '';
-    if (excludeId && id && id === String(excludeId)) continue;
-    if (excludeSlug && slug && slug === String(excludeSlug)) continue;
+    if (id && excludedIds.has(id)) continue;
+    if (slug && excludedSlugs.has(slug)) continue;
     const key = id || slug;
     if (key && seen.has(key)) continue;
     if (key) seen.add(key);
@@ -144,26 +211,45 @@ export function selectRecentJournalEntries(entries, { excludeId, excludeSlug, li
   return recent;
 }
 
+/**
+ * Homepage composition:
+ * - featured: the manually checked essay, kept even after a newer essay publishes
+ * - latest: the newest published essay
+ * - recent: other essays, excluding both of the above
+ * The same essay is never returned in more than one slot.
+ */
 export function selectHomepageEssays(entries, limit = 3) {
   const list = [...(entries || [])].filter(Boolean);
-  const latest = selectFeaturedJournalEntry(list);
+  const featured = selectFeaturedJournalEntry(list);
+  const latest = [...list].sort(compareJournalEntries)[0] || null;
   const recentLimit = Number.isFinite(limit) ? Math.max(0, limit - 1) : 2;
   const recent = latest
     ? selectRecentJournalEntries(list, {
-        excludeId: latest.id,
-        excludeSlug: latest.slug,
+        exclude: [featured, latest].filter(Boolean),
         limit: recentLimit,
       })
     : [];
   return {
+    featured,
     latest,
     recent,
-    explicitlyFeatured: Boolean(latest) && list.some((entry) => entry.featured === true),
+    explicitlyFeatured: Boolean(featured),
   };
 }
 
 export function homepageEssayLabel(selection) {
   return selection?.explicitlyFeatured ? 'Featured Essay' : 'Latest Essay';
+}
+
+/** Crop photographs only when an editor asks. Diagrams, charts, and SVGs stay whole. */
+export function journalImageFit(source) {
+  if (!source || typeof source !== 'object') return 'contain';
+  const declared = source.imageFit || source.fit || '';
+  const url = String(
+    source.propertyImage?.url || source.coverImage?.url || source.url || source.src || '',
+  );
+  if (/\.svg(?:$|[?#])/i.test(url)) return 'contain';
+  return declared === 'crop' ? 'crop' : 'contain';
 }
 
 export function journalListingImage(entry, blocks = []) {
@@ -173,6 +259,8 @@ export function journalListingImage(entry, blocks = []) {
       alt: String(entry.image.alt || ''),
       width: entry.image.width || undefined,
       height: entry.image.height || undefined,
+      fit: entry.image.fit || journalImageFit(entry),
+      caption: entry.image.caption || '',
     };
   }
   const editorial = resolveJournalEditorialImage({
@@ -188,6 +276,8 @@ export function journalListingImage(entry, blocks = []) {
     alt: editorial.alt || '',
     width: undefined,
     height: undefined,
+    fit: journalImageFit({ ...entry, url: editorial.url }),
+    caption: editorial.caption || '',
   };
 }
 
@@ -242,18 +332,26 @@ export function journalSubjectTags(entries, { limit = 12 } = {}) {
   return names.slice(0, cap);
 }
 
-export function composeJournalLanding(entries, { recentLimit = 2 } = {}) {
+/**
+ * Journal landing: the newest essay leads. A manually featured essay stays in
+ * the supporting spread when it is not itself the latest. Nothing is repeated.
+ */
+export function composeJournalLanding(entries, { recentLimit = 3 } = {}) {
   const ordered = [...(entries || [])].filter(Boolean).sort(compareJournalEntries);
+  const lead = ordered[0] || null;
   const featured = selectFeaturedJournalEntry(ordered);
-  const recent = selectRecentJournalEntries(ordered, {
-    excludeId: featured?.id,
-    excludeSlug: featured?.slug,
-    limit: recentLimit,
+  const cap = Number.isFinite(recentLimit) && recentLimit > 0 ? recentLimit : 0;
+  const supporting = [];
+  if (featured && !sameJournalEntry(featured, lead)) supporting.push(featured);
+  const rest = selectRecentJournalEntries(ordered, {
+    exclude: [lead, ...supporting].filter(Boolean),
+    limit: Math.max(0, cap - supporting.length),
   });
   return {
     ordered,
+    lead,
     featured,
-    recent,
+    recent: [...supporting, ...rest],
     subjects: journalSubjectTags(ordered),
   };
 }
@@ -273,6 +371,9 @@ export function toJournalRecord(entry, { excerpt = '' } = {}) {
     excerpt: String(excerpt || '').trim() || journalDisplayExcerpt(entry),
     searchDate: entry?.date ? String(entry.date) : dates.dateTime,
     image: journalListingImage(entry),
+    featured: entry?.featured === true,
+    readingLabel: journalReadingLabel(entry?.readingMinutes),
+    pullQuote: String(entry?.pullQuote || '').replace(/\s+/g, ' ').trim(),
   };
 }
 

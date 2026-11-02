@@ -7,7 +7,10 @@ import {
   journalDisplayExcerpt,
   journalEntryPath,
   journalLeadExcerpt,
+  journalImageFit,
   journalListingImage,
+  journalReadingLabel,
+  journalReadingMinutes,
   journalSubjectTags,
   journalTagsMatch,
   composeJournalLanding,
@@ -180,35 +183,40 @@ describe('journal editorial selection', () => {
     expect(toJournalRecord(landing.ordered[0]).href).toBe('/journal/new-essay');
   });
 
-  it('features the newest checked essay and keeps it in the archive', () => {
+  it('keeps the newest checked essay beside the latest lead without repeating it', () => {
     const landing = composeJournalLanding([
       { id: 'a', slug: 'a', title: 'A', date: '2026-02-01', featured: true },
       { id: 'b', slug: 'b', title: 'B', date: '2026-08-01', featured: true },
       { id: 'c', slug: 'c', title: 'C', date: '2026-09-01' },
     ]);
 
+    expect(landing.lead.slug).toBe('c');
     expect(landing.featured.slug).toBe('b');
     expect(landing.ordered.map((entry) => entry.slug)).toEqual(['c', 'b', 'a']);
-    expect(landing.recent.map((entry) => entry.slug)).toEqual(['c', 'a']);
+    expect(landing.recent.map((entry) => entry.slug)).toEqual(['b', 'a']);
+    expect(landing.recent.filter((entry) => entry.slug === 'c')).toEqual([]);
   });
 
-  it('falls back to the newest essay when none are featured', () => {
+  it('leads with the newest essay when none are featured', () => {
     const landing = composeJournalLanding(entries.map((entry) => ({ ...entry, featured: false })));
-    expect(landing.featured.slug).toBe('new-essay');
+    expect(landing.featured).toBeNull();
+    expect(landing.lead.slug).toBe('new-essay');
     expect(landing.recent.map((entry) => entry.slug)).not.toContain('new-essay');
   });
 
-  it('selects the featured homepage essay and keeps two other essays in publication order', () => {
+  it('keeps a featured homepage essay when a newer essay is published', () => {
     const selection = selectHomepageEssays(entries);
     expect(selection.explicitlyFeatured).toBe(true);
     expect(homepageEssayLabel(selection)).toBe('Featured Essay');
-    expect(selection.latest.slug).toBe('old-essay');
-    expect(selection.recent.map((entry) => entry.slug)).toEqual(['new-essay', 'mid-essay']);
-    const hrefs = [selection.latest, ...selection.recent].map((entry) => journalEntryPath(entry));
+    expect(selection.featured.slug).toBe('old-essay');
+    expect(selection.latest.slug).toBe('new-essay');
+    expect(selection.recent.map((entry) => entry.slug)).toEqual(['mid-essay']);
+    const shown = [selection.featured, selection.latest, ...selection.recent];
+    const hrefs = shown.map((entry) => journalEntryPath(entry));
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it('promotes the newest featured essay and keeps recent essays in publication order', () => {
+  it('promotes the newest featured essay and keeps the latest essay distinct', () => {
     const published = [
       { id: 'old', slug: 'old-essay', title: 'Old', date: '2026-01-01', featured: true },
       { id: 'mid', slug: 'mid-essay', title: 'Middle', date: '2026-06-01', featured: true },
@@ -218,16 +226,23 @@ describe('journal editorial selection', () => {
     const selection = selectHomepageEssays(published);
     expect(selection.explicitlyFeatured).toBe(true);
     expect(homepageEssayLabel(selection)).toBe('Featured Essay');
-    expect(selection.latest.slug).toBe('mid-essay');
-    expect(selection.recent.map((entry) => entry.slug)).toEqual(['new-essay', 'old-essay']);
-    const shown = [selection.latest, ...selection.recent];
+    expect(selection.featured.slug).toBe('mid-essay');
+    expect(selection.latest.slug).toBe('new-essay');
+    expect(selection.recent.map((entry) => entry.slug)).toEqual(['old-essay']);
+    const shown = [selection.featured, selection.latest, ...selection.recent];
     expect(new Set(shown.map((entry) => entry.id)).size).toBe(shown.length);
   });
 
   it('returns an empty homepage selection when there are no essays', () => {
-    expect(selectHomepageEssays([])).toEqual({ latest: null, recent: [], explicitlyFeatured: false });
+    expect(selectHomepageEssays([])).toEqual({
+      featured: null,
+      latest: null,
+      recent: [],
+      explicitlyFeatured: false,
+    });
     expect(composeJournalLanding(null)).toEqual({
       ordered: [],
+      lead: null,
       featured: null,
       recent: [],
       subjects: [],
@@ -334,5 +349,45 @@ describe('journal listing artwork', () => {
       'https://cdn.example/body.jpg',
     );
     expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it('crops photographs only when asked and keeps charts and missing art intact', () => {
+    const chart = journalListingImage({
+      slug: 'chart',
+      title: 'Chart',
+      imageFit: 'contain',
+      propertyImage: { url: 'https://cdn.example/chart.png', fileName: '', caption: '' },
+    });
+    const photo = journalListingImage({
+      slug: 'photo',
+      title: 'Photo',
+      imageFit: 'crop',
+      propertyImage: { url: 'https://cdn.example/photo.jpg', fileName: '', caption: '' },
+    });
+    const svg = journalListingImage({
+      slug: 'diagram',
+      title: 'Diagram',
+      imageFit: 'crop',
+      propertyImage: { url: 'https://cdn.example/diagram.svg', fileName: '', caption: '' },
+    });
+
+    expect(chart.fit).toBe('contain');
+    expect(photo.fit).toBe('crop');
+    expect(svg.fit).toBe('contain');
+    expect(journalImageFit({ fit: 'crop', src: '/journal/diagram/image.svg' })).toBe('contain');
+    expect(journalListingImage({ slug: 'none', title: 'None' })).toBeNull();
+  });
+
+  it('does not invent a reading time or a pull quote', () => {
+    expect(journalReadingMinutes('Too short to time.')).toBe(0);
+    expect(journalReadingLabel(0)).toBe('');
+    expect(journalReadingLabel(undefined)).toBe('');
+    const plain = toJournalRecord({ slug: 'plain', title: 'Plain Essay' });
+    expect(plain.pullQuote).toBe('');
+    expect(plain.readingLabel).toBe('');
+    expect(plain.image).toBeNull();
+    expect(toJournalRecord({ slug: 'timed', title: 'Timed', readingMinutes: 6 }).readingLabel).toBe(
+      '6 min read',
+    );
   });
 });

@@ -77,6 +77,9 @@ describe('journal editorial metadata and layout', () => {
     expect(meta.twitter.card).toBe('summary_large_image');
     expect(meta.twitter.images).toEqual(['https://www.iamresist.org/resist_sticker.png']);
     expect(html).not.toContain('journal-editorial');
+    expect(html).not.toContain('journal-pullquote');
+    expect(html).toContain('journal-article__deck');
+    expect(html).toContain('A public record of power.');
     expect(html).toContain('https://www.iamresist.org/resist_sticker.png');
     expect(html).toContain('The essay continues from the public record.');
 
@@ -86,6 +89,24 @@ describe('journal editorial metadata and layout', () => {
       image: meta.openGraph.images[0],
     });
     expect(article.image).toBe('https://www.iamresist.org/resist_sticker.png');
+  });
+
+  it('shows a supplied pull quote and reading time without inventing either', async () => {
+    state.entry = entry({
+      pullQuote: 'Question the record before you repeat it.',
+      readingMinutes: 7,
+      featured: true,
+    });
+    const { default: Page } = await import('@/app/(site)/journal/[slug]/page');
+    const html = renderToStaticMarkup(
+      await Page({ params: Promise.resolve({ slug: 'show-me-the-proof' }) }),
+    );
+
+    expect(html).toContain('journal-pullquote');
+    expect(html).toContain('Question the record before you repeat it.');
+    expect(html).toContain('7 min read');
+    expect(html).toContain('Featured');
+    expect(html).not.toContain('journal-editorial');
   });
 
   it('uses a stable same-origin image for Open Graph, Twitter, and Article schema', async () => {

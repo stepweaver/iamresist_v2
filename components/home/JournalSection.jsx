@@ -1,7 +1,16 @@
 import Link from 'next/link';
 import { barlowCondensed, sourceSans3 } from '@/app/fonts';
-import { journalDates, journalDisplayExcerpt, journalEntryPath, homepageEssayLabel, selectHomepageEssays } from '@/components/journal/journalFormat';
-import { getHomepageJournalEntries, featuredEssayExcerpt, resolveJournalListingImage } from '@/lib/journal';
+import {
+  homepageEssayLabel,
+  journalDates,
+  journalDisplayExcerpt,
+  journalEntryPath,
+  journalImageFit,
+  journalReadingLabel,
+  sameJournalEntry,
+  selectHomepageEssays,
+} from '@/components/journal/journalFormat';
+import { getHomepageJournalEntries, loadJournalLeadCopy, resolveJournalListingImage } from '@/lib/journal';
 
 const displayFont = {
   fontFamily: 'var(--font-journal-display), "Arial Narrow", "Segoe UI", sans-serif',
@@ -52,6 +61,54 @@ function EssayDate({ entry, className = '' }) {
   );
 }
 
+function EssayArtwork({ image, size = 'lead' }) {
+  if (!image?.src) return null;
+  const fit = journalImageFit(image);
+  const shared = {
+    src: image.src,
+    width: image.width || undefined,
+    height: image.height || undefined,
+    decoding: 'async',
+  };
+
+  if (size === 'compact') {
+    if (fit !== 'crop') {
+      return (
+        <img
+          {...shared}
+          alt={image.alt || ''}
+          className="h-auto max-h-28 w-auto max-w-full border border-border object-contain object-left-top"
+        />
+      );
+    }
+    return (
+      <img
+        {...shared}
+        alt=""
+        className="h-16 w-24 shrink-0 border border-border object-cover"
+      />
+    );
+  }
+
+  if (fit === 'crop') {
+    return (
+      <img
+        {...shared}
+        alt={image.alt || ''}
+        className="mt-5 aspect-[16/10] w-full max-h-[28rem] border border-border object-cover object-center"
+      />
+    );
+  }
+
+  return (
+    <img
+      {...shared}
+      alt={image.alt || ''}
+      className="mt-5 block h-auto max-h-[32rem] w-auto max-w-full border border-border object-contain object-top"
+    />
+  );
+}
+
 const sectionShell = 'px-1 pt-4 sm:px-2 sm:pt-5 lg:px-3';
 
 export function JournalSectionSkeleton() {
@@ -65,7 +122,7 @@ export function JournalSectionSkeleton() {
             <div className="mt-4 h-16 max-w-xl animate-pulse bg-foreground/10 sm:h-24" />
             <div className="mt-4 h-16 max-w-lg animate-pulse bg-foreground/5" />
           </div>
-          <div className="border border-border">
+          <div className="border-t border-border">
             <div className="h-14 animate-pulse border-b border-border bg-foreground/5" />
             <div className="h-14 animate-pulse bg-foreground/5" />
           </div>
@@ -75,17 +132,48 @@ export function JournalSectionSkeleton() {
   );
 }
 
-function EssayArtwork({ image }) {
-  if (!image?.src) return null;
+function PrimaryEssay({ entry, label }) {
+  const href = journalEntryPath(entry);
+  const title = entry.title || 'Untitled Essay';
+  const excerpt = journalDisplayExcerpt(entry);
+  const tags = essayTags(entry);
+  const reading = journalReadingLabel(entry.readingMinutes);
+
   return (
-    <img
-      src={image.src}
-      alt={image.alt || ''}
-      width={image.width || undefined}
-      height={image.height || undefined}
-      decoding="async"
-      className="mt-5 block h-auto max-h-[28rem] w-full border border-border object-contain object-top"
-    />
+    <article data-testid="home-featured-essay" className="relative min-w-0">
+      <Link
+        href={href}
+        className="group relative block border border-border bg-foreground/[0.03] px-4 py-5 transition-colors hover:border-primary/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-7 sm:py-7 lg:px-8 lg:py-9"
+      >
+        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-primary" />
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-primary">{label}</span>
+          <EssayDate entry={entry} />
+          {reading ? (
+            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-foreground/60">
+              {reading}
+            </span>
+          ) : null}
+          <EssayTags tags={tags} />
+        </div>
+        <h2
+          id="home-primary-essay"
+          className="max-w-3xl text-[1.85rem] font-semibold leading-[0.94] text-foreground transition-colors group-hover:text-primary sm:text-4xl lg:text-5xl xl:text-6xl"
+          style={displayFont}
+        >
+          {title}
+        </h2>
+        <EssayArtwork image={entry.image} />
+        {excerpt ? (
+          <p className="mt-4 max-w-[62ch] text-base leading-relaxed text-foreground/80 sm:text-lg" style={bodyFont}>
+            {excerpt}
+          </p>
+        ) : null}
+        <span className="nav-label mt-5 inline-flex min-h-11 items-center border border-primary px-4 text-xs tracking-[0.16em] text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+          Read Essay
+        </span>
+      </Link>
+    </article>
   );
 }
 
@@ -93,38 +181,35 @@ function LatestEssay({ entry }) {
   const href = journalEntryPath(entry);
   const title = entry.title || 'Untitled Essay';
   const excerpt = journalDisplayExcerpt(entry);
-  const tags = essayTags(entry);
+  const category = essayTags(entry)[0] || '';
 
   return (
-    <article
-      data-testid="home-featured-essay"
-      className="relative border border-border bg-foreground/[0.03] px-4 py-5 sm:px-7 sm:py-7 lg:px-8 lg:py-9"
-    >
-      <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-primary" />
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <EssayDate entry={entry} />
-        <EssayTags tags={tags} />
-      </div>
-      <h2
-        id="home-latest-essay"
-        className="max-w-3xl text-[1.85rem] font-semibold leading-[0.94] text-foreground sm:text-4xl lg:text-5xl xl:text-6xl"
-        style={displayFont}
-      >
-        <Link href={href} className="transition-colors hover:text-primary">
-          {title}
-        </Link>
-      </h2>
-      <EssayArtwork image={entry.image} />
-      {excerpt ? (
-        <p className="mt-4 max-w-[62ch] text-base leading-relaxed text-foreground/80 sm:text-lg" style={bodyFont}>
-          {excerpt}
-        </p>
-      ) : null}
+    <article data-testid="home-latest-essay" className="min-w-0 border-t-2 border-primary">
       <Link
         href={href}
-        className="nav-label mt-5 inline-flex min-h-11 items-center border border-primary px-4 text-xs tracking-[0.16em] text-primary transition-colors hover:bg-primary hover:text-white"
+        className="group block px-1 py-4 transition-colors hover:bg-foreground/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        Read Essay
+        <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-primary">Latest Essay</span>
+          <EssayDate entry={entry} className="shrink-0 whitespace-nowrap" />
+        </span>
+        {category ? (
+          <span className="mt-2 block font-mono text-[10px] uppercase tracking-[0.14em] text-foreground/55">
+            {category}
+          </span>
+        ) : null}
+        <span
+          className="mt-1 block text-2xl font-semibold leading-[0.98] text-foreground transition-colors group-hover:text-primary sm:text-3xl"
+          style={displayFont}
+        >
+          {title}
+        </span>
+        <EssayArtwork image={entry.image} size="compact" />
+        {excerpt ? (
+          <span className="mt-2 line-clamp-3 block max-w-[62ch] text-sm leading-relaxed text-foreground/75 sm:text-base" style={bodyFont}>
+            {excerpt}
+          </span>
+        ) : null}
       </Link>
     </article>
   );
@@ -133,35 +218,60 @@ function LatestEssay({ entry }) {
 function RecentEssayLink({ entry }) {
   const href = journalEntryPath(entry);
   const title = entry.title || 'Untitled Essay';
+  const excerpt = journalDisplayExcerpt(entry);
+  const category = essayTags(entry)[0] || '';
+  const fit = entry.image?.src ? journalImageFit(entry.image) : '';
 
   return (
     <li>
       <Link
         href={href}
-        className="group flex min-h-11 flex-col gap-3 px-4 py-3 transition-colors hover:bg-foreground/[0.04]"
+        className="group flex min-h-11 flex-col gap-3 px-1 py-3 transition-colors hover:bg-foreground/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:flex-row sm:items-start"
       >
-        {entry.image?.src ? (
-          <img
-            src={entry.image.src}
-            alt=""
-            width={entry.image.width || undefined}
-            height={entry.image.height || undefined}
-            decoding="async"
-            className="h-auto max-h-[28rem] w-auto max-w-full self-start border border-border bg-foreground/[0.03] object-contain object-left-top"
-          />
-        ) : null}
-        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+        {fit === 'crop' ? <EssayArtwork image={entry.image} size="compact" /> : null}
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
+              {category || 'Essay'}
+            </span>
+            <EssayDate entry={entry} className="shrink-0 whitespace-nowrap" />
+          </span>
           <span
-            className="min-w-0 text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary sm:flex-1 sm:text-xl"
+            className="text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary sm:text-xl"
             style={displayFont}
           >
             {title}
           </span>
-          <EssayDate entry={entry} className="shrink-0 whitespace-nowrap" />
+          {excerpt ? (
+            <span className="line-clamp-2 text-sm leading-relaxed text-foreground/70" style={bodyFont}>
+              {excerpt}
+            </span>
+          ) : null}
+          {fit === 'contain' ? <EssayArtwork image={entry.image} size="compact" /> : null}
         </span>
       </Link>
     </li>
   );
+}
+
+async function decorate(entry, { leadCopy = false } = {}) {
+  if (!entry) return null;
+  let next = entry;
+  if (leadCopy) {
+    try {
+      const copy = await loadJournalLeadCopy(entry);
+      if (copy?.excerpt) next = { ...next, summary: copy.excerpt };
+      if (copy?.readingMinutes) next = { ...next, readingMinutes: copy.readingMinutes };
+    } catch {
+      next = entry;
+    }
+  }
+  try {
+    const image = await resolveJournalListingImage(next, { allowBody: true });
+    return image ? { ...next, image } : next;
+  } catch {
+    return { ...next, image: null };
+  }
 }
 
 export default async function JournalSection() {
@@ -173,40 +283,22 @@ export default async function JournalSection() {
   }
 
   const selection = selectHomepageEssays(entries);
-  const { latest, recent } = selection;
-  if (!latest) return null;
+  const primary = selection.featured || selection.latest;
+  if (!primary) return null;
+  const distinctLatest =
+    selection.featured && selection.latest && !sameJournalEntry(selection.featured, selection.latest)
+      ? selection.latest
+      : null;
   const label = homepageEssayLabel(selection);
 
-  let feature = latest;
-  if (!String(latest.summary || '').trim()) {
-    try {
-      const excerpt = await featuredEssayExcerpt(latest);
-      if (excerpt) feature = { ...latest, summary: excerpt };
-    } catch {
-      feature = latest;
-    }
-  }
-  try {
-    const image = await resolveJournalListingImage(feature, { allowBody: true });
-    if (image) feature = { ...feature, image };
-  } catch {
-    feature = { ...feature, image: null };
-  }
-  const recentWithArt = await Promise.all(
-    recent.map(async (entry) => {
-      try {
-        const image = await resolveJournalListingImage(entry, { allowBody: true });
-        return image ? { ...entry, image } : entry;
-      } catch {
-        return entry;
-      }
-    }),
-  );
+  const feature = await decorate(primary, { leadCopy: true });
+  const latest = distinctLatest ? await decorate(distinctLatest, { leadCopy: true }) : null;
+  const recentWithArt = await Promise.all(selection.recent.map((entry) => decorate(entry)));
 
   return (
     <section
       data-testid="home-essays"
-      aria-labelledby="home-latest-essay"
+      aria-labelledby="home-primary-essay"
       className={`${sectionShell} ${barlowCondensed.variable} ${sourceSans3.variable}`}
     >
       <div className="mx-auto max-w-[1600px]">
@@ -221,21 +313,32 @@ export default async function JournalSection() {
             Essays & Analysis
           </Link>
         </div>
-        <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3 lg:gap-10 xl:gap-12">
-          <div className="min-w-0 lg:col-span-2">
-            <LatestEssay entry={feature} />
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3 lg:gap-10 xl:gap-12">
+          <div className={latest || recentWithArt.length > 0 ? 'min-w-0 lg:col-span-2' : 'min-w-0 lg:col-span-3'}>
+            <PrimaryEssay entry={feature} label={label} />
           </div>
-          {recent.length > 0 ? (
+          {latest || recentWithArt.length > 0 ? (
             <div className="min-w-0">
-              <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.22em] text-foreground/50">Recent</p>
-              <ul
-                data-testid="home-recent-essays"
-                className="m-0 list-none divide-y divide-border border border-border bg-foreground/[0.03] p-0"
-              >
-                {recentWithArt.map((entry) => (
-                  <RecentEssayLink key={entry.id || entry.slug} entry={entry} />
-                ))}
-              </ul>
+              {latest ? <LatestEssay entry={latest} /> : null}
+              {recentWithArt.length > 0 ? (
+                <>
+                  <p
+                    className={`mb-2 font-mono text-[11px] uppercase tracking-[0.22em] text-foreground/50 ${
+                      latest ? 'mt-6' : ''
+                    }`}
+                  >
+                    Recent
+                  </p>
+                  <ul
+                    data-testid="home-recent-essays"
+                    className="m-0 list-none divide-y divide-border border-t border-border p-0"
+                  >
+                    {recentWithArt.map((entry) => (
+                      <RecentEssayLink key={entry.id || entry.slug} entry={entry} />
+                    ))}
+                  </ul>
+                </>
+              ) : null}
             </div>
           ) : null}
         </div>

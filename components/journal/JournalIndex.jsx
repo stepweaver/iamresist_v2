@@ -26,8 +26,8 @@ export default function JournalIndex({
   const shown = listed.length;
   const searchNote = subject
     ? `Showing essays tagged ${subject}. Search still matches title, date, and tag.`
-    : browsingDefault && pinnedIds.length > 0
-      ? 'Featured and recent essays stay out of this list. Search still finds them.'
+      : browsingDefault && pinnedIds.length > 0
+      ? 'Essays shown above stay out of this list. Search still finds them.'
       : searchCoversArchive
         ? null
         : 'Search covers the records loaded on this page.';
@@ -112,7 +112,7 @@ export default function JournalIndex({
                   ) : null}
                 </span>
                 <span className="journal-record__title">
-                  {record.image?.src ? (
+                  {record.image?.src && record.image.fit === 'crop' ? (
                     <img
                       className="journal-record__thumb"
                       src={record.image.src}
@@ -123,11 +123,19 @@ export default function JournalIndex({
                       loading="lazy"
                     />
                   ) : null}
-                  <span>{record.title}</span>
+                  <span className="journal-record__copy">
+                    <span className="journal-record__headline">{record.title}</span>
+                    {record.excerpt ? (
+                      <span className="journal-record__deck">{record.excerpt}</span>
+                    ) : null}
+                  </span>
                 </span>
                 {record.tags?.length > 0 || record.author ? (
                   <span className="journal-record__meta">
-                    {record.tags?.length > 0 ? record.tags.join(' · ') : null}
+                    {record.tags?.[0] ? (
+                      <span className="journal-record__category">{record.tags[0]}</span>
+                    ) : null}
+                    {record.tags?.length > 1 ? <span>{record.tags.slice(1).join(' · ')}</span> : null}
                     {record.author ? (
                       <span className="journal-record__author">{record.author}</span>
                     ) : null}

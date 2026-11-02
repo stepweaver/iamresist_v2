@@ -6,7 +6,10 @@ const { Children, isValidElement } = React;
 
 const journal = vi.hoisted(() => ({
   getHomepageJournalEntries: vi.fn(),
-  featuredEssayExcerpt: vi.fn(async (entry: { summary?: string }) => String(entry?.summary || '').trim()),
+  loadJournalLeadCopy: vi.fn(async (entry: { summary?: string; readingMinutes?: number }) => ({
+    excerpt: String(entry?.summary || '').trim(),
+    readingMinutes: Number(entry?.readingMinutes) || 0,
+  })),
   resolveJournalListingImage: vi.fn(
     async (
       _entry?: { slug?: string },
@@ -27,7 +30,7 @@ vi.mock('@/app/fonts', () => ({
 
 vi.mock('@/lib/journal', () => ({
   getHomepageJournalEntries: journal.getHomepageJournalEntries,
-  featuredEssayExcerpt: journal.featuredEssayExcerpt,
+  loadJournalLeadCopy: journal.loadJournalLeadCopy,
   resolveJournalListingImage: journal.resolveJournalListingImage,
 }));
 
@@ -147,7 +150,10 @@ describe('homepage editorial section', () => {
     expect(text.indexOf('Latest Essay Title')).toBeLessThan(text.indexOf('Middle Essay'));
     expect(text.indexOf('Middle Essay')).toBeLessThan(text.indexOf('Older Essay'));
     expect(text).toContain('The central argument in two sentences.');
-    expect(text).not.toContain('An earlier argument.');
+    expect(text).toContain('An earlier argument.');
+    expect(text.indexOf('The central argument in two sentences.')).toBeLessThan(
+      text.indexOf('An earlier argument.'),
+    );
     expect(text).not.toContain('Latest Copy');
     expect(text).toContain('Read Essay');
     expect(text.match(/Read Essay/g)).toHaveLength(1);
@@ -172,14 +178,20 @@ describe('homepage editorial section', () => {
   });
 
   it('uses one cached excerpt for the latest essay when Summary is empty', async () => {
-    journal.featuredEssayExcerpt.mockResolvedValueOnce('A cached lead from the essay.');
+    journal.loadJournalLeadCopy.mockClear();
+    journal.loadJournalLeadCopy.mockResolvedValueOnce({
+      excerpt: 'A cached lead from the essay.',
+      readingMinutes: 4,
+    });
     journal.getHomepageJournalEntries.mockResolvedValue([
       { id: 'only', slug: 'only-essay', title: 'Only Essay', date: '2026-03-03', summary: '' },
     ]);
     const { default: JournalSection } = await import('@/components/home/JournalSection');
     const section = await JournalSection();
-    expect(textOf(section).join(' ')).toContain('A cached lead from the essay.');
-    expect(journal.featuredEssayExcerpt).toHaveBeenCalledTimes(1);
+    const text = textOf(section).join(' ');
+    expect(text).toContain('A cached lead from the essay.');
+    expect(text).toContain('4 min read');
+    expect(journal.loadJournalLeadCopy).toHaveBeenCalledTimes(1);
   });
 
   it('features an explicitly checked essay and shows its artwork without duplicating it', async () => {
@@ -205,11 +217,11 @@ describe('homepage editorial section', () => {
     const images = srcsOf(section);
 
     expect(text).toContain('Featured Essay');
-    expect(text).not.toContain('Latest Essay');
+    expect(text).toContain('Latest Essay');
     expect(text.indexOf('Featured Accountability')).toBeLessThan(text.indexOf('Newest Essay'));
-    expect(hrefs.filter((href) => href === '/journal/featured-essay').length).toBeGreaterThan(0);
-    expect(hrefs).toContain('/journal/newest-essay');
-    expect(hrefs.filter((href) => href === '/journal/featured-essay')).toHaveLength(2);
+    expect(testIdsOf(section)).toContain('home-latest-essay');
+    expect(hrefs.filter((href) => href === '/journal/featured-essay')).toHaveLength(1);
+    expect(hrefs.filter((href) => href === '/journal/newest-essay')).toHaveLength(1);
     expect(images).toEqual(['/journal/featured-essay/image']);
     expect(journal.resolveJournalListingImage).toHaveBeenCalledWith(
       expect.objectContaining({ slug: 'featured-essay' }),

@@ -29,6 +29,9 @@ describe('formatJournalPage', () => {
       date: '2026-04-02',
       tags: ['Law'],
       summary: '',
+      pullQuote: '',
+      readingMinutes: 0,
+      imageFit: '',
       featured: false,
       propertyImage: null,
       coverImage: null,
@@ -73,9 +76,41 @@ describe('formatJournalPage', () => {
       title: '',
       slug: '',
       summary: '',
+      pullQuote: '',
+      readingMinutes: 0,
+      imageFit: '',
       featured: false,
       tags: [],
     });
     expect(formatJournalPage({ id: 'bare' }).title).toBe('');
+  });
+
+  it('reads an optional pull quote, reading time, and image presentation', () => {
+    const entry = formatJournalPage(
+      page({
+        Title: { title: [{ plain_text: 'Question Me' }] },
+        'Pull Quote': {
+          type: 'rich_text',
+          rich_text: [{ plain_text: 'Do not outsource your judgment.' }],
+        },
+        'Reading Time': { type: 'number', number: 8 },
+        'Image Presentation': { type: 'select', select: { name: 'Infographic' } },
+      }),
+    );
+
+    expect(entry.pullQuote).toBe('Do not outsource your judgment.');
+    expect(entry.readingMinutes).toBe(8);
+    expect(entry.imageFit).toBe('contain');
+    expect(entry.summary).toBe('');
+    expect(
+      formatJournalPage(
+        page({ 'Image Presentation': { type: 'select', select: { name: 'Crop' } } }),
+      ).imageFit,
+    ).toBe('crop');
+    expect(
+      formatJournalPage(
+        page({ 'Read Time': { type: 'rich_text', rich_text: [{ plain_text: '12 min read' }] } }),
+      ).readingMinutes,
+    ).toBe(12);
   });
 });

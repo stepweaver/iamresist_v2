@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import JournalFigure from '@/components/journal/JournalFigure';
 
 export default function JournalArticle({
   title,
@@ -8,6 +9,10 @@ export default function JournalArticle({
   related = [],
   subscriptionUrl = '',
   image = null,
+  deck = '',
+  pullQuote = '',
+  readingLabel = '',
+  featured = false,
   children,
 }) {
   const tagList = Array.isArray(tags) ? tags.filter(Boolean) : [];
@@ -36,6 +41,18 @@ export default function JournalArticle({
               <time dateTime={dates.updatedDateTime || undefined}>{dates.updatedLabel}</time>
             </div>
           ) : null}
+          {readingLabel ? (
+            <div className="journal-rail__block">
+              <p className="journal-rail__label">Reading time</p>
+              <p>{readingLabel}</p>
+            </div>
+          ) : null}
+          {featured ? (
+            <div className="journal-rail__block">
+              <p className="journal-rail__label">Status</p>
+              <p>Featured</p>
+            </div>
+          ) : null}
           {tagList.length > 0 ? (
             <div className="journal-rail__block">
               <p className="journal-rail__label">Tags</p>
@@ -56,20 +73,17 @@ export default function JournalArticle({
 
         <article className="journal-reading">
           <header className="journal-reading__header">
-            <p className="journal-kicker">Essay</p>
+            <p className="journal-kicker">
+              <span>Essay</span>
+              {tagList[0] ? <span className="journal-kicker__category">{tagList[0]}</span> : null}
+            </p>
             <h1 className="journal-article__title">{title}</h1>
-            {image?.src ? (
-              <figure className="journal-editorial">
-                <img
-                  src={image.src}
-                  alt={image.alt || ''}
-                  width={image.width || undefined}
-                  height={image.height || undefined}
-                  decoding="async"
-                  fetchPriority="high"
-                />
-                {image.caption ? <figcaption>{image.caption}</figcaption> : null}
-              </figure>
+            {deck ? <p className="journal-article__deck">{deck}</p> : null}
+            <JournalFigure image={image} priority />
+            {pullQuote ? (
+              <blockquote className="journal-pullquote">
+                <p>{pullQuote}</p>
+              </blockquote>
             ) : null}
           </header>
           {children}

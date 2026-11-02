@@ -30,7 +30,7 @@ function essay(id, date, tags = []) {
 }
 
 describe('editorial presentation', () => {
-  it('limits the journal landing to one feature and two recent essays', () => {
+  it('limits the journal landing to one lead and three supporting essays', () => {
     const landing = composeJournalLanding([
       essay('a', '2026-01-01'),
       essay('b', '2026-02-01'),
@@ -39,8 +39,9 @@ describe('editorial presentation', () => {
       essay('e', '2026-05-01'),
     ]);
 
-    expect(landing.featured.slug).toBe('e');
-    expect(landing.recent.map((entry) => entry.slug)).toEqual(['d', 'c']);
+    expect(landing.lead.slug).toBe('e');
+    expect(landing.featured).toBeNull();
+    expect(landing.recent.map((entry) => entry.slug)).toEqual(['d', 'c', 'b']);
     expect(landing.ordered).toHaveLength(5);
   });
 

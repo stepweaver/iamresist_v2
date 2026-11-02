@@ -6,11 +6,12 @@ export default async function HeroEssayLink() {
   try {
     const entries = await getHomepageJournalEntries();
     const selection = selectHomepageEssays(entries);
-    if (!selection.latest) return null;
+    const essay = selection.featured || selection.latest;
+    if (!essay) return null;
 
     return (
       <Link
-        href={journalEntryPath(selection.latest)}
+        href={journalEntryPath(essay)}
         data-testid="hero-latest-essay"
         className="nav-label inline-flex min-h-11 items-center border border-hud-red/40 px-3 text-xs tracking-[0.16em] text-primary transition-colors hover:border-primary hover:bg-primary/10"
       >

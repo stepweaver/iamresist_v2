@@ -1,7 +1,14 @@
 import { notFound } from 'next/navigation';
 import NotionBlocksBody from '@/components/content/NotionBlocksBody';
 import JournalArticle from '@/components/journal/JournalArticle';
-import { journalDates, journalEntryPath, selectRelatedJournalEssays, toJournalRecord } from '@/components/journal/journalFormat';
+import {
+  journalDates,
+  journalEntryPath,
+  journalReadingLabel,
+  journalReadingMinutesFromBlocks,
+  selectRelatedJournalEssays,
+  toJournalRecord,
+} from '@/components/journal/journalFormat';
 import { journalSubscriptionUrl } from '@/lib/journalSubscribe';
 import StructuredData from '@/components/seo/StructuredData';
 import {
@@ -120,6 +127,12 @@ export default async function JournalEntryPage({ params }) {
         related={related}
         subscriptionUrl={journalSubscriptionUrl()}
         image={presented.displayImage}
+        deck={String(entry.summary || '').replace(/\s+/g, ' ').trim()}
+        pullQuote={String(entry.pullQuote || '').replace(/\s+/g, ' ').trim()}
+        readingLabel={journalReadingLabel(
+          entry.readingMinutes || journalReadingMinutesFromBlocks(blocks),
+        )}
+        featured={entry.featured === true}
       >
         {blocks.length > 0 ? (
           <NotionBlocksBody

@@ -6,12 +6,13 @@ import {
   compareJournalEntries,
   composeJournalLanding,
   journalDisplayExcerpt,
+  sameJournalEntry,
   toJournalRecord,
 } from '@/components/journal/journalFormat';
 import {
-  featuredEssayExcerpt,
   getAllJournalEntries,
   getJournalIndexPayload,
+  loadJournalLeadCopy,
   presentJournalEntries,
   resolveJournalListingImage,
 } from '@/lib/journal';
@@ -50,9 +51,19 @@ export default async function JournalPage() {
   }
 
   const landing = composeJournalLanding(entries);
-  const featuredExcerpt = landing.featured ? await featuredEssayExcerpt(landing.featured) : '';
-  const featuredImage = landing.featured
-    ? await resolveJournalListingImage(landing.featured, { allowBody: true })
+  let leadCopy = { excerpt: '', readingMinutes: 0 };
+  if (landing.lead) {
+    try {
+      leadCopy = await loadJournalLeadCopy(landing.lead);
+    } catch {
+      leadCopy = {
+        excerpt: journalDisplayExcerpt(landing.lead),
+        readingMinutes: Number(landing.lead.readingMinutes) || 0,
+      };
+    }
+  }
+  const leadImage = landing.lead
+    ? await resolveJournalListingImage(landing.lead, { allowBody: true })
     : null;
   const recentImages = await Promise.all(
     landing.recent.map((entry) => resolveJournalListingImage(entry, { allowBody: true })),
@@ -60,11 +71,18 @@ export default async function JournalPage() {
   const records = landing.ordered.map((entry) =>
     toJournalRecord(
       entry,
-      entry?.id && entry.id === landing.featured?.id ? { excerpt: featuredExcerpt } : {},
+      sameJournalEntry(entry, landing.lead) ? { excerpt: leadCopy.excerpt } : {},
     ),
   );
-  const featured = landing.featured
-    ? toJournalRecord({ ...landing.featured, image: featuredImage }, { excerpt: featuredExcerpt })
+  const featured = landing.lead
+    ? toJournalRecord(
+        {
+          ...landing.lead,
+          image: leadImage,
+          readingMinutes: leadCopy.readingMinutes || landing.lead.readingMinutes,
+        },
+        { excerpt: leadCopy.excerpt },
+      )
     : null;
   const recent = landing.recent.map((entry, index) =>
     toJournalRecord({ ...entry, image: recentImages[index] }, { excerpt: journalDisplayExcerpt(entry) }),
