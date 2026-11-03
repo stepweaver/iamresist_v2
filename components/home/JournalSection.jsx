@@ -109,7 +109,7 @@ function EssayArtwork({ image, size = 'lead' }) {
   );
 }
 
-const sectionShell = 'px-1 pt-4 sm:px-2 sm:pt-5 lg:px-3';
+const sectionShell = 'human-band px-1 pt-6 pb-8 sm:px-2 sm:pt-7 lg:px-3 lg:pt-8 lg:pb-10';
 
 export function JournalSectionSkeleton() {
   return (

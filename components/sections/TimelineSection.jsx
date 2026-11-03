@@ -15,61 +15,50 @@ export default function TimelineSection() {
   const seenCategories = new Set();
 
   return (
-    <div className="relative">
-      <div className="absolute left-4 top-0 bottom-0 w-px bg-border"></div>
+    <div className="timeline-track">
+      {events.map((event, index) => {
+        const category = String(event.category || '');
+        const isCategoryStart = category && !seenCategories.has(category);
+        if (isCategoryStart) seenCategories.add(category);
+        const categoryId = isCategoryStart ? `timeline-${timelineCategorySlug(category)}` : undefined;
+        const categorySlug = timelineCategorySlug(category);
 
-      <div className="space-y-8">
-        {events.map((event, index) => {
-          const category = String(event.category || '');
-          const isCategoryStart = category && !seenCategories.has(category);
-          if (isCategoryStart) seenCategories.add(category);
-          const categoryId = isCategoryStart ? `timeline-${timelineCategorySlug(category)}` : undefined;
-
-          return (
-          <div
+        return (
+          <article
             key={`${event.date}-${event.title}-${index}`}
             id={categoryId}
-            className="relative scroll-mt-24 pl-12"
+            data-category={categorySlug || undefined}
+            className="timeline-event"
           >
-            <div className="absolute left-2 top-6 w-4 h-4 bg-primary border-2 border-background rounded-full"></div>
-
-            <div className="machine-panel border border-border p-6 relative overflow-hidden">
-              <div className="absolute inset-0 hud-grid opacity-5"></div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-3 flex-wrap">
-                  <span className="font-mono text-[10px] text-hud-dim uppercase tracking-wider">
-                    {event.category}
-                  </span>
-                  <span className="text-hud-dim">|</span>
-                  <time className="font-mono text-[10px] text-hud-dim tracking-wider">
-                    {formatTimelineCardDate(event.date)}
-                  </time>
-                </div>
-
-                <h3 className="section-title text-xl lg:text-2xl font-bold text-foreground mb-3">
-                  {event.title}
-                </h3>
-
-                <p className="prose-copy text-foreground/80 mb-4">{event.description}</p>
-
-                {event.link && (
-                  <div className="font-mono text-[10px] text-hud-dim tracking-wider border-t border-border pt-3">
-                    <Link
-                      href={event.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline uppercase"
-                    >
-                      View source timeline -&gt;
-                    </Link>
-                  </div>
-                )}
-              </div>
+            <div className="timeline-event__axis" aria-hidden="true">
+              <span className="timeline-event__tick" />
             </div>
-          </div>
-          );
-        })}
-      </div>
+            <div className="timeline-event__body">
+              <div className="timeline-event__meta">
+                <span className="timeline-event__category">{category}</span>
+                <time
+                  className="timeline-event__date"
+                  dateTime={/^\d{4}-\d{2}-\d{2}/.test(event.date || '') ? event.date : undefined}
+                >
+                  {formatTimelineCardDate(event.date)}
+                </time>
+              </div>
+              <h3 className="timeline-event__title">{event.title}</h3>
+              <p className="timeline-event__description">{event.description}</p>
+              {event.link ? (
+                <Link
+                  href={event.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="timeline-event__source"
+                >
+                  View source timeline
+                </Link>
+              ) : null}
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }

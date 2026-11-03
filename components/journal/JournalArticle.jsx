@@ -24,6 +24,7 @@ export default function JournalArticle({
       </p>
       <div className="journal-article__grid">
         <aside className="journal-rail" aria-label="Record details">
+          <p className="journal-rail__file">Journal record</p>
           {dates?.displayLabel ? (
             <div className="journal-rail__block">
               <p className="journal-rail__label">Published</p>

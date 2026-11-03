@@ -1,0 +1,187 @@
+.human-masthead {
+  border-bottom: 1px solid var(--obs-rule);
+  background: var(--background);
+  padding: 2.4rem 0 1.8rem;
+}
+
+:root.light .human-masthead {
+  border-bottom: 3px solid #121212;
+  background: var(--reading);
+}
+
+.human-masthead__kicker {
+  display: block;
+  margin-bottom: 0.85rem;
+  color: var(--human-rule);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+}
+
+.human-masthead__title {
+  margin: 0;
+  max-width: 16ch;
+  color: var(--foreground);
+  font-family: var(--font-journal-display), "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.human-masthead__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 1rem 0 0;
+  color: var(--human-meta);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.timeline-track {
+  position: relative;
+  display: grid;
+  gap: 1.35rem;
+}
+
+.timeline-track::before {
+  content: "";
+  position: absolute;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  left: 0.45rem;
+  width: 1px;
+  background: var(--obs-rule);
+}
+
+.timeline-event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.15rem minmax(0, 1fr);
+  gap: 0.85rem;
+  scroll-margin-top: 6rem;
+}
+
+.timeline-event__tick {
+  position: relative;
+  z-index: 1;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-top: 1.15rem;
+  background: var(--timeline-mark, var(--obs-steel));
+  box-shadow: 0 0 0 4px var(--background);
+}
+
+:root.light .timeline-event__tick {
+  box-shadow: 0 0 0 4px var(--reading);
+}
+
+.timeline-event[data-category='supporting-underminers'] {
+  --timeline-mark: var(--obs-signal);
+}
+
+.timeline-event[data-category='retreating-from-federal-role'] {
+  --timeline-mark: var(--obs-cyan);
+}
+
+.timeline-event[data-category='rewriting-election-rules'] {
+  --timeline-mark: var(--obs-steel);
+}
+
+.timeline-event[data-category='targeting-officials'] {
+  --timeline-mark: var(--foreground);
+}
+
+.timeline-event__body {
+  min-width: 0;
+  border: 1px solid var(--obs-rule);
+  border-left: 2px solid var(--timeline-mark, var(--obs-steel));
+  background: color-mix(in oklab, var(--obs-gunmetal) 55%, var(--background));
+  padding: 1rem 1rem 1.05rem;
+}
+
+:root.light .timeline-event__body {
+  background: var(--reading);
+}
+
+.timeline-event__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.8rem;
+  margin-bottom: 0.55rem;
+}
+
+.timeline-event__category,
+.timeline-event__date {
+  color: var(--obs-meta);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.timeline-event__category {
+  color: var(--timeline-mark, var(--obs-meta));
+}
+
+.timeline-event__title {
+  margin: 0 0 0.7rem;
+  color: var(--foreground);
+  font-family: var(--font-journal-display), "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.02;
+}
+
+.timeline-event__description {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--foreground);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.timeline-event__source {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--obs-rule);
+  padding-top: 0.35rem;
+  color: var(--human-rule);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.timeline-event__source:hover {
+  text-decoration: underline;
+}
+
+.timeline-event__source:focus-visible {
+  outline: 2px solid var(--obs-signal);
+  outline-offset: 3px;
+}
+
+@media (min-width: 768px) {
+  .timeline-track::before {
+    left: 0.55rem;
+  }
+
+  .timeline-event {
+    grid-template-columns: 1.4rem minmax(0, 1fr);
+    gap: 1.15rem;
+  }
+
+  .timeline-event__body {
+    padding: 1.15rem 1.25rem 1.2rem;
+  }
+}

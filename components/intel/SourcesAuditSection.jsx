@@ -1,4 +1,5 @@
 import { formatDate } from '@/lib/utils/date';
+import { sourceStatusLabel, summarizeSourceAudit } from '@/lib/design/sourceOverview';
 
 function formatIso(iso) {
   if (!iso) return '—';
@@ -32,60 +33,158 @@ function formatRunMeta(meta) {
   return parts.length ? parts.join(' · ') : null;
 }
 
-function HealthBadge({ health }) {
-  const base =
-    'font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border rounded whitespace-nowrap';
-  const map = {
-    healthy: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400/90 bg-emerald-500/10',
-    stale: 'border-primary/50 text-primary bg-primary/5',
-    failing: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
-    disabled: 'border-border text-foreground/50 bg-foreground/5',
-    unproven: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
-  };
-  return <span className={`${base} ${map[health] || map.unproven}`}>{health}</span>;
-}
-
-const STATUS_LABELS = {
-  enabled_healthy: 'Healthy',
-  enabled_stale: 'Ingest stale',
-  enabled_unproven: 'Unproven',
-  enabled_failing: 'Upstream failure',
-  enabled_blocked: 'Access restricted',
-  enabled_misconfigured: 'Misconfigured',
-  enabled_quarantined: 'Redirect failure',
-  enabled_parser_mismatch: 'Parser failure',
-  enabled_valid_empty: 'Valid empty',
-  enabled_not_publishing: 'Not publishing',
-  disabled_policy: 'Disabled',
-  disabled_placeholder: 'Placeholder',
-  disabled_env_gated: 'Not configured',
-  disabled_other: 'Disabled',
-  needs_configuration: 'Needs configuration',
+const STATUS_TONE = {
+  enabled_healthy: 'nominal',
+  enabled_valid_empty: 'nominal',
+  enabled_stale: 'watch',
+  enabled_not_publishing: 'watch',
+  enabled_unproven: 'attention',
+  enabled_parser_mismatch: 'attention',
+  needs_configuration: 'attention',
+  enabled_failing: 'fault',
+  enabled_blocked: 'fault',
+  enabled_misconfigured: 'fault',
+  enabled_quarantined: 'fault',
+  disabled_policy: 'idle',
+  disabled_placeholder: 'idle',
+  disabled_env_gated: 'idle',
+  disabled_other: 'idle',
 };
 
+function HealthBadge({ health }) {
+  const tone = ['healthy', 'stale', 'failing', 'disabled', 'unproven'].includes(health)
+    ? health
+    : 'unproven';
+  return <span className={`obs-status obs-status--${tone}`}>{health}</span>;
+}
+
 function StatusBadge({ bucket }) {
-  const base =
-    'font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border rounded whitespace-nowrap';
-  const map = {
-    enabled_healthy: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400/90 bg-emerald-500/10',
-    enabled_stale: 'border-primary/50 text-primary bg-primary/5',
-    enabled_unproven: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
-    enabled_failing: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
-    enabled_blocked: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
-    enabled_misconfigured: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
-    enabled_quarantined: 'border-red-500/50 text-red-700 dark:text-red-400 bg-red-500/10',
-    enabled_parser_mismatch: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
-    enabled_valid_empty: 'border-emerald-500/40 text-emerald-700 dark:text-emerald-400/90 bg-emerald-500/10',
-    enabled_not_publishing: 'border-primary/50 text-primary bg-primary/5',
-    disabled_policy: 'border-border text-foreground/55 bg-foreground/5',
-    disabled_placeholder: 'border-border text-foreground/55 bg-foreground/5',
-    disabled_env_gated: 'border-border text-foreground/55 bg-foreground/5',
-    disabled_other: 'border-border text-foreground/55 bg-foreground/5',
-    needs_configuration: 'border-amber-500/40 text-amber-700 dark:text-amber-400/80 bg-amber-500/10',
-  };
   if (!bucket) return null;
-  const label = STATUS_LABELS[bucket] || bucket;
-  return <span className={`${base} ${map[bucket] || map.disabled_other}`}>{label}</span>;
+  const tone = STATUS_TONE[bucket] || 'idle';
+  return <span className={`obs-status obs-status--${tone}`}>{sourceStatusLabel(bucket)}</span>;
+}
+
+function Readout({ label, children }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+function RunError({ row }) {
+  if (!row.lastRunError) return null;
+  const meta = formatRunMeta(row.lastRunMeta);
+  return (
+    <div className="obs-fault">
+      <p className="obs-fault__label">Last run error</p>
+      <p className="obs-fault__body">{row.lastRunError}</p>
+      {meta ? <p className="obs-fault__meta">{meta}</p> : null}
+    </div>
+  );
+}
+
+function FullRecord({ row, showError = true }) {
+  return (
+    <div className="obs-record__body">
+      {showError ? <RunError row={row} /> : null}
+      {row.purpose ? <p className="obs-record__purpose">{row.purpose}</p> : null}
+      <dl className="obs-readout">
+        <Readout label="Provenance">{row.provenanceClass}</Readout>
+        <Readout label="Database">{row.isEnabled ? 'Enabled' : 'Not enabled'}</Readout>
+        <Readout label="Manifest">{row.manifestEnabled ? 'Listed' : 'Not listed'}</Readout>
+        <Readout label="Fetch">{row.fetchKind}</Readout>
+        <Readout label="Endpoint">{row.endpointDisplay}</Readout>
+        <Readout label="Latest run">
+          {row.lastRunStatus ?? '—'} · {formatIso(row.lastRunFinishedAt)}
+        </Readout>
+        <Readout label="Latest success">{formatIso(row.lastSuccessAt)}</Readout>
+        <Readout label="Last successful fetch">{formatIso(row.lastSuccessfulFetchAt)}</Readout>
+        <Readout label="Last successful parse">{formatIso(row.lastSuccessfulParseAt)}</Readout>
+        <Readout label="Newest article">{formatIso(row.newestArticlePublishedAt)}</Readout>
+        <Readout label="Latest item fetch">{formatIso(row.lastItemFetchedAt)}</Readout>
+        <Readout label="Items, 24h / 7d / total">
+          {row.items24h} / {row.items7d} / {row.itemTotal}
+        </Readout>
+        <Readout label="Surfaced / downranked / suppressed, 7d">
+          {row.surfaced7d} / {row.downranked7d} / {row.suppressed7d}
+        </Readout>
+        <Readout label="Surfaced / downranked / suppressed, all">
+          {row.surfacedTotal} / {row.downrankedTotal} / {row.suppressedTotal}
+        </Readout>
+        <Readout label="Trusted for">{row.trustedFor ?? '—'}</Readout>
+        <Readout label="Not trusted for">{row.notTrustedFor ?? '—'}</Readout>
+      </dl>
+      {row.manifestEnabled && !row.isEnabled ? (
+        <p className="obs-record__note">Listed in the manifest, not yet active in the database.</p>
+      ) : null}
+      {row.editorialNotes ? (
+        <p className="obs-record__note">
+          <span>Editorial / ops notes. </span>
+          {row.editorialNotes}
+        </p>
+      ) : null}
+      {row.noiseNotes ? (
+        <p className="obs-record__note">
+          <span>Relevance — volume / noise. </span>
+          {row.noiseNotes}
+        </p>
+      ) : null}
+      {row.relevanceNotes ? (
+        <p className="obs-record__note">
+          <span>Relevance — scoring notes. </span>
+          {row.relevanceNotes}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function SourceIdentity({ row }) {
+  return (
+    <div className="obs-identity">
+      <h2 className="obs-identity__name">{row.name}</h2>
+      <p className="obs-identity__slug">{row.slug}</p>
+      {row.isCoreSource ? <p className="obs-identity__core">Core source</p> : null}
+    </div>
+  );
+}
+
+function SourceOverview({ rows, staleThresholdMinutes }) {
+  const summary = summarizeSourceAudit(rows);
+  return (
+    <section className="obs-overview" aria-label="Source intake summary" data-testid="source-health-summary">
+      <p className="obs-disclaimer">
+        Source health describes intake status. It does not verify the claims those sources publish.
+      </p>
+      <p className="obs-overview__threshold">
+        A source is marked stale after {staleThresholdMinutes} minutes without a successful update.
+      </p>
+      <dl className="obs-overview__counts">
+        <div>
+          <dt>Sources</dt>
+          <dd>{summary.total}</dd>
+        </div>
+        {summary.byHealth.map((item) => (
+          <div key={item.key}>
+            <dt>{item.key}</dt>
+            <dd>{item.count}</dd>
+          </div>
+        ))}
+      </dl>
+      {summary.byStatus.length > 0 ? (
+        <ul className="obs-overview__status" aria-label="Status classifications">
+          {summary.byStatus.map((item) => (
+            <li key={item.key}>
+              <span>{item.label}</span>
+              <span>{item.count}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
 }
 
 export default function SourcesAuditSection({ audit }) {
@@ -94,10 +193,8 @@ export default function SourcesAuditSection({ audit }) {
   if (!configured) {
     console.warn('[intel-sources]', errorMessage || 'Source storage is not configured.');
     return (
-      <section className="border border-border p-6 machine-panel">
-        <p className="text-foreground/80 text-sm uppercase tracking-wider">
-          Source records are unavailable right now.
-        </p>
+      <section className="obs-panel">
+        <p className="obs-panel__message">Source records are unavailable right now.</p>
       </section>
     );
   }
@@ -110,8 +207,8 @@ export default function SourcesAuditSection({ audit }) {
       );
     }
     return (
-      <section className="border border-red-500/40 p-6 machine-panel">
-        <p className="text-red-700 dark:text-red-400 text-sm">Source records could not be read.</p>
+      <section className="obs-panel obs-panel--fault">
+        <p className="obs-panel__message">Source records could not be read.</p>
       </section>
     );
   }
@@ -130,112 +227,59 @@ export default function SourcesAuditSection({ audit }) {
   }
 
   return (
-    <div className="space-y-6">
-      <p className="font-mono text-[10px] text-hud-dim tracking-wide uppercase">
-        A source is marked stale after {staleThresholdMinutes} minutes without a successful update.
-      </p>
+    <div className="obs-audit">
+      <SourceOverview rows={rows} staleThresholdMinutes={staleThresholdMinutes} />
 
-      <div className="overflow-x-auto border border-border machine-panel">
-        <table className="w-full min-w-[1280px] text-left text-sm">
+      {rows.length === 0 ? (
+        <p className="obs-panel__message">No sources are listed in this record.</p>
+      ) : (
+      <>
+      <div className="obs-scan-wrap hidden lg:block">
+        <table className="obs-table">
+          <caption className="sr-only">Source intake records</caption>
+          <colgroup>
+            <col className="obs-table__status" />
+            <col className="obs-table__source" />
+            <col className="obs-table__fresh" />
+            <col className="obs-table__items" />
+            <col className="obs-table__treat" />
+          </colgroup>
           <thead>
-            <tr className="border-b border-border font-mono text-[10px] uppercase tracking-wider text-hud-dim">
-              <th className="p-3 align-bottom">Health</th>
-              <th className="p-3 align-bottom">Source</th>
-              <th className="p-3 align-bottom">Class</th>
-              <th className="p-3 align-bottom">Enabled</th>
-              <th className="p-3 align-bottom">Fetch</th>
-              <th className="p-3 align-bottom">Latest run</th>
-              <th className="p-3 align-bottom">Latest success</th>
-              <th className="p-3 align-bottom">Latest item fetch</th>
-              <th className="p-3 align-bottom">24h / 7d / total</th>
-              <th className="p-3 align-bottom">Surfaced / down / supp (7d)</th>
-              <th className="p-3 align-bottom">Surfaced / down / supp (all)</th>
+            <tr>
+              <th scope="col">Status</th>
+              <th scope="col">Source</th>
+              <th scope="col">Latest success</th>
+              <th scope="col">24h / 7d / total</th>
+              <th scope="col">Surfaced / down / supp, 7d</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b border-border/80 align-top hover:bg-foreground/[0.02]">
-                <td className="p-3">
-                  <HealthBadge health={r.health} />
-                  {r.statusBucket ? (
-                    <div className="mt-2">
-                      <StatusBadge bucket={r.statusBucket} />
-                      {r.statusDetail ? (
-                        <p className="font-mono text-[9px] text-foreground/45 mt-1 max-w-[180px] leading-snug">
-                          {r.statusDetail}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {r.healthReason ? (
-                    <p className="font-mono text-[9px] text-foreground/55 mt-2 max-w-[180px] leading-snug">
-                      {r.healthReason}
-                    </p>
-                  ) : null}
-                  {r.noiseHint ? (
-                    <p className="font-mono text-[9px] text-foreground/45 mt-2 max-w-[180px] leading-snug">
-                      {r.noiseHint}
-                    </p>
-                  ) : null}
-                </td>
-
-                <td className="p-3">
-                  <div className="font-bold text-foreground">{r.name}</div>
-                  <div className="font-mono text-[10px] text-hud-dim mt-0.5">{r.slug}</div>
-                  {r.isCoreSource ? (
-                    <span className="inline-block mt-1 font-mono text-[9px] uppercase text-primary/80">
-                      Core
-                    </span>
-                  ) : null}
-                  {r.purpose ? <p className="text-foreground/70 text-xs mt-3 leading-relaxed">{r.purpose}</p> : null}
-                  {r.lastRunError ? (
-                    <div className="mt-3 border border-red-500/30 bg-red-500/[0.04] p-2">
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-red-400">
-                        Last run error
-                      </div>
-                      <div className="text-red-300 text-xs mt-1 break-words">{r.lastRunError}</div>
-                      {formatRunMeta(r.lastRunMeta) ? (
-                        <div className="text-foreground/45 text-[11px] mt-1 break-words">
-                          {formatRunMeta(r.lastRunMeta)}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </td>
-
-                <td className="p-3 font-mono text-xs">{r.provenanceClass}</td>
-                <td className="p-3 font-mono text-[10px] align-top">
-                  <div>
-                    <span className="text-hud-dim">DB</span> {r.isEnabled ? 'yes' : 'no'}
+            {rows.map((row) => (
+              <tr key={row.id} className="obs-table__row">
+                <td>
+                  <div className="obs-table__badges">
+                    <HealthBadge health={row.health} />
+                    <StatusBadge bucket={row.statusBucket} />
                   </div>
-                  <div className="mt-0.5">
-                    <span className="text-hud-dim">Manifest</span>{' '}
-                    {r.manifestEnabled ? 'yes' : 'no'}
-                  </div>
-                  {r.manifestEnabled && !r.isEnabled ? (
-                    <p className="text-amber-700 dark:text-amber-400/90 mt-1.5 max-w-[200px] leading-snug">
-                      Listed, not yet active.
-                    </p>
-                  ) : null}
+                  {row.statusDetail ? <p className="obs-table__reason">{row.statusDetail}</p> : null}
+                  {row.healthReason ? <p className="obs-table__reason">{row.healthReason}</p> : null}
+                  {row.noiseHint ? <p className="obs-table__reason">{row.noiseHint}</p> : null}
+                  <RunError row={row} />
                 </td>
-                <td className="p-3 font-mono text-[10px] text-foreground/80 max-w-[220px] break-all">
-                  {r.fetchKind}
-                  <div className="text-hud-dim mt-1 break-all">{r.endpointDisplay}</div>
+                <td>
+                  <SourceIdentity row={row} />
+                  <p className="obs-table__class">{row.provenanceClass}</p>
+                  <details className="obs-fold">
+                    <summary>Full record</summary>
+                    <FullRecord row={row} showError={false} />
+                  </details>
                 </td>
-                <td className="p-3 font-mono text-[10px]">
-                  {r.lastRunStatus ?? '—'}
-                  <div className="text-hud-dim mt-1">{formatIso(r.lastRunFinishedAt)}</div>
+                <td className="obs-table__mono">{formatIso(row.lastSuccessAt)}</td>
+                <td className="obs-table__mono">
+                  {row.items24h} / {row.items7d} / {row.itemTotal}
                 </td>
-                <td className="p-3 font-mono text-[10px] text-foreground/85">{formatIso(r.lastSuccessAt)}</td>
-                <td className="p-3 font-mono text-[10px] text-foreground/85">{formatIso(r.lastItemFetchedAt)}</td>
-                <td className="p-3 font-mono text-[10px] whitespace-nowrap">
-                  {r.items24h} / {r.items7d} / {r.itemTotal}
-                </td>
-                <td className="p-3 font-mono text-[10px] whitespace-nowrap">
-                  {r.surfaced7d} / {r.downranked7d} / {r.suppressed7d}
-                </td>
-                <td className="p-3 font-mono text-[10px] whitespace-nowrap">
-                  {r.surfacedTotal} / {r.downrankedTotal} / {r.suppressedTotal}
+                <td className="obs-table__mono">
+                  {row.surfaced7d} / {row.downranked7d} / {row.suppressed7d}
                 </td>
               </tr>
             ))}
@@ -243,125 +287,25 @@ export default function SourcesAuditSection({ audit }) {
         </table>
       </div>
 
-      <div className="space-y-8">
-        {rows.map((r) => (
-          <section key={`gov-${r.id}`} className="machine-panel border border-border p-5 sm:p-6">
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <h2 className="section-title text-base font-bold text-foreground">{r.name}</h2>
-              <HealthBadge health={r.health} />
-            </div>
-
-            {r.lastRunError ? (
-              <div className="mb-4 border border-red-500/30 bg-red-500/[0.04] p-3">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-red-400">Last run error</p>
-                <p className="mt-2 font-mono text-xs leading-relaxed text-red-300 break-words">
-                  {r.lastRunError}
-                </p>
-                {formatRunMeta(r.lastRunMeta) ? (
-                  <p className="mt-2 font-mono text-[10px] leading-relaxed text-hud-dim break-words">
-                    {formatRunMeta(r.lastRunMeta)}
-                  </p>
-                ) : null}
+      <div className="obs-cards lg:hidden">
+        {rows.map((row) => (
+          <article key={`card-${row.id}`} className="obs-card">
+            <header className="obs-card__header">
+              <SourceIdentity row={row} />
+              <div className="obs-table__badges">
+                <HealthBadge health={row.health} />
+                <StatusBadge bucket={row.statusBucket} />
               </div>
-            ) : null}
-
-            <dl className="grid gap-3 sm:grid-cols-1 text-sm">
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Purpose</dt>
-                <dd className="text-foreground/85 mt-1">{r.purpose ?? '—'}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Trusted for</dt>
-                <dd className="text-foreground/85 mt-1">{r.trustedFor ?? '—'}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Not trusted for</dt>
-                <dd className="text-foreground/85 mt-1">{r.notTrustedFor ?? '—'}</dd>
-              </div>
-
-              {r.editorialNotes ? (
-                <div>
-                  <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
-                    Editorial / ops notes
-                  </dt>
-                  <dd className="text-foreground/75 mt-1 font-mono text-xs leading-relaxed">{r.editorialNotes}</dd>
-                </div>
-              ) : null}
-
-              {r.noiseNotes ? (
-                <div>
-                  <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
-                    Relevance — volume / noise
-                  </dt>
-                  <dd className="text-foreground/75 mt-1 font-mono text-xs leading-relaxed">{r.noiseNotes}</dd>
-                </div>
-              ) : null}
-
-              {r.relevanceNotes ? (
-                <div>
-                  <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
-                    Relevance — scoring notes
-                  </dt>
-                  <dd className="text-foreground/75 mt-1 font-mono text-xs leading-relaxed">{r.relevanceNotes}</dd>
-                </div>
-              ) : null}
-
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Latest run</dt>
-                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
-                  {r.lastRunStatus ?? '—'} · {formatIso(r.lastRunFinishedAt)}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Latest success</dt>
-                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
-                  {formatIso(r.lastSuccessAt)}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Last successful fetch</dt>
-                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
-                  {formatIso(r.lastSuccessfulFetchAt)}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Last successful parse</dt>
-                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
-                  {formatIso(r.lastSuccessfulParseAt)}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Newest article</dt>
-                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
-                  {formatIso(r.newestArticlePublishedAt)}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">Latest item fetch</dt>
-                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
-                  {formatIso(r.lastItemFetchedAt)}
-                </dd>
-              </div>
-
-              <div>
-                <dt className="font-mono text-[10px] uppercase text-hud-dim tracking-wider">
-                  How items were treated
-                </dt>
-                <dd className="text-foreground/80 mt-1 font-mono text-xs leading-relaxed">
-                  Last 7d: {r.surfaced7d} surfaced · {r.downranked7d} downranked · {r.suppressed7d} suppressed — All
-                  time: {r.surfacedTotal} / {r.downrankedTotal} / {r.suppressedTotal}
-                </dd>
-              </div>
-            </dl>
-          </section>
+            </header>
+            {row.statusDetail ? <p className="obs-table__reason">{row.statusDetail}</p> : null}
+            {row.healthReason ? <p className="obs-table__reason">{row.healthReason}</p> : null}
+            {row.noiseHint ? <p className="obs-table__reason">{row.noiseHint}</p> : null}
+            <FullRecord row={row} />
+          </article>
         ))}
       </div>
-
+      </>
+      )}
     </div>
   );
 }

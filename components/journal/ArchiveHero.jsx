@@ -5,6 +5,7 @@ export default function ArchiveHero() {
         <p className="journal-kicker">
           <span>I AM [RESIST]</span>
           <span>Journal</span>
+          <span className="journal-kicker__file">Public record</span>
         </p>
         <h1 className="journal-hero__title">Essays & Analysis</h1>
         <p className="journal-hero__lede">

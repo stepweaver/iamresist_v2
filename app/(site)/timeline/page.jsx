@@ -1,8 +1,10 @@
 import PageContainer from '@/components/content/PageContainer';
 import TimelineSection from '@/components/sections/TimelineSection';
 import Link from 'next/link';
+import { barlowCondensed, sourceSans3 } from '@/app/fonts';
 import { summarizeTimeline, timelineCategorySlug } from '@/lib/data/timeline';
 import { buildPageMetadata } from '@/lib/metadata';
+import './timeline.css';
 
 export const metadata = buildPageMetadata({
   title: 'Trump Election Undermining Timeline',
@@ -15,22 +17,16 @@ export default function TimelinePage() {
   const coverage = summarizeTimeline();
 
   return (
-    <main className="min-h-screen">
-      <div className="machine-panel py-8 mb-8">
-        <div className="hud-grid opacity-30"></div>
-        <div className="relative z-10">
-          <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
-            <div className="border-l-4 border-primary pl-4 sm:pl-6">
-              <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.4em] block mb-3 text-primary">
-                DOC ID: IAMR-TIMELINE-01
-              </span>
-              <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                TRUMP ELECTION UNDERMINING TIMELINE
-              </h1>
-            </div>
-          </div>
+    <main className={`human-masthead-page min-h-screen ${barlowCondensed.variable} ${sourceSans3.variable}`}>
+      <header className="human-masthead">
+        <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
+          <span className="human-masthead__kicker">DOC ID: IAMR-TIMELINE-01</span>
+          <h1 className="human-masthead__title">Trump election undermining timeline</h1>
+          <p className="human-masthead__meta">
+            <span>{coverage.count} documented events</span>
+          </p>
         </div>
-      </div>
+      </header>
 
       <PageContainer>
         <div className="mb-8 max-w-3xl space-y-4">

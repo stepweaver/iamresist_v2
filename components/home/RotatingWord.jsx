@@ -23,6 +23,9 @@ const WORDS = [
   'BROTHER',
 ];
 
+const LONGEST_WORD = 'SOLIDARITY';
+const GLITCH_EVERY = 4;
+
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -33,25 +36,22 @@ function nextIndexDifferent(prev, len) {
   return r >= prev ? r + 1 : r;
 }
 
-export default function RotatingWord({ minIntervalMs = 1600, maxIntervalMs = 4800 }) {
+export default function RotatingWord({ minIntervalMs = 8000, maxIntervalMs = 16000 }) {
   const [index, setIndex] = useState(0);
   const [isGlitching, setIsGlitching] = useState(false);
-  const [glitchDurMs, setGlitchDurMs] = useState(150);
+  const [glitchDurMs, setGlitchDurMs] = useState(90);
 
   const cycleTimeoutRef = useRef(null);
   const swapTimeoutRef = useRef(null);
   const endGlitchTimeoutRef = useRef(null);
-  const flickerDelayRef = useRef(null);
 
   const clearAllTimers = () => {
     if (cycleTimeoutRef.current) clearTimeout(cycleTimeoutRef.current);
     if (swapTimeoutRef.current) clearTimeout(swapTimeoutRef.current);
     if (endGlitchTimeoutRef.current) clearTimeout(endGlitchTimeoutRef.current);
-    if (flickerDelayRef.current) clearTimeout(flickerDelayRef.current);
     cycleTimeoutRef.current = null;
     swapTimeoutRef.current = null;
     endGlitchTimeoutRef.current = null;
-    flickerDelayRef.current = null;
   };
 
   useEffect(() => {
@@ -62,6 +62,7 @@ export default function RotatingWord({ minIntervalMs = 1600, maxIntervalMs = 480
     if (prefersReducedMotion) return;
 
     let cancelled = false;
+    let cycle = 0;
 
     const scheduleNextCycle = () => {
       if (cycleTimeoutRef.current) {
@@ -69,39 +70,31 @@ export default function RotatingWord({ minIntervalMs = 1600, maxIntervalMs = 480
         cycleTimeoutRef.current = null;
       }
 
-      const base = randInt(minIntervalMs, maxIntervalMs);
-      const jitter = randInt(-420, 420);
-      const delay = Math.max(900, base + jitter);
+      const delay = Math.max(7000, randInt(minIntervalMs, maxIntervalMs));
 
       cycleTimeoutRef.current = setTimeout(() => {
         if (cancelled) return;
+        cycle += 1;
+        const shouldGlitch = cycle % GLITCH_EVERY === 0;
 
-        const blinkMs = randInt(70, 260);
-        const swapAt = Math.max(24, Math.floor(blinkMs / 2));
-        const preFlicker = randInt(0, 140);
-
-        const startGlitch = () => {
-          setGlitchDurMs(blinkMs);
-          setIsGlitching(true);
-          swapTimeoutRef.current = setTimeout(() => {
-            if (cancelled) return;
-            setIndex((prev) => nextIndexDifferent(prev, WORDS.length));
-          }, swapAt);
-          endGlitchTimeoutRef.current = setTimeout(() => {
-            if (cancelled) return;
-            setIsGlitching(false);
-            scheduleNextCycle();
-          }, blinkMs);
-        };
-
-        if (preFlicker > 0) {
-          flickerDelayRef.current = setTimeout(() => {
-            if (cancelled) return;
-            startGlitch();
-          }, preFlicker);
-        } else {
-          startGlitch();
+        if (!shouldGlitch) {
+          setIndex((prev) => nextIndexDifferent(prev, WORDS.length));
+          scheduleNextCycle();
+          return;
         }
+
+        const blinkMs = 90;
+        setGlitchDurMs(blinkMs);
+        setIsGlitching(true);
+        swapTimeoutRef.current = setTimeout(() => {
+          if (cancelled) return;
+          setIndex((prev) => nextIndexDifferent(prev, WORDS.length));
+        }, 45);
+        endGlitchTimeoutRef.current = setTimeout(() => {
+          if (cancelled) return;
+          setIsGlitching(false);
+          scheduleNextCycle();
+        }, blinkMs);
       }, delay);
     };
 
@@ -116,16 +109,16 @@ export default function RotatingWord({ minIntervalMs = 1600, maxIntervalMs = 480
   const currentWord = WORDS[index];
 
   return (
-    <span className="text-primary font-mono inline-block">
-      <span className="inline-block">[</span>
-      <span
-        className={`inline-block relative ${isGlitching ? 'glitch-active' : ''}`}
-        style={{ '--glitch-dur': `${glitchDurMs}ms` }}
-        data-text={currentWord}
-      >
-        {currentWord}
+    <span className="hero-word text-primary font-mono">
+      <span className="hero-word__slot">
+        <span className="hero-word__sizer" aria-hidden="true">[{LONGEST_WORD}]</span>
+        <span
+          className={isGlitching ? 'glitch-active' : undefined}
+          style={{ '--glitch-dur': `${glitchDurMs}ms` }}
+        >
+          [{currentWord}]
+        </span>
       </span>
-      <span className="inline-block">]</span>
     </span>
   );
 }
