@@ -113,7 +113,7 @@ export default function RotatingWord({ minIntervalMs = 8000, maxIntervalMs = 160
       <span className="hero-word__slot">
         <span className="hero-word__sizer" aria-hidden="true">[{LONGEST_WORD}]</span>
         <span
-          className={isGlitching ? 'glitch-active' : undefined}
+          className={isGlitching ? 'hero-word__value glitch-active' : 'hero-word__value'}
           style={{ '--glitch-dur': `${glitchDurMs}ms` }}
         >
           [{currentWord}]

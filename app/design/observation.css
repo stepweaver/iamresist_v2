@@ -35,6 +35,15 @@ h1.hero-title.hero-monument {
   font-weight: 700;
   letter-spacing: 0.03em;
   line-height: 1;
+  /* One optical correction, on the visible word only.
+     Share Tech Mono's "[" ink starts ~0.156em inside its box. Orbitron's
+     "I" is 0.68em and its ink starts ~0.026em of the word size inside
+     its own box. The difference is 0.13em of the word. This margin moves
+     the painted glyphs; the hidden sizer does not use it, so the slot
+     still reserves [SOLIDARITY]. Chromium at 1920x1080, word size
+     73.23px: without the offset the I ink is at x=1060 and the [ ink
+     at x=1069; with it both inks are at x=1060. */
+  --hero-bracket-optical-offset: -0.13em;
 }
 
 .hero-monument__identity {
@@ -63,12 +72,19 @@ h1.hero-title.hero-monument {
 .hero-word__slot {
   display: inline-grid;
   justify-items: start;
+  align-items: start;
   max-width: 100%;
 }
 
 .hero-word__slot > span {
   grid-area: 1 / 1;
+  justify-self: start;
+  text-align: left;
   white-space: nowrap;
+}
+
+.hero-word__value {
+  margin-inline-start: var(--hero-bracket-optical-offset);
 }
 
 .hero-word__sizer {
