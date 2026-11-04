@@ -119,9 +119,9 @@ export async function HomeCultureSlot() {
   if (!music && !book) return null;
 
   return (
-    <section data-testid="home-culture" aria-label="Culture of resistance" className="mb-6 sm:mb-8">
-      <div className="mb-4 border-b border-primary/70 pb-3">
-        <span className="kicker text-xs font-bold tracking-[0.4em] text-primary sm:text-sm">
+    <section data-testid="home-culture" aria-label="Culture of resistance" className="human-inset">
+      <div className="record-section-head">
+        <span className="record-section-head__title">
           Culture of resistance
         </span>
       </div>

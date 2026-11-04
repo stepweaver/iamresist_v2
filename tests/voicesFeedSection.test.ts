@@ -37,7 +37,8 @@ describe('VoicesFeedSection header sizing', () => {
     const title = asElement(copyChildren[0], 'Expected the section title to be a valid React element');
 
     expect(copyChildren).toHaveLength(1);
-    expect(title.props.className).toBe('kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block');
+    expect(title.props.className).toContain('obs-section-head__title');
+    expect(headerRow.props.className).toContain('obs-section-head');
     expect(title.props.children).toBe('Telescreen');
   });
 });

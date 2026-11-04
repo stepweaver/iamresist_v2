@@ -1,5 +1,7 @@
 import { buildPageMetadata } from '@/lib/metadata';
 import PageContainer from '@/components/content/PageContainer';
+import PageMast from '@/components/design/PageMast';
+import { barlowCondensed, sourceSans3 } from '@/app/fonts';
 
 export const metadata = buildPageMetadata({
   title: 'Legal',
@@ -10,26 +12,18 @@ export const metadata = buildPageMetadata({
 
 export default function LegalPage() {
   return (
-    <main className="min-h-screen">
-      <div className="machine-panel py-8 mb-8">
-        <div className="hud-grid opacity-30"></div>
-        <div className="relative z-10">
-          <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
-            <div className="border-l-4 border-primary pl-4 sm:pl-6">
-              <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.4em] block mb-3 text-primary">
-                DOC ID: IAMR-LEGAL-01
-              </span>
-              <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                LEGAL DISCLAIMERS
-              </h1>
-            </div>
-          </div>
-        </div>
+    <main className={`min-h-screen ${barlowCondensed.variable} ${sourceSans3.variable}`}>
+      <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
+        <PageMast
+          variant="record"
+          kicker="DOC ID: IAMR-LEGAL-01"
+          title="Legal Disclaimers"
+        />
       </div>
 
       <PageContainer>
         <div className="legal-copy text-foreground/80 space-y-8">
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               1. Third-Party Content and Attribution
             </h2>
@@ -63,7 +57,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               2. Excerpts, Snippets, and Commentary Separation
             </h2>
@@ -97,7 +91,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               3. External Media, Embeds, and Remote Hosting
             </h2>
@@ -126,7 +120,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               4. No Affiliation or Endorsement
             </h2>
@@ -146,7 +140,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               5. Trademark Usage
             </h2>
@@ -165,7 +159,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               6. External Links
             </h2>
@@ -184,7 +178,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               7. Copyright Concerns and Takedown Contact
             </h2>
@@ -210,7 +204,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               8. Disclaimer of Warranties
             </h2>
@@ -231,7 +225,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               9. Limitation of Liability
             </h2>
@@ -246,7 +240,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               10. Privacy
             </h2>
@@ -272,7 +266,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               11. Contact Information
             </h2>
@@ -307,7 +301,7 @@ export default function LegalPage() {
             </div>
           </section>
 
-          <section className="machine-panel p-6">
+          <section className="record-panel record-panel--pad">
             <h2 className="font-display text-xl font-bold text-foreground mb-4 border-b border-border pb-2">
               12. Last Updated
             </h2>

@@ -20,21 +20,20 @@ function groupByCategory(items) {
 
 function ResourceCard({ resource }) {
   return (
-    <article className="machine-panel border border-border relative overflow-hidden group">
-      <div className="absolute inset-0 hud-grid opacity-0 group-hover:opacity-10 transition-opacity duration-300" />
+    <article className="group record-panel overflow-hidden">
       <div className="relative z-10 p-6">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-          <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase">
+          <span className="record-meta">
             {resource.sourceLabel || 'Resource'}
           </span>
           {Array.isArray(resource.tags) && resource.tags.length ? (
-            <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase">
+            <span className="record-meta">
               {resource.tags.slice(0, 3).join(' / ')}
             </span>
           ) : null}
         </div>
 
-        <h3 className="section-title text-xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">
+        <h3 className="record-title mb-2 transition-colors group-hover:text-primary">
           <Link
             href={resource.href}
             target="_blank"
@@ -52,7 +51,7 @@ function ResourceCard({ resource }) {
         ) : null}
 
         <div className="flex items-center justify-between pt-4 border-t border-border">
-          <span className="font-mono text-xs text-hud-dim truncate">
+          <span className="record-meta truncate normal-case">
             {resource.href}
           </span>
           <Link
@@ -79,7 +78,7 @@ export default function ResourcesSection({ curated = [] }) {
       <CuratedResourceGroup resources={curated} />
       {starting.length > 0 ? (
         <section aria-labelledby="resources-start-title" className="space-y-3">
-          <h2 id="resources-start-title" className="section-title text-xl sm:text-2xl font-bold text-foreground">
+          <h2 id="resources-start-title" className="record-title">
             Start here
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
@@ -97,14 +96,14 @@ export default function ResourcesSection({ curated = [] }) {
         />
       ) : (
         <div className="space-y-6">
-          <h2 className="section-title text-xl sm:text-2xl font-bold text-foreground">Directory</h2>
+          <h2 className="record-title">Directory</h2>
           {grouped.map(([category, categoryItems]) => (
             <section key={category} className="space-y-3">
               <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                <h2 className="section-title text-xl sm:text-2xl font-bold text-foreground">
+                <h2 className="record-title">
                   {formatCategoryLabel(category)}
                 </h2>
-                <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase">
+                <span className="record-meta">
                   [{categoryItems.length}]
                 </span>
               </div>

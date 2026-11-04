@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import NotionBlocksBody from '@/components/content/NotionBlocksBody';
+import PageMast from '@/components/design/PageMast';
+import { barlowCondensed, sourceSans3 } from '@/app/fonts';
 import StructuredData from '@/components/seo/StructuredData';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { buildPageMetadata } from '@/lib/metadata';
@@ -94,63 +96,45 @@ export default async function BookJournalEntryPage({ params }) {
   ];
 
   return (
-    <main className="min-h-screen">
+    <main className={`min-h-screen ${barlowCondensed.variable} ${sourceSans3.variable}`}>
       <StructuredData data={schema} />
-      <div className="machine-panel py-8 mb-8">
-        <div className="hud-grid opacity-30"></div>
-        <div className="relative z-10">
-          <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
-            <div className="border-l-4 border-primary pl-4 sm:pl-6">
-              <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.4em] block mb-3 text-primary">
-                DOC ID: IAMR-BOOK-JOURNAL
-              </span>
-              {dateLabel ? (
-                <p className="font-mono text-[10px] text-hud-dim mb-3">
-                  <span className="text-hud-dim/80">DATE</span> // {dateLabel}
-                </p>
-              ) : null}
-              <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                {note.title || 'Untitled Entry'}
-              </h1>
-              <p className="prose-copy text-foreground/70 mt-3">
-                {book.title}
-                {book.author ? ` — ${book.author}` : ''}
-              </p>
-              {note.chapterPage ? (
-                <p className="font-mono text-[10px] text-foreground/60 uppercase tracking-wider mt-2">
-                  {note.chapterPage}
-                </p>
-              ) : null}
-              {note.tags?.length ? (
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {note.tags.map((tag, idx) => (
-                    <span
-                      key={`${tag}-${idx}`}
-                      className="text-[10px] px-2 py-1 border border-primary/30 text-primary uppercase tracking-wider"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              <div className="mt-5">
-                <Link
-                  href={`/book-club/${book.slug}`}
-                  className="nav-label text-xs text-foreground/60 hover:text-primary transition-colors font-bold"
+      <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
+        <PageMast
+          className="page-mast--wide"
+          variant="record"
+          kicker="DOC ID: IAMR-BOOK-JOURNAL"
+          title={note.title || 'Untitled Entry'}
+          lede={`${book.title}${book.author ? ` — ${book.author}` : ''}`}
+        >
+          {dateLabel ? <p className="record-meta mt-3">Date // {dateLabel}</p> : null}
+          {note.chapterPage ? <p className="record-meta mt-2">{note.chapterPage}</p> : null}
+          {note.tags?.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {note.tags.map((tag, idx) => (
+                <span
+                  key={`${tag}-${idx}`}
+                  className="border border-primary/30 px-2 py-1 text-[10px] uppercase tracking-wider text-primary"
                 >
-                  ← Back to book
-                </Link>
-              </div>
+                  {tag}
+                </span>
+              ))}
             </div>
+          ) : null}
+          <div className="mt-5">
+            <Link
+              href={`/book-club/${book.slug}`}
+              className="nav-label text-xs font-bold text-foreground/60 transition-colors hover:text-primary"
+            >
+              ← Back to book
+            </Link>
           </div>
-        </div>
+        </PageMast>
       </div>
 
       <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3 pb-12">
         {note.content ? (
-          <div className="machine-panel border border-border p-6 sm:p-8 relative overflow-hidden mb-5">
-            <div className="absolute inset-0 hud-grid opacity-10"></div>
-            <div className="relative z-10">
+          <div className="record-panel record-panel--pad mb-5">
+            <div>
               <p className="prose-copy text-foreground/90 leading-relaxed whitespace-pre-wrap">
                 {note.content}
               </p>
@@ -159,14 +143,13 @@ export default async function BookJournalEntryPage({ params }) {
         ) : null}
 
         {blocks.length > 0 ? (
-          <div className="machine-panel border border-border p-6 sm:p-8 relative overflow-hidden">
-            <div className="absolute inset-0 hud-grid opacity-10"></div>
-            <div className="relative z-10">
+          <div className="record-panel record-panel--pad">
+            <div>
               <NotionBlocksBody blocks={blocks} />
             </div>
           </div>
         ) : (
-          <div className="machine-panel border border-border p-6 sm:p-8">
+          <div className="record-panel record-panel--pad">
             <p className="prose-copy text-foreground/60 font-mono text-sm">
               [ NO BODY BLOCKS ] — The entry is published in Notion but has no block content yet, or blocks could not be loaded.
             </p>

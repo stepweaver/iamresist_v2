@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import StructuredData from '@/components/seo/StructuredData';
+import { barlowCondensed, sourceSans3 } from '@/app/fonts';
 import { buildPageMetadata } from '@/lib/metadata';
 import { getBookBySlug, getNotesForBook } from '@/lib/bookclub/service';
 import { getCachedPageBlocks } from '@/lib/notion-blocks';
@@ -102,7 +103,7 @@ export default async function BookDetailPage({ params }) {
   return (
     <main
       id="main-content"
-      className="hero-page-bg min-h-screen overflow-x-clip"
+      className={`hero-page-bg min-h-screen overflow-x-clip ${barlowCondensed.variable} ${sourceSans3.variable}`}
     >
       <StructuredData data={schema} />
       <div className="max-w-[1100px] mx-auto px-2 sm:px-3 lg:px-4 pt-6 pb-10">
@@ -115,9 +116,8 @@ export default async function BookDetailPage({ params }) {
           </Link>
         </nav>
 
-        <section className="machine-panel border border-border relative overflow-hidden">
-          <div className="absolute inset-0 hud-grid opacity-15" />
-          <div className="relative z-10 p-6 sm:p-8">
+        <section className="record-panel overflow-hidden">
+          <div className="p-6 sm:p-8">
             <div className="grid gap-6 lg:gap-8 lg:grid-cols-[260px_1fr] items-start">
               <div className="space-y-4">
                 {book.coverImage ? (
@@ -146,7 +146,7 @@ export default async function BookDetailPage({ params }) {
 
               <div className="space-y-5">
                 <header className="border-b border-border pb-4">
-                  <h1 className="section-title text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground break-words">
+                  <h1 className="record-title break-words">
                     {book.title || 'Untitled'}
                   </h1>
                   {book.author ? (
@@ -157,7 +157,7 @@ export default async function BookDetailPage({ params }) {
                 </header>
 
                 <div className="space-y-3">
-                  <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase block">
+                  <span className="record-meta block">
                     Synopsis
                   </span>
                   {book.synopsis ? (
@@ -175,10 +175,10 @@ export default async function BookDetailPage({ params }) {
 
             <div className="border-t border-border mt-8 pt-8">
               <div className="flex items-baseline justify-between gap-3 flex-wrap mb-6">
-                <h2 className="section-title text-xl sm:text-2xl font-bold text-foreground">
+                <h2 className="record-title">
                   Reading journal
                 </h2>
-                <span className="font-mono text-[10px] text-hud-dim tracking-wider uppercase">
+                <span className="record-meta">
                   [{notes.length} ENTRIES]
                 </span>
               </div>

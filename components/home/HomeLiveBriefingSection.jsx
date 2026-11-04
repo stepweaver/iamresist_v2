@@ -159,19 +159,13 @@ export default function HomeLiveBriefingSection({ briefing }) {
 
   return (
     <section data-testid="home-live-briefing" className="mb-6 sm:mb-8">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
-        <div>
-          <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block">Live briefing</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] sm:text-xs font-mono uppercase tracking-wider">
-            <Link href="/intel/osint" className="text-foreground/50 hover:text-primary transition-colors">
-              OSINT →
-            </Link>
-            <Link href="/intel/newswire" className="text-foreground/50 hover:text-primary transition-colors">
-              Newswire →
-            </Link>
-            <Link href="/intel/watchdogs" className="text-foreground/50 hover:text-primary transition-colors">
-              Watchdogs →
-            </Link>
+      <div className="obs-section-head">
+        <div className="min-w-0">
+          <span className="obs-section-head__title">Live briefing</span>
+          <div className="obs-section-head__links">
+            <Link href="/intel/osint">OSINT →</Link>
+            <Link href="/intel/newswire">Newswire →</Link>
+            <Link href="/intel/watchdogs">Watchdogs →</Link>
           </div>
         </div>
       </div>

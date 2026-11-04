@@ -8,10 +8,8 @@ function BookCard({ book }) {
   return (
         <Link
           href={`/book-club/${book.slug}`}
-          className="machine-panel border border-border relative overflow-hidden group focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-2 focus:ring-offset-background"
+          className="group record-panel overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-2 focus:ring-offset-background"
         >
-          <div className="absolute inset-0 hud-grid opacity-0 group-hover:opacity-10 transition-opacity duration-300" />
-
           <div className="relative z-10 p-6">
             {book.coverImage ? (
               <div className="mb-4">
@@ -27,7 +25,7 @@ function BookCard({ book }) {
               </div>
             ) : null}
 
-            <h3 className="section-title text-xl lg:text-2xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors break-words">
+            <h3 className="record-title mb-2 transition-colors group-hover:text-primary break-words">
               {book.title || 'Untitled'}
             </h3>
 
@@ -44,7 +42,7 @@ function BookCard({ book }) {
             ) : null}
 
             <div className="flex items-center justify-between pt-4 border-t border-border">
-              <span className="font-mono text-xs text-hud-dim uppercase tracking-wider">
+              <span className="record-meta">
                 {book.status ? book.status : 'Book'}
               </span>
               <span className="nav-label text-xs px-3 py-1 border border-primary text-primary group-hover:bg-primary group-hover:text-background transition-colors">
@@ -75,7 +73,7 @@ export default async function BooksSection() {
     <div className="space-y-8">
       {featured ? (
         <section aria-labelledby="shelf-featured-title">
-          <h2 id="shelf-featured-title" className="kicker mb-3 text-xs font-bold tracking-[0.28em] text-primary">
+          <h2 id="shelf-featured-title" className="human-record__label mb-3">
             Featured
           </h2>
           <div className="max-w-xl">
@@ -85,7 +83,7 @@ export default async function BooksSection() {
       ) : null}
       {rest.length > 0 ? (
         <section aria-labelledby="shelf-collection-title">
-          <h2 id="shelf-collection-title" className="section-title mb-4 text-xl font-bold text-foreground">
+          <h2 id="shelf-collection-title" className="record-title mb-4">
             The collection
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">

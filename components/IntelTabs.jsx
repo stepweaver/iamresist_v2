@@ -29,10 +29,8 @@ export default function IntelTabs({ description }) {
   const isNewswire = pathname?.startsWith("/intel/newswire");
 
   return (
-    <header className="mb-4 sm:mb-5 border-b border-border pb-4 sm:pb-5">
-      <span className="text-primary text-xs sm:text-sm tracking-[0.4em] uppercase font-bold block mb-1">
-        Intel
-      </span>
+    <header className="intel-mast">
+      <p className="intel-mast__kicker">Intel</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
         <nav
           className="flex flex-wrap items-baseline gap-2 sm:gap-4"
@@ -78,9 +76,7 @@ export default function IntelTabs({ description }) {
         </Link>
       </div>
       {description ? (
-        <div className="text-xs sm:text-sm text-foreground/70 uppercase tracking-wider leading-relaxed">
-          {description}
-        </div>
+        <p className="intel-mast__note">{description}</p>
       ) : null}
     </header>
   );

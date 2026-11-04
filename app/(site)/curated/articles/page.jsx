@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import CuratedArticleCard from '@/components/curated/CuratedArticleCard';
+import { barlowCondensed, sourceSans3 } from '@/app/fonts';
 import { loadPublishedCuratedArticles } from '@/lib/curated/articles';
 import { buildPageMetadata } from '@/lib/metadata';
 
@@ -18,7 +19,7 @@ export default async function CuratedArticlesArchivePage() {
   const articles = unavailable ? [] : result.items;
 
   return (
-    <main className="hero-page-bg min-h-screen overflow-x-hidden">
+    <main className={`hero-page-bg min-h-screen overflow-x-hidden ${barlowCondensed.variable} ${sourceSans3.variable}`}>
       <div className="mx-auto max-w-[900px] px-4 py-12 sm:px-6 sm:py-16 lg:px-12">
         <nav className="nav-label mb-8 text-sm" aria-label="Breadcrumb">
           <Link href="/" className="font-bold text-foreground/60 transition-colors hover:text-primary">
@@ -27,10 +28,10 @@ export default async function CuratedArticlesArchivePage() {
           <span className="mx-2 text-foreground/40">/</span>
           <span className="font-bold text-foreground">Curated Articles</span>
         </nav>
-        <header className="mb-8 border-b border-primary/70 pb-4">
-          <p className="kicker text-xs font-bold tracking-[0.4em] text-primary sm:text-sm">Archive</p>
-          <h1 className="mt-2 font-ui text-3xl font-bold text-foreground sm:text-4xl">Curated articles</h1>
-          <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-foreground/70">
+        <header className="page-mast page-mast--record page-mast--wide mb-8">
+          <p className="page-mast__kicker">Archive</p>
+          <h1 className="page-mast__title">Curated articles</h1>
+          <p className="page-mast__lede">
             Outside writing selected for this site. Each page carries an I AM [RESIST] note and a link to the original.
           </p>
         </header>

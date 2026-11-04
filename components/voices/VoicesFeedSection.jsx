@@ -25,9 +25,9 @@ export default async function VoicesFeedSection({
 
   return (
     <section className="mb-6 sm:mb-8 border-t border-border/60 pt-6 sm:pt-8">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
+      <div className="obs-section-head">
         <div className="min-w-0">
-          <span className="kicker text-primary text-xs sm:text-sm tracking-[0.4em] font-bold block">
+          <span className="obs-section-head__title">
             {title}
           </span>
         </div>

@@ -11,9 +11,9 @@ export default function CuratedArticlesLane({ articles }) {
 
   return (
     <section data-testid="home-curated-articles" aria-labelledby="home-curated-articles-title" className="mb-6 sm:mb-8">
-      <div className="mb-4 flex items-end justify-between gap-4 border-b border-primary/70 pb-3">
+      <div className="record-section-head">
         <div>
-          <span id="home-curated-articles-title" className="kicker text-xs font-bold tracking-[0.4em] text-primary sm:text-sm">
+          <span id="home-curated-articles-title" className="record-section-head__title">
             Curated articles
           </span>
         </div>

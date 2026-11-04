@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ShoppingCart, Shield, Truck } from 'lucide-react';
 import { SHOP_PRODUCTS } from '@/lib/shopProducts';
 import ProductCard from '@/components/shop/ProductCard';
+import PageMast from '@/components/design/PageMast';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
@@ -20,18 +21,13 @@ export default function ShopPage() {
       id="main-content"
       className="hero-page-bg min-h-screen overflow-x-hidden"
     >
-      <div className="border-b border-border pt-2 pb-4 sm:pb-6">
-        <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3">
-          <span className="kicker text-xs sm:text-sm tracking-[0.4em] block mb-2">
-            SUPPLY DROP
-          </span>
-          <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold mb-3">
-            RESISTANCE STICKER SHOP
-          </h1>
-          <p className="prose-copy text-base text-foreground/70 max-w-2xl leading-relaxed">
-            Weatherproof vinyl stickers.
-          </p>
-        </div>
+      <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3">
+        <PageMast
+          variant="commerce"
+          kicker="Supply Drop"
+          title="Resistance Sticker Shop"
+          lede="Weatherproof vinyl stickers."
+        />
       </div>
 
       <div className="max-w-[1600px] mx-auto px-1 sm:px-2 lg:px-3 py-3">

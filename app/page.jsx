@@ -41,54 +41,41 @@ export default function Home() {
         <div className="machine-panel signal-stage hud-stage relative isolate overflow-hidden">
           <HudOverlay title="RESISTANCE SIGNAL" code="IAMR-BRIEF-01" />
           {/*
-            Mobile stacks a landscape flag masthead. Desktop keeps the two-column
-            reticle. `contents` lets the shared heading and links reorder below lg
-            without a second accessible copy.
+            Mobile stacks the flag, then the title. Desktop places the flag and
+            the title in one frame. `contents` reorders the shared copy below lg
+            without a second accessible heading.
           */}
-          <div className="relative z-10 grid grid-cols-1 items-center gap-3 px-4 pt-8 pb-4 sm:gap-4 sm:px-6 sm:pt-9 sm:pb-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-x-10 lg:gap-y-3 lg:px-8 lg:py-10 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:gap-x-14 xl:px-10">
+          <div className="relative z-10 grid grid-cols-1 items-center gap-4 px-4 pt-7 pb-5 sm:gap-5 sm:px-6 sm:pt-8 sm:pb-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] lg:items-center lg:gap-x-10 lg:px-8 lg:py-10 xl:gap-x-14 xl:px-10 xl:py-12">
             <div className="order-1 min-w-0 lg:hidden">
               <span className="doc-id block max-w-full border-l-4 border-primary pl-3 text-[10px] leading-snug text-primary sm:pl-4 sm:text-xs">
                 RESISTANCE SIGNAL // PUBLIC RELEASE
               </span>
             </div>
 
-            <div className="order-2 flex w-full min-w-0 justify-center lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-center lg:justify-start lg:pl-2">
-              <div className="relative w-full md:max-w-[42rem] lg:max-w-[22rem] xl:max-w-[24rem]">
-                <div className="relative w-full px-3 pt-3 pb-4 lg:aspect-square lg:p-0">
-                  <div className="signal-plate pointer-events-none absolute lg:hidden" aria-hidden="true">
-                    <span className="signal-plate__corner signal-plate__corner--tl" />
-                    <span className="signal-plate__corner signal-plate__corner--tr" />
-                    <span className="signal-plate__corner signal-plate__corner--bl" />
-                    <span className="signal-plate__corner signal-plate__corner--br" />
-                    <span className="signal-plate__rail" />
-                    <span className="signal-plate__pip" />
-                  </div>
-                  <div className="hidden lg:contents">
-                    <TargetReticle />
-                  </div>
-
-                  <div className="logo-shadow-hero relative z-10 aspect-[1500/839] w-full lg:absolute lg:inset-[18%] lg:aspect-auto lg:h-auto lg:w-auto">
-                    <Image
-                      src="/resist_sticker.png"
-                      alt="I AM [RESIST] - The flag of resistance"
-                      fill
-                      className="object-contain"
-                      sizes="(max-width: 1023px) 92vw, 320px"
-                      priority
-                      quality={90}
-                    />
-                  </div>
+            <div className="order-2 flex w-full min-w-0 justify-center lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-center">
+              <div className="hero-mark w-full">
+                <TargetReticle />
+                <div className="logo-shadow-hero relative z-10 aspect-[1500/839] w-full">
+                  <Image
+                    src="/resist_sticker.png"
+                    alt="I AM [RESIST] - The flag of resistance"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1023px) 92vw, 50vw"
+                    priority
+                    quality={90}
+                  />
                 </div>
               </div>
             </div>
 
-            <div className="contents lg:order-1 lg:col-start-2 lg:row-start-1 lg:block lg:min-w-0 lg:self-end">
-              <div className="order-3 min-w-0">
-                <div className="inline-block max-w-full border-l-4 border-primary pl-3 sm:pl-4">
-                  <span className="doc-id mb-2 hidden max-w-full text-[10px] leading-relaxed tracking-[0.14em] text-primary sm:text-xs sm:tracking-[0.24em] lg:block lg:text-sm lg:tracking-[0.28em]">
+            <div className="contents lg:col-start-2 lg:row-start-1 lg:block lg:min-w-0 lg:w-full lg:self-end">
+              <div className="order-3 min-w-0 w-full">
+                <div className="hero-copy border-l-4 border-primary pl-3 sm:pl-4">
+                  <span className="doc-id mb-3 hidden max-w-full text-[10px] leading-relaxed tracking-[0.14em] text-primary sm:text-xs sm:tracking-[0.24em] lg:block lg:text-sm lg:tracking-[0.22em]">
                     RESISTANCE SIGNAL // PUBLIC RELEASE
                   </span>
-                  <h1 className="hero-title hero-monument max-w-full">
+                  <h1 className="hero-title hero-monument w-full max-w-full">
                     <span className="hero-monument__identity">I AM</span>
                     <RotatingWord />
                   </h1>

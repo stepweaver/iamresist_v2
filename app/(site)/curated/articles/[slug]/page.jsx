@@ -13,6 +13,7 @@ import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
 import { pickSeoDescription } from '@/lib/seo/text';
 import { getCanonicalBaseUrl } from '@/lib/siteConfig';
+import { barlowCondensed, sourceSans3 } from '@/app/fonts';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 
 export const revalidate = 300;
@@ -82,7 +83,7 @@ export default async function CuratedArticlePage({ params }) {
   ];
 
   return (
-    <main className="hero-page-bg min-h-screen overflow-x-hidden">
+    <main className={`hero-page-bg min-h-screen overflow-x-hidden ${barlowCondensed.variable} ${sourceSans3.variable}`}>
       <StructuredData data={schema} />
       <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-12 py-12 sm:py-16">
         <nav className="nav-label mb-8 text-sm" aria-label="Breadcrumb">
@@ -97,7 +98,7 @@ export default async function CuratedArticlePage({ params }) {
           <span className="text-foreground font-bold">{article.title}</span>
         </nav>
 
-        <article className="overflow-hidden rounded border border-border">
+        <article className="record-panel overflow-hidden">
           {presented.displayImage?.src ? (
             <img
               src={presented.displayImage.src}
@@ -109,10 +110,10 @@ export default async function CuratedArticlePage({ params }) {
             />
           ) : null}
           <div className="p-4 sm:p-6">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
+            <p className="human-record__label">
               Curated article
             </p>
-            <h1 className="font-ui text-xl sm:text-2xl font-bold text-foreground mt-2 mb-4 leading-tight">
+            <h1 className="record-title mt-2 mb-4">
               {article.title}
             </h1>
             <dl className="mb-5 space-y-2 text-sm text-foreground/80">

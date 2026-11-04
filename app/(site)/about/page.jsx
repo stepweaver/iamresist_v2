@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import PageContainer from '@/components/content/PageContainer';
+import PageMast from '@/components/design/PageMast';
 import Divider from '@/components/ui/Divider';
+import { barlowCondensed, sourceSans3 } from '@/app/fonts';
 import { buildPageMetadata } from '@/lib/metadata';
 
 export const metadata = buildPageMetadata({
@@ -12,24 +14,14 @@ export const metadata = buildPageMetadata({
 
 export default function AboutPage() {
   return (
-    <main className="min-h-screen">
-      <div className="machine-panel py-8 mb-8">
-        <div className="hud-grid opacity-30"></div>
-        <div className="relative z-10">
-          <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
-            <div className="border-l-4 border-primary pl-4 sm:pl-6">
-              <span className="doc-id text-[10px] sm:text-sm tracking-[0.2em] sm:tracking-[0.4em] block mb-3 text-primary">
-                DOC ID: IAMR-MISSION-01
-              </span>
-              <h1 className="section-title text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground leading-tight">
-                MANIFESTO
-              </h1>
-              <p className="mission-copy text-sm sm:text-base lg:text-lg text-foreground/70 mt-4 max-w-3xl leading-relaxed">
-                A call to awareness. A chronicle of resistance.
-              </p>
-            </div>
-          </div>
-        </div>
+    <main className={`min-h-screen ${barlowCondensed.variable} ${sourceSans3.variable}`}>
+      <div className="mx-auto w-full max-w-[1600px] px-1 sm:px-2 lg:px-3">
+        <PageMast
+          variant="record"
+          kicker="DOC ID: IAMR-MISSION-01"
+          title="Manifesto"
+          lede="A call to awareness. A chronicle of resistance."
+        />
       </div>
 
       <PageContainer>
@@ -78,7 +70,7 @@ export default function AboutPage() {
             <h2 className="font-ui mb-4 text-xl font-bold tracking-wider text-primary sm:text-2xl">
               Who is behind it?
             </h2>
-            <div className="machine-panel border border-primary/30 p-6 sm:p-8">
+            <div className="record-panel border border-primary/30 p-6 sm:p-8">
               <div className="mb-4">
                 <p className="kicker text-xs font-bold tracking-[0.3em] text-primary mb-1">
                   More About Me
@@ -110,7 +102,7 @@ export default function AboutPage() {
             ].map((belief, index) => (
               <div
                 key={index}
-                className="machine-panel border-l-4 border-primary p-4 sm:p-6"
+                className="record-panel border-l-4 border-primary p-4 sm:p-6"
               >
                 <p className="prose-copy text-lg sm:text-xl font-semibold text-foreground">
                   {belief}
@@ -136,7 +128,7 @@ export default function AboutPage() {
               as my own antifascist intel - a place to share videos, media, readings and ideas that
               strengthen our collective understanding of resistance.
             </p>
-            <div className="machine-panel border-2 border-primary p-6 text-center sm:p-8 lg:p-12">
+            <div className="record-panel border-2 border-primary p-6 text-center sm:p-8 lg:p-12">
               <p className="prose-copy mb-6 text-lg leading-relaxed text-foreground/80 sm:mb-8 sm:text-xl">
                 For liberty, equality, truth, and the continual renewal of our shared humanity.
               </p>
@@ -193,7 +185,7 @@ export default function AboutPage() {
               <p className="pt-4">
                 The arrows point <span className="font-semibold">downward to ground truth</span> - to hold it firm against those who would raise themselves above others.
               </p>
-              <div className="machine-panel border-2 border-primary/30 p-6 sm:p-8 mt-8">
+              <div className="record-panel border-2 border-primary/30 p-6 sm:p-8 mt-8">
                 <p className="text-base sm:text-lg leading-relaxed mb-4">
                   This symbol is a statement against power without restraint, against silence enforced by fear, and against the rewriting of reality for control.
                 </p>

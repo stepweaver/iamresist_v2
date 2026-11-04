@@ -1,0 +1,339 @@
+/* The human record: journal, timeline, shelf, resources, commerce chrome.
+   No reticles. Red is a rule. */
+
+.human-band {
+  background: color-mix(in oklab, var(--obs-chrome) 4%, var(--background));
+  box-shadow: inset 0 2px 0 var(--human-rule);
+}
+
+:root.light .human-band {
+  background: var(--reading);
+  box-shadow: inset 0 3px 0 #121212;
+}
+
+.human-masthead,
+.page-mast--record {
+  border-bottom: 1px solid var(--obs-rule);
+  background: var(--background);
+  padding: 2.15rem 0 1.7rem;
+}
+
+:root.light .human-masthead,
+:root.light .page-mast--record {
+  border-bottom: 3px solid #121212;
+  background: var(--reading);
+}
+
+.human-masthead__kicker,
+.page-mast--record .page-mast__kicker {
+  display: block;
+  margin: 0 0 0.8rem;
+  color: var(--human-rule);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.human-masthead__title,
+.page-mast--record .page-mast__title {
+  margin: 0;
+  max-width: 20ch;
+  color: var(--foreground);
+  font-family: var(--font-journal-display), "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: clamp(2.2rem, 5.4vw, 4.25rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.22;
+  text-transform: uppercase;
+}
+
+.page-mast--wide.page-mast--record .page-mast__title {
+  max-width: 28ch;
+  font-size: clamp(1.85rem, 4.2vw, 3.25rem);
+  line-height: 1.22;
+}
+
+.human-masthead__meta,
+.page-mast--record .page-mast__lede,
+.record-meta {
+  color: var(--human-meta);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.human-masthead__meta,
+.page-mast--record .page-mast__lede {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0.9rem 0 0;
+  max-width: 46rem;
+}
+
+.page-mast--record .page-mast__lede {
+  display: block;
+  text-transform: none;
+  font-family: var(--font-journal-body), "Segoe UI", "Helvetica Neue", sans-serif;
+  font-size: 1.02rem;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
+
+.page-mast--commerce {
+  border-bottom: 1px solid var(--border-color);
+  padding: 1.35rem 0 1.15rem;
+}
+
+.page-mast--commerce .page-mast__kicker {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-ui), Arial, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.page-mast--commerce .page-mast__title {
+  margin: 0.4rem 0 0;
+  max-width: 18ch;
+  color: var(--foreground);
+  font-family: var(--font-display), Arial, sans-serif;
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.page-mast--commerce .page-mast__lede {
+  margin: 0.7rem 0 0;
+  max-width: 38rem;
+  color: var(--foreground);
+  font-size: 1rem;
+  line-height: 1.5;
+  opacity: 0.78;
+}
+
+.record-title {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-journal-display), "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.22;
+  text-transform: uppercase;
+}
+
+:where(.record-panel) {
+  border: 1px solid var(--obs-rule);
+}
+
+.record-panel {
+  background: color-mix(in oklab, var(--background) 92%, var(--obs-chrome));
+  color: var(--foreground);
+}
+
+:root.light .record-panel {
+  background: var(--reading);
+}
+
+.record-panel--pad {
+  padding: 1.5rem;
+}
+
+a.record-panel:hover,
+.record-panel.group:hover {
+  border-color: color-mix(in oklab, var(--human-rule) 65%, var(--obs-rule));
+}
+
+.human-inset {
+  margin-bottom: 1.5rem;
+  border-top: 2px solid var(--human-rule);
+  background: color-mix(in oklab, var(--background) 90%, var(--obs-chrome));
+  padding: 1.15rem 0.15rem 0.35rem;
+}
+
+:root.light .human-inset {
+  background: color-mix(in oklab, var(--reading) 88%, var(--background));
+}
+
+.record-section-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 16%, transparent);
+  background-image: linear-gradient(var(--human-rule), var(--human-rule));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 4.25rem 2px;
+}
+
+.record-section-head__title {
+  display: block;
+  color: var(--human-rule);
+  font-family: var(--font-ui), Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.human-record__mast {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 16%, transparent);
+  background-image: linear-gradient(var(--human-rule), var(--human-rule));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 4.75rem 3px;
+}
+
+.human-record__eyebrow {
+  margin: 0;
+  color: var(--human-meta);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.human-record__kicker {
+  margin: 0.2rem 0 0;
+  color: var(--human-rule);
+  font-family: var(--font-journal-display), "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.human-record__lead {
+  min-width: 0;
+}
+
+.human-record__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.human-record__label {
+  color: var(--human-rule);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.human-record__title {
+  max-width: 18ch;
+  color: var(--foreground);
+  font-size: clamp(2rem, 4.4vw, 4.4rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.22;
+}
+
+.human-record__excerpt {
+  margin-top: 1.15rem;
+  max-width: 62ch;
+  color: color-mix(in oklab, var(--foreground) 84%, transparent);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.human-record__figure {
+  display: block;
+  margin-top: 1.35rem;
+  width: 100%;
+  border: 1px solid color-mix(in oklab, var(--foreground) 22%, transparent);
+}
+
+.human-rail {
+  min-width: 0;
+  border-top: 2px solid var(--human-rule);
+  padding-top: 0.35rem;
+}
+
+.human-rail__label {
+  margin: 1.15rem 0 0.15rem;
+  color: var(--human-meta);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.human-rail__latest {
+  min-width: 0;
+}
+
+.human-rail__title {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--foreground);
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.22;
+}
+
+.human-rail__item-title {
+  display: block;
+  color: var(--foreground);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.22;
+}
+
+.human-rail__list {
+  margin: 0;
+  list-style: none;
+  border-top: 1px solid color-mix(in oklab, var(--foreground) 16%, transparent);
+  padding: 0;
+}
+
+.human-rail__list > li + li {
+  border-top: 1px solid color-mix(in oklab, var(--foreground) 14%, transparent);
+}
+
+@media (min-width: 640px) {
+  .record-section-head,
+  .human-record__mast {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .record-section-head__title {
+    font-size: 0.9rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .human-rail {
+    border-top: 0;
+    border-left: 1px solid color-mix(in oklab, var(--foreground) 18%, transparent);
+    padding-top: 0;
+    padding-left: 1.75rem;
+  }
+}

@@ -8,12 +8,8 @@ export default function EmptyState({
   className = '',
 }) {
   return (
-    <div className={`machine-panel relative p-8 text-center ${className}`}>
-      <div className="absolute inset-0 hud-grid opacity-20"></div>
-      <div className="relative z-10 space-y-4 max-w-md mx-auto">
-        <div className="text-hud-dim font-mono text-xs mb-2">
-          // NO SIGNAL
-        </div>
+    <div className={`record-panel record-panel--pad text-center ${className}`}>
+      <div className="relative z-10 mx-auto max-w-md space-y-4">
         <h3 className="section-title text-2xl font-bold text-primary">
           {title}
         </h3>
