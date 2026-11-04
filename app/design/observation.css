@@ -84,7 +84,38 @@ h1.hero-title.hero-monument {
 }
 
 .hero-word__value {
+  position: relative;
   margin-inline-start: var(--hero-bracket-optical-offset);
+}
+
+.hero-word__value--acquire {
+  animation: word-acquire 280ms ease-out;
+}
+
+.hero-word__value--acquire::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0.04em;
+  left: 0;
+  height: 1px;
+  background: var(--obs-signal);
+  pointer-events: none;
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: word-acquire-edge 280ms ease-out;
+}
+
+@keyframes word-acquire {
+  0% { text-shadow: 0 0 0 transparent; }
+  40% { text-shadow: 0 0 10px color-mix(in oklab, var(--obs-signal) 50%, transparent); }
+  100% { text-shadow: 0 0 0 transparent; }
+}
+
+@keyframes word-acquire-edge {
+  0% { opacity: 0; transform: scaleX(0); }
+  55% { opacity: 0.8; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
 }
 
 .hero-word__sizer {
@@ -99,6 +130,7 @@ h1.hero-title.hero-monument {
 
 .hero-mark > .signal-plate {
   inset: 0;
+  z-index: 20;
 }
 
 .signal-frame__corner,
@@ -155,6 +187,66 @@ h1.hero-title.hero-monument {
   width: 5px;
   height: 5px;
   background: var(--obs-signal);
+}
+
+.signal-frame__corner--tl::before,
+.signal-frame__corner--br::before {
+  content: "";
+  position: absolute;
+  width: 0.42rem;
+  height: 0.42rem;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.signal-frame__corner--tl::before {
+  top: 0.28rem;
+  left: 0.28rem;
+  border-top: 1px solid var(--obs-cyan);
+  border-left: 1px solid var(--obs-cyan);
+}
+
+.signal-frame__corner--br::before {
+  right: 0.28rem;
+  bottom: 0.28rem;
+  border-right: 1px solid var(--obs-cyan);
+  border-bottom: 1px solid var(--obs-cyan);
+}
+
+.signal-frame__rail {
+  position: absolute;
+  top: 0.85rem;
+  right: 4.7rem;
+  width: 3.1rem;
+  height: 1px;
+  background: var(--obs-frame);
+  pointer-events: none;
+}
+
+.signal-frame__ticks {
+  position: absolute;
+  top: 0.74rem;
+  right: 1.15rem;
+  width: 2.35rem;
+  height: 5px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--obs-cyan) 0 1px,
+    transparent 1px 6px
+  );
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.signal-frame__joint {
+  position: absolute;
+  top: calc(0.85rem - 1px);
+  right: calc(4.7rem + 3.1rem - 1px);
+  width: 3px;
+  height: 3px;
+  background: var(--obs-signal);
+  opacity: 0.8;
+  pointer-events: none;
 }
 
 .signal-frame__code {
@@ -221,6 +313,118 @@ h1.hero-title.hero-monument {
   width: 7px;
   height: 7px;
   background: var(--obs-signal);
+}
+
+.signal-plate__corner::before {
+  content: "";
+  position: absolute;
+  width: 0.32rem;
+  height: 0.32rem;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.signal-plate__corner--tl::before {
+  top: 4px;
+  left: 4px;
+  border-top: 1px solid var(--obs-cyan);
+  border-left: 1px solid var(--obs-cyan);
+}
+
+.signal-plate__corner--tr::before {
+  top: 4px;
+  right: 4px;
+  border-top: 1px solid var(--obs-cyan);
+  border-right: 1px solid var(--obs-cyan);
+}
+
+.signal-plate__corner--bl::before {
+  bottom: 4px;
+  left: 4px;
+  border-bottom: 1px solid var(--obs-cyan);
+  border-left: 1px solid var(--obs-cyan);
+}
+
+.signal-plate__corner--br::before {
+  right: 4px;
+  bottom: 4px;
+  border-right: 1px solid var(--obs-cyan);
+  border-bottom: 1px solid var(--obs-cyan);
+}
+
+.signal-plate__ticks {
+  position: absolute;
+  top: 0;
+  left: 1.7rem;
+  width: 2.6rem;
+  height: 5px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--obs-cyan) 0 1px,
+    transparent 1px 6px
+  );
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.signal-plate__stop {
+  position: absolute;
+  right: 14%;
+  bottom: 0;
+  width: 5px;
+  height: 5px;
+  border-right: 1px solid var(--obs-cyan);
+  border-top: 1px solid var(--obs-cyan);
+  pointer-events: none;
+}
+
+/* Flag registration sweep. The beam rides the bottom of a full-height
+   traveler, so translateY is a percentage of the plate and the page
+   does not reflow. Two seconds of travel, then twelve seconds dark. */
+.optical-scan {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.optical-scan__travel {
+  position: absolute;
+  inset: 0;
+  transform: translate3d(0, -102%, 0);
+  animation: optical-acquire 14s linear infinite;
+}
+
+.optical-scan__beam {
+  position: absolute;
+  right: 7%;
+  bottom: 0;
+  left: 7%;
+  height: 18px;
+  opacity: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 59, 59, 0) 0%,
+    rgba(255, 59, 59, 0.045) 48%,
+    rgba(255, 82, 74, 0.11) 78%,
+    rgba(255, 214, 206, 0.32) 96%,
+    rgba(255, 59, 59, 0) 100%
+  );
+  animation: optical-acquire-fade 14s linear infinite;
+}
+
+@keyframes optical-acquire {
+  0% { transform: translate3d(0, -102%, 0); }
+  14.3% { transform: translate3d(0, 5%, 0); }
+  100% { transform: translate3d(0, 5%, 0); }
+}
+
+@keyframes optical-acquire-fade {
+  0% { opacity: 0; }
+  1.4% { opacity: 1; }
+  12.8% { opacity: 1; }
+  14.3% { opacity: 0; }
+  100% { opacity: 0; }
 }
 
 :root:not(.light) .obs-desk .machine-panel {
@@ -699,5 +903,84 @@ h1.hero-title.hero-monument {
 @media (min-width: 1024px) {
   .hero-mark {
     padding: 1.2rem 1.05rem 1.45rem;
+  }
+}
+
+/* The signal stage stays dark in both themes. Light pages get a warmer
+   seam and slightly brighter registration metal; dark pages keep the
+   cooler optical frame. The flag artwork is not recolored. */
+:root:not(.light) [data-testid="home-masthead"] {
+  box-shadow: inset 0 -1px 0 rgba(139, 169, 188, 0.4);
+}
+
+:root.light [data-testid="home-masthead"] {
+  box-shadow: inset 0 -2px 0 var(--antifa-red);
+}
+
+:root:not(.light) .hud-stage .signal-frame__corner,
+:root:not(.light) .hud-stage .signal-plate__corner {
+  border-color: #8ba9bc;
+}
+
+:root.light .hud-stage .signal-frame__corner,
+:root.light .hud-stage .signal-plate__corner {
+  border-color: #d7e2e8;
+}
+
+:root.light .hud-stage .signal-frame__rail,
+:root.light .hud-stage .signal-plate__rail {
+  background: rgba(215, 226, 232, 0.62);
+}
+
+:root.light .hud-stage .optical-scan__beam {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 59, 59, 0) 0%,
+    rgba(255, 59, 59, 0.04) 48%,
+    rgba(196, 214, 224, 0.1) 78%,
+    rgba(255, 214, 206, 0.3) 96%,
+    rgba(255, 59, 59, 0) 100%
+  );
+}
+
+:root.light .obs-desk .machine-panel {
+  border-color: var(--obs-rule);
+}
+
+.brief-card {
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.brief-card:hover,
+.brief-card:focus-within {
+  border-color: color-mix(in oklab, var(--obs-cyan) 46%, var(--border-color));
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--obs-signal) 72%, transparent);
+}
+
+.brief-card .hud-label {
+  transition: color 160ms ease;
+}
+
+.brief-card:hover .hud-label,
+.brief-card:focus-within .hud-label {
+  color: var(--foreground);
+}
+
+.brief-card :is(a, button):focus-visible {
+  outline: 2px solid var(--obs-signal);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .optical-scan__travel,
+  .optical-scan__beam,
+  .hero-word__value--acquire,
+  .hero-word__value--acquire::after {
+    animation: none;
+  }
+
+  .optical-scan__beam,
+  .hero-word__value--acquire::after {
+    opacity: 0;
   }
 }

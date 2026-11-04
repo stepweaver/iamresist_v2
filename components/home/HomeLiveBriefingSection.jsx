@@ -24,8 +24,8 @@ function IntelBriefingCard({ row, hero = false, compact = false, loading = 'lazy
   const linkLabel = getIntelSourceLinkLabel(row);
 
   const panelClass = compact
-    ? 'border border-border machine-panel p-3 sm:p-4 hover:border-primary/35 transition-colors'
-    : 'border border-border machine-panel p-3 sm:p-5 hover:border-primary/35 transition-colors';
+    ? 'brief-card border border-border machine-panel p-3 sm:p-4'
+    : 'brief-card border border-border machine-panel p-3 sm:p-5';
   const shareDescription = row.sourceName || row.whyItMatters || '';
 
   if (hero) {
@@ -177,7 +177,7 @@ export default function HomeLiveBriefingSection({ briefing }) {
               <div className="flex flex-wrap gap-2">
                 <BriefingLaneBadge lane={lead.briefLane} />
               </div>
-              <NewswireHeadlineCard story={lead.story} hero loading="eager" />
+              <NewswireHeadlineCard story={lead.story} hero loading="eager" className="brief-card" />
             </div>
           ) : (
             <IntelBriefingCard
@@ -198,7 +198,7 @@ export default function HomeLiveBriefingSection({ briefing }) {
               {entry.kind === 'newswire' ? (
                 <div className="space-y-2">
                   <BriefingLaneBadge lane={entry.briefLane} />
-                  <NewswireHeadlineCard story={entry.story} compact loading="eager" />
+                  <NewswireHeadlineCard story={entry.story} compact loading="eager" className="brief-card" />
                 </div>
               ) : (
                 <IntelBriefingCard

@@ -24,7 +24,7 @@ const WORDS = [
 ];
 
 const LONGEST_WORD = 'SOLIDARITY';
-const GLITCH_EVERY = 4;
+const ACQUIRE_MS = 280;
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -38,20 +38,16 @@ function nextIndexDifferent(prev, len) {
 
 export default function RotatingWord({ minIntervalMs = 8000, maxIntervalMs = 16000 }) {
   const [index, setIndex] = useState(0);
-  const [isGlitching, setIsGlitching] = useState(false);
-  const [glitchDurMs, setGlitchDurMs] = useState(90);
+  const [isAcquiring, setIsAcquiring] = useState(false);
 
   const cycleTimeoutRef = useRef(null);
-  const swapTimeoutRef = useRef(null);
-  const endGlitchTimeoutRef = useRef(null);
+  const endAcquireTimeoutRef = useRef(null);
 
   const clearAllTimers = () => {
     if (cycleTimeoutRef.current) clearTimeout(cycleTimeoutRef.current);
-    if (swapTimeoutRef.current) clearTimeout(swapTimeoutRef.current);
-    if (endGlitchTimeoutRef.current) clearTimeout(endGlitchTimeoutRef.current);
+    if (endAcquireTimeoutRef.current) clearTimeout(endAcquireTimeoutRef.current);
     cycleTimeoutRef.current = null;
-    swapTimeoutRef.current = null;
-    endGlitchTimeoutRef.current = null;
+    endAcquireTimeoutRef.current = null;
   };
 
   useEffect(() => {
@@ -62,7 +58,6 @@ export default function RotatingWord({ minIntervalMs = 8000, maxIntervalMs = 160
     if (prefersReducedMotion) return;
 
     let cancelled = false;
-    let cycle = 0;
 
     const scheduleNextCycle = () => {
       if (cycleTimeoutRef.current) {
@@ -74,27 +69,13 @@ export default function RotatingWord({ minIntervalMs = 8000, maxIntervalMs = 160
 
       cycleTimeoutRef.current = setTimeout(() => {
         if (cancelled) return;
-        cycle += 1;
-        const shouldGlitch = cycle % GLITCH_EVERY === 0;
-
-        if (!shouldGlitch) {
-          setIndex((prev) => nextIndexDifferent(prev, WORDS.length));
-          scheduleNextCycle();
-          return;
-        }
-
-        const blinkMs = 90;
-        setGlitchDurMs(blinkMs);
-        setIsGlitching(true);
-        swapTimeoutRef.current = setTimeout(() => {
-          if (cancelled) return;
-          setIndex((prev) => nextIndexDifferent(prev, WORDS.length));
-        }, 45);
-        endGlitchTimeoutRef.current = setTimeout(() => {
-          if (cancelled) return;
-          setIsGlitching(false);
-          scheduleNextCycle();
-        }, blinkMs);
+        setIndex((prev) => nextIndexDifferent(prev, WORDS.length));
+        setIsAcquiring(true);
+        if (endAcquireTimeoutRef.current) clearTimeout(endAcquireTimeoutRef.current);
+        endAcquireTimeoutRef.current = setTimeout(() => {
+          if (!cancelled) setIsAcquiring(false);
+        }, ACQUIRE_MS);
+        scheduleNextCycle();
       }, delay);
     };
 
@@ -112,10 +93,7 @@ export default function RotatingWord({ minIntervalMs = 8000, maxIntervalMs = 160
     <span className="hero-word text-primary font-mono">
       <span className="hero-word__slot">
         <span className="hero-word__sizer" aria-hidden="true">[{LONGEST_WORD}]</span>
-        <span
-          className={isGlitching ? 'hero-word__value glitch-active' : 'hero-word__value'}
-          style={{ '--glitch-dur': `${glitchDurMs}ms` }}
-        >
+        <span className={isAcquiring ? 'hero-word__value hero-word__value--acquire' : 'hero-word__value'}>
           [{currentWord}]
         </span>
       </span>

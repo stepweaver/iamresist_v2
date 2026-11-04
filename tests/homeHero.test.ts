@@ -50,15 +50,20 @@ describe('tactical hero overlay', () => {
     expect(frameClasses).not.toContain('bg-hud-red/55');
     expect(frameClasses).not.toContain('left-8');
     expect(frameClasses).toContain('signal-frame__corner');
+    expect(frameClasses).toContain('signal-frame__rail');
+    expect(frameClasses).toContain('signal-frame__ticks');
     expect(frameClasses).not.toContain('border-dashed');
     expect(reticle.props.className).toContain('signal-plate');
     expect(reticle.props.className).toContain('pointer-events-none');
     expect(reticle.props['aria-hidden']).toBe('true');
     expect(reticle.props['data-testid']).toBe('hero-reticle');
     expect(reticleClasses).toContain('signal-plate__rail');
+    expect(reticleClasses).toContain('optical-scan');
+    expect(reticleClasses).toContain('pointer-events-none');
     expect(reticleClasses).not.toContain('border-dashed');
     expect(reticleClasses).not.toContain('rounded-full');
     expect(reticleClasses).not.toContain('bg-hud-red/35');
+    expect(reticleClasses).not.toContain('scanline');
   });
 });
 

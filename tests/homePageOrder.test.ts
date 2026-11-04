@@ -141,6 +141,8 @@ describe('homepage editorial order', () => {
     expect(heroClassNames).toContain('aspect-[1500/839]');
     expect(heroClassNames).toContain('object-contain');
     expect(heroClassNames).toContain('hero-mark');
+    expect(heroClassNames).toContain('signal-stage');
+    expect(heroClassNames).not.toContain('scanline');
     expect(heroClassNames).not.toContain('lg:inset-[');
     expect(heroClassNames).not.toContain('lg:aspect-square');
     expect(hero.filter((element) => element.type === 'h1')).toHaveLength(1);

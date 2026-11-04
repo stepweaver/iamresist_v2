@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import NewswireImageBlock from '@/components/newswire/NewswireImageBlock';
 import { formatJournalMetaDate } from '@/lib/utils/date';
 
-export default function NewswireHeadlineCard({ story, compact = false, hero = false, loading = 'lazy' }) {
+export default function NewswireHeadlineCard({ story, compact = false, hero = false, loading = 'lazy', className = '' }) {
   const { source, title, url, publishedAt, excerpt, image, supportUrl, note } = story;
   const linkUrl = url || '#';
   const hasImageFromFeed = Boolean(image);
@@ -24,7 +24,7 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
 
   if (hero) {
     return (
-      <article className="group machine-panel border border-border hover:border-[var(--hud-red)]/50 p-3 sm:p-5 transition-all duration-200 hover:shadow-[0_0_20px_var(--hud-red-dim)]">
+      <article className={`group machine-panel border border-border hover:border-[var(--hud-red)]/50 p-3 sm:p-5 transition-all duration-200 hover:shadow-[0_0_20px_var(--hud-red-dim)] ${className}`}>
         <div className="flex flex-col gap-2 sm:gap-4">
           {showImageColumn ? (
             <NewswireImageBlock
@@ -115,7 +115,7 @@ export default function NewswireHeadlineCard({ story, compact = false, hero = fa
 
   return (
     <article
-      className={`${panelClass} ${showImageColumn ? 'flex flex-col gap-4 sm:flex-row sm:gap-5' : ''}`}
+      className={`${panelClass} ${showImageColumn ? 'flex flex-col gap-4 sm:flex-row sm:gap-5' : ''} ${className}`}
     >
       {showImageColumn ? (
         <NewswireImageBlock

@@ -412,8 +412,11 @@
 }
 
 :root.light .machine-panel.signal-stage.hud-stage {
+  /* Brighter registration metal against the paper page. Signal red stays. */
+  --obs-cyan: #d5e1e8;
+  --obs-frame: rgba(213, 225, 232, 0.62);
   background:
-    linear-gradient(180deg, rgba(139, 169, 188, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(213, 225, 232, 0.08), transparent 34%),
     linear-gradient(115deg, #131c27, #080a0d 74%);
 }
 
@@ -678,8 +681,17 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .scanline::after,
-  .glitch-active {
+  .glitch-active,
+  .optical-scan__travel,
+  .optical-scan__beam,
+  .hero-word__value--acquire,
+  .hero-word__value--acquire::after {
     animation: none;
+  }
+
+  .optical-scan__beam,
+  .hero-word__value--acquire::after {
+    opacity: 0;
   }
 }
 
