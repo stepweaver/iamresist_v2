@@ -15,6 +15,13 @@ vi.mock('@/lib/journal', () => ({
   getJournalEntryById: async () => null,
   getAllJournalEntries: async () => [],
   journalEntryBodyEditedTime: async () => null,
+  resolvePublishedJournalEntry: async (slug) => {
+    const entry = state.entry && (state.entry.slug === slug || state.entry.id === slug) ? state.entry : null;
+    return entry
+      ? { entry, availability: 'available' }
+      : { entry: null, availability: 'missing' };
+  },
+  readJournalEntryBlocks: async () => ({ status: 'ok', blocks: state.blocks }),
 }));
 
 vi.mock('@/lib/notion-blocks', () => ({

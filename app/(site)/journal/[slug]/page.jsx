@@ -1,3 +1,4 @@
+import { unstable_noStore } from 'next/cache';
 import { notFound } from 'next/navigation';
 import NotionBlocksBody from '@/components/content/NotionBlocksBody';
 import JournalArticle from '@/components/journal/JournalArticle';
@@ -12,12 +13,11 @@ import {
 import { journalSubscriptionUrl } from '@/lib/journalSubscribe';
 import StructuredData from '@/components/seo/StructuredData';
 import {
-  getJournalEntryBySlug,
-  getJournalEntryById,
   getAllJournalEntries,
   journalEntryBodyEditedTime,
+  readJournalEntryBlocks,
+  resolvePublishedJournalEntry,
 } from '@/lib/journal';
-import { getCachedPageBlocks } from '@/lib/notion-blocks';
 import { presentJournalEditorial } from '@/lib/journal/presentJournalEditorial';
 import { buildPageMetadata } from '@/lib/metadata';
 import { buildArticleSchema, buildBreadcrumbListSchema } from '@/lib/seo/schema';
@@ -25,10 +25,16 @@ import { buildSeoExcerptFromBlocks, pickSeoDescription } from '@/lib/seo/text';
 
 export const revalidate = 300;
 
-async function resolveJournalEntry(slug) {
-  let entry = await getJournalEntryBySlug(slug);
-  if (!entry) entry = await getJournalEntryById(slug);
-  return entry;
+function JournalTemporarilyUnavailable() {
+  return (
+    <main className="mx-auto max-w-3xl px-4 py-16">
+      <p className="font-mono text-xs uppercase tracking-[0.16em] text-primary">Journal</p>
+      <h1 className="mt-3 text-3xl font-semibold">This essay is temporarily unavailable.</h1>
+      <p className="mt-4 max-w-[62ch] text-base leading-relaxed text-foreground/80">
+        Refresh in a minute. Published essays stay in the catalog when the journal cannot be read.
+      </p>
+    </main>
+  );
 }
 
 function getJournalCanonicalPath(entry) {
@@ -64,9 +70,15 @@ export const dynamicParams = true;
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  const entry = await resolveJournalEntry(slug);
+  const resolved = await resolvePublishedJournalEntry(slug);
+  if (resolved.availability === 'unavailable') {
+    unstable_noStore();
+    return { title: 'Journal | I AM [RESIST]' };
+  }
+  const entry = resolved.entry;
   if (!entry) return { title: 'Journal Entry Not Found | I AM [RESIST]' };
-  const blocks = await getCachedPageBlocks(entry.id);
+  const loaded = await readJournalEntryBlocks(entry.id);
+  const blocks = loaded.blocks;
   const title = entry.title || 'Journal Entry';
   const description = buildJournalDescription(entry, blocks);
   const canonicalPath = getJournalCanonicalPath(entry);
@@ -81,11 +93,17 @@ export async function generateMetadata({ params }) {
 
 export default async function JournalEntryPage({ params }) {
   const { slug } = await params;
-  const entry = await resolveJournalEntry(slug);
+  const resolved = await resolvePublishedJournalEntry(slug);
+  if (resolved.availability === 'unavailable') {
+    unstable_noStore();
+    return <JournalTemporarilyUnavailable />;
+  }
+  const entry = resolved.entry;
 
   if (!entry) notFound();
 
-  const blocks = await getCachedPageBlocks(entry.id);
+  const loaded = await readJournalEntryBlocks(entry.id);
+  const blocks = loaded.blocks;
   const canonicalPath = getJournalCanonicalPath(entry);
   const description = buildJournalDescription(entry, blocks);
   const presented = presentJournalEditorial(entry, blocks, canonicalPath);
@@ -134,7 +152,11 @@ export default async function JournalEntryPage({ params }) {
         )}
         featured={entry.featured === true}
       >
-        {blocks.length > 0 ? (
+        {loaded.status === 'unavailable' ? (
+          <p className="journal-empty-copy">
+            [ TEMPORARILY UNAVAILABLE ] This essay is published. Its text could not be loaded just now.
+          </p>
+        ) : blocks.length > 0 ? (
           <NotionBlocksBody
             blocks={blocks}
             variant="journal"
@@ -143,7 +165,7 @@ export default async function JournalEntryPage({ params }) {
         ) : (
           <p className="journal-empty-copy">
             [ NO BODY BLOCKS ] - The entry is published in Notion but has no
-            block content yet, or blocks could not be loaded.
+            block content yet.
           </p>
         )}
       </JournalArticle>

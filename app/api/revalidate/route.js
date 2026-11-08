@@ -1,10 +1,13 @@
 /**
  * POST /api/revalidate — on-demand cache invalidation for feed caches.
  * Secured by CRON_SECRET (Authorization: Bearer <CRON_SECRET>).
- * Optional JSON body: { "tags": ["newswire", ...] } subset of FEED_TAGS.
+ * Optional JSON body: { "tags": ["journal", ...] } subset of FEED_TAGS.
+ * The journal tag also expires essay bodies and the homepage, archive, and essay routes.
+ * Notion has no webhook here, so a normal publish still appears on the cache interval
+ * and on a direct essay lookup. This endpoint is the manual flush.
  */
 
-import { revalidateTag } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { env } from '@/lib/env';
 import { assertCronAuthorized } from '@/lib/ops/cronAuth';
 
@@ -23,6 +26,7 @@ const FEED_TAGS = [
   'protest-music',
   'curated-videos',
   'journal',
+  'notion-blocks',
   'bookclub',
 ];
 
@@ -57,7 +61,18 @@ export async function POST(req) {
       revalidateTag(tag);
     }
 
-    return Response.json({ ok: true, revalidated: tagsToRun });
+    const revalidatedPaths = [];
+    if (tagsToRun.includes('journal')) {
+      revalidateTag('notion-blocks');
+      for (const path of ['/', '/journal']) {
+        revalidatePath(path);
+        revalidatedPaths.push(path);
+      }
+      revalidatePath('/journal/[slug]', 'page');
+      revalidatedPaths.push('/journal/[slug]');
+    }
+
+    return Response.json({ ok: true, revalidated: tagsToRun, revalidatedPaths });
   } catch (err) {
     console.error('[revalidate] Failed:', err);
     return Response.json({ error: err.message }, { status: 500 });

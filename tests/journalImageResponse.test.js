@@ -93,6 +93,15 @@ describe('journal image endpoint', () => {
     const expired = await proxyNotionEditorialFile(NOTION_FILE, async () => imageResponse(PNG, { status: 403 }));
     expect(expired).toBeNull();
 
+    const expiredDelivery = await createJournalImageResponse({
+      editorial: { hosting: 'notion-file', url: NOTION_FILE },
+      requestUrl: 'https://www.iamresist.org/journal/essay/image',
+      fetchImpl: async () => imageResponse(PNG, { status: 403 }),
+    });
+    expect(expiredDelivery.status).toBe(404);
+    expect(expiredDelivery.headers.get('x-journal-image-result')).toBe('expired');
+    expect(expiredDelivery.headers.get('cache-control')).toContain('no-store');
+
     const html = await proxyNotionEditorialFile(
       NOTION_FILE,
       async () => imageResponse(new TextEncoder().encode('<html></html>'), { type: 'text/html' }),

@@ -143,6 +143,8 @@ describe('homepage editorial section', () => {
     expect(classes).toContain('lg:col-span-2');
     expect(classes).toContain('max-w-[62ch]');
     expect(classes).toContain('whitespace-nowrap');
+    expect(classes).toContain('grid-cols-[4.75rem_minmax(0,1fr)]');
+    expect(classes).toContain('line-clamp-3');
     expect(classes).not.toContain('max-w-5xl');
     expect(testIds.indexOf('home-featured-essay')).toBeGreaterThanOrEqual(0);
     expect(testIds.indexOf('home-featured-essay')).toBeLessThan(testIds.indexOf('home-recent-essays'));
@@ -247,6 +249,73 @@ describe('homepage editorial section', () => {
     const { default: JournalSection } = await import('@/components/home/JournalSection');
     const section = await JournalSection();
     expect(srcsOf(section)).toContain('/journal/older-essay/image');
+    journal.resolveJournalListingImage.mockReset();
+    journal.resolveJournalListingImage.mockImplementation(async () => null);
+  });
+
+  it('keeps the newest featured essay when several are checked', async () => {
+    journal.getHomepageJournalEntries.mockResolvedValue([
+      { id: 'old', slug: 'old-featured', title: 'Older Featured', date: '2026-01-01', summary: 'The earlier checked essay.', featured: true },
+      { id: 'mid', slug: 'mid-featured', title: 'Newer Featured', date: '2026-06-01', summary: 'The later checked essay.', featured: true },
+      { id: 'new', slug: 'newest-essay', title: 'Newest Essay', date: '2026-10-01', summary: 'The later piece.' },
+    ]);
+    const { default: JournalSection } = await import('@/components/home/JournalSection');
+    const section = await JournalSection();
+    const text = textOf(section).join(' ');
+    const hrefs = hrefsOf(section);
+
+    expect(text).toContain('Featured Essay');
+    expect(text.indexOf('Newer Featured')).toBeLessThan(text.indexOf('Newest Essay'));
+    expect(text.indexOf('Newest Essay')).toBeLessThan(text.indexOf('Older Featured'));
+    expect(hrefs.filter((href) => href === '/journal/mid-featured')).toHaveLength(1);
+    expect(hrefs.filter((href) => href === '/journal/newest-essay')).toHaveLength(1);
+    expect(hrefs.filter((href) => href === '/journal/old-featured')).toHaveLength(1);
+  });
+
+  it('uses a body excerpt and a fixed thumbnail for a recent essay', async () => {
+    journal.loadJournalLeadCopy.mockImplementation(async (entry: { slug?: string; summary?: string; readingMinutes?: number }) => {
+      if (entry?.slug === 'diagram-essay') {
+        return { excerpt: 'A paragraph taken from the essay body.', readingMinutes: 3 };
+      }
+      return {
+        excerpt: String(entry?.summary || '').trim(),
+        readingMinutes: Number(entry?.readingMinutes) || 0,
+      };
+    });
+    journal.resolveJournalListingImage.mockImplementation(async (entry?: { slug?: string }) => {
+      if (entry?.slug === 'diagram-essay') {
+        return { src: '/journal/diagram-essay/image', alt: 'Diagram', fit: 'contain' };
+      }
+      if (entry?.slug === 'photo-essay') {
+        return { src: '/journal/photo-essay/image', alt: 'Photograph', fit: 'crop' };
+      }
+      return null;
+    });
+    journal.getHomepageJournalEntries.mockResolvedValue([
+      { id: 'new', slug: 'newest-essay', title: 'Newest Essay', date: '2026-10-01', summary: 'The later piece.' },
+      { id: 'diagram', slug: 'diagram-essay', title: 'Diagram Essay', date: '2026-08-01', summary: '' },
+      { id: 'photo', slug: 'photo-essay', title: 'Photo Essay', date: '2026-04-01', summary: 'A cropped photograph.' },
+    ]);
+    const { default: JournalSection } = await import('@/components/home/JournalSection');
+    const section = await JournalSection();
+    const text = textOf(section).join(' ');
+    const classes = classNamesOf(section);
+
+    expect(text).toContain('A paragraph taken from the essay body.');
+    expect(text).toContain('A cropped photograph.');
+    expect(journal.loadJournalLeadCopy).toHaveBeenCalledWith(expect.objectContaining({ slug: 'diagram-essay' }));
+    expect(classes.some((name) => name.includes('h-[4.5rem]') && name.includes('object-contain'))).toBe(false);
+    expect(classes.some((name) => name.includes('object-contain') && name.includes('object-center'))).toBe(true);
+    expect(classes.some((name) => name.includes('object-cover') && name.includes('h-full'))).toBe(true);
+    expect(classes.some((name) => name.includes('h-[4.5rem]') && name.includes('w-full'))).toBe(true);
+    expect(hrefsOf(section).filter((href) => href === '/journal/diagram-essay')).toHaveLength(1);
+    expect(hrefsOf(section).filter((href) => href === '/journal/photo-essay')).toHaveLength(1);
+
+    journal.loadJournalLeadCopy.mockReset();
+    journal.loadJournalLeadCopy.mockImplementation(async (entry: { summary?: string; readingMinutes?: number }) => ({
+      excerpt: String(entry?.summary || '').trim(),
+      readingMinutes: Number(entry?.readingMinutes) || 0,
+    }));
     journal.resolveJournalListingImage.mockReset();
     journal.resolveJournalListingImage.mockImplementation(async () => null);
   });

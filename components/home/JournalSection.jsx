@@ -214,21 +214,42 @@ function LatestEssay({ entry }) {
   );
 }
 
+function RecentThumbnail({ image }) {
+  const fit = image?.src ? journalImageFit(image) : '';
+  return (
+    <span className="flex h-[4.5rem] w-full items-center justify-center overflow-hidden border border-border bg-foreground/[0.03] sm:h-20">
+      {image?.src ? (
+        <img
+          src={image.src}
+          alt=""
+          width={image.width || undefined}
+          height={image.height || undefined}
+          decoding="async"
+          className={
+            fit === 'crop'
+              ? 'h-full w-full object-cover'
+              : 'h-full w-full object-contain object-center'
+          }
+        />
+      ) : null}
+    </span>
+  );
+}
+
 function RecentEssayLink({ entry }) {
   const href = journalEntryPath(entry);
   const title = entry.title || 'Untitled Essay';
   const excerpt = journalDisplayExcerpt(entry);
   const category = essayTags(entry)[0] || '';
-  const fit = entry.image?.src ? journalImageFit(entry.image) : '';
 
   return (
     <li>
       <Link
         href={href}
-        className="group flex min-h-11 flex-col gap-3 px-1 py-3 transition-colors hover:bg-foreground/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:flex-row sm:items-start"
+        className="group grid min-h-11 grid-cols-[4.75rem_minmax(0,1fr)] items-start gap-3 px-1 py-3 transition-colors hover:bg-foreground/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:grid-cols-[5.5rem_minmax(0,1fr)] sm:gap-4"
       >
-        {fit === 'crop' ? <EssayArtwork image={entry.image} size="compact" /> : null}
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <RecentThumbnail image={entry.image} />
+        <span className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
               {category || 'Essay'}
@@ -236,17 +257,19 @@ function RecentEssayLink({ entry }) {
             <EssayDate entry={entry} className="shrink-0 whitespace-nowrap" />
           </span>
           <span
-            className="human-rail__item-title transition-colors group-hover:text-primary"
+            className="human-rail__item-title break-words transition-colors group-hover:text-primary"
             style={displayFont}
           >
             {title}
           </span>
           {excerpt ? (
-            <span className="line-clamp-2 max-w-[62ch] text-sm leading-relaxed text-foreground/70" style={bodyFont}>
+            <span className="line-clamp-3 break-words text-sm leading-relaxed text-foreground/75" style={bodyFont}>
               {excerpt}
             </span>
           ) : null}
-          {fit === 'contain' ? <EssayArtwork image={entry.image} size="compact" /> : null}
+          <span className="nav-label mt-1 inline-flex text-[11px] tracking-[0.14em] text-primary/80 transition-colors group-hover:text-primary">
+            Read
+          </span>
         </span>
       </Link>
     </li>
@@ -292,7 +315,9 @@ export default async function JournalSection() {
 
   const feature = await decorate(primary, { leadCopy: true });
   const latest = distinctLatest ? await decorate(distinctLatest, { leadCopy: true }) : null;
-  const recentWithArt = await Promise.all(selection.recent.map((entry) => decorate(entry)));
+  const recentWithArt = await Promise.all(
+    selection.recent.map((entry) => decorate(entry, { leadCopy: true })),
+  );
 
   return (
     <section
